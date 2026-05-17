@@ -50,6 +50,10 @@ const fallbackSnapshot: CockpitSnapshot = {
 };
 
 export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
+  if (!process.env.DATABASE_URL) {
+    return fallbackSnapshot;
+  }
+
   try {
     const [agentRows, taskRows, projectRows, taskCounts] = await Promise.all([
       db.select().from(agents).orderBy(agents.name),
