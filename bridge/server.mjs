@@ -212,6 +212,36 @@ async function updateTask(input) {
   return mapTask(rows[0]);
 }
 
+async function reorderTasks(input) {
+  await ensureTaskBoardColumns();
+  const updates = Array.isArray(input.updates) ? input.updates : [];
+  if (!updates.length) return { updated: 0 };
+
+  const normalized = updates
+    .map((update) => ({
+      id: String(update.id ?? '').trim(),
+      status: normalizeTaskStatus(String(update.status ?? 'backlog')),
+      position: Number(update.position ?? 0)
+    }))
+    .filter((update) => update.id);
+
+  await sql.begin(async (tx) => {
+    for (const update of normalized) {
+      await tx`
+        update tasks
+        set status = ${update.status}, position = ${update.position}, updated_at = now()
+        where id = ${update.id}
+      `;
+    }
+    await tx`
+      insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+      values (${crypto.randomUUID()}, null, 'cai', 'board_reordered', ${`Kanban board reordered (${normalized.length} updates)`}, ${sql.json({ updates: normalized, source: 'cockpit' })})
+    `;
+  });
+
+  return { updated: normalized.length };
+}
+
 async function runCommand(url) {
   const command = String(url.searchParams.get('command') ?? '').trim();
   const startedAt = new Date().toISOString();
@@ -568,6 +598,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'PATCH' && url.pathname === '/tasks') {
       return send(res, 200, await updateTask(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/tasks/reorder') {
+      return send(res, 200, await reorderTasks(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/memory/search') {

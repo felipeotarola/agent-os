@@ -24,15 +24,12 @@ async function persistBoard(columns: KanbanColumns) {
     tasks.map((task, index) => ({ id: task.id, status, position: (index + 1) * 1000 }))
   );
 
-  await Promise.all(
-    updates.map((update) =>
-      fetch('/api/tasks', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(update)
-      })
-    )
-  );
+  const response = await fetch('/api/tasks/reorder', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ updates })
+  });
+  if (!response.ok) throw new Error(await response.text());
 }
 
 export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }: KanbanBoardProps) {
