@@ -30,16 +30,15 @@ const fallbackSnapshot: KnowledgeSnapshot = {
 };
 
 export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
-  if (!process.env.DATABASE_URL) {
-    if (hasBridge()) {
-      try {
-        return await bridgeRequest<KnowledgeSnapshot>('/knowledge/snapshot');
-      } catch (error) {
-        console.error('Knowledge bridge snapshot failed', error);
-      }
+  if (hasBridge()) {
+    try {
+      return await bridgeRequest<KnowledgeSnapshot>('/knowledge/snapshot');
+    } catch (error) {
+      console.error('Knowledge bridge snapshot failed', error);
     }
-    return fallbackSnapshot;
   }
+
+  if (!process.env.DATABASE_URL) return fallbackSnapshot;
 
   try {
     const [sources, counts] = await Promise.all([

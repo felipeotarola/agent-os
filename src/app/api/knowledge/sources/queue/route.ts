@@ -11,16 +11,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/knowledge?error=missing', request.url), 303);
   }
 
-  if (!process.env.DATABASE_URL) {
-    if (!hasBridge()) {
-      return NextResponse.redirect(new URL('/dashboard/knowledge?error=no-db', request.url), 303);
-    }
-
+  if (hasBridge()) {
     await bridgeRequest('/knowledge/sources/queue', {
       method: 'POST',
       body: JSON.stringify({ id })
     });
     return NextResponse.redirect(new URL('/dashboard/knowledge?queued=1', request.url), 303);
+  }
+
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.redirect(new URL('/dashboard/knowledge?error=no-db', request.url), 303);
   }
 
   await db
