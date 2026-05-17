@@ -15,6 +15,13 @@
       "when": 1779020553281,
       "tag": "0001_remarkable_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779029533230,
+      "tag": "0002_eminent_daredevil",
+      "breakpoints": true
     }
   ]
 }

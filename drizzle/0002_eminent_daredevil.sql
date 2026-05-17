@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_sources" ADD COLUMN "wiki_content" text DEFAULT '' NOT NULL;

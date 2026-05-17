@@ -51,10 +51,73 @@ function inferKind(sourceUrl, rawContent) {
   return 'note';
 }
 
+function firstSentence(value) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const match = normalized.match(/^(.{40,260}?[.!?])\s/);
+  return (match?.[1] ?? normalized.slice(0, 220)).trim();
+}
+
+function keyPoints(rawContent, sourceUrl) {
+  const lines = rawContent
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const candidates = lines.length ? lines : rawContent.split(/(?<=[.!?])\s+/).map((line) => line.trim());
+  const points = candidates
+    .filter((line) => line.length > 20)
+    .slice(0, 6)
+    .map((line) => line.replace(/^[-*•]\s*/, '').slice(0, 260));
+
+  if (!points.length && sourceUrl) return [`Source URL captured for later reading: ${sourceUrl}`];
+  if (!points.length) return ['No substantial raw text was provided yet.'];
+  return points;
+}
+
+function wikifySource(source) {
+  const title = String(source.title ?? '').trim();
+  const sourceUrl = String(source.sourceUrl ?? source.source_url ?? '').trim();
+  const rawContent = String(source.rawContent ?? source.raw_content ?? '').trim();
+  const date = new Date().toISOString().slice(0, 10);
+  const wikiPath = `knowledge/wiki/${date}-${slugify(title) || crypto.randomUUID()}.md`;
+  const summary = rawContent ? firstSentence(rawContent) : sourceUrl || 'Knowledge source captured.';
+  const now = new Date().toISOString();
+  const points = keyPoints(rawContent, sourceUrl);
+  const wikiContent = [
+    '---',
+    `title: ${JSON.stringify(title)}`,
+    'status: wikified',
+    `source_url: ${JSON.stringify(sourceUrl || null)}`,
+    `updated_at: ${JSON.stringify(now)}`,
+    '---',
+    '',
+    `# ${title}`,
+    '',
+    '## Summary',
+    '',
+    summary,
+    '',
+    '## Key points',
+    '',
+    ...points.map((point) => `- ${point}`),
+    '',
+    '## Source',
+    '',
+    sourceUrl ? `- ${sourceUrl}` : '- Inline/raw note',
+    '',
+    '## Next questions',
+    '',
+    '- What decision or project should this knowledge inform?',
+    '- Does this source need deeper synthesis with related notes?',
+    ''
+  ].join('\n');
+
+  return { summary, wikiPath, wikiContent };
+}
+
 async function knowledgeSnapshot() {
   const [sources, counts] = await Promise.all([
     sql`
-      select id, title, kind, status, source_url as "sourceUrl", summary, raw_path as "rawPath", wiki_path as "wikiPath", created_at as "createdAt"
+      select id, title, kind, status, source_url as "sourceUrl", summary, raw_path as "rawPath", wiki_path as "wikiPath", wiki_content as "wikiContent", created_at as "createdAt"
       from knowledge_sources
       order by created_at desc
       limit 20
@@ -107,9 +170,22 @@ async function queueKnowledgeSource(input) {
     error.status = 400;
     throw error;
   }
+  const source = await sql`
+    select id, title, source_url as "sourceUrl", raw_content as "rawContent"
+    from knowledge_sources
+    where id = ${id}
+    limit 1
+  `;
+  if (!source.length) {
+    const error = new Error('source not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const wiki = wikifySource(source[0]);
   const result = await sql`
     update knowledge_sources
-    set status = 'queued', updated_at = now(), metadata = ${sql.json({ queuedFrom: 'bridge', queuedAt: new Date().toISOString() })}
+    set status = 'wikified', summary = ${wiki.summary}, wiki_path = ${wiki.wikiPath}, wiki_content = ${wiki.wikiContent}, updated_at = now(), metadata = ${sql.json({ wikifiedFrom: 'bridge', wikifiedAt: new Date().toISOString() })}
     where id = ${id}
     returning id, title, status
   `;

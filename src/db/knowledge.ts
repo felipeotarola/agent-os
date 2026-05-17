@@ -14,6 +14,7 @@ export type KnowledgeSnapshot = {
     summary: string;
     rawPath: string;
     wikiPath: string | null;
+    wikiContent: string;
     createdAt: Date;
   }>;
   stats: Array<{ label: string; value: string; detail: string }>;
@@ -65,6 +66,7 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
         summary: source.summary,
         rawPath: source.rawPath,
         wikiPath: source.wikiPath,
+        wikiContent: source.wikiContent,
         createdAt: source.createdAt
       })),
       stats: [

@@ -10,7 +10,7 @@ import { getKnowledgeSnapshot } from '@/db/knowledge';
 export default async function KnowledgePage({
   searchParams
 }: {
-  searchParams: Promise<{ created?: string; queued?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; queued?: string; wikified?: string; error?: string }>;
 }) {
   const [snapshot, params] = await Promise.all([getKnowledgeSnapshot(), searchParams]);
 
@@ -39,6 +39,7 @@ export default async function KnowledgePage({
             <CardContent className='pt-6 text-sm'>
               {params.created && 'Källa sparad i raw-inboxen.'}
               {params.queued && 'Källa köad för wikifiering.'}
+              {params.wikified && 'Källa wikifierad till en knowledge page.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
               {params.error === 'missing' && 'Titel och antingen URL eller råtext krävs.'}
@@ -100,7 +101,7 @@ export default async function KnowledgePage({
           <Card className='xl:col-span-3'>
             <CardHeader>
               <CardTitle>Raw inbox</CardTitle>
-              <CardDescription>Källor som ska processas till wiki-sidor.</CardDescription>
+              <CardDescription>Källor och wikifierade knowledge-sidor.</CardDescription>
             </CardHeader>
             <CardContent className='space-y-3'>
               {snapshot.sources.length === 0 ? (
@@ -123,7 +124,7 @@ export default async function KnowledgePage({
                           {source.summary || 'Ingen sammanfattning ännu.'}
                         </div>
                         <div className='text-muted-foreground font-mono text-xs'>
-                          {source.rawPath}
+                          {source.wikiPath ?? source.rawPath}
                         </div>
                         {source.sourceUrl && (
                           <a
@@ -134,11 +135,21 @@ export default async function KnowledgePage({
                             {source.sourceUrl}
                           </a>
                         )}
+                        {source.wikiContent && (
+                          <details className='mt-3 rounded-lg border bg-muted/30 p-3'>
+                            <summary className='cursor-pointer text-sm font-medium'>
+                              Visa wiki
+                            </summary>
+                            <pre className='text-muted-foreground mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-relaxed'>
+                              {source.wikiContent}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                       <form action='/api/knowledge/sources/queue' method='post'>
                         <input type='hidden' name='id' value={source.id} />
                         <Button size='sm' variant='outline' disabled={source.status !== 'raw'}>
-                          Wikifiera
+                          {source.status === 'wikified' ? 'Wikifierad' : 'Wikifiera'}
                         </Button>
                       </form>
                     </div>

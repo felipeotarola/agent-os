@@ -70,6 +70,7 @@ export const knowledgeSources = pgTable('knowledge_sources', {
   rawContent: text('raw_content').notNull().default(''),
   rawPath: text('raw_path').notNull().default(''),
   wikiPath: text('wiki_path'),
+  wikiContent: text('wiki_content').notNull().default(''),
   summary: text('summary').notNull().default(''),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
