@@ -114,6 +114,89 @@ function wikifySource(source) {
   return { summary, wikiPath, wikiContent };
 }
 
+function rawMarkdown(source) {
+  return [
+    '---',
+    `title: ${JSON.stringify(source.title)}`,
+    `kind: ${JSON.stringify(source.kind)}`,
+    `status: ${JSON.stringify(source.status)}`,
+    `source_url: ${JSON.stringify(source.sourceUrl)}`,
+    `created_at: ${JSON.stringify(new Date(source.createdAt).toISOString())}`,
+    '---',
+    '',
+    `# ${source.title}`,
+    '',
+    source.rawPath ? `Raw path: \`${source.rawPath}\`` : '',
+    source.sourceUrl ? `Source: ${source.sourceUrl}` : '',
+    '',
+    '## Summary',
+    '',
+    source.summary || 'No summary yet.',
+    ''
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
+}
+
+function buildVaultSnapshot(sources) {
+  const wikified = sources.filter((source) => source.status === 'wikified' && source.wikiPath);
+  const raw = sources.filter((source) => source.status !== 'wikified');
+  const agentsMd = [
+    '# agents.md',
+    '',
+    'You are operating inside the Agent OS vault.',
+    '',
+    'Rules:',
+    '- Treat `/raw` as source material, not final truth.',
+    '- Treat `/wiki` as synthesized working knowledge.',
+    '- Preserve source links and paths when updating wiki pages.',
+    '- Prefer small, durable pages about people, projects, agents, decisions, concepts, and systems.',
+    '- Do not create one wiki page per chat message; extract stable entities and decisions instead.',
+    '- Update `index.md` and `log.md` after processing sources.',
+    ''
+  ].join('\n');
+  const indexMd = [
+    '# Agent OS Vault Index',
+    '',
+    'This is an Obsidian-compatible export generated from Agent OS.',
+    '',
+    '## Wiki pages',
+    '',
+    ...(wikified.length ? wikified.map((source) => `- [[${source.wikiPath}]] — ${source.title}`) : ['- No wiki pages yet.']),
+    '',
+    '## Raw sources',
+    '',
+    ...(raw.length ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`) : ['- No raw sources waiting.']),
+    '',
+    '## Root files',
+    '',
+    '- [[agents.md]]',
+    '- [[log.md]]',
+    ''
+  ].join('\n');
+  const logMd = [
+    '# Agent OS Vault Log',
+    '',
+    ...sources.map((source) => {
+      const target = source.wikiPath ?? source.rawPath;
+      return `- ${new Date(source.createdAt).toISOString()} — ${source.status} — [[${target}]] — ${source.title}`;
+    }),
+    ''
+  ].join('\n');
+  const files = [
+    { path: 'agents.md', content: agentsMd },
+    { path: 'index.md', content: indexMd },
+    { path: 'log.md', content: logMd }
+  ];
+  for (const source of sources) {
+    files.push({ path: source.rawPath, content: rawMarkdown(source) });
+    if (source.status === 'wikified' && source.wikiPath && source.wikiContent) {
+      files.push({ path: source.wikiPath, content: source.wikiContent });
+    }
+  }
+  return { files, indexMd, logMd, agentsMd };
+}
+
 async function knowledgeSnapshot() {
   const [sources, counts] = await Promise.all([
     sql`
@@ -126,6 +209,7 @@ async function knowledgeSnapshot() {
   ]);
 
   const byStatus = new Map(counts.map((row) => [row.status, Number(row.count)]));
+  const vault = buildVaultSnapshot(sources);
   return {
     dbOnline: true,
     sources,
@@ -133,7 +217,8 @@ async function knowledgeSnapshot() {
       { label: 'Raw inbox', value: String(byStatus.get('raw') ?? 0), detail: 'Nya källor som väntar på syntes' },
       { label: 'Köade', value: String(byStatus.get('queued') ?? 0), detail: 'Markerade för wikifiering' },
       { label: 'Wikifierade', value: String(byStatus.get('wikified') ?? 0), detail: 'Syntetiserade knowledge pages' }
-    ]
+    ],
+    vault
   };
 }
 

@@ -59,6 +59,44 @@ export default async function KnowledgePage({
           ))}
         </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Obsidian vault</CardTitle>
+            <CardDescription>
+              Markdown-strukturen som agenter och Obsidian ska läsa: raw, wiki, index, log och
+              agents.md.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
+            <div className='rounded-xl border bg-background/40 p-4'>
+              <div className='text-muted-foreground text-sm'>Vault files</div>
+              <div className='text-3xl font-semibold'>{snapshot.vault.files.length}</div>
+              <div className='text-muted-foreground mt-2 text-xs'>
+                Root docs + raw sources + wikified pages
+              </div>
+            </div>
+            <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-2'>
+              <summary className='cursor-pointer text-sm font-medium'>Visa index.md</summary>
+              <pre className='text-muted-foreground mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-relaxed'>
+                {snapshot.vault.indexMd}
+              </pre>
+            </details>
+            <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-3'>
+              <summary className='cursor-pointer text-sm font-medium'>
+                Visa agents.md / log.md
+              </summary>
+              <div className='mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2'>
+                <pre className='text-muted-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border bg-background/60 p-3 text-xs leading-relaxed'>
+                  {snapshot.vault.agentsMd}
+                </pre>
+                <pre className='text-muted-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border bg-background/60 p-3 text-xs leading-relaxed'>
+                  {snapshot.vault.logMd}
+                </pre>
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+
         <div className='grid grid-cols-1 gap-4 xl:grid-cols-5'>
           <Card className='xl:col-span-2'>
             <CardHeader>
