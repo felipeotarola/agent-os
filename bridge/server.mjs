@@ -52,6 +52,76 @@ async function memoryStatus() {
   }
 }
 
+async function systemStatus() {
+  const [db, knowledge, memory] = await Promise.all([
+    sql`select 1 as ok, now() as now`,
+    sql`select status, count(*)::int as count from knowledge_sources group by status`,
+    memoryStatus()
+  ]);
+  const knowledgeCounts = Object.fromEntries(knowledge.map((row) => [row.status, Number(row.count)]));
+  const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
+  return {
+    ok: true,
+    bridge: {
+      status: 'online',
+      uptimeSeconds: Math.round(process.uptime()),
+      now: db[0]?.now ?? new Date().toISOString()
+    },
+    db: { status: db[0]?.ok === 1 ? 'online' : 'unknown' },
+    agents: { count: configuredAgents().length, source: 'bridge:AGENT_OS_AGENTS_JSON' },
+    knowledge: {
+      raw: knowledgeCounts.raw ?? 0,
+      queued: knowledgeCounts.queued ?? 0,
+      wikified: knowledgeCounts.wikified ?? 0
+    },
+    memory: {
+      source: memory.source,
+      ok: !memory.error,
+      agents: memoryAgents.map((entry) => ({
+        agentId: entry.agentId,
+        backend: entry.status?.backend,
+        files: entry.status?.files,
+        chunks: entry.status?.chunks,
+        dirty: entry.status?.dirty,
+        sources: entry.status?.sources ?? []
+      })),
+      error: memory.error
+    }
+  };
+}
+
+async function runCommand(url) {
+  const command = String(url.searchParams.get('command') ?? '').trim();
+  const startedAt = new Date().toISOString();
+
+  if (command === 'bridge-health') {
+    return { command, startedAt, finishedAt: new Date().toISOString(), result: await systemStatus() };
+  }
+  if (command === 'agents-list') {
+    return { command, startedAt, finishedAt: new Date().toISOString(), result: { agents: configuredAgents() } };
+  }
+  if (command === 'memory-status') {
+    return { command, startedAt, finishedAt: new Date().toISOString(), result: await memoryStatus() };
+  }
+  if (command === 'knowledge-snapshot') {
+    const snapshot = await knowledgeSnapshot();
+    return {
+      command,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      result: {
+        stats: snapshot.stats,
+        sourceCount: snapshot.sources.length,
+        vaultFileCount: snapshot.vault.files.length
+      }
+    };
+  }
+
+  const error = new Error('unsupported command');
+  error.status = 400;
+  throw error;
+}
+
 function send(res, status, body) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -356,6 +426,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/agents') {
       return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/system/status') {
+      return send(res, 200, await systemStatus());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/commands/run') {
+      return send(res, 200, await runCommand(url));
     }
 
     if (req.method === 'GET' && url.pathname === '/memory/search') {

@@ -27,7 +27,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Command',
-        url: '/dashboard/chat',
+        url: '/dashboard/command',
         icon: 'chat',
         shortcut: ['c', 'c'],
         items: []
