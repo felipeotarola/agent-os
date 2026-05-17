@@ -14,7 +14,7 @@ services:
       - bridge
 
   bridge:
-    image: node:22-alpine
+    image: node:22-bookworm-slim
     container_name: agent-os-bridge
     restart: unless-stopped
     working_dir: /app
@@ -26,6 +26,11 @@ services:
       AGENT_OS_AGENTS_JSON: ${AGENT_OS_AGENTS_JSON:-[]}
     volumes:
       - ./:/app:ro
+      - /root/.openclaw:/root/.openclaw:ro
+      - /usr/bin/openclaw:/usr/bin/openclaw:ro
+      - ./bridge/bin/qmd:/usr/bin/qmd:ro
+      - /usr/lib/node_modules/openclaw:/usr/lib/node_modules/openclaw:ro
+      - /usr/lib/node_modules/@tobilu/qmd:/usr/lib/node_modules/@tobilu/qmd:ro
     expose:
       - '8787'
     depends_on:

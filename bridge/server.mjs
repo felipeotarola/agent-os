@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import postgres from 'postgres';
 
 const port = Number(process.env.BRIDGE_PORT ?? 8787);
@@ -9,6 +11,7 @@ if (!token) throw new Error('AGENT_OS_BRIDGE_TOKEN is required');
 if (!databaseUrl) throw new Error('BRIDGE_DATABASE_URL or DATABASE_URL is required');
 
 const sql = postgres(databaseUrl, { max: 5, prepare: false });
+const execFileAsync = promisify(execFile);
 
 function configuredAgents() {
   try {
@@ -16,6 +19,36 @@ function configuredAgents() {
   } catch (error) {
     console.error('Failed to parse AGENT_OS_AGENTS_JSON', error);
     return [];
+  }
+}
+
+async function openclawJson(args) {
+  const { stdout } = await execFileAsync('node', ['/usr/lib/node_modules/openclaw/dist/entry.js', ...args], {
+    timeout: 20000,
+    maxBuffer: 1024 * 1024 * 4,
+    env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
+  });
+  return JSON.parse(stdout);
+}
+
+async function memorySearch(url) {
+  const query = String(url.searchParams.get('query') ?? '').trim();
+  const corpus = String(url.searchParams.get('corpus') ?? 'all');
+  const maxResults = Math.min(Number(url.searchParams.get('maxResults') ?? 8), 20);
+
+  if (!query) return { query, corpus, results: [], source: 'openclaw-memory:qmd' };
+
+  const payload = await openclawJson(['memory', 'search', query, '--json', '--max-results', String(maxResults)]);
+  const rawResults = Array.isArray(payload.results) ? payload.results : [];
+  const results = corpus === 'all' ? rawResults : rawResults.filter((result) => result.source === corpus);
+  return { query, corpus, results, source: 'openclaw-memory:qmd' };
+}
+
+async function memoryStatus() {
+  try {
+    return { status: await openclawJson(['memory', 'status', '--json']), source: 'openclaw-memory:qmd' };
+  } catch (error) {
+    return { status: null, source: 'openclaw-memory:qmd', error: error.message };
   }
 }
 
@@ -323,6 +356,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/agents') {
       return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/memory/search') {
+      return send(res, 200, await memorySearch(url));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/memory/status') {
+      return send(res, 200, await memoryStatus());
     }
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources') {

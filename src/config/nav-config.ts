@@ -60,7 +60,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Memory',
-        url: '/dashboard/react-query',
+        url: '/dashboard/memory',
         icon: 'sparkles',
         shortcut: ['m', 'm'],
         items: []
