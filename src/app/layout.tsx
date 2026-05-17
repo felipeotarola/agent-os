@@ -12,12 +12,12 @@ import '../styles/globals.css';
 
 const META_THEME_COLORS = {
   light: '#ffffff',
-  dark: '#09090b'
+  dark: '#07111f'
 };
 
 export const metadata: Metadata = {
-  title: 'Next Shadcn',
-  description: 'Basic dashboard with Next.js and Shadcn'
+  title: 'Cai OS',
+  description: 'Agent OS cockpit for local AI orchestration'
 };
 
 export const viewport: Viewport = {
@@ -56,8 +56,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NuqsAdapter>
           <ThemeProvider
             attribute='class'
-            defaultTheme='system'
-            enableSystem
+            defaultTheme='dark'
+            enableSystem={false}
             disableTransitionOnChange
             enableColorScheme
           >
