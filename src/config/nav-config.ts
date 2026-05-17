@@ -46,7 +46,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Wiki',
-        url: '/dashboard/product',
+        url: '/dashboard/wiki',
         icon: 'page',
         shortcut: ['w', 'w'],
         items: []
