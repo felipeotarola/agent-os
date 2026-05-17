@@ -139,6 +139,21 @@ function rawMarkdown(source) {
 }
 
 function buildVaultSnapshot(sources) {
+  const seen = new Set();
+  const uniquePath = (path) => {
+    if (!seen.has(path)) {
+      seen.add(path);
+      return path;
+    }
+    const dot = path.lastIndexOf('.');
+    const base = dot > -1 ? path.slice(0, dot) : path;
+    const ext = dot > -1 ? path.slice(dot) : '';
+    let index = 2;
+    while (seen.has(`${base}-${index}${ext}`)) index++;
+    const next = `${base}-${index}${ext}`;
+    seen.add(next);
+    return next;
+  };
   const wikified = sources.filter((source) => source.status === 'wikified' && source.wikiPath);
   const raw = sources.filter((source) => source.status !== 'wikified');
   const agentsMd = [
@@ -184,14 +199,14 @@ function buildVaultSnapshot(sources) {
     ''
   ].join('\n');
   const files = [
-    { path: 'agents.md', content: agentsMd },
-    { path: 'index.md', content: indexMd },
-    { path: 'log.md', content: logMd }
+    { path: uniquePath('agents.md'), content: agentsMd },
+    { path: uniquePath('index.md'), content: indexMd },
+    { path: uniquePath('log.md'), content: logMd }
   ];
   for (const source of sources) {
-    files.push({ path: source.rawPath, content: rawMarkdown(source) });
+    files.push({ path: uniquePath(source.rawPath), content: rawMarkdown(source) });
     if (source.status === 'wikified' && source.wikiPath && source.wikiContent) {
-      files.push({ path: source.wikiPath, content: source.wikiContent });
+      files.push({ path: uniquePath(source.wikiPath), content: source.wikiContent });
     }
   }
   return { files, indexMd, logMd, agentsMd };

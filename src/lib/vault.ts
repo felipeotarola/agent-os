@@ -23,6 +23,22 @@ export type VaultSnapshot = {
   agentsMd: string;
 };
 
+function uniquePath(path: string, seen: Set<string>) {
+  if (!seen.has(path)) {
+    seen.add(path);
+    return path;
+  }
+
+  const dot = path.lastIndexOf('.');
+  const base = dot > -1 ? path.slice(0, dot) : path;
+  const ext = dot > -1 ? path.slice(dot) : '';
+  let index = 2;
+  while (seen.has(`${base}-${index}${ext}`)) index++;
+  const next = `${base}-${index}${ext}`;
+  seen.add(next);
+  return next;
+}
+
 function isoDate(value: Date | string) {
   return new Date(value).toISOString();
 }
@@ -119,16 +135,17 @@ function buildAgentsMd() {
 }
 
 export function buildVaultSnapshot(sources: VaultSource[]): VaultSnapshot {
+  const seen = new Set<string>();
   const files: VaultFile[] = [
-    { path: 'agents.md', content: buildAgentsMd() },
-    { path: 'index.md', content: buildIndex(sources) },
-    { path: 'log.md', content: buildLog(sources) }
+    { path: uniquePath('agents.md', seen), content: buildAgentsMd() },
+    { path: uniquePath('index.md', seen), content: buildIndex(sources) },
+    { path: uniquePath('log.md', seen), content: buildLog(sources) }
   ];
 
   for (const source of sources) {
-    files.push({ path: source.rawPath, content: rawMarkdown(source) });
+    files.push({ path: uniquePath(source.rawPath, seen), content: rawMarkdown(source) });
     if (source.status === 'wikified' && source.wikiPath && source.wikiContent) {
-      files.push({ path: source.wikiPath, content: source.wikiContent });
+      files.push({ path: uniquePath(source.wikiPath, seen), content: source.wikiContent });
     }
   }
 

@@ -61,11 +61,18 @@ export default async function KnowledgePage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Obsidian vault</CardTitle>
-            <CardDescription>
-              Markdown-strukturen som agenter och Obsidian ska läsa: raw, wiki, index, log och
-              agents.md.
-            </CardDescription>
+            <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+              <div>
+                <CardTitle>Obsidian vault</CardTitle>
+                <CardDescription>
+                  Markdown-strukturen som agenter och Obsidian ska läsa: raw, wiki, index, log och
+                  agents.md.
+                </CardDescription>
+              </div>
+              <Button asChild variant='outline'>
+                <a href='/api/knowledge/vault/export'>Download vault.zip</a>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
             <div className='rounded-xl border bg-background/40 p-4'>
@@ -92,6 +99,21 @@ export default async function KnowledgePage({
                 <pre className='text-muted-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border bg-background/60 p-3 text-xs leading-relaxed'>
                   {snapshot.vault.logMd}
                 </pre>
+              </div>
+            </details>
+            <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-3'>
+              <summary className='cursor-pointer text-sm font-medium'>
+                Visa alla vault-filer
+              </summary>
+              <div className='mt-3 grid grid-cols-1 gap-2 md:grid-cols-2'>
+                {snapshot.vault.files.map((file) => (
+                  <div key={file.path} className='rounded-lg border bg-background/60 p-3'>
+                    <div className='font-mono text-xs'>{file.path}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      {file.content.length} chars
+                    </div>
+                  </div>
+                ))}
               </div>
             </details>
           </CardContent>
