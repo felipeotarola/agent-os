@@ -1,74 +1,54 @@
-'use client';
-
 import { Icons } from '@/components/icons';
 import PageContainer from '@/components/layout/page-container';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { NotificationCard } from '@/components/ui/notification-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useRouter } from 'next/navigation';
-import { useNotificationStore } from '../utils/store';
+import { getNotifications, type CockpitNotification } from '@/db/notifications';
 
-const actionRoutes: Record<string, string> = {
-  view: '/dashboard/workspaces',
-  'view-product': '/dashboard/product',
-  billing: '/dashboard/billing',
-  open: '/dashboard/kanban',
-  'open-chat': '/dashboard/chat'
-};
-
-export default function NotificationsPage() {
-  const { notifications, markAsRead, markAllAsRead, unreadCount } = useNotificationStore();
-  const router = useRouter();
-  const count = unreadCount();
-
-  const unreadNotifications = notifications.filter((n) => n.status === 'unread');
-  const readNotifications = notifications.filter((n) => n.status === 'read');
-
-  const renderList = (items: typeof notifications) => {
-    if (items.length === 0) {
-      return (
-        <div className='flex flex-col items-center justify-center py-16'>
-          <Icons.notification className='text-muted-foreground/40 mb-3 h-10 w-10' />
-          <p className='text-muted-foreground text-sm'>No notifications</p>
-        </div>
-      );
-    }
-
+function renderList(items: CockpitNotification[]) {
+  if (items.length === 0) {
     return (
-      <div className='flex flex-col gap-2'>
-        {items.map((notification) => (
-          <NotificationCard
-            key={notification.id}
-            id={notification.id}
-            title={notification.title}
-            body={notification.body}
-            status={notification.status}
-            createdAt={notification.createdAt}
-            actions={notification.actions}
-            onMarkAsRead={markAsRead}
-            onAction={(notifId, actionId) => {
-              const route = actionRoutes[actionId];
-              if (route) {
-                markAsRead(notifId);
-                router.push(route);
-              }
-            }}
-          />
-        ))}
+      <div className='flex flex-col items-center justify-center py-16'>
+        <Icons.notification className='text-muted-foreground/40 mb-3 h-10 w-10' />
+        <p className='text-muted-foreground text-sm'>No notifications</p>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className='flex flex-col gap-2'>
+      {items.map((notification) => (
+        <NotificationCard
+          key={notification.id}
+          id={notification.id}
+          title={notification.title}
+          body={notification.body}
+          status={notification.status}
+          createdAt={notification.createdAt}
+          actions={notification.actions}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default async function NotificationsPage() {
+  const snapshot = await getNotifications();
+  const notifications = snapshot.notifications;
+  const unreadNotifications = notifications.filter(
+    (notification) => notification.status === 'unread'
+  );
+  const readNotifications = notifications.filter((notification) => notification.status === 'read');
 
   return (
     <PageContainer
       pageTitle='Notifications'
-      pageDescription='View and manage all your notifications.'
+      pageDescription='Relevant Agent OS signals from tasks, knowledge, memory and audit events.'
       pageHeaderAction={
-        count > 0 ? (
-          <Button variant='outline' size='sm' onClick={markAllAsRead}>
-            Mark all as read
-          </Button>
-        ) : undefined
+        <div className='flex flex-wrap items-center gap-2'>
+          <Badge variant='outline'>{snapshot.source}</Badge>
+          <Badge variant='secondary'>{snapshot.unreadCount} unread</Badge>
+        </div>
       }
     >
       <Tabs defaultValue='all'>

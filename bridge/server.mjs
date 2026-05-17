@@ -219,6 +219,108 @@ async function overviewSnapshot() {
   };
 }
 
+function notificationAction(id, label, href) {
+  return { id, label, type: 'redirect', style: 'primary', href };
+}
+
+async function notificationsSnapshot() {
+  const [waitingTasks, rawKnowledge, recentEvents, memory] = await Promise.all([
+    sql`
+      select t.id, t.title, t.description, t.status, t.updated_at as "updatedAt", p.name as "projectName"
+      from tasks t
+      left join projects p on p.id = t.project_id
+      where t.status in ('waiting', 'review')
+      order by t.updated_at desc
+      limit 8
+    `,
+    sql`
+      select id, title, status, created_at as "createdAt"
+      from knowledge_sources
+      where status in ('raw', 'queued')
+      order by created_at desc
+      limit 8
+    `,
+    sql`
+      select id, kind, message, created_at as "createdAt"
+      from task_events
+      order by created_at desc
+      limit 8
+    `,
+    memoryStatus()
+  ]);
+
+  const notifications = [];
+
+  for (const task of waitingTasks) {
+    notifications.push({
+      id: `task:${task.id}:${task.status}`,
+      title: task.status === 'review' ? 'Task redo för review' : 'Task väntar på input',
+      body: `${task.title}${task.projectName ? ` · ${task.projectName}` : ''}`,
+      status: 'unread',
+      kind: 'task',
+      createdAt: new Date(task.updatedAt).toISOString(),
+      actions: [notificationAction('open-tasks', 'Open tasks', '/dashboard/kanban')]
+    });
+  }
+
+  for (const source of rawKnowledge) {
+    notifications.push({
+      id: `knowledge:${source.id}:${source.status}`,
+      title: source.status === 'queued' ? 'Knowledge källa köad' : 'Ny raw knowledge väntar',
+      body: source.title,
+      status: 'unread',
+      kind: 'knowledge',
+      createdAt: new Date(source.createdAt).toISOString(),
+      actions: [notificationAction('open-knowledge', 'Open inbox', '/dashboard/knowledge')]
+    });
+  }
+
+  const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
+  for (const entry of memoryAgents.filter((entry) => entry.status?.dirty)) {
+    notifications.push({
+      id: `memory:${entry.agentId}:dirty`,
+      title: 'Memory index är dirty',
+      body: `${entry.agentId} har ändringar som behöver indexeras.`,
+      status: 'unread',
+      kind: 'memory',
+      createdAt: new Date().toISOString(),
+      actions: [notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')]
+    });
+  }
+
+  if (memory.error) {
+    notifications.push({
+      id: 'memory:error',
+      title: 'Memory status error',
+      body: memory.error,
+      status: 'unread',
+      kind: 'system',
+      createdAt: new Date().toISOString(),
+      actions: [notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')]
+    });
+  }
+
+  for (const event of recentEvents.slice(0, 5)) {
+    notifications.push({
+      id: `event:${event.id}`,
+      title: `Task event: ${event.kind}`,
+      body: event.message,
+      status: 'read',
+      kind: 'event',
+      createdAt: new Date(event.createdAt).toISOString(),
+      actions: [notificationAction('open-overview', 'Open overview', '/dashboard/overview')]
+    });
+  }
+
+  notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return {
+    notifications,
+    unreadCount: notifications.filter((notification) => notification.status === 'unread').length,
+    generatedAt: new Date().toISOString(),
+    source: 'bridge:postgres+openclaw'
+  };
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -652,6 +754,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/overview') {
       return send(res, 200, await overviewSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/notifications') {
+      return send(res, 200, await notificationsSnapshot());
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {
