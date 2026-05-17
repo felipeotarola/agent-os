@@ -11,11 +11,12 @@ export async function POST(request: NextRequest) {
   const password = String(formData.get('password') ?? '');
   const adminEmail = readAuthEnv('ADMIN_EMAIL')?.toLowerCase();
 
-  if (
-    !adminEmail ||
-    email !== adminEmail ||
-    !verifyPassword(password, readAuthEnv('ADMIN_PASSWORD_HASH'))
-  ) {
+  const plainPassword = readAuthEnv('ADMIN_PASSWORD');
+  const passwordMatches = plainPassword
+    ? password === plainPassword
+    : verifyPassword(password, readAuthEnv('ADMIN_PASSWORD_HASH'));
+
+  if (!adminEmail || email !== adminEmail || !passwordMatches) {
     return NextResponse.redirect(new URL('/auth/sign-in?error=invalid', request.url), 303);
   }
 
