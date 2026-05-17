@@ -61,8 +61,24 @@ export const artifacts = pgTable('artifacts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const knowledgeSources = pgTable('knowledge_sources', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull().default('note'),
+  status: text('status').notNull().default('raw'),
+  sourceUrl: text('source_url'),
+  rawContent: text('raw_content').notNull().default(''),
+  rawPath: text('raw_path').notNull().default(''),
+  wikiPath: text('wiki_path'),
+  summary: text('summary').notNull().default(''),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type TaskEvent = typeof taskEvents.$inferSelect;
 export type Artifact = typeof artifacts.$inferSelect;
+export type KnowledgeSource = typeof knowledgeSources.$inferSelect;

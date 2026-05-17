@@ -38,6 +38,13 @@ export const navGroups: NavGroup[] = [
     label: 'Knowledge',
     items: [
       {
+        title: 'Knowledge Inbox',
+        url: '/dashboard/knowledge',
+        icon: 'sparkles',
+        shortcut: ['k', 'i'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/product',
         icon: 'page',
