@@ -1,13 +1,33 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+import { getSessionFromRequest } from '@/lib/auth/session';
+import { NextRequest, NextResponse } from 'next/server';
 
-const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+const publicPaths = ['/auth/sign-in', '/terms-of-service', '/privacy-policy'];
 
-export default hasClerk
-  ? clerkMiddleware()
-  : function proxy() {
-      return NextResponse.next();
-    };
+function isPublicPath(pathname: string) {
+  return publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+export default async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith('/auth/sign-up')) {
+    return NextResponse.redirect(new URL('/auth/sign-in?signup=disabled', request.url));
+  }
+
+  if (isPublicPath(pathname) || pathname.startsWith('/api/auth')) {
+    return NextResponse.next();
+  }
+
+  const isProtected = pathname === '/' || pathname.startsWith('/dashboard');
+  if (!isProtected) return NextResponse.next();
+
+  const session = await getSessionFromRequest(request);
+  if (session) return NextResponse.next();
+
+  const signInUrl = new URL('/auth/sign-in', request.url);
+  signInUrl.searchParams.set('next', pathname);
+  return NextResponse.redirect(signInUrl);
+}
 
 export const config = {
   matcher: [
