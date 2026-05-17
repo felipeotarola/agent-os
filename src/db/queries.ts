@@ -1,11 +1,23 @@
 import { desc, sql as drizzleSql } from 'drizzle-orm';
+import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { db } from './client';
 import { agents, projects, tasks } from './schema';
 
 export type CockpitSnapshot = {
   stats: Array<{ label: string; value: string; detail: string; tone: string }>;
-  tasks: Array<{ title: string; detail: string; status: string }>;
+  tasks: Array<{
+    title: string;
+    detail: string;
+    status: string;
+    owner?: string;
+    project?: string;
+    priority?: string;
+  }>;
   agents: Array<{ name: string; role: string; detail: string; status: string }>;
+  knowledge?: { raw: number; queued: number; wikified: number; progress: number };
+  taskStatus?: Record<string, number>;
+  events?: Array<{ kind: string; message: string; createdAt: string }>;
+  generatedAt?: string;
   dbOnline: boolean;
 };
 
@@ -50,6 +62,14 @@ const fallbackSnapshot: CockpitSnapshot = {
 };
 
 export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
+  if (hasBridge()) {
+    try {
+      return await bridgeRequest<CockpitSnapshot>('/overview');
+    } catch (error) {
+      console.error('Overview bridge snapshot failed', error);
+    }
+  }
+
   if (!process.env.DATABASE_URL) {
     return fallbackSnapshot;
   }

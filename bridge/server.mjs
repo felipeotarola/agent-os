@@ -153,6 +153,72 @@ async function tasksSnapshot() {
   };
 }
 
+async function overviewSnapshot() {
+  await ensureTaskBoardColumns();
+  const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory] = await Promise.all([
+    sql`select id, name, role, detail, status from agents order by name`,
+    sql`select id, name, status, summary, priority from projects order by priority desc, name`,
+    sql`
+      select t.id, t.title, t.description, t.status, t.priority, t.owner_agent_id as "ownerAgentId", p.name as "projectName", t.updated_at as "updatedAt"
+      from tasks t
+      left join projects p on p.id = t.project_id
+      order by t.position asc, t.priority desc, t.updated_at desc
+      limit 8
+    `,
+    sql`select status, count(*)::int as count from tasks group by status`,
+    sql`select status, count(*)::int as count from knowledge_sources group by status`,
+    sql`
+      select kind, message, created_at as "createdAt"
+      from task_events
+      order by created_at desc
+      limit 6
+    `,
+    memoryStatus()
+  ]);
+
+  const taskByStatus = new Map(taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)]));
+  const knowledgeByStatus = new Map(knowledgeCounts.map((row) => [row.status, Number(row.count)]));
+  const openTasks = [...taskByStatus.entries()]
+    .filter(([status]) => !['done', 'cancelled'].includes(status))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const activeProjects = projectRows.filter((project) => project.status === 'active').length;
+  const onlineAgents = agentRows.filter((agent) => agent.status === 'online').length;
+  const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
+  const memoryChunks = memoryAgents.reduce((sum, entry) => sum + Number(entry.status?.chunks ?? 0), 0);
+  const wikified = knowledgeByStatus.get('wikified') ?? 0;
+  const raw = knowledgeByStatus.get('raw') ?? 0;
+  const knowledgeTotal = wikified + raw + (knowledgeByStatus.get('queued') ?? 0);
+  const knowledgeProgress = knowledgeTotal ? Math.round((wikified / knowledgeTotal) * 100) : 0;
+
+  return {
+    dbOnline: true,
+    generatedAt: new Date().toISOString(),
+    stats: [
+      { label: 'Aktiva projekt', value: String(activeProjects), detail: projectRows.slice(0, 3).map((project) => project.name).join(', '), tone: 'Postgres' },
+      { label: 'Öppna tasks', value: String(openTasks), detail: `${taskByStatus.get('in_progress') ?? 0} in progress · ${taskByStatus.get('review') ?? 0} review · ${taskByStatus.get('waiting') ?? 0} waiting`, tone: 'Live board' },
+      { label: 'Agenter online', value: `${onlineAgents}/${agentRows.length}`, detail: agentRows.map((agent) => agent.name).join(', '), tone: 'OpenClaw' },
+      { label: 'Memory chunks', value: String(memoryChunks), detail: memory.error ? memory.error : `${memoryAgents.length} indexed agents`, tone: 'QMD' }
+    ],
+    tasks: taskRows.map((task) => ({
+      title: task.title,
+      detail: task.description,
+      status: normalizeTaskStatus(task.status),
+      owner: task.ownerAgentId,
+      project: task.projectName,
+      priority: taskPriorityLabel(task.priority)
+    })),
+    agents: agentRows.map((agent) => ({ name: agent.name, role: agent.role, detail: agent.detail, status: agent.status })),
+    knowledge: {
+      raw,
+      queued: knowledgeByStatus.get('queued') ?? 0,
+      wikified,
+      progress: knowledgeProgress
+    },
+    taskStatus: Object.fromEntries(taskByStatus),
+    events: events.map((event) => ({ kind: event.kind, message: event.message, createdAt: new Date(event.createdAt).toISOString() }))
+  };
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -582,6 +648,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/system/status') {
       return send(res, 200, await systemStatus());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/overview') {
+      return send(res, 200, await overviewSnapshot());
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {
