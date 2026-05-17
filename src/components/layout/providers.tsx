@@ -14,10 +14,13 @@ export default function Providers({
   children: React.ReactNode;
 }) {
   const { resolvedTheme } = useTheme();
+  const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+  const app = <QueryProvider>{children}</QueryProvider>;
 
   return (
-    <>
-      <ActiveThemeProvider initialTheme={activeThemeValue}>
+    <ActiveThemeProvider initialTheme={activeThemeValue}>
+      {hasClerk ? (
         <ClerkProvider
           appearance={{
             baseTheme: resolvedTheme === 'dark' ? dark : undefined,
@@ -37,9 +40,11 @@ export default function Providers({
             }
           }}
         >
-          <QueryProvider>{children}</QueryProvider>
+          {app}
         </ClerkProvider>
-      </ActiveThemeProvider>
-    </>
+      ) : (
+        app
+      )}
+    </ActiveThemeProvider>
   );
 }
