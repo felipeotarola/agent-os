@@ -10,6 +10,15 @@ if (!databaseUrl) throw new Error('BRIDGE_DATABASE_URL or DATABASE_URL is requir
 
 const sql = postgres(databaseUrl, { max: 5, prepare: false });
 
+function configuredAgents() {
+  try {
+    return JSON.parse(process.env.AGENT_OS_AGENTS_JSON ?? '[]');
+  } catch (error) {
+    console.error('Failed to parse AGENT_OS_AGENTS_JSON', error);
+    return [];
+  }
+}
+
 function send(res, status, body) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -310,6 +319,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/knowledge/snapshot') {
       return send(res, 200, await knowledgeSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/agents') {
+      return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
     }
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources') {

@@ -20,7 +20,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Agents',
-        url: '/dashboard/users',
+        url: '/dashboard/agents',
         icon: 'teams',
         shortcut: ['a', 'a'],
         items: []

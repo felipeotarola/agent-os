@@ -23,6 +23,7 @@ services:
       BRIDGE_PORT: 8787
       BRIDGE_DATABASE_URL: postgres://agent_os:${POSTGRES_PASSWORD:-agent_os_local_password}@postgres:5432/${POSTGRES_DB:-agent_os}
       AGENT_OS_BRIDGE_TOKEN: ${AGENT_OS_BRIDGE_TOKEN:?AGENT_OS_BRIDGE_TOKEN is required}
+      AGENT_OS_AGENTS_JSON: ${AGENT_OS_AGENTS_JSON:-[]}
     volumes:
       - ./:/app:ro
     expose:
