@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     .filter(Boolean)
     .join('\n');
 
-  await bridgeRequest('/knowledge/sources', {
+  const created = await bridgeRequest<{ id: string }>('/knowledge/sources', {
     method: 'POST',
     body: JSON.stringify({
       title,
@@ -25,5 +25,12 @@ export async function POST(request: NextRequest) {
     })
   });
 
-  return NextResponse.redirect(new URL('/dashboard/memory?saved=1', request.url), 303);
+  if (created.id) {
+    await bridgeRequest('/knowledge/sources/queue', {
+      method: 'POST',
+      body: JSON.stringify({ id: created.id })
+    });
+  }
+
+  return NextResponse.redirect(new URL('/dashboard/memory?saved=1&wikified=1', request.url), 303);
 }

@@ -16,7 +16,13 @@ import { searchMemory } from '@/db/memory';
 export default async function MemoryPage({
   searchParams
 }: {
-  searchParams: Promise<{ query?: string; corpus?: string; saved?: string; error?: string }>;
+  searchParams: Promise<{
+    query?: string;
+    corpus?: string;
+    saved?: string;
+    wikified?: string;
+    error?: string;
+  }>;
 }) {
   const params = await searchParams;
   const query = params.query ?? '';
@@ -48,7 +54,8 @@ export default async function MemoryPage({
             className={params.error || memory.error ? 'border-destructive/40' : 'border-primary/40'}
           >
             <CardContent className='pt-6 text-sm'>
-              {params.saved && 'Minnesträff sparad som raw source i Knowledge Inbox.'}
+              {params.saved &&
+                `Minnesträff sparad som raw source${params.wikified ? ' och wikifierad' : ''} i Knowledge Inbox.`}
               {params.error === 'missing' && 'Titel och snippet krävs.'}
               {memory.error && `Memory search error: ${memory.error}`}
             </CardContent>
