@@ -1,3 +1,4 @@
+import { readAuthEnv } from './env';
 import { NextRequest } from 'next/server';
 
 const encoder = new TextEncoder();
@@ -60,7 +61,7 @@ function timingSafeEqual(a: string, b: string) {
 }
 
 function getAuthSecret() {
-  return process.env.AUTH_SECRET;
+  return readAuthEnv('AUTH_SECRET');
 }
 
 export { sessionCookieName, sessionMaxAgeSeconds };

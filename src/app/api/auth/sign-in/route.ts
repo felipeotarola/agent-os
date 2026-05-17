@@ -1,3 +1,4 @@
+import { readAuthEnv } from '@/lib/auth/env';
 import { verifyPassword } from '@/lib/auth/password';
 import { createSessionToken, sessionCookieName, sessionMaxAgeSeconds } from '@/lib/auth/session';
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,12 +9,12 @@ export async function POST(request: NextRequest) {
     .trim()
     .toLowerCase();
   const password = String(formData.get('password') ?? '');
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminEmail = readAuthEnv('ADMIN_EMAIL')?.toLowerCase();
 
   if (
     !adminEmail ||
     email !== adminEmail ||
-    !verifyPassword(password, process.env.ADMIN_PASSWORD_HASH)
+    !verifyPassword(password, readAuthEnv('ADMIN_PASSWORD_HASH'))
   ) {
     return NextResponse.redirect(new URL('/auth/sign-in?error=invalid', request.url), 303);
   }
