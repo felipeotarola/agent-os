@@ -90,6 +90,128 @@ async function systemStatus() {
   };
 }
 
+async function ensureTaskBoardColumns() {
+  await sql`alter table tasks add column if not exists position integer not null default 0`;
+}
+
+function normalizeTaskStatus(status) {
+  if (status === 'active') return 'in_progress';
+  if (status === 'todo') return 'backlog';
+  if (['backlog', 'in_progress', 'review', 'waiting', 'done', 'cancelled'].includes(status)) return status;
+  return 'backlog';
+}
+
+function taskPriorityLabel(priority) {
+  const value = Number(priority ?? 0);
+  if (value >= 80) return 'high';
+  if (value >= 40) return 'medium';
+  return 'low';
+}
+
+function taskPriorityValue(priority) {
+  if (priority === 'high') return 90;
+  if (priority === 'low') return 20;
+  return 50;
+}
+
+function mapTask(row) {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    title: row.title,
+    description: row.description ?? '',
+    status: normalizeTaskStatus(row.status),
+    priority: taskPriorityLabel(row.priority),
+    priorityValue: Number(row.priority ?? 0),
+    assignee: row.ownerAgentId ?? undefined,
+    source: row.source,
+    dueDate: row.dueAt ? new Date(row.dueAt).toISOString().slice(0, 10) : undefined,
+    position: Number(row.position ?? 0),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined
+  };
+}
+
+async function tasksSnapshot() {
+  await ensureTaskBoardColumns();
+  const rows = await sql`
+    select t.id, t.project_id as "projectId", p.name as "projectName", t.title, t.description, t.status, t.priority, t.owner_agent_id as "ownerAgentId", t.source, t.due_at as "dueAt", t.position, t.updated_at as "updatedAt"
+    from tasks t
+    left join projects p on p.id = t.project_id
+    order by t.position asc, t.priority desc, t.updated_at desc
+  `;
+  const columns = { backlog: [], in_progress: [], review: [], waiting: [], done: [] };
+  for (const row of rows) {
+    const task = mapTask(row);
+    const status = task.status in columns ? task.status : 'backlog';
+    columns[status].push(task);
+  }
+  return {
+    columns,
+    columnOrder: ['backlog', 'in_progress', 'review', 'waiting', 'done'],
+    source: 'bridge:postgres'
+  };
+}
+
+async function createTask(input) {
+  await ensureTaskBoardColumns();
+  const title = String(input.title ?? '').trim();
+  if (!title) {
+    const error = new Error('title is required');
+    error.status = 400;
+    throw error;
+  }
+  const description = String(input.description ?? '').trim();
+  const status = normalizeTaskStatus(String(input.status ?? 'backlog'));
+  const projectId = String(input.projectId ?? 'agent-os').trim() || 'agent-os';
+  const ownerAgentId = String(input.ownerAgentId ?? 'cai').trim() || 'cai';
+  const priority = taskPriorityValue(String(input.priority ?? 'medium'));
+  const [{ position }] = await sql`
+    select coalesce(max(position), 0) + 1000 as position
+    from tasks
+    where status = ${status}
+  `;
+  const id = crypto.randomUUID();
+  const rows = await sql`
+    insert into tasks (id, project_id, title, description, status, priority, owner_agent_id, source, position, updated_at)
+    values (${id}, ${projectId}, ${title}, ${description}, ${status}, ${priority}, ${ownerAgentId}, 'cockpit', ${Number(position)}, now())
+    returning id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
+  `;
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, ${id}, ${ownerAgentId}, 'created', ${`Task created from cockpit: ${title}`}, ${sql.json({ source: 'cockpit' })})
+  `;
+  return mapTask(rows[0]);
+}
+
+async function updateTask(input) {
+  await ensureTaskBoardColumns();
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+  const status = normalizeTaskStatus(String(input.status ?? 'backlog'));
+  const position = Number(input.position ?? 0);
+  const rows = await sql`
+    update tasks
+    set status = ${status}, position = ${position}, updated_at = now()
+    where id = ${id}
+    returning id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
+  `;
+  if (!rows.length) {
+    const error = new Error('task not found');
+    error.status = 404;
+    throw error;
+  }
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, ${id}, 'cai', 'moved', ${`Task moved to ${status}`}, ${sql.json({ status, position, source: 'cockpit' })})
+  `;
+  return mapTask(rows[0]);
+}
+
 async function runCommand(url) {
   const command = String(url.searchParams.get('command') ?? '').trim();
   const startedAt = new Date().toISOString();
@@ -434,6 +556,18 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {
       return send(res, 200, await runCommand(url));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/tasks') {
+      return send(res, 200, await tasksSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/tasks') {
+      return send(res, 201, await createTask(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/tasks') {
+      return send(res, 200, await updateTask(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/memory/search') {

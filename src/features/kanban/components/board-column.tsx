@@ -4,15 +4,8 @@ import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { KanbanColumn, KanbanColumnHandle } from '@/components/ui/kanban';
-import type { Task } from '../utils/store';
+import { COLUMN_TITLES, type Task } from '../utils/store';
 import { TaskCard } from './task-card';
-
-const COLUMN_TITLES: Record<string, string> = {
-  backlog: 'Backlog',
-  inProgress: 'In Progress',
-  review: 'Review',
-  done: 'Done'
-};
 
 interface TaskColumnProps extends Omit<React.ComponentProps<typeof KanbanColumn>, 'children'> {
   tasks: Task[];
