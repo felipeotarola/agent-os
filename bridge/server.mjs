@@ -321,6 +321,109 @@ async function notificationsSnapshot() {
   };
 }
 
+async function ensureAffiliateTables() {
+  await sql`
+    create table if not exists affiliate_accounts (
+      id text primary key,
+      provider text not null,
+      name text not null,
+      tracking_id text not null default '',
+      marketplace text not null default '',
+      status text not null default 'planned',
+      source text not null default 'manual',
+      notes text not null default '',
+      metadata jsonb not null default '{}',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists affiliate_daily_stats (
+      id text primary key,
+      account_id text references affiliate_accounts(id),
+      date date not null,
+      clicks integer not null default 0,
+      ordered_items integer not null default 0,
+      shipped_items integer not null default 0,
+      revenue numeric not null default 0,
+      commission numeric not null default 0,
+      currency text not null default 'SEK',
+      conversion_rate numeric not null default 0,
+      top_products jsonb not null default '[]',
+      source text not null default 'manual',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique(account_id, date)
+    )
+  `;
+}
+
+async function affiliateSnapshot() {
+  await ensureAffiliateTables();
+  const [accounts, rows] = await Promise.all([
+    sql`
+      select id, provider, name, tracking_id as "trackingId", marketplace, status, source, notes, metadata, updated_at as "updatedAt"
+      from affiliate_accounts
+      order by provider, name
+    `,
+    sql`
+      select s.id, s.account_id as "accountId", a.name as "accountName", s.date, s.clicks, s.ordered_items as "orderedItems", s.shipped_items as "shippedItems", s.revenue, s.commission, s.currency, s.conversion_rate as "conversionRate", s.top_products as "topProducts", s.source
+      from affiliate_daily_stats s
+      left join affiliate_accounts a on a.id = s.account_id
+      order by s.date desc
+      limit 60
+    `
+  ]);
+
+  const totals = rows.reduce(
+    (acc, row) => ({
+      clicks: acc.clicks + Number(row.clicks ?? 0),
+      orderedItems: acc.orderedItems + Number(row.orderedItems ?? 0),
+      shippedItems: acc.shippedItems + Number(row.shippedItems ?? 0),
+      revenue: acc.revenue + Number(row.revenue ?? 0),
+      commission: acc.commission + Number(row.commission ?? 0)
+    }),
+    { clicks: 0, orderedItems: 0, shippedItems: 0, revenue: 0, commission: 0 }
+  );
+  const conversionRate = totals.clicks ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2)) : 0;
+
+  return {
+    source: 'bridge:postgres',
+    generatedAt: new Date().toISOString(),
+    configured: accounts.length > 0,
+    connected: rows.length > 0,
+    accounts,
+    totals: { ...totals, conversionRate, currency: rows[0]?.currency ?? 'SEK' },
+    rows,
+    nextSteps: [
+      'Confirm which Amazon Associates/Creator reporting source Sladdis can access.',
+      'Prefer official read-only API/export over browser scraping or manual OAuth loops.',
+      'Store scoped credentials only in bridge/VPS environment, never in Vercel UI.',
+      'Map daily report rows into affiliate_daily_stats and trigger notifications on meaningful changes.'
+    ]
+  };
+}
+
+async function upsertAffiliateAccount(input) {
+  await ensureAffiliateTables();
+  const id = String(input.id ?? crypto.randomUUID()).trim();
+  const provider = String(input.provider ?? 'amazon-associates').trim();
+  const name = String(input.name ?? 'Amazon Associates').trim();
+  const trackingId = String(input.trackingId ?? '').trim();
+  const marketplace = String(input.marketplace ?? '').trim();
+  const status = String(input.status ?? 'planned').trim();
+  const source = String(input.source ?? 'manual').trim();
+  const notes = String(input.notes ?? '').trim();
+  const metadata = typeof input.metadata === 'object' && input.metadata ? input.metadata : {};
+  const rows = await sql`
+    insert into affiliate_accounts (id, provider, name, tracking_id, marketplace, status, source, notes, metadata, updated_at)
+    values (${id}, ${provider}, ${name}, ${trackingId}, ${marketplace}, ${status}, ${source}, ${notes}, ${sql.json(metadata)}, now())
+    on conflict (id) do update set provider = excluded.provider, name = excluded.name, tracking_id = excluded.tracking_id, marketplace = excluded.marketplace, status = excluded.status, source = excluded.source, notes = excluded.notes, metadata = excluded.metadata, updated_at = now()
+    returning id, provider, name, tracking_id as "trackingId", marketplace, status, source, notes, metadata, updated_at as "updatedAt"
+  `;
+  return rows[0];
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -758,6 +861,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/notifications') {
       return send(res, 200, await notificationsSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/affiliate/snapshot') {
+      return send(res, 200, await affiliateSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/accounts') {
+      return send(res, 201, await upsertAffiliateAccount(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {
