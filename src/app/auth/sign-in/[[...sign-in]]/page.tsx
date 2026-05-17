@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import { signInAction } from '../actions';
 
 export const metadata: Metadata = {
   title: 'Sign in | Cai OS',
@@ -37,7 +36,7 @@ export default async function Page({
           </div>
         )}
 
-        <form action={signInAction} className='space-y-4'>
+        <form action='/api/auth/sign-in' method='post' className='space-y-4'>
           <div className='space-y-2'>
             <label htmlFor='email' className='text-sm font-medium'>
               Email
