@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getKnowledgeSnapshot } from '@/db/knowledge';
+import { VaultExplorer } from './vault-explorer';
 
 export default async function KnowledgePage({
   searchParams
@@ -116,6 +117,9 @@ export default async function KnowledgePage({
                 ))}
               </div>
             </details>
+            <div className='xl:col-span-3'>
+              <VaultExplorer files={snapshot.vault.files} />
+            </div>
           </CardContent>
         </Card>
 
