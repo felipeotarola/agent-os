@@ -1,5 +1,6 @@
 import { db } from '@/db/client';
 import { knowledgeSources } from '@/db/schema';
+import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { NextRequest, NextResponse } from 'next/server';
 
 function slugify(value: string) {
@@ -19,10 +20,6 @@ function inferKind(sourceUrl: string, rawContent: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.redirect(new URL('/dashboard/knowledge?error=no-db', request.url), 303);
-  }
-
   const formData = await request.formData();
   const title = String(formData.get('title') ?? '').trim();
   const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
@@ -30,6 +27,18 @@ export async function POST(request: NextRequest) {
 
   if (!title || (!sourceUrl && !rawContent)) {
     return NextResponse.redirect(new URL('/dashboard/knowledge?error=missing', request.url), 303);
+  }
+
+  if (!process.env.DATABASE_URL) {
+    if (!hasBridge()) {
+      return NextResponse.redirect(new URL('/dashboard/knowledge?error=no-db', request.url), 303);
+    }
+
+    await bridgeRequest('/knowledge/sources', {
+      method: 'POST',
+      body: JSON.stringify({ title, sourceUrl, rawContent })
+    });
+    return NextResponse.redirect(new URL('/dashboard/knowledge?created=1', request.url), 303);
   }
 
   const id = crypto.randomUUID();

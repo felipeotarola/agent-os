@@ -1,4 +1,36 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: agent-os-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - bridge
+
+  bridge:
+    image: node:22-alpine
+    container_name: agent-os-bridge
+    restart: unless-stopped
+    working_dir: /app
+    command: node bridge/server.mjs
+    environment:
+      BRIDGE_PORT: 8787
+      BRIDGE_DATABASE_URL: postgres://agent_os:${POSTGRES_PASSWORD:-agent_os_local_password}@postgres:5432/${POSTGRES_DB:-agent_os}
+      AGENT_OS_BRIDGE_TOKEN: ${AGENT_OS_BRIDGE_TOKEN:?AGENT_OS_BRIDGE_TOKEN is required}
+    volumes:
+      - ./:/app:ro
+    expose:
+      - '8787'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: agent-os-postgres
@@ -19,3 +51,5 @@ services:
 
 volumes:
   agent_os_postgres_data:
+  caddy_data:
+  caddy_config:

@@ -1,3 +1,4 @@
+import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { desc, sql as drizzleSql } from 'drizzle-orm';
 import { db } from './client';
 import { knowledgeSources } from './schema';
@@ -29,7 +30,16 @@ const fallbackSnapshot: KnowledgeSnapshot = {
 };
 
 export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
-  if (!process.env.DATABASE_URL) return fallbackSnapshot;
+  if (!process.env.DATABASE_URL) {
+    if (hasBridge()) {
+      try {
+        return await bridgeRequest<KnowledgeSnapshot>('/knowledge/snapshot');
+      } catch (error) {
+        console.error('Knowledge bridge snapshot failed', error);
+      }
+    }
+    return fallbackSnapshot;
+  }
 
   try {
     const [sources, counts] = await Promise.all([
