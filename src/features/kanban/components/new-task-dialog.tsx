@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,32 +29,38 @@ export default function NewTaskDialog() {
           + Add Task
         </Button>
       </DialogTrigger>
-      <DialogContent className='sm:max-w-[520px]'>
-        <DialogHeader>
+      <DialogContent className='w-[calc(100vw-2rem)] max-w-[520px] overflow-hidden sm:max-w-[520px]'>
+        <DialogHeader className='min-w-0 pr-6'>
           <DialogTitle>Add Agent OS task</DialogTitle>
           <DialogDescription>
             Creates a real Postgres-backed task in the cockpit board.
           </DialogDescription>
         </DialogHeader>
-        <form id='task-form' action='/api/tasks' method='post' className='grid gap-4 py-4'>
-          <div className='space-y-2'>
-            <Label htmlFor='title'>Title</Label>
-            <Input id='title' name='title' placeholder='Task title...' required />
-          </div>
-          <div className='space-y-2'>
-            <Label htmlFor='description'>Description</Label>
-            <Textarea
-              id='description'
-              name='description'
-              placeholder='What needs to happen?'
-              className='min-h-28'
+        <form action='/api/tasks' method='post' className='grid min-w-0 max-w-full gap-4 py-4'>
+          <div className='min-w-0 space-y-2'>
+            <Label htmlFor='new-task-title'>Title</Label>
+            <Input
+              id='new-task-title'
+              name='title'
+              placeholder='Task title...'
+              className='max-w-full'
+              required
             />
           </div>
-          <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
-            <div className='space-y-2'>
-              <Label htmlFor='priority'>Priority</Label>
+          <div className='min-w-0 space-y-2'>
+            <Label htmlFor='new-task-description'>Description</Label>
+            <Textarea
+              id='new-task-description'
+              name='description'
+              placeholder='What needs to happen?'
+              className='min-h-28 max-w-full resize-y'
+            />
+          </div>
+          <div className='grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3'>
+            <div className='min-w-0 space-y-2'>
+              <Label htmlFor='new-task-priority'>Priority</Label>
               <Select name='priority' defaultValue='medium'>
-                <SelectTrigger id='priority'>
+                <SelectTrigger id='new-task-priority' className='w-full max-w-full'>
                   <SelectValue placeholder='Priority' />
                 </SelectTrigger>
                 <SelectContent>
@@ -62,10 +70,10 @@ export default function NewTaskDialog() {
                 </SelectContent>
               </Select>
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='ownerAgentId'>Owner</Label>
+            <div className='min-w-0 space-y-2'>
+              <Label htmlFor='new-task-owner'>Owner</Label>
               <Select name='ownerAgentId' defaultValue='cai'>
-                <SelectTrigger id='ownerAgentId'>
+                <SelectTrigger id='new-task-owner' className='w-full max-w-full'>
                   <SelectValue placeholder='Owner' />
                 </SelectTrigger>
                 <SelectContent>
@@ -75,10 +83,10 @@ export default function NewTaskDialog() {
                 </SelectContent>
               </Select>
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='projectId'>Project</Label>
+            <div className='min-w-0 space-y-2'>
+              <Label htmlFor='new-task-project'>Project</Label>
               <Select name='projectId' defaultValue='agent-os'>
-                <SelectTrigger id='projectId'>
+                <SelectTrigger id='new-task-project' className='w-full max-w-full'>
                   <SelectValue placeholder='Project' />
                 </SelectTrigger>
                 <SelectContent>
@@ -90,14 +98,12 @@ export default function NewTaskDialog() {
               </Select>
             </div>
           </div>
-        </form>
-        <DialogFooter>
-          <DialogTrigger asChild>
-            <Button type='submit' size='sm' form='task-form'>
+          <DialogFooter className='min-w-0 pt-2'>
+            <Button type='submit' size='sm' className='w-full sm:w-auto'>
               Add Task
             </Button>
-          </DialogTrigger>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
