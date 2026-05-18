@@ -62,24 +62,18 @@ type GraphTheme = {
 };
 
 function readTheme(): GraphTheme {
-  const style = window.getComputedStyle(document.documentElement);
-  const probe = document.createElement('canvas').getContext('2d');
-  const canvasColor = (raw: string, fallback: string) => {
-    if (!probe || !raw) return fallback;
-    probe.fillStyle = '#010203';
-    probe.fillStyle = raw;
-    return probe.fillStyle === '#010203' ? fallback : raw;
-  };
-  const cssVar = (name: string, fallback: string) =>
-    canvasColor(style.getPropertyValue(name).trim(), fallback);
+  const dark = document.documentElement.classList.contains('dark');
+
+  // Canvas color parsing is less forgiving than CSS. Do not feed it theme tokens/oklch vars;
+  // production rendered a fully black graph when those values were not accepted by canvas.
   return {
-    primary: cssVar('--primary', '#6366f1'),
-    muted: cssVar('--muted', '#27272a'),
-    mutedForeground: cssVar('--muted-foreground', '#a1a1aa'),
-    foreground: cssVar('--foreground', '#fafafa'),
-    border: cssVar('--border', '#3f3f46'),
-    chart2: cssVar('--chart-2', '#22c55e'),
-    chart3: cssVar('--chart-3', '#f59e0b')
+    primary: dark ? '#67e8f9' : '#0891b2',
+    muted: dark ? '#0f172a' : '#f8fafc',
+    mutedForeground: dark ? '#94a3b8' : '#475569',
+    foreground: dark ? '#f8fafc' : '#0f172a',
+    border: dark ? '#334155' : '#cbd5e1',
+    chart2: dark ? '#34d399' : '#059669',
+    chart3: dark ? '#fbbf24' : '#d97706'
   };
 }
 
