@@ -13,6 +13,8 @@ const agentById = Object.fromEntries(chatAgents.map((agent) => [agent.id, agent]
   (typeof chatAgents)[number]
 >;
 
+const historyPollDelaysMs = [900, 1800, 3200, 5200, 8000];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -43,6 +45,18 @@ function roleFrom(value: unknown): ChatMessageRole {
   return 'assistant';
 }
 
+function timestampFrom(value: Record<string, unknown>, fallback: string) {
+  const timestamp = stringFrom(value.createdAt, stringFrom(value.timestamp));
+  if (timestamp) return timestamp;
+
+  const numericTimestamp = value.ts;
+  if (typeof numericTimestamp === 'number' && Number.isFinite(numericTimestamp)) {
+    return new Date(numericTimestamp).toISOString();
+  }
+
+  return fallback;
+}
+
 function normalizeMessage(value: unknown, index: number): ChatMessage | null {
   if (!isRecord(value)) return null;
   const content =
@@ -50,10 +64,10 @@ function normalizeMessage(value: unknown, index: number): ChatMessage | null {
   if (!content.trim()) return null;
 
   return {
-    id: stringFrom(value.id, 'message-' + index + '-' + Date.now()),
+    id: stringFrom(value.id, 'history-message-' + index),
     role: roleFrom(value.role ?? value.sender),
     content,
-    createdAt: stringFrom(value.createdAt, stringFrom(value.timestamp, new Date().toISOString()))
+    createdAt: timestampFrom(value, '2026-01-01T00:00:00.000Z')
   };
 }
 
@@ -81,7 +95,7 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
       stringFrom(payload.response) || textFromContent(payload.content) || stringFrom(payload.text);
     if (content.trim()) {
       return {
-        id: 'assistant-' + Date.now(),
+        id: 'assistant-response',
         role: 'assistant',
         content,
         createdAt: new Date().toISOString()
@@ -90,6 +104,23 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
   }
 
   return null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchHistory(agentId: AgentId) {
+  const params = new URLSearchParams({ agent: agentId });
+  const response = await fetch('/api/chat/history?' + params.toString(), {
+    headers: { accept: 'application/json' }
+  });
+
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error('History request failed with ' + response.status);
+
+  const payload: unknown = await response.json();
+  return extractMessages(payload);
 }
 
 export function Messenger() {
@@ -113,24 +144,25 @@ export function Messenger() {
   const selectedAgent = agentById[selectedAgentId];
   const messages = messagesByAgent[selectedAgentId];
 
+  const loadHistory = useCallback(
+    async (agentId: AgentId) => {
+      const history = await fetchHistory(agentId);
+      setHistory(agentId, history);
+      return history;
+    },
+    [setHistory]
+  );
+
   useEffect(() => {
     let ignore = false;
 
-    async function loadHistory() {
+    async function loadSelectedAgentHistory() {
       setIsLoadingHistory(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams({ agent: selectedAgentId });
-        const response = await fetch('/api/chat/history?' + params.toString(), {
-          headers: { accept: 'application/json' }
-        });
-
-        if (response.status === 404) return;
-        if (!response.ok) throw new Error('History request failed with ' + response.status);
-
-        const payload: unknown = await response.json();
-        if (!ignore) setHistory(selectedAgentId, extractMessages(payload));
+        const history = await fetchHistory(selectedAgentId);
+        if (!ignore) setHistory(selectedAgentId, history);
       } catch (loadError) {
         if (!ignore) {
           setError(
@@ -144,7 +176,7 @@ export function Messenger() {
       }
     }
 
-    void loadHistory();
+    void loadSelectedAgentHistory();
 
     return () => {
       ignore = true;
@@ -158,12 +190,14 @@ export function Messenger() {
       if (!content || isSending) return;
 
       const agentId = selectedAgentId;
-      const optimisticId = 'user-' + Date.now();
+      const submittedAt = Date.now();
+      const optimisticId = 'user-' + submittedAt;
+      const pendingRunId = 'run-pending-' + submittedAt;
       const optimisticMessage: ChatMessage = {
         id: optimisticId,
         role: 'user',
         content,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(submittedAt).toISOString(),
         pending: true
       };
 
@@ -195,13 +229,23 @@ export function Messenger() {
         addMessage(
           agentId,
           assistantMessage ?? {
-            id: 'run-' + Date.now(),
+            id: pendingRunId,
             role: 'system',
-            content:
-              'Run started. Streaming UI comes next; refresh history in a moment for the final answer.',
-            createdAt: new Date().toISOString()
+            content: 'Run started. Waiting for Cai’s answer…',
+            createdAt: new Date().toISOString(),
+            pending: true
           }
         );
+
+        for (const delayMs of historyPollDelaysMs) {
+          await delay(delayMs);
+          const history = await loadHistory(agentId);
+          const hasFreshAssistant = history.some(
+            (message) =>
+              message.role === 'assistant' && new Date(message.createdAt).getTime() >= submittedAt
+          );
+          if (hasFreshAssistant) break;
+        }
       } catch (sendError) {
         replaceMessage(agentId, optimisticId, {
           ...optimisticMessage,
@@ -221,6 +265,7 @@ export function Messenger() {
       addMessage,
       draft,
       isSending,
+      loadHistory,
       replaceMessage,
       selectedAgentId,
       setDraft,
