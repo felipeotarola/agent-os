@@ -219,11 +219,81 @@ function SourceActions({ source }: { source: KnowledgeSource }) {
       )}
       <ActionForm
         source={source}
-        action='/api/knowledge/sources/delete'
-        label='Ta bort'
-        variant='destructive'
+        action='/api/knowledge/sources/transition'
+        label='Archive'
+        hidden={{ status: 'archived' }}
       />
     </div>
+  );
+}
+
+function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
+  const reviewable = sources.filter((source) =>
+    ['raw', 'extracted', 'wikified', 'reviewed'].includes(normalizeStatus(source.status))
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+          <div>
+            <CardTitle>Review queue</CardTitle>
+            <CardDescription>
+              Snabb triage: behåll, wikifiera, reviewa, promotera eller arkivera. Permanent delete
+              ligger fortfarande separat.
+            </CardDescription>
+          </div>
+          <Badge variant='outline'>{reviewable.length} pending</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-2'>
+        {reviewable.length === 0 ? (
+          <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+            Ingen knowledge-review behövs just nu.
+          </div>
+        ) : (
+          reviewable.slice(0, 8).map((source) => {
+            const action = nextAction(source);
+            const meta = statusMeta(source.status);
+            return (
+              <div key={source.id} className='rounded-xl border bg-background/40 p-3'>
+                <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Badge variant='outline' className={meta.tone}>
+                        {meta.short}
+                      </Badge>
+                      <Badge variant='secondary'>{source.kind}</Badge>
+                      <div className='truncate font-medium'>{source.title}</div>
+                    </div>
+                    <div className='text-muted-foreground mt-1 line-clamp-2 text-xs leading-5'>
+                      {source.summary || source.rawPath}
+                    </div>
+                  </div>
+                  <div className='grid grid-cols-2 gap-2 md:w-44 md:grid-cols-1'>
+                    {action && (
+                      <ActionForm
+                        source={source}
+                        action={action.action}
+                        label={action.label}
+                        hidden={action.hidden as Record<string, string>}
+                        variant='default'
+                      />
+                    )}
+                    <ActionForm
+                      source={source}
+                      action='/api/knowledge/sources/transition'
+                      label='Archive'
+                      hidden={{ status: 'archived' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -431,6 +501,8 @@ export default async function KnowledgePage({
             </div>
           </CardContent>
         </Card>
+
+        <ReviewQueue sources={snapshot.sources} />
 
         <div className='grid grid-cols-1 gap-4 xl:grid-cols-12'>
           <Card className='xl:col-span-8'>

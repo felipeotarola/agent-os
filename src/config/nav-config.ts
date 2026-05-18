@@ -19,6 +19,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Action Center',
+        url: '/dashboard/action-center',
+        icon: 'checks',
+        shortcut: ['a', 'c'],
+        items: []
+      },
+      {
         title: 'Agents',
         url: '/dashboard/agents',
         icon: 'teams',
