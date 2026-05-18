@@ -35,6 +35,12 @@ export default async function SettingsPage() {
       configured: Boolean(process.env.DATABASE_URL)
     },
     {
+      name: 'OpenClaw CLI',
+      status: status.openclaw?.status ?? 'unknown',
+      detail: status.openclaw?.version ?? status.openclaw?.error ?? 'No OpenClaw status returned',
+      configured: Boolean(status.openclaw?.available)
+    },
+    {
       name: 'OpenClaw agents',
       status: status.agents.source,
       detail: `${status.agents.count} agents visible`,
@@ -43,8 +49,18 @@ export default async function SettingsPage() {
     {
       name: 'Memory/QMD',
       status: status.memory.ok ? 'ok' : 'missing',
-      detail: status.memory.error ?? `${status.memory.agents.length} indexed agent memories`,
+      detail:
+        status.memory.error ??
+        `${status.memory.summary?.chunks ?? 0} chunks across ${status.memory.summary?.agentCount ?? status.memory.agents.length} agents`,
       configured: status.memory.ok
+    },
+    {
+      name: 'Subagent runs',
+      status: status.subagents?.ok ? 'ok' : 'missing',
+      detail: status.subagents?.ok
+        ? `${status.subagents.runningCount} running · ${status.subagents.recent.length} recent · ${status.subagents.source}`
+        : (status.subagents?.error ?? 'No subagent source returned'),
+      configured: Boolean(status.subagents?.available)
     }
   ];
 
@@ -78,14 +94,15 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5'>
           <Card>
             <CardHeader className='pb-2'>
               <CardDescription>Bridge</CardDescription>
               <CardTitle className='text-3xl'>{status.bridge.status}</CardTitle>
             </CardHeader>
             <CardContent className='text-muted-foreground text-sm'>
-              Uptime {Math.floor(status.bridge.uptimeSeconds / 60)} min
+              v{status.bridge.version ?? 'unknown'} · Uptime{' '}
+              {Math.floor(status.bridge.uptimeSeconds / 60)} min
             </CardContent>
           </Card>
           <Card>
@@ -110,6 +127,15 @@ export default async function SettingsPage() {
               <CardTitle className='text-3xl'>{status.knowledge.wikified}</CardTitle>
             </CardHeader>
             <CardContent className='text-muted-foreground text-sm'>Wikified nodes</CardContent>
+          </Card>
+          <Card>
+            <CardHeader className='pb-2'>
+              <CardDescription>Subagents</CardDescription>
+              <CardTitle className='text-3xl'>{status.subagents?.runningCount ?? 0}</CardTitle>
+            </CardHeader>
+            <CardContent className='text-muted-foreground text-sm'>
+              {status.subagents?.source ?? 'no source'}
+            </CardContent>
           </Card>
         </div>
 

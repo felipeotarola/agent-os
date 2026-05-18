@@ -86,3 +86,8 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
     return fallbackSnapshot;
   }
 }
+
+export const KNOWLEDGE_LIFECYCLE_STATUSES = ['raw', 'queued', 'wikified'] as const;
+export const PLANNED_KNOWLEDGE_LIFECYCLE_STATUSES = ['reviewed', 'archived'] as const;
+
+export type KnowledgeLifecycleStatus = (typeof KNOWLEDGE_LIFECYCLE_STATUSES)[number];

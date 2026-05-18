@@ -9,7 +9,7 @@ Date: 2026-05-18
 - **Cockpit overview** (`/dashboard/overview`)
   - Reads cockpit snapshot from bridge when available.
   - Falls back to Postgres/fallback state.
-  - Shows stats, prioritized tasks, agents, knowledge counters, task flow and recent events.
+  - Shows stats, prioritized tasks, agents, knowledge counters, subagent/background runs, task flow and recent events.
 
 - **Tasks** (`/dashboard/kanban`)
   - Postgres-backed task board.
@@ -44,7 +44,7 @@ Date: 2026-05-18
   - Reworked away from template notification mocks in an earlier commit.
 
 - **Settings** (`/dashboard/settings`)
-  - Real system/data-source status: bridge, Postgres, agents, memory and guardrails.
+  - Real system/data-source status: bridge, Postgres, OpenClaw CLI, agents, memory, subagent task source and guardrails.
   - Replaces the disabled template icons/settings demo.
 
 - **Affiliate** (`/dashboard/affiliate`)
@@ -70,18 +70,18 @@ Disabled routes now return 404 or 410 instead of silently showing fake data.
 
 ### Data model / DB
 
-- Persistent agent/session event sync from OpenClaw into Postgres.
-- Proper knowledge lifecycle states: `raw -> queued -> wikified -> reviewed -> archived`.
+- Deeper persistent agent/session event sync from OpenClaw into Postgres beyond throttled bridge audit failures.
+- Proper active knowledge lifecycle states beyond current `raw -> queued -> wikified`; `reviewed`/`archived` are documented as planned only.
 - First-class artifacts/files table usage in the UI.
 - Owners/projects relationship shown consistently on task cards.
 - Audit/event stream for user-visible actions.
 
 ### Bridge
 
-- Durable bridge process contract documented and tested.
+- Bridge contract documented in `docs/BRIDGE_CONTRACTS.md`; automated contract tests still missing.
 - Safe write actions from cockpit to OpenClaw/DB with permission checks.
 - Import/export endpoints for knowledge vault and affiliate data need verification.
-- Health endpoint should expose version, DB status, OpenClaw status and last sync timestamps.
+- Health endpoint now exposes version, DB status, OpenClaw status, subagent visibility source and explicit last sync/null fields.
 
 ### UI/product
 
@@ -95,7 +95,7 @@ Disabled routes now return 404 or 410 instead of silently showing fake data.
 
 - Add tests around disabled mock endpoints returning 410.
 - Add smoke tests for active routes.
-- Add lint rule/check to fail on forbidden sample domains and faker imports.
+- Runtime mock guard exists as `npm run check:runtime-mocks` and runs before build.
 - Reduce dependency footprint after template cleanup.
 
 ## Guardrail

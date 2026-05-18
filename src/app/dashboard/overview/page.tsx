@@ -13,6 +13,8 @@ export default async function OverviewPage() {
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
   const taskStatus = snapshot.taskStatus ?? {};
   const events = snapshot.events ?? [];
+  const subagents = snapshot.subagents;
+  const recentRuns = subagents?.recent ?? [];
 
   return (
     <PageContainer>
@@ -47,7 +49,7 @@ export default async function OverviewPage() {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5'>
           {snapshot.stats.map((stat) => (
             <Card key={stat.label} className='bg-gradient-to-br from-card to-primary/5'>
               <CardHeader className='pb-2'>
@@ -61,6 +63,64 @@ export default async function OverviewPage() {
             </Card>
           ))}
         </div>
+
+        <Card>
+          <CardHeader>
+            <div className='flex items-center justify-between gap-3'>
+              <div>
+                <CardTitle>Subagent/background runs</CardTitle>
+                <CardDescription>
+                  Live från OpenClaw task-registret via bridge. Inga fake runs.
+                </CardDescription>
+              </div>
+              <Badge variant={subagents?.ok ? 'default' : 'outline'}>
+                {subagents?.runningCount ?? 0} running
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            <div className='text-muted-foreground text-xs'>
+              Source: {subagents?.source ?? 'missing'}
+            </div>
+            {!subagents?.ok && (
+              <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                Subagent source unavailable: {subagents?.error ?? 'bridge did not return a source'}.
+              </div>
+            )}
+            {subagents?.ok && recentRuns.length === 0 && (
+              <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                Inga aktiva eller recent subagent/background runs från OpenClaw just nu.
+              </div>
+            )}
+            {subagents?.ok && recentRuns.length > 0 && (
+              <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+                {recentRuns.slice(0, 6).map((run) => (
+                  <div key={run.id} className='rounded-xl border bg-background/40 p-4'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div>
+                        <div className='font-medium'>{run.label}</div>
+                        <div className='text-muted-foreground mt-1 line-clamp-2 text-sm'>
+                          {run.title}
+                        </div>
+                      </div>
+                      <Badge variant={run.status === 'running' ? 'default' : 'secondary'}>
+                        {run.status}
+                      </Badge>
+                    </div>
+                    <div className='text-muted-foreground mt-3 flex flex-wrap gap-3 text-xs'>
+                      {run.startedAt && (
+                        <span>started {new Date(run.startedAt).toLocaleString('sv-SE')}</span>
+                      )}
+                      {run.updatedAt && (
+                        <span>updated {new Date(run.updatedAt).toLocaleString('sv-SE')}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className='grid grid-cols-1 gap-4 xl:grid-cols-7'>
           <Card className='xl:col-span-4'>
@@ -121,7 +181,9 @@ export default async function OverviewPage() {
           <Card>
             <CardHeader>
               <CardTitle>Knowledge</CardTitle>
-              <CardDescription>raw → wiki progress från DB.</CardDescription>
+              <CardDescription>
+                raw → queued → wiki. Reviewed/archived är planerade framtida states.
+              </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
               <Progress value={knowledge.progress} />

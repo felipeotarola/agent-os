@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
@@ -12,6 +13,11 @@ if (!databaseUrl) throw new Error('BRIDGE_DATABASE_URL or DATABASE_URL is requir
 
 const sql = postgres(databaseUrl, { max: 5, prepare: false });
 const execFileAsync = promisify(execFile);
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const bridgeVersion = String(packageJson.version ?? 'unknown');
+const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
+const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
+const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 
 function configuredAgents() {
   try {
@@ -22,13 +28,110 @@ function configuredAgents() {
   }
 }
 
-async function openclawJson(args) {
-  const { stdout } = await execFileAsync('node', ['/usr/lib/node_modules/openclaw/dist/entry.js', ...args], {
-    timeout: 20000,
+async function openclawJson(args, options = {}) {
+  const { stdout } = await execFileAsync('node', [OPENCLAW_CLI, ...args], {
+    timeout: options.timeout ?? 20000,
     maxBuffer: 1024 * 1024 * 4,
     env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
   });
   return JSON.parse(stdout);
+}
+
+async function openclawText(args, options = {}) {
+  const { stdout } = await execFileAsync('node', [OPENCLAW_CLI, ...args], {
+    timeout: options.timeout ?? 8000,
+    maxBuffer: 1024 * 1024,
+    env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
+  });
+  return stdout.trim();
+}
+
+function isoOrNull(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizeRunStatus(status) {
+  const value = String(status ?? 'unknown');
+  if (['queued', 'running', 'succeeded', 'failed', 'timed_out', 'cancelled', 'lost'].includes(value)) return value;
+  return 'unknown';
+}
+
+function compactTaskTitle(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  return text.length > 140 ? `${text.slice(0, 137)}…` : text;
+}
+
+async function auditEvent(kind, message, metadata = {}, throttleMinutes = 30) {
+  try {
+    const recent = await sql`
+      select id from task_events
+      where kind = ${kind}
+        and message = ${message}
+        and created_at > now() - (${throttleMinutes}::text || ' minutes')::interval
+      limit 1
+    `;
+    if (recent.length) return false;
+    await sql`
+      insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+      values (${crypto.randomUUID()}, null, null, ${kind}, ${message}, ${sql.json(metadata)})
+    `;
+    return true;
+  } catch (error) {
+    console.error('Failed to write audit event', error);
+    return false;
+  }
+}
+
+async function openclawStatus() {
+  try {
+    const versionText = await openclawText(['--version'], { timeout: 5000 });
+    return { available: true, status: 'available', version: versionText || null, source: 'openclaw-cli:version', error: null };
+  } catch (error) {
+    return { available: false, status: 'unavailable', version: null, source: 'openclaw-cli:version', error: error.message };
+  }
+}
+
+async function subagentRunsSnapshot() {
+  const source = 'openclaw-cli:tasks-list:subagent';
+  try {
+    const payload = await openclawJson(['tasks', 'list', '--runtime', 'subagent', '--json'], { timeout: 12000 });
+    const rows = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const runs = rows.slice(0, 12).map((task) => {
+      const status = normalizeRunStatus(task.status);
+      return {
+        id: String(task.runId ?? task.taskId ?? task.childSessionKey ?? crypto.randomUUID()),
+        taskId: task.taskId ? String(task.taskId) : null,
+        runId: task.runId ? String(task.runId) : null,
+        sessionKey: task.childSessionKey ? String(task.childSessionKey) : null,
+        label: String(task.label ?? task.title ?? task.runtime ?? 'subagent'),
+        title: compactTaskTitle(task.title ?? task.task ?? task.label) ?? 'subagent run',
+        status,
+        runtime: String(task.runtime ?? 'subagent'),
+        ownerKey: task.ownerKey ? String(task.ownerKey) : null,
+        startedAt: isoOrNull(task.startedAt ?? task.createdAt ?? task.enqueuedAt),
+        updatedAt: isoOrNull(task.updatedAt ?? task.lastHeartbeatAt ?? task.finishedAt ?? task.startedAt ?? task.createdAt),
+        finishedAt: isoOrNull(task.finishedAt)
+      };
+    });
+    const runningCount = runs.filter((run) => ['queued', 'running'].includes(run.status)).length;
+    return { ok: true, source, available: true, runningCount, recent: runs, error: null, checkedAt: new Date().toISOString() };
+  } catch (error) {
+    await auditEvent('subagent_snapshot_failed', 'Subagent/background run snapshot failed', { source, error: error.message }, 30);
+    return { ok: false, source, available: false, runningCount: 0, recent: [], error: error.message, checkedAt: new Date().toISOString() };
+  }
+}
+
+function knowledgeLifecycle(counts) {
+  return {
+    statuses: Object.fromEntries(KNOWLEDGE_STATUSES.map((status) => [status, counts[status] ?? 0])),
+    active: KNOWLEDGE_STATUSES,
+    planned: FUTURE_KNOWLEDGE_STATUSES,
+    flow: 'raw -> queued -> wikified',
+    futureFlow: 'reviewed/archived planned, not active yet'
+  };
 }
 
 async function memorySearch(url) {
@@ -53,30 +156,57 @@ async function memoryStatus() {
 }
 
 async function systemStatus() {
-  const [db, knowledge, memory] = await Promise.all([
+  const checkedAt = new Date().toISOString();
+  const [dbResult, knowledgeResult, memory, openclaw, subagents] = await Promise.allSettled([
     sql`select 1 as ok, now() as now`,
     sql`select status, count(*)::int as count from knowledge_sources group by status`,
-    memoryStatus()
+    memoryStatus(),
+    openclawStatus(),
+    subagentRunsSnapshot()
   ]);
-  const knowledgeCounts = Object.fromEntries(knowledge.map((row) => [row.status, Number(row.count)]));
-  const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
+
+  const dbRows = dbResult.status === 'fulfilled' ? dbResult.value : [];
+  const knowledgeRows = knowledgeResult.status === 'fulfilled' ? knowledgeResult.value : [];
+  const memoryValue = memory.status === 'fulfilled' ? memory.value : { status: null, source: 'openclaw-memory:qmd', error: memory.reason?.message ?? 'memory status failed' };
+  const openclawValue = openclaw.status === 'fulfilled' ? openclaw.value : { available: false, status: 'unavailable', version: null, source: 'openclaw-cli:version', error: openclaw.reason?.message ?? 'openclaw status failed' };
+  const subagentValue = subagents.status === 'fulfilled' ? subagents.value : { ok: false, source: 'openclaw-cli:tasks-list:subagent', available: false, runningCount: 0, recent: [], error: subagents.reason?.message ?? 'subagent snapshot failed', checkedAt };
+
+  if (dbResult.status === 'rejected') {
+    console.error('System status DB check failed', dbResult.reason);
+  }
+  if (knowledgeResult.status === 'rejected') {
+    await auditEvent('bridge_health_failed', 'Bridge health knowledge count failed', { error: knowledgeResult.reason?.message }, 30);
+  }
+
+  const knowledgeCounts = Object.fromEntries(knowledgeRows.map((row) => [row.status, Number(row.count)]));
+  const memoryAgents = Array.isArray(memoryValue.status) ? memoryValue.status : [];
+  const dbOnline = dbRows[0]?.ok === 1;
   return {
-    ok: true,
+    ok: Boolean(dbOnline && openclawValue.available && !memoryValue.error && subagentValue.ok),
+    contract: 'agent-os.bridge.status.v1',
     bridge: {
       status: 'online',
+      version: bridgeVersion,
       uptimeSeconds: Math.round(process.uptime()),
-      now: db[0]?.now ?? new Date().toISOString()
+      now: dbRows[0]?.now ?? new Date().toISOString()
     },
-    db: { status: db[0]?.ok === 1 ? 'online' : 'unknown' },
+    db: { status: dbOnline ? 'online' : 'unknown', checkedAt, error: dbResult.status === 'rejected' ? dbResult.reason?.message : null },
+    openclaw: openclawValue,
     agents: { count: configuredAgents().length, source: 'bridge:AGENT_OS_AGENTS_JSON' },
     knowledge: {
       raw: knowledgeCounts.raw ?? 0,
       queued: knowledgeCounts.queued ?? 0,
-      wikified: knowledgeCounts.wikified ?? 0
+      wikified: knowledgeCounts.wikified ?? 0,
+      lifecycle: knowledgeLifecycle(knowledgeCounts)
     },
     memory: {
-      source: memory.source,
-      ok: !memory.error,
+      source: memoryValue.source,
+      ok: !memoryValue.error,
+      summary: {
+        agentCount: memoryAgents.length,
+        chunks: memoryAgents.reduce((sum, entry) => sum + Number(entry.status?.chunks ?? 0), 0),
+        dirtyCount: memoryAgents.filter((entry) => entry.status?.dirty).length
+      },
       agents: memoryAgents.map((entry) => ({
         agentId: entry.agentId,
         backend: entry.status?.backend,
@@ -85,7 +215,15 @@ async function systemStatus() {
         dirty: entry.status?.dirty,
         sources: entry.status?.sources ?? []
       })),
-      error: memory.error
+      error: memoryValue.error
+    },
+    subagents: subagentValue,
+    lastSync: {
+      bridgeCheckedAt: checkedAt,
+      openclawCheckedAt: checkedAt,
+      subagentsCheckedAt: subagentValue.checkedAt ?? null,
+      knowledgeUpdatedAt: null,
+      memoryCheckedAt: checkedAt
     }
   };
 }
@@ -155,7 +293,7 @@ async function tasksSnapshot() {
 
 async function overviewSnapshot() {
   await ensureTaskBoardColumns();
-  const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory] = await Promise.all([
+  const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory, subagents] = await Promise.all([
     sql`select id, name, role, detail, status from agents order by name`,
     sql`select id, name, status, summary, priority from projects order by priority desc, name`,
     sql`
@@ -173,7 +311,8 @@ async function overviewSnapshot() {
       order by created_at desc
       limit 6
     `,
-    memoryStatus()
+    memoryStatus(),
+    subagentRunsSnapshot()
   ]);
 
   const taskByStatus = new Map(taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)]));
@@ -197,7 +336,8 @@ async function overviewSnapshot() {
       { label: 'Aktiva projekt', value: String(activeProjects), detail: projectRows.slice(0, 3).map((project) => project.name).join(', '), tone: 'Postgres' },
       { label: 'Öppna tasks', value: String(openTasks), detail: `${taskByStatus.get('in_progress') ?? 0} in progress · ${taskByStatus.get('review') ?? 0} review · ${taskByStatus.get('waiting') ?? 0} waiting`, tone: 'Live board' },
       { label: 'Agenter online', value: `${onlineAgents}/${agentRows.length}`, detail: agentRows.map((agent) => agent.name).join(', '), tone: 'OpenClaw' },
-      { label: 'Memory chunks', value: String(memoryChunks), detail: memory.error ? memory.error : `${memoryAgents.length} indexed agents`, tone: 'QMD' }
+      { label: 'Memory chunks', value: String(memoryChunks), detail: memory.error ? memory.error : `${memoryAgents.length} indexed agents`, tone: 'QMD' },
+      { label: 'Subagents', value: String(subagents.runningCount ?? 0), detail: subagents.ok ? `${subagents.recent.length} recent runs · ${subagents.source}` : `source unavailable: ${subagents.error}`, tone: 'OpenClaw tasks' }
     ],
     tasks: taskRows.map((task) => ({
       title: task.title,
@@ -215,6 +355,7 @@ async function overviewSnapshot() {
       progress: knowledgeProgress
     },
     taskStatus: Object.fromEntries(taskByStatus),
+    subagents,
     events: events.map((event) => ({ kind: event.kind, message: event.message, createdAt: new Date(event.createdAt).toISOString() }))
   };
 }
@@ -853,6 +994,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/system/status') {
       return send(res, 200, await systemStatus());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/system/subagents') {
+      return send(res, 200, await subagentRunsSnapshot());
     }
 
     if (req.method === 'GET' && url.pathname === '/overview') {

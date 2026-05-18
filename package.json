@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "author": {
-    "name": "Kiran",
-    "url": "https://github.com/Kiranism"
+    "name": "Agent OS"
   },
   "scripts": {
     "dev": "node scripts/postinstall.js 2>/dev/null; next dev",
@@ -23,7 +22,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/db-seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs",
+    "prebuild": "npm run check:runtime-mocks"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.1",

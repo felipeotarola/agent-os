@@ -3,6 +3,31 @@ import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { db } from './client';
 import { agents, projects, tasks } from './schema';
 
+export type SubagentRun = {
+  id: string;
+  taskId: string | null;
+  runId: string | null;
+  sessionKey: string | null;
+  label: string;
+  title: string;
+  status: string;
+  runtime: string;
+  ownerKey: string | null;
+  startedAt: string | null;
+  updatedAt: string | null;
+  finishedAt: string | null;
+};
+
+export type SubagentRunsSnapshot = {
+  ok: boolean;
+  source: string;
+  available: boolean;
+  runningCount: number;
+  recent: SubagentRun[];
+  error: string | null;
+  checkedAt: string;
+};
+
 export type CockpitSnapshot = {
   stats: Array<{ label: string; value: string; detail: string; tone: string }>;
   tasks: Array<{
@@ -15,6 +40,7 @@ export type CockpitSnapshot = {
   }>;
   agents: Array<{ name: string; role: string; detail: string; status: string }>;
   knowledge?: { raw: number; queued: number; wikified: number; progress: number };
+  subagents?: SubagentRunsSnapshot;
   taskStatus?: Record<string, number>;
   events?: Array<{ kind: string; message: string; createdAt: string }>;
   generatedAt?: string;
@@ -25,9 +51,9 @@ const fallbackSnapshot: CockpitSnapshot = {
   dbOnline: false,
   stats: [
     {
-      label: 'Aktiva mål',
-      value: '4',
-      detail: 'Fallback från UI när DB inte svarar',
+      label: 'Aktiva projekt',
+      value: '—',
+      detail: 'Bridge/DB saknas; inga runtime-värden visas',
       tone: 'Offline'
     },
     {
@@ -38,27 +64,23 @@ const fallbackSnapshot: CockpitSnapshot = {
     },
     { label: 'Agenter online', value: '—', detail: 'DB-lagret är inte anslutet', tone: 'Fallback' },
     {
-      label: 'Knowledge health',
+      label: 'Subagents',
       value: '—',
-      detail: 'Wiki/index/log pipeline skissad',
-      tone: 'Byggs'
+      detail: 'Bridge saknas; OpenClaw task-källa kan inte läsas',
+      tone: 'Unavailable'
     }
   ],
-  tasks: [
-    {
-      title: 'Starta lokal databas',
-      detail: 'npm run db:up && npm run db:migrate && npm run db:seed',
-      status: 'next'
-    }
-  ],
-  agents: [
-    {
-      name: 'Cai',
-      role: 'Orchestrator',
-      detail: 'Main session, Telegram, workspace',
-      status: 'fallback'
-    }
-  ]
+  tasks: [],
+  agents: [],
+  subagents: {
+    ok: false,
+    source: 'fallback:no-bridge-or-db',
+    available: false,
+    runningCount: 0,
+    recent: [],
+    error: 'Bridge/DB saknas',
+    checkedAt: new Date().toISOString()
+  }
 };
 
 export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
@@ -118,10 +140,10 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
           tone: 'Redo'
         },
         {
-          label: 'Knowledge health',
-          value: '72%',
-          detail: 'Wiki/index/log pipeline skissad; metadata ska speglas hit',
-          tone: 'Byggs'
+          label: 'Subagents',
+          value: '—',
+          detail: 'Bridge saknas; OpenClaw task-källa kan inte läsas via direkt DB-fallback',
+          tone: 'Unavailable'
         }
       ],
       tasks: taskRows.map((task) => ({
@@ -134,7 +156,16 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
         role: agent.role,
         detail: agent.detail,
         status: agent.status
-      }))
+      })),
+      subagents: {
+        ok: false,
+        source: 'fallback:direct-db',
+        available: false,
+        runningCount: 0,
+        recent: [],
+        error: 'Subagent runs require the bridge OpenClaw CLI source',
+        checkedAt: new Date().toISOString()
+      }
     };
   } catch (error) {
     console.error('Agent OS DB snapshot failed', error);
