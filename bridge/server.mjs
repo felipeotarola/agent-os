@@ -16,6 +16,8 @@ const execFileAsync = promisify(execFile);
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const bridgeVersion = String(packageJson.version ?? 'unknown');
 const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
+const GOG_CLI = process.env.GOG_CLI ?? 'gog';
+const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
@@ -47,6 +49,24 @@ async function openclawText(args, options = {}) {
   });
   return stdout.trim();
 }
+async function gogJson(args, options = {}) {
+  const keyringPasswordPath = '/root/.config/gogcli/keyring-password';
+  const keyringPassword = existsSync(keyringPasswordPath)
+    ? readFileSync(keyringPasswordPath, 'utf8').trim()
+    : process.env.GOG_KEYRING_PASSWORD;
+  const { stdout } = await execFileAsync(GOG_CLI, [...args, '--json'], {
+    timeout: options.timeout ?? 30000,
+    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 8,
+    env: {
+      ...process.env,
+      NO_COLOR: '1',
+      GOG_KEYRING_PASSWORD: keyringPassword,
+      PATH: `/usr/local/bin:/root/.openclaw/bin:/app/bridge/bin:${process.env.PATH ?? ''}`
+    }
+  });
+  return JSON.parse(stdout || '{}');
+}
+
 
 function isoOrNull(value) {
   if (!value) return null;
@@ -1456,6 +1476,164 @@ async function transitionKnowledgeSource(input) {
   return rows[0];
 }
 
+
+function gmailWebUrl(threadId) {
+  return `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(threadId)}`;
+}
+
+function normalizeEmailText(value, max = 1800) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function scoreMailCandidate(thread, detail) {
+  const haystack = `${thread.subject ?? ''} ${thread.from ?? ''} ${thread.labels?.join(' ') ?? ''} ${detail?.body ?? ''}`.toLowerCase();
+  let score = 20;
+  const reasons = [];
+  if (thread.labels?.includes('IMPORTANT')) {
+    score += 20;
+    reasons.push('Gmail markerad som viktig');
+  }
+  if (thread.labels?.includes('UNREAD')) {
+    score += 10;
+    reasons.push('Oläst');
+  }
+  if (/lysande|kund|customer|lead|invoice|faktura|avtal|contract|deadline|intervju|meeting|linkedin|github|vercel|stripe/.test(haystack)) {
+    score += 25;
+    reasons.push('Matchar projekt/lead/admin-signal');
+  }
+  if (/unsubscribe|avregistrera|digest|newsletter|noreply|no-reply|promotion|rea|sale/.test(haystack)) {
+    score -= 15;
+    reasons.push('Ser ut som digest/marknadsmail');
+  }
+  if (/bank|skatteverket|försäkringskassan|vård|1177|password|lösenord|verification code|kod/.test(haystack)) {
+    score -= 35;
+    reasons.push('Potentiellt känsligt — bör inte sparas rått');
+  }
+  return { score: Math.max(0, Math.min(100, score)), reasons: reasons.slice(0, 4) };
+}
+
+async function mailRadarSnapshot(url) {
+  const account = url.searchParams.get('account') || GMAIL_ACCOUNT;
+  const query = url.searchParams.get('query') || 'newer_than:7d (in:inbox OR is:important OR is:unread)';
+  const max = Math.min(Number(url.searchParams.get('max') ?? 12), 20);
+
+  const search = await gogJson(['gmail', 'search', query, '--account', account, '--max', String(max)], { timeout: 45000 });
+  const threads = Array.isArray(search.threads) ? search.threads : [];
+  const candidates = [];
+
+  for (const thread of threads.slice(0, max)) {
+    let detail = null;
+    try {
+      const full = await gogJson(['gmail', 'thread', 'get', String(thread.id), '--account', account, '--sanitize-content'], { timeout: 45000 });
+      const message = full?.thread?.messages?.[0] ?? null;
+      detail = {
+        body: normalizeEmailText(message?.body, 2200),
+        messageId: message?.id,
+        date: message?.headers?.date ?? thread.date,
+        to: message?.headers?.to ?? null
+      };
+    } catch (error) {
+      detail = { body: normalizeEmailText(thread.snippet, 1000), error: error.message };
+    }
+    const { score, reasons } = scoreMailCandidate(thread, detail);
+    candidates.push({
+      id: String(thread.id),
+      threadId: String(thread.id),
+      messageId: detail?.messageId ?? String(thread.id),
+      title: String(thread.subject ?? '(no subject)'),
+      from: String(thread.from ?? ''),
+      date: detail?.date ?? thread.date ?? null,
+      labels: thread.labels ?? [],
+      snippet: normalizeEmailText(detail?.body || thread.snippet, 520),
+      score,
+      reasons,
+      gmailUrl: gmailWebUrl(String(thread.id))
+    });
+  }
+
+  const saved = await sql`
+    select source_url as "sourceUrl"
+    from knowledge_sources
+    where kind = 'email' and source_url = any(${candidates.map((candidate) => `gmail://thread/${candidate.threadId}`)})
+  `;
+  const savedUrls = new Set(saved.map((row) => row.sourceUrl));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    account,
+    query,
+    source: 'gog:gmail:readonly',
+    counts: {
+      total: candidates.length,
+      highSignal: candidates.filter((candidate) => candidate.score >= 55).length,
+      saved: candidates.filter((candidate) => savedUrls.has(`gmail://thread/${candidate.threadId}`)).length
+    },
+    candidates: candidates.map((candidate) => ({
+      ...candidate,
+      saved: savedUrls.has(`gmail://thread/${candidate.threadId}`)
+    }))
+  };
+}
+
+async function saveMailToKnowledge(input) {
+  const threadId = String(input.threadId ?? '').trim();
+  const account = String(input.account ?? GMAIL_ACCOUNT).trim();
+  if (!threadId) {
+    const error = new Error('threadId is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const sourceUrl = `gmail://thread/${threadId}`;
+  const existing = await sql`select id, title, status from knowledge_sources where kind = 'email' and source_url = ${sourceUrl} limit 1`;
+  if (existing.length) return { ...existing[0], duplicate: true };
+
+  const full = await gogJson(['gmail', 'thread', 'get', threadId, '--account', account, '--sanitize-content'], { timeout: 45000 });
+  const messages = Array.isArray(full?.thread?.messages) ? full.thread.messages : [];
+  const first = messages[0] ?? {};
+  const headers = first.headers ?? {};
+  const title = String(headers.subject || input.title || `Email thread ${threadId}`).slice(0, 180);
+  const body = messages
+    .map((message, index) => {
+      const h = message.headers ?? {};
+      return [
+        `Message ${index + 1}`,
+        `From: ${h.from ?? ''}`,
+        `To: ${h.to ?? ''}`,
+        `Date: ${h.date ?? ''}`,
+        '',
+        normalizeEmailText(message.body, 5000)
+      ].join('\n');
+    })
+    .join('\n\n---\n\n')
+    .slice(0, 20000);
+
+  const id = crypto.randomUUID();
+  const date = new Date().toISOString().slice(0, 10);
+  const rawPath = `knowledge/mail/${date}-${slugify(title) || id}.md`;
+  const summary = normalizeEmailText(first.snippet || body, 500);
+  const metadata = {
+    createdFrom: 'mail-radar',
+    account,
+    threadId,
+    messageCount: messages.length,
+    gmailUrl: gmailWebUrl(threadId),
+    safety: 'sanitized-readonly-review-required'
+  };
+
+  await sql`
+    insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
+    values (${id}, ${title}, 'email', 'raw', ${sourceUrl}, ${body}, ${rawPath}, ${summary}, ${sql.json(metadata)})
+  `;
+
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, null, 'cai', 'mail_saved_to_knowledge', ${`Mail saved to Knowledge review: ${title}`}, ${sql.json({ sourceId: id, threadId, account })})
+  `;
+
+  return { id, title, kind: 'email', status: 'raw', rawPath, duplicate: false };
+}
+
 async function deleteKnowledgeSource(input) {
   const id = String(input.id ?? '').trim();
   if (!id) {
@@ -1560,6 +1738,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/memory/status') {
       return send(res, 200, await memoryStatus());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/mail/radar') {
+      return send(res, 200, await mailRadarSnapshot(url));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/mail/save-to-knowledge') {
+      return send(res, 201, await saveMailToKnowledge(await readJson(req)));
     }
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources') {

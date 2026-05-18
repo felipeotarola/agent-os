@@ -59,6 +59,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Mail Radar',
+        url: '/dashboard/mail-radar',
+        icon: 'notification',
+        shortcut: ['m', 'r'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/wiki',
         icon: 'page',
