@@ -31,6 +31,15 @@ const knowledgeStages = [
 
 const taskColors = ['#22d3ee', '#8b5cf6', '#f59e0b', '#10b981', '#64748b', '#ef4444'];
 
+const agentAvatarPalettes = [
+  'from-cyan-300 via-blue-400 to-indigo-500 text-slate-950 shadow-cyan-500/20',
+  'from-violet-300 via-fuchsia-400 to-pink-500 text-white shadow-fuchsia-500/20',
+  'from-emerald-300 via-teal-400 to-cyan-500 text-slate-950 shadow-emerald-500/20',
+  'from-amber-300 via-orange-400 to-rose-500 text-slate-950 shadow-orange-500/20',
+  'from-lime-300 via-green-400 to-emerald-600 text-slate-950 shadow-green-500/20',
+  'from-sky-300 via-cyan-400 to-teal-500 text-slate-950 shadow-sky-500/20'
+];
+
 function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`size-2 rounded-full ${ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />;
 }
@@ -49,6 +58,33 @@ function timeLabel(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function stockholmDate(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(value);
+}
+
+function stockholmTime(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  }).format(value);
+}
+
+function stockholmHour(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    hour: 'numeric',
+    hour12: false
+  }).format(value);
 }
 
 function taskProgress(status: string) {
@@ -120,6 +156,11 @@ export default async function OverviewPage() {
   const recentRuns = subagents?.recent ?? [];
   const runningRuns = recentRuns.filter((run) => run.status === 'running');
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
+  const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
+  const openTasks = taskEntries
+    .filter(([status]) => !['done', 'cancelled'].includes(status))
+    .reduce((sum, [, count]) => sum + Number(count), 0);
+  const onlineAgents = snapshot.agents.filter((agent) => agent.status === 'online').length;
 
   return (
     <PageContainer>
@@ -131,6 +172,42 @@ export default async function OverviewPage() {
               <Badge variant='outline' className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'>
                 ⚛️ live cockpit
               </Badge>
+              <div className='grid gap-3 rounded-2xl border border-white/10 bg-slate-950/45 p-4 backdrop-blur md:grid-cols-[minmax(0,1fr)_auto] md:items-center'>
+                <div>
+                  <div className='text-sm text-cyan-100'>Welcome Felipe</div>
+                  <div className='mt-1 text-2xl font-semibold text-white md:text-3xl'>
+                    {stockholmDate(liveAt)}
+                  </div>
+                  <div className='mt-1 text-sm text-slate-300'>
+                    Stockholm time {stockholmTime(liveAt)} · hour {stockholmHour(liveAt)} · live
+                    snapshot
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 md:grid-cols-2 xl:grid-cols-4'>
+                  <div className='rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3'>
+                    <div className='text-slate-400'>Open tasks</div>
+                    <div className='mt-1 text-xl font-semibold text-white'>{openTasks}</div>
+                  </div>
+                  <div className='rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3'>
+                    <div className='text-slate-400'>Agents</div>
+                    <div className='mt-1 text-xl font-semibold text-white'>
+                      {onlineAgents}/{snapshot.agents.length}
+                    </div>
+                  </div>
+                  <div className='rounded-xl border border-violet-400/20 bg-violet-400/10 p-3'>
+                    <div className='text-slate-400'>Knowledge</div>
+                    <div className='mt-1 text-xl font-semibold text-white'>
+                      {knowledge.wikified}
+                    </div>
+                  </div>
+                  <div className='rounded-xl border border-amber-400/20 bg-amber-400/10 p-3'>
+                    <div className='text-slate-400'>Running</div>
+                    <div className='mt-1 text-xl font-semibold text-white'>
+                      {subagents?.runningCount ?? 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div>
                 <h1 className='text-4xl font-semibold tracking-tight text-white md:text-6xl'>
                   Agent OS Overview
@@ -311,11 +388,15 @@ export default async function OverviewPage() {
                   Inga agenter hittades i snapshoten.
                 </div>
               ) : (
-                snapshot.agents.slice(0, 5).map((agent) => (
+                snapshot.agents.slice(0, 5).map((agent, index) => (
                   <div key={agent.name} className='rounded-xl border bg-background/40 p-3'>
                     <div className='flex items-start justify-between gap-3'>
                       <div className='flex min-w-0 gap-3'>
-                        <div className='flex size-9 shrink-0 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-xs font-semibold text-cyan-100'>
+                        <div
+                          className={`flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-lg ${
+                            agentAvatarPalettes[index % agentAvatarPalettes.length]
+                          }`}
+                        >
                           {agent.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div className='min-w-0'>
