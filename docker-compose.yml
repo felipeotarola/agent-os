@@ -28,6 +28,10 @@ services:
     volumes:
       - ./:/app:ro
       - /root/.openclaw:/root/.openclaw:ro
+      - /root/.openclaw/agents/main/sessions:/root/.openclaw/agents/main/sessions:rw
+      - /root/.openclaw/agents/main/agent:/root/.openclaw/agents/main/agent:rw
+      - /root/.openclaw/tasks:/root/.openclaw/tasks:rw
+      - /root/.openclaw/flows:/root/.openclaw/flows:rw
       - /root/.config/gogcli:/root/.config/gogcli:ro
       - /root/.openclaw/bin/gog:/usr/local/bin/gog:ro
       - /etc/ssl/certs:/etc/ssl/certs:ro
