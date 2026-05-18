@@ -68,7 +68,14 @@ const knowledgeStages = [
   }
 ] as const;
 
-const taskColors = ['#22d3ee', '#8b5cf6', '#f59e0b', '#10b981', '#64748b', '#ef4444'];
+const taskColors = [
+  'var(--primary)', // theme-guard-ignore-line -- chart/canvas color
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)'
+];
 
 const agentAvatarPalettes = [
   'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
@@ -194,8 +201,8 @@ function BitcoinSparkline() {
     <svg className='mt-4 h-20 w-full overflow-visible opacity-90' viewBox='0 0 220 80'>
       <defs>
         <linearGradient id='btcArea' x1='0' x2='0' y1='0' y2='1'>
-          <stop offset='0%' stopColor='rgb(52 211 153)' stopOpacity='0.38' />
-          <stop offset='100%' stopColor='rgb(52 211 153)' stopOpacity='0' />
+          <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.38' />
+          <stop offset='100%' stopColor='var(--primary)' stopOpacity='0' />
         </linearGradient>
       </defs>
       <path
@@ -205,7 +212,7 @@ function BitcoinSparkline() {
       <path
         d='M2 66 L24 60 L42 54 L60 64 L76 59 L92 42 L108 35 L126 33 L144 47 L162 35 L182 25 L202 32 L218 20'
         fill='none'
-        stroke='rgb(52 211 153)'
+        stroke='var(--primary)'
         strokeWidth='2'
       />
     </svg>
@@ -227,7 +234,7 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
   return (
     <div
       className='relative size-28 shrink-0 rounded-full'
-      style={{ background: `conic-gradient(${stops || '#334155 0% 100%'})` }}
+      style={{ background: `conic-gradient(${stops || 'var(--muted) 0% 100%'})` }}
     >
       <div className='absolute inset-4 flex flex-col items-center justify-center rounded-full bg-background'>
         <div className='text-2xl font-semibold'>{total}</div>
@@ -470,7 +477,7 @@ export default async function OverviewPage() {
               <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
                 <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='flex items-center gap-2'>
-                    <div className='flex size-9 items-center justify-center rounded-xl bg-orange-500 text-lg shadow-lg shadow-orange-500/20'>
+                    <div className='flex size-9 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground shadow-lg shadow-primary/20'>
                       ₿
                     </div>
                     <div className='font-semibold text-foreground'>Bitcoin</div>
@@ -893,7 +900,7 @@ export default async function OverviewPage() {
             <CardContent className='space-y-5'>
               <div className='rounded-2xl border border-border bg-muted/40 p-4'>
                 <div className='relative grid grid-cols-6 gap-2'>
-                  <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-slate-500/40 via-cyan-300/60 to-emerald-300/50' />
+                  <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent' />
                   {knowledgeStages.map((stage) => {
                     const count = knowledgeCounts[stage.key] ?? 0;
                     const active = count > 0;
@@ -905,7 +912,7 @@ export default async function OverviewPage() {
                         <div
                           className={`z-10 flex size-8 items-center justify-center rounded-full border border-white/15 ${
                             stage.dot
-                          } ${active ? 'shadow-lg shadow-cyan-500/20 ring-4 ring-white/10' : 'opacity-55'}`}
+                          } ${active ? 'shadow-lg shadow-primary/20 ring-4 ring-primary/10' : 'opacity-55'}`}
                         >
                           <span className='size-2 rounded-full bg-background' />
                         </div>

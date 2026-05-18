@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils';
 import type { Conversation } from '../utils/types';
 
 const statusDotColor = {
-  online: 'bg-green-500',
-  offline: 'bg-red-500'
+  online: 'bg-primary',
+  offline: 'bg-muted-foreground'
 } as const;
 
 interface ChatHeaderProps {

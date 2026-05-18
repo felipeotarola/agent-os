@@ -82,3 +82,27 @@ If the guard fails, replace the hard-coded color with theme tokens or move the v
 ## Why
 
 Felipe uses multiple themes. Agent OS is a cockpit/control plane, not a one-off landing page. Readability and consistency matter more than flashy custom gradients.
+
+## Automated design-token test
+
+The design rule is enforced by `scripts/check-theme-containers.mjs`, wired through `npm run check:runtime-mocks` and therefore through `npm run build`.
+
+The guard scans dashboard/product code under:
+
+- `src/app/dashboard`
+- `src/features`
+
+It blocks:
+
+- hard-coded Tailwind color classes for text/background/border/gradient/shadow, e.g. `text-white`, `text-cyan-200`, `bg-slate-950`, `border-red-500`, `from-violet-500`, `shadow-cyan-500`
+- raw inline color values such as `#fff`, `rgb(...)`, `oklch(...)`, `lab(...)` when used in theme-sensitive code
+
+Allowed escape hatch:
+
+- Charts/canvas code may use raw fallback colors only with an explicit same-line comment:
+
+```ts
+const color = '#67e8f9'; // theme-guard-ignore-line -- canvas fallback color
+```
+
+Do not use the escape hatch for normal UI containers.

@@ -67,13 +67,13 @@ function readTheme(): GraphTheme {
   // Canvas color parsing is less forgiving than CSS. Do not feed it theme tokens/oklch vars;
   // production rendered a fully black graph when those values were not accepted by canvas.
   return {
-    primary: dark ? '#67e8f9' : '#0891b2',
-    muted: dark ? '#0f172a' : '#f8fafc',
-    mutedForeground: dark ? '#94a3b8' : '#475569',
-    foreground: dark ? '#f8fafc' : '#0f172a',
-    border: dark ? '#334155' : '#cbd5e1',
-    chart2: dark ? '#34d399' : '#059669',
-    chart3: dark ? '#fbbf24' : '#d97706'
+    primary: dark ? '#67e8f9' : '#0891b2', // theme-guard-ignore-line -- canvas fallback color
+    muted: dark ? '#0f172a' : '#f8fafc', // theme-guard-ignore-line -- canvas fallback color
+    mutedForeground: dark ? '#94a3b8' : '#475569', // theme-guard-ignore-line -- canvas fallback color
+    foreground: dark ? '#f8fafc' : '#0f172a', // theme-guard-ignore-line -- canvas fallback color
+    border: dark ? '#334155' : '#cbd5e1', // theme-guard-ignore-line -- canvas fallback color
+    chart2: dark ? '#34d399' : '#059669', // theme-guard-ignore-line -- canvas fallback color
+    chart3: dark ? '#fbbf24' : '#d97706' // theme-guard-ignore-line -- canvas fallback color
   };
 }
 
