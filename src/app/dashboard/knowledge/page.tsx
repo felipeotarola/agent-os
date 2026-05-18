@@ -194,18 +194,29 @@ function PipelineStep({ status, count }: { status: string; count: number }) {
   );
 }
 
-function SourceNextAction({ source }: { source: KnowledgeSource }) {
+function SourceActions({ source }: { source: KnowledgeSource }) {
   const action = nextAction(source);
-  if (!action) {
-    return <Badge variant='secondary'>No next action</Badge>;
-  }
   return (
-    <ActionForm
-      source={source}
-      action={action.action}
-      label={action.label}
-      hidden={action.hidden as Record<string, string>}
-    />
+    <div className='grid grid-cols-2 gap-2 lg:grid-cols-1'>
+      {action ? (
+        <ActionForm
+          source={source}
+          action={action.action}
+          label={action.label}
+          hidden={action.hidden as Record<string, string>}
+        />
+      ) : (
+        <Badge variant='secondary' className='justify-center py-2'>
+          No next action
+        </Badge>
+      )}
+      <ActionForm
+        source={source}
+        action='/api/knowledge/sources/delete'
+        label='Ta bort'
+        variant='destructive'
+      />
+    </div>
   );
 }
 
@@ -294,6 +305,16 @@ function SourceInspector({ source }: { source?: KnowledgeSource }) {
               {source.sourceUrl}
             </a>
           )}
+        </div>
+
+        <div className='border-t pt-3'>
+          <div className='mb-2 text-xs font-medium'>Danger zone</div>
+          <ActionForm
+            source={source}
+            action='/api/knowledge/sources/delete'
+            label='Ta bort permanent'
+            variant='destructive'
+          />
         </div>
       </CardContent>
     </Card>
@@ -434,7 +455,7 @@ export default async function KnowledgePage({
                             {meta.label}
                           </Badge>
                           <ProgressRail status={source.status} />
-                          <SourceNextAction source={source} />
+                          <SourceActions source={source} />
                         </div>
                       </div>
                     );
