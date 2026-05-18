@@ -952,6 +952,64 @@ async function createTask(input) {
   return mapTask(rows[0]);
 }
 
+
+async function taskEventsSnapshot(input) {
+  const taskId = String(input.id ?? '').trim();
+  if (!taskId) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+  const rows = await sql`
+    select id, actor_agent_id as "actorAgentId", kind, message, metadata, created_at as "createdAt"
+    from task_events
+    where task_id = ${taskId}
+    order by created_at desc
+    limit 50
+  `;
+  return {
+    taskId,
+    events: rows.map((event) => ({
+      id: event.id,
+      actorAgentId: event.actorAgentId,
+      kind: event.kind,
+      message: event.message,
+      metadata: event.metadata ?? {},
+      createdAt: event.createdAt ? new Date(event.createdAt).toISOString() : null
+    }))
+  };
+}
+
+async function commentTask(input) {
+  const taskId = String(input.id ?? '').trim();
+  const message = String(input.message ?? '').trim();
+  const actorAgentId = String(input.actorAgentId ?? 'cai').trim() || 'cai';
+  if (!taskId || !message) {
+    const error = new Error('id and message are required');
+    error.status = 400;
+    throw error;
+  }
+  const task = await sql`select id from tasks where id = ${taskId}`;
+  if (!task.length) {
+    const error = new Error('task not found');
+    error.status = 404;
+    throw error;
+  }
+  const rows = await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, ${taskId}, ${actorAgentId}, 'comment', ${message}, ${sql.json({ source: 'cockpit-comment' })})
+    returning id, actor_agent_id as "actorAgentId", kind, message, metadata, created_at as "createdAt"
+  `;
+  return {
+    id: rows[0].id,
+    actorAgentId: rows[0].actorAgentId,
+    kind: rows[0].kind,
+    message: rows[0].message,
+    metadata: rows[0].metadata ?? {},
+    createdAt: rows[0].createdAt ? new Date(rows[0].createdAt).toISOString() : null
+  };
+}
+
 async function updateTask(input) {
   await ensureTaskBoardColumns();
   const id = String(input.id ?? '').trim();
@@ -1887,6 +1945,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {
       return send(res, 200, await taskDispatchSummary());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/tasks/events') {
+      return send(res, 200, await taskEventsSnapshot({ id: url.searchParams.get('id') }));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/tasks/comment') {
+      return send(res, 201, await commentTask(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/cai/latest-brief-message') {

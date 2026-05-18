@@ -31,6 +31,14 @@ type TaskDetailDialogProps = {
   onTaskUpdate: (task: Task) => void;
 };
 
+type TaskEvent = {
+  id: string;
+  actorAgentId?: string | null;
+  kind: string;
+  message: string;
+  createdAt?: string | null;
+};
+
 export function TaskDetailDialog({
   task,
   open,
@@ -38,7 +46,10 @@ export function TaskDetailDialog({
   onTaskUpdate
 }: TaskDetailDialogProps) {
   const [saving, setSaving] = useState(false);
+  const [commenting, setCommenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [events, setEvents] = useState<TaskEvent[]>([]);
+  const [comment, setComment] = useState('');
 
   const initial = useMemo(
     () => ({
@@ -59,8 +70,56 @@ export function TaskDetailDialog({
     if (open) setForm(initial);
   }, [initial, open]);
 
+  useEffect(() => {
+    if (!open || !task?.id) {
+      setEvents([]);
+      setComment('');
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/tasks/events?id=${encodeURIComponent(task.id)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await response.text());
+        return response.json() as Promise<{ events: TaskEvent[] }>;
+      })
+      .then((result) => {
+        if (!cancelled) setEvents(result.events ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, task?.id]);
+
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function addComment() {
+    if (!task || !comment.trim()) return;
+    setCommenting(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/tasks/comment', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: task.id, message: comment.trim(), actorAgentId: 'cai' })
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const event = (await response.json()) as TaskEvent;
+      setEvents((current) => [event, ...current]);
+      setComment('');
+    } catch (commentError) {
+      setError(
+        commentError instanceof Error ? commentError.message : 'Kunde inte spara kommentaren.'
+      );
+    } finally {
+      setCommenting(false);
+    }
   }
 
   async function save() {
@@ -202,6 +261,52 @@ export function TaskDetailDialog({
               </div>
               <div>
                 <span className='text-muted-foreground'>Position:</span> {task.position ?? '—'}
+              </div>
+            </div>
+
+            <div className='space-y-3 rounded-xl border bg-muted/20 p-3'>
+              <div className='flex items-center justify-between gap-2'>
+                <Label htmlFor='task-comment'>Kommentarer / historik</Label>
+                <Badge variant='secondary'>{events.length}</Badge>
+              </div>
+              <div className='flex flex-col gap-2 sm:flex-row'>
+                <Input
+                  id='task-comment'
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey))
+                      void addComment();
+                  }}
+                  placeholder='Lägg till lösningsnotering, beslut eller nästa steg…'
+                />
+                <Button
+                  type='button'
+                  variant='secondary'
+                  onClick={addComment}
+                  isLoading={commenting}
+                  disabled={!comment.trim() || commenting}
+                >
+                  Kommentera
+                </Button>
+              </div>
+              <div className='max-h-48 space-y-2 overflow-y-auto pr-1'>
+                {events.length ? (
+                  events.map((event) => (
+                    <div key={event.id} className='rounded-lg border bg-background/60 p-2 text-xs'>
+                      <div className='mb-1 flex flex-wrap items-center gap-2 text-muted-foreground'>
+                        <span className='font-medium text-foreground'>{event.kind}</span>
+                        {event.actorAgentId && <span>{event.actorAgentId}</span>}
+                        {event.createdAt && (
+                          <span>{new Date(event.createdAt).toLocaleString('sv-SE')}</span>
+                        )}
+                      </div>
+                      <p className='whitespace-pre-wrap'>{event.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className='text-muted-foreground text-xs'>Ingen historik ännu.</p>
+                )}
               </div>
             </div>
 
