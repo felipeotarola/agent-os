@@ -41,6 +41,43 @@
   }
 }
 
+@layer components {
+  .overview-cockpit {
+    background:
+      radial-gradient(
+        circle at 12% 8%,
+        color-mix(in oklch, var(--primary) 22%, transparent),
+        transparent 34%
+      ),
+      radial-gradient(
+        circle at 76% 4%,
+        color-mix(in oklch, var(--accent) 28%, transparent),
+        transparent 32%
+      ),
+      radial-gradient(
+        circle at 88% 88%,
+        color-mix(in oklch, var(--chart-3) 16%, transparent),
+        transparent 30%
+      ),
+      linear-gradient(
+        135deg,
+        color-mix(in oklch, var(--card) 92%, var(--primary) 8%),
+        color-mix(in oklch, var(--background) 88%, var(--accent) 12%)
+      );
+    box-shadow: var(--shadow-2xl);
+  }
+
+  .overview-cockpit-panel {
+    background: color-mix(in oklch, var(--card) 76%, transparent);
+    border-color: color-mix(in oklch, var(--border) 70%, var(--primary) 30%);
+  }
+
+  .overview-cockpit-subpanel {
+    background: color-mix(in oklch, var(--background) 76%, transparent);
+    border-color: color-mix(in oklch, var(--border) 78%, var(--primary) 22%);
+  }
+}
+
 /* View Transition Wave Effect */
 ::view-transition-old(root),
 ::view-transition-new(root) {
