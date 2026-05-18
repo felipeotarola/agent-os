@@ -353,7 +353,7 @@ export default async function OverviewPage() {
     }
   ];
 
-  const latestKajMessage = [
+  const latestCaiMessage = [
     'Hej Felipe! 👋',
     '',
     briefing.bitcoin.priceSek !== null
@@ -365,139 +365,12 @@ export default async function OverviewPage() {
     '',
     'Fokus idag: affiliate-optimering och Sladdis parser-fix.',
     '',
-    '– Kaj'
+    '– Cai'
   ].join('\n');
 
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-5'>
-        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_15%_18%,rgba(34,211,238,0.2),transparent_34%),radial-gradient(circle_at_78%_10%,rgba(139,92,246,0.28),transparent_32%),radial-gradient(circle_at_88%_88%,rgba(16,185,129,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.97),rgba(2,6,23,0.99))] p-6 shadow-2xl shadow-cyan-950/30 md:p-7'>
-          <div className='absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent' />
-          <div className='absolute -right-24 -top-24 size-64 rounded-full border border-white/10 bg-white/5 blur-2xl' />
-          <div className='relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-stretch'>
-            <div className='flex min-h-[330px] flex-col justify-between gap-8'>
-              <Badge variant='outline' className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'>
-                <StatusDot ok={snapshot.dbOnline} /> Cai briefing · live cockpit
-              </Badge>
-
-              <div>
-                <h1 className='text-4xl font-semibold tracking-tight text-white md:text-5xl'>
-                  Welcome Felipe 👋
-                </h1>
-                <div className='mt-2 text-2xl font-medium text-slate-200 md:text-3xl'>
-                  {stockholmDate(liveAt)}
-                </div>
-                <div className='mt-3 text-sm text-slate-300'>
-                  Stockholm time {stockholmTime(liveAt)} · live snapshot
-                </div>
-              </div>
-
-              <div className='h-px max-w-4xl bg-gradient-to-r from-slate-700 via-slate-600 to-transparent' />
-
-              <p className='max-w-2xl text-sm leading-6 text-slate-300'>
-                Din morgon/kvällsbriefing direkt i Overview: agentkö, beslut som behövs,
-                marknadspuls och nyhetssignaler — utan en separat briefing-sida.
-              </p>
-
-              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-                {briefingCards.map((card) => (
-                  <div key={card.label} className={`rounded-2xl border p-4 ${card.tone}`}>
-                    <div className='flex items-center justify-between gap-3'>
-                      <div className='text-xs text-slate-400'>{card.label}</div>
-                      <div className='rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm'>
-                        {card.icon}
-                      </div>
-                    </div>
-                    <div className='mt-3 text-2xl font-semibold text-white'>{card.value}</div>
-                    <div className='mt-1 line-clamp-2 text-xs text-slate-300'>{card.detail}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className='flex flex-wrap items-center gap-3 text-xs'>
-                <span className='text-slate-400'>Focus now</span>
-                <Badge
-                  variant='outline'
-                  className='border-violet-400/30 bg-violet-400/10 px-3 py-1.5 text-violet-100'
-                >
-                  ⌘ {Number(taskStatus.review ?? 0)} tasks need review
-                </Badge>
-                <Badge
-                  variant='outline'
-                  className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
-                >
-                  ◎ Memory healthy
-                </Badge>
-                <Badge
-                  variant='outline'
-                  className='border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-100'
-                >
-                  ↝{' '}
-                  {subagents?.runningCount
-                    ? `${subagents.runningCount} active runs`
-                    : 'No active runs'}
-                </Badge>
-              </div>
-            </div>
-
-            <div className='flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-violet-950/20 backdrop-blur'>
-              <div>
-                <div className='flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='text-xs uppercase tracking-[0.2em] text-slate-500'>Resume</div>
-                    <div className='mt-1 text-sm text-slate-200'>
-                      Pick up where the system left off.
-                    </div>
-                  </div>
-                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-200'>
-                    LIVE
-                  </Badge>
-                </div>
-
-                <div className='mt-4 space-y-2'>
-                  {resumeItems.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      className='group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/40 hover:bg-cyan-300/10'
-                    >
-                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100'>
-                        {item.icon}
-                      </span>
-                      <span className='min-w-0 flex-1'>
-                        <span className='block text-[10px] uppercase tracking-wide text-slate-500'>
-                          {item.label}
-                        </span>
-                        <span className='mt-0.5 block truncate text-sm font-medium text-slate-100'>
-                          {item.value}
-                        </span>
-                      </span>
-                      <span className='text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-cyan-200'>
-                        →
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              <div className='grid gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-300'>
-                <div className='flex items-center gap-2'>
-                  <StatusDot ok={snapshot.dbOnline} /> db online
-                </div>
-                <div className='flex items-center gap-2'>
-                  <StatusDot ok={Boolean(subagents?.ok)} /> OpenClaw bridge connected
-                </div>
-                <div className='flex items-center gap-2'>
-                  <StatusDot ok /> Memory index healthy
-                </div>
-                <div className='font-mono text-[11px] text-slate-400'>
-                  Last snapshot {generatedAt}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className='relative overflow-hidden rounded-3xl border border-cyan-400/25 bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_76%_4%,rgba(139,92,246,0.24),transparent_32%),radial-gradient(circle_at_88%_88%,rgba(16,185,129,0.1),transparent_30%),linear-gradient(135deg,rgba(8,19,35,0.98),rgba(2,6,23,0.99))] p-4 shadow-2xl shadow-cyan-950/35 md:p-5'>
           <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent' />
           <div className='absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent' />
@@ -530,7 +403,7 @@ export default async function OverviewPage() {
                 </div>
 
                 <div className='mt-6 flex flex-wrap items-center gap-3 text-xs'>
-                  <span className='text-slate-400'>Kaj has your daily cockpit ready</span>
+                  <span className='text-slate-400'>Cai has your daily cockpit ready</span>
                   <Badge
                     variant='outline'
                     className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
@@ -619,12 +492,12 @@ export default async function OverviewPage() {
                   <div>
                     <div className='flex flex-wrap items-center gap-2'>
                       <h2 className='text-2xl font-semibold tracking-tight text-white'>
-                        Kaj Briefing
+                        Cai Briefing
                       </h2>
                       <span className='text-xl'>✨</span>
                     </div>
                     <p className='mt-1 text-sm text-slate-300'>
-                      Nyheter, bitcoin och signaler Kaj håller koll på åt dig.
+                      Nyheter, bitcoin och signaler Cai håller koll på åt dig.
                     </p>
                   </div>
                 </div>
@@ -786,12 +659,12 @@ export default async function OverviewPage() {
                     <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-violet-200'>
                       ✉
                     </div>
-                    <div className='font-semibold text-white'>Senaste Kaj-meddelande</div>
+                    <div className='font-semibold text-white'>Senaste Cai-meddelande</div>
                   </div>
 
                   <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
                     <p className='whitespace-pre-line text-sm leading-6 text-slate-200'>
-                      {latestKajMessage}
+                      {latestCaiMessage}
                     </p>
                     <div className='mt-3 text-right text-xs text-slate-500'>
                       {stockholmTime(liveAt).replace(' CEST', '')}
