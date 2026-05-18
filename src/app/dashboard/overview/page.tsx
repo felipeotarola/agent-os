@@ -397,12 +397,125 @@ export default async function OverviewPage() {
         </section>
 
         <section className='grid gap-4 xl:grid-cols-12'>
-          <Card className='border-cyan-400/20 bg-cyan-400/5 xl:col-span-5'>
+          <Card className='overflow-hidden border-cyan-400/20 bg-[radial-gradient(circle_at_12%_18%,rgba(34,211,238,0.12),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.96))] xl:col-span-7'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
-                  <CardTitle>Cai dispatch</CardTitle>
-                  <CardDescription>Morgon/kvällsbriefingen, direkt i Overview.</CardDescription>
+                  <CardTitle>Cai Briefing</CardTitle>
+                  <CardDescription>
+                    Compact daily brief, like the morning/evening note.
+                  </CardDescription>
+                </div>
+                <Badge
+                  variant='outline'
+                  className='border-cyan-400/30 bg-cyan-400/10 text-cyan-100'
+                >
+                  {stockholmTime(liveAt)}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='grid gap-3 md:grid-cols-2'>
+                <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div className='text-xs uppercase tracking-[0.18em] text-slate-500'>Focus</div>
+                    <Badge variant='outline'>{briefing.dispatch.actionableCount} decisions</Badge>
+                  </div>
+                  <div className='mt-3 text-sm font-medium text-white'>
+                    {briefing.dispatch.byAgent[0]?.tasks[0]?.title ??
+                      'No urgent agent decision right now'}
+                  </div>
+                  <div className='text-muted-foreground mt-2 line-clamp-2 text-xs'>
+                    {briefing.dispatch.byAgent[0]
+                      ? `${briefing.dispatch.byAgent[0].agentName} has ${briefing.dispatch.byAgent[0].count} queued items.`
+                      : 'Agent queue is clear.'}
+                  </div>
+                </div>
+
+                <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div className='text-xs uppercase tracking-[0.18em] text-slate-500'>Market</div>
+                    <Badge variant='outline'>live</Badge>
+                  </div>
+                  <div className='mt-3 flex items-end justify-between gap-3'>
+                    <div>
+                      <div className='text-sm text-slate-400'>Bitcoin / SEK</div>
+                      <div className='text-2xl font-semibold text-white'>
+                        {compactNumber(briefing.bitcoin.priceSek, 'SEK')}
+                      </div>
+                    </div>
+                    <Badge variant='outline' className='border-white/10 bg-white/5'>
+                      {percent(briefing.bitcoin.change24h)}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className='grid gap-3 lg:grid-cols-3'>
+                <div className='rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4'>
+                  <div className='text-xs uppercase tracking-[0.18em] text-emerald-200/70'>
+                    Today
+                  </div>
+                  <div className='mt-2 text-sm text-emerald-50'>Calendar is not connected yet.</div>
+                  <div className='text-emerald-100/70 mt-1 text-xs'>
+                    Mock placeholder for next calendar sync.
+                  </div>
+                </div>
+                <div className='rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4'>
+                  <div className='text-xs uppercase tracking-[0.18em] text-violet-200/70'>News</div>
+                  <div className='mt-2 line-clamp-2 text-sm text-violet-50'>
+                    {briefing.news.items[0]?.title ?? 'No live news source returned.'}
+                  </div>
+                  <div className='text-violet-100/70 mt-1 text-xs'>{briefing.news.source}</div>
+                </div>
+                <div className='rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4'>
+                  <div className='text-xs uppercase tracking-[0.18em] text-amber-200/70'>
+                    Weather
+                  </div>
+                  <div className='mt-2 text-sm text-amber-50'>Stockholm · partly cloudy</div>
+                  <div className='text-amber-100/70 mt-1 text-xs'>
+                    Mock until weather source is wired.
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div className='text-xs uppercase tracking-[0.18em] text-slate-500'>
+                    Briefing notes
+                  </div>
+                  <span className='text-muted-foreground text-xs'>live + future placeholders</span>
+                </div>
+                <div className='grid gap-2 md:grid-cols-2'>
+                  <div className='rounded-xl border bg-background/40 p-3 text-sm'>
+                    <span className='text-slate-400'>Agent queue:</span>{' '}
+                    {briefing.dispatch.actionableCount
+                      ? `${briefing.dispatch.actionableCount} items need a decision.`
+                      : 'No immediate decisions.'}
+                  </div>
+                  <div className='rounded-xl border bg-background/40 p-3 text-sm'>
+                    <span className='text-slate-400'>Inbox:</span> 0 urgent messages · mock until
+                    mail is connected.
+                  </div>
+                  <div className='rounded-xl border bg-background/40 p-3 text-sm'>
+                    <span className='text-slate-400'>Runway:</span> not connected · future finance
+                    snapshot.
+                  </div>
+                  <div className='rounded-xl border bg-background/40 p-3 text-sm'>
+                    <span className='text-slate-400'>Knowledge:</span>{' '}
+                    {knowledgeCounts.promoted ?? 0} context-ready sources.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className='border-white/10 bg-card/70 xl:col-span-5'>
+            <CardHeader className='pb-3'>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <CardTitle>Signals</CardTitle>
+                  <CardDescription>Small supporting feed, not the main event.</CardDescription>
                 </div>
                 <Button asChild size='sm' variant='outline'>
                   <Link href='/dashboard/kanban'>Tasks →</Link>
@@ -410,88 +523,63 @@ export default async function OverviewPage() {
               </div>
             </CardHeader>
             <CardContent className='space-y-3'>
-              {briefing.dispatch.byAgent.length === 0 ? (
-                <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
-                  Inga agentkopplade tasks i backlog/waiting/review just nu.
+              <div className='rounded-2xl border bg-background/40 p-4'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div className='font-medium'>Agent decisions</div>
+                  <Badge variant='outline'>{briefing.dispatch.actionableCount}</Badge>
                 </div>
-              ) : (
-                briefing.dispatch.byAgent.slice(0, 3).map((group) => (
-                  <div key={group.agentId} className='rounded-xl border bg-background/40 p-3'>
-                    <div className='flex items-start justify-between gap-3'>
-                      <div className='min-w-0'>
-                        <div className='truncate font-medium'>
-                          {group.emoji && <span className='mr-2'>{group.emoji}</span>}
-                          {group.agentName}
-                        </div>
-                        <div className='text-muted-foreground mt-1 text-xs'>
-                          {group.count} tasks · {group.highPriorityCount} high priority
+                <div className='space-y-2'>
+                  {briefing.dispatch.byAgent
+                    .flatMap((group) =>
+                      group.tasks
+                        .slice(0, 1)
+                        .map((task) => ({
+                          ...task,
+                          agentName: group.agentName,
+                          emoji: group.emoji
+                        }))
+                    )
+                    .slice(0, 3)
+                    .map((task) => (
+                      <div
+                        key={task.id}
+                        className='flex items-center gap-3 rounded-xl border bg-background/50 p-2.5'
+                      >
+                        <span className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm'>
+                          {task.emoji || '⚛'}
+                        </span>
+                        <div className='min-w-0 flex-1'>
+                          <div className='line-clamp-1 text-sm font-medium'>{task.title}</div>
+                          <div className='text-muted-foreground text-xs'>
+                            {task.agentName} · {task.priority}
+                          </div>
                         </div>
                       </div>
-                      <Badge variant={group.highPriorityCount ? 'default' : 'outline'}>
-                        {group.agentId}
-                      </Badge>
+                    ))}
+                  {briefing.dispatch.actionableCount === 0 && (
+                    <div className='text-muted-foreground rounded-xl border border-dashed p-3 text-sm'>
+                      No queued agent decisions.
                     </div>
-                    <div className='mt-3 space-y-2'>
-                      {group.tasks.slice(0, 2).map((task) => (
-                        <div key={task.id} className='rounded-lg border bg-background/50 p-2'>
-                          <div className='flex flex-wrap gap-1'>
-                            <Badge variant='outline'>{task.priority}</Badge>
-                            <Badge variant='secondary'>{task.status}</Badge>
-                          </div>
-                          <div className='mt-1 line-clamp-1 text-sm font-medium'>{task.title}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className='border-violet-400/20 bg-violet-400/5 xl:col-span-4'>
-            <CardHeader className='pb-3'>
-              <CardTitle>News radar</CardTitle>
-              <CardDescription>Publika signaler utan API-nyckel än.</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-2'>
-              {briefing.news.items.length === 0 ? (
-                <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
-                  Ingen nyhetskälla svarade just nu.
+                  )}
                 </div>
-              ) : (
-                briefing.news.items.slice(0, 5).map((item) => (
-                  <a
-                    key={`${item.title}-${item.url}`}
-                    href={item.url}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='block rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/5'
-                  >
-                    <div className='line-clamp-2 text-sm font-medium'>{item.title}</div>
-                    <div className='text-muted-foreground mt-2 text-xs'>{item.source}</div>
-                  </a>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className='border-amber-400/20 bg-amber-400/5 xl:col-span-3'>
-            <CardHeader className='pb-3'>
-              <CardTitle>Market pulse</CardTitle>
-              <CardDescription>Startar med Bitcoin.</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              <div className='rounded-2xl border border-amber-400/25 bg-amber-400/10 p-5'>
-                <div className='text-sm text-amber-100'>Bitcoin / SEK</div>
-                <div className='mt-2 text-3xl font-semibold text-white'>
-                  {compactNumber(briefing.bitcoin.priceSek, 'SEK')}
-                </div>
-                <Badge variant='outline' className='mt-3 border-white/10 bg-white/5'>
-                  {percent(briefing.bitcoin.change24h)} 24h
-                </Badge>
               </div>
-              <div className='text-muted-foreground rounded-xl border bg-background/40 p-3 text-xs'>
-                Source: {briefing.bitcoin.source}
+
+              <div className='rounded-2xl border bg-background/40 p-4'>
+                <div className='mb-3 font-medium'>News radar</div>
+                <div className='space-y-2'>
+                  {briefing.news.items.slice(0, 3).map((item) => (
+                    <a
+                      key={`${item.title}-${item.url}`}
+                      href={item.url}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='block rounded-xl border bg-background/50 p-2.5 transition hover:border-primary/40 hover:bg-primary/5'
+                    >
+                      <div className='line-clamp-2 text-sm'>{item.title}</div>
+                      <div className='text-muted-foreground mt-1 text-xs'>{item.source}</div>
+                    </a>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
