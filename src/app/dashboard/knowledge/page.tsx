@@ -6,9 +6,299 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getKnowledgeSnapshot } from '@/db/knowledge';
-import { VaultGraph } from './vault-graph';
-import { VaultExplorer } from './vault-explorer';
 import Link from 'next/link';
+import { VaultExplorer } from './vault-explorer';
+import { VaultGraph } from './vault-graph';
+
+type KnowledgeSource = Awaited<ReturnType<typeof getKnowledgeSnapshot>>['sources'][number];
+
+type LifecycleStatus = 'raw' | 'extracted' | 'wikified' | 'reviewed' | 'promoted' | 'archived';
+
+const lifecycleSteps: Array<{
+  id: LifecycleStatus;
+  label: string;
+  short: string;
+  detail: string;
+  tone: string;
+}> = [
+  {
+    id: 'raw',
+    label: 'Råkälla',
+    short: 'Raw',
+    detail: 'Fångad men ej bearbetad',
+    tone: 'border-slate-400/40 bg-slate-500/10 text-slate-300'
+  },
+  {
+    id: 'extracted',
+    label: 'Extraherad',
+    short: 'Extracted',
+    detail: 'Läsbar text finns',
+    tone: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-300'
+  },
+  {
+    id: 'wikified',
+    label: 'Wikifierad',
+    short: 'Wiki',
+    detail: 'Syntetiserad note',
+    tone: 'border-violet-400/40 bg-violet-500/10 text-violet-300'
+  },
+  {
+    id: 'reviewed',
+    label: 'Granskad',
+    short: 'Reviewed',
+    detail: 'Godkänd av människa/agent',
+    tone: 'border-amber-400/40 bg-amber-500/10 text-amber-300'
+  },
+  {
+    id: 'promoted',
+    label: 'Promoterad',
+    short: 'Context',
+    detail: 'OpenClaw-context kandidat',
+    tone: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300'
+  },
+  {
+    id: 'archived',
+    label: 'Arkiverad',
+    short: 'Archived',
+    detail: 'Inte i aktiv vault',
+    tone: 'border-zinc-400/40 bg-zinc-500/10 text-zinc-300'
+  }
+];
+
+const lifecycleOrder = lifecycleSteps.map((step) => step.id);
+
+function normalizeStatus(status: string): LifecycleStatus {
+  if (lifecycleOrder.includes(status as LifecycleStatus)) return status as LifecycleStatus;
+  if (status === 'queued') return 'extracted';
+  return 'raw';
+}
+
+function statusMeta(status: string) {
+  return lifecycleSteps.find((step) => step.id === normalizeStatus(status)) ?? lifecycleSteps[0];
+}
+
+function statusIndex(status: string) {
+  return lifecycleOrder.indexOf(normalizeStatus(status));
+}
+
+function nextAction(source: KnowledgeSource) {
+  const status = normalizeStatus(source.status);
+  if (status === 'raw') {
+    return {
+      label: 'Extract',
+      helper: 'Hämta/normalisera full text innan vi gör wiki.',
+      action: '/api/knowledge/sources/extract',
+      hidden: {}
+    };
+  }
+  if (status === 'extracted') {
+    return {
+      label: 'Wikify',
+      helper: 'Gör råtexten till en länkbar knowledge note.',
+      action: '/api/knowledge/sources/queue',
+      hidden: {}
+    };
+  }
+  if (status === 'wikified') {
+    return {
+      label: 'Review',
+      helper: 'Kolla om syntesen är värd att lita på.',
+      action: '/api/knowledge/sources/transition',
+      hidden: { status: 'reviewed' }
+    };
+  }
+  if (status === 'reviewed') {
+    return {
+      label: 'Promote',
+      helper: 'Godkänn som OpenClaw-context kandidat.',
+      action: '/api/knowledge/sources/transition',
+      hidden: { status: 'promoted' }
+    };
+  }
+  if (status === 'promoted') {
+    return {
+      label: 'Archive',
+      helper: 'Arkivera när den inte längre ska ligga aktivt i vaulten.',
+      action: '/api/knowledge/sources/transition',
+      hidden: { status: 'archived' }
+    };
+  }
+  return null;
+}
+
+function ActionForm({
+  source,
+  action,
+  label,
+  hidden = {},
+  variant = 'outline',
+  disabled = false
+}: {
+  source: KnowledgeSource;
+  action: string;
+  label: string;
+  hidden?: Record<string, string>;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary';
+  disabled?: boolean;
+}) {
+  return (
+    <form action={action} method='post'>
+      <input type='hidden' name='id' value={source.id} />
+      {Object.entries(hidden).map(([name, value]) => (
+        <input key={name} type='hidden' name={name} value={value} />
+      ))}
+      <Button size='sm' variant={variant} disabled={disabled} className='w-full whitespace-nowrap'>
+        {label}
+      </Button>
+    </form>
+  );
+}
+
+function ProgressRail({ status }: { status: string }) {
+  const current = statusIndex(status);
+  return (
+    <div className='flex items-center gap-1.5'>
+      {lifecycleSteps.map((step, index) => {
+        const active = index <= current;
+        const currentStep = index === current;
+        return (
+          <div key={step.id} className='flex items-center gap-1.5'>
+            <div
+              className={`size-2.5 rounded-full border ${
+                active ? 'border-primary bg-primary' : 'border-muted-foreground/30 bg-muted'
+              } ${currentStep ? 'ring-2 ring-primary/30' : ''}`}
+              title={step.label}
+            />
+            {index < lifecycleSteps.length - 1 && (
+              <div className={`h-px w-5 ${active ? 'bg-primary/60' : 'bg-border'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PipelineStep({ status, count }: { status: string; count: number }) {
+  const meta = statusMeta(status);
+  return (
+    <div className={`rounded-xl border p-4 ${meta.tone}`}>
+      <div className='flex items-start justify-between gap-3'>
+        <div>
+          <div className='text-sm font-medium'>{meta.label}</div>
+          <div className='mt-1 text-xs opacity-80'>{meta.detail}</div>
+        </div>
+        <div className='rounded-full bg-background/70 px-2 py-0.5 font-mono text-xs'>{count}</div>
+      </div>
+    </div>
+  );
+}
+
+function SourceNextAction({ source }: { source: KnowledgeSource }) {
+  const action = nextAction(source);
+  if (!action) {
+    return <Badge variant='secondary'>No next action</Badge>;
+  }
+  return (
+    <ActionForm
+      source={source}
+      action={action.action}
+      label={action.label}
+      hidden={action.hidden as Record<string, string>}
+    />
+  );
+}
+
+function SourceInspector({ source }: { source?: KnowledgeSource }) {
+  if (!source) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Nästa steg</CardTitle>
+          <CardDescription>Inga knowledge sources i kön.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const current = statusIndex(source.status);
+  const action = nextAction(source);
+  const meta = statusMeta(source.status);
+
+  return (
+    <Card className='xl:sticky xl:top-4'>
+      <CardHeader>
+        <div className='flex items-center justify-between gap-3'>
+          <CardTitle>Nästa i kön</CardTitle>
+          <Badge className={meta.tone} variant='outline'>
+            {meta.label}
+          </Badge>
+        </div>
+        <CardDescription className='line-clamp-2'>{source.title}</CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <div className='space-y-3'>
+          {lifecycleSteps.map((step, index) => {
+            const done = index < current;
+            const active = index === current;
+            return (
+              <div key={step.id} className='flex gap-3'>
+                <div className='flex flex-col items-center'>
+                  <div
+                    className={`mt-0.5 size-3 rounded-full border ${
+                      done || active
+                        ? 'border-primary bg-primary'
+                        : 'border-muted-foreground/30 bg-muted'
+                    } ${active ? 'ring-4 ring-primary/15' : ''}`}
+                  />
+                  {index < lifecycleSteps.length - 1 && <div className='h-8 w-px bg-border' />}
+                </div>
+                <div className='min-w-0 pb-2'>
+                  <div className='text-sm font-medium'>{step.label}</div>
+                  <div className='text-muted-foreground text-xs'>{step.detail}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className='rounded-xl border bg-muted/30 p-3'>
+          <div className='text-xs font-medium'>Rekommenderat nästa steg</div>
+          <div className='text-muted-foreground mt-1 text-xs'>
+            {action?.helper ?? 'Den här källan är redan arkiverad eller saknar nästa steg.'}
+          </div>
+          {action && (
+            <div className='mt-3'>
+              <ActionForm
+                source={source}
+                action={action.action}
+                label={action.label}
+                hidden={action.hidden as Record<string, string>}
+                variant='default'
+              />
+            </div>
+          )}
+        </div>
+
+        <div className='space-y-2'>
+          <div className='text-xs font-medium'>Metadata</div>
+          <div className='text-muted-foreground font-mono text-[11px]'>
+            {source.wikiPath ?? source.rawPath}
+          </div>
+          {source.sourceUrl && (
+            <a
+              className='text-primary block truncate text-xs underline'
+              href={source.sourceUrl}
+              target='_blank'
+            >
+              {source.sourceUrl}
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default async function KnowledgePage({
   searchParams
@@ -26,6 +316,12 @@ export default async function KnowledgePage({
   }>;
 }) {
   const [snapshot, params] = await Promise.all([getKnowledgeSnapshot(), searchParams]);
+  const pipeline = snapshot.lifecycle ?? lifecycleOrder;
+  const counts = snapshot.lifecycleCounts ?? {};
+  const activeSources = snapshot.sources.filter(
+    (source) => normalizeStatus(source.status) !== 'archived'
+  );
+  const nextSource = activeSources.find((source) => nextAction(source)) ?? activeSources[0];
 
   return (
     <PageContainer>
@@ -33,12 +329,12 @@ export default async function KnowledgePage({
         <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
           <div className='space-y-2'>
             <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
-              raw → wiki → index → log
+              cockpit · context governance · OpenClaw runtime
             </Badge>
             <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Knowledge inbox</h1>
             <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
-              Dumpa rådata här. Cockpitten sparar källan i raw-inboxen och köar nästa steg:
-              wikifiering till agent-läsbara markdown-sidor.
+              Följ varje källa från rå input till granskad context-kandidat. Agent OS visar och styr
+              livscykeln; OpenClaw kör arbetet.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>
@@ -87,40 +383,101 @@ export default async function KnowledgePage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Context pipeline</CardTitle>
+            <CardTitle>Kunskapsflöde</CardTitle>
             <CardDescription>
-              Synlig lifecycle från rå källa till godkänd OpenClaw-context. Agent OS styr och
-              granskar; OpenClaw är fortfarande runtime.
+              raw → extracted → wikified → reviewed → promoted → used as context in OpenClaw →
+              archived
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='grid grid-cols-2 gap-2 md:grid-cols-6'>
-              {(
-                snapshot.lifecycle ?? [
-                  'raw',
-                  'extracted',
-                  'wikified',
-                  'reviewed',
-                  'promoted',
-                  'archived'
-                ]
-              ).map((status) => (
-                <div key={status} className='rounded-xl border bg-background/40 p-3'>
-                  <div className='text-muted-foreground text-[11px] uppercase tracking-wide'>
-                    {status}
-                  </div>
-                  <div className='mt-1 text-2xl font-semibold'>
-                    {snapshot.lifecycleCounts?.[status] ?? 0}
-                  </div>
-                </div>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6'>
+              {pipeline.map((status) => (
+                <PipelineStep key={status} status={status} count={counts[status] ?? 0} />
               ))}
-            </div>
-            <div className='text-muted-foreground mt-3 text-xs'>
-              raw → extracted → wikified → reviewed → promoted → used as context in OpenClaw →
-              archived
             </div>
           </CardContent>
         </Card>
+
+        <div className='grid grid-cols-1 gap-4 xl:grid-cols-12'>
+          <Card className='xl:col-span-8'>
+            <CardHeader>
+              <CardTitle>Kunskapskö</CardTitle>
+              <CardDescription>
+                Se exakt var varje dokument är och vad nästa steg är.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {snapshot.sources.length === 0 ? (
+                <div className='text-muted-foreground rounded-xl border border-dashed p-6 text-sm'>
+                  Inga källor ännu. Lägg in första råtexten eller URL:en.
+                </div>
+              ) : (
+                <div className='space-y-2'>
+                  {snapshot.sources.map((source) => {
+                    const meta = statusMeta(source.status);
+                    return (
+                      <div key={source.id} className='rounded-xl border bg-background/40 p-4'>
+                        <div className='grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.5fr)_auto_minmax(170px,0.8fr)_120px] lg:items-center'>
+                          <div className='min-w-0'>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <div className='truncate font-medium'>{source.title}</div>
+                              <Badge variant='secondary'>{source.kind}</Badge>
+                            </div>
+                            <div className='text-muted-foreground mt-1 line-clamp-2 text-sm'>
+                              {source.summary || 'Ingen sammanfattning ännu.'}
+                            </div>
+                            <div className='text-muted-foreground mt-1 truncate font-mono text-[11px]'>
+                              {source.wikiPath ?? source.rawPath}
+                            </div>
+                          </div>
+                          <Badge className={meta.tone} variant='outline'>
+                            {meta.label}
+                          </Badge>
+                          <ProgressRail status={source.status} />
+                          <SourceNextAction source={source} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className='space-y-4 xl:col-span-4'>
+            <SourceInspector source={nextSource} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Lägg till rådata</CardTitle>
+                <CardDescription>Text/URL först. Fil/PDF kommer senare.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action='/api/knowledge/sources' method='post' className='space-y-4'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='title'>Titel</Label>
+                    <Input id='title' name='title' placeholder='Ex. Karpathy LLM wiki' required />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='sourceUrl'>URL</Label>
+                    <Input id='sourceUrl' name='sourceUrl' type='url' placeholder='https://...' />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='rawContent'>Råtext</Label>
+                    <Textarea
+                      id='rawContent'
+                      name='rawContent'
+                      placeholder='Klistra in anteckningar, transkript, research, lösa tankar...'
+                      className='min-h-32'
+                    />
+                  </div>
+                  <Button type='submit' className='w-full' disabled={!snapshot.dbOnline}>
+                    Spara till raw inbox
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         <Card>
           <CardHeader>
@@ -142,7 +499,7 @@ export default async function KnowledgePage({
               <div className='text-muted-foreground text-sm'>Vault files</div>
               <div className='text-3xl font-semibold'>{snapshot.vault.files.length}</div>
               <div className='text-muted-foreground mt-2 text-xs'>
-                Root docs + raw sources + wikified pages
+                Root docs + active raw/wiki sources
               </div>
             </div>
             <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-2'>
@@ -150,34 +507,6 @@ export default async function KnowledgePage({
               <pre className='text-muted-foreground mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-relaxed'>
                 {snapshot.vault.indexMd}
               </pre>
-            </details>
-            <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-3'>
-              <summary className='cursor-pointer text-sm font-medium'>
-                Visa agents.md / log.md
-              </summary>
-              <div className='mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2'>
-                <pre className='text-muted-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border bg-background/60 p-3 text-xs leading-relaxed'>
-                  {snapshot.vault.agentsMd}
-                </pre>
-                <pre className='text-muted-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border bg-background/60 p-3 text-xs leading-relaxed'>
-                  {snapshot.vault.logMd}
-                </pre>
-              </div>
-            </details>
-            <details className='rounded-xl border bg-muted/30 p-4 xl:col-span-3'>
-              <summary className='cursor-pointer text-sm font-medium'>
-                Visa alla vault-filer
-              </summary>
-              <div className='mt-3 grid grid-cols-1 gap-2 md:grid-cols-2'>
-                {snapshot.vault.files.map((file) => (
-                  <div key={file.path} className='rounded-lg border bg-background/60 p-3'>
-                    <div className='font-mono text-xs'>{file.path}</div>
-                    <div className='text-muted-foreground mt-1 text-xs'>
-                      {file.content.length} chars
-                    </div>
-                  </div>
-                ))}
-              </div>
             </details>
             <div className='xl:col-span-3'>
               <VaultGraph files={snapshot.vault.files} />
@@ -187,160 +516,6 @@ export default async function KnowledgePage({
             </div>
           </CardContent>
         </Card>
-
-        <div className='grid grid-cols-1 gap-4 xl:grid-cols-5'>
-          <Card className='xl:col-span-2'>
-            <CardHeader>
-              <CardTitle>Lägg till rådata</CardTitle>
-              <CardDescription>
-                V0 stödjer text och URL. Fil/PDF kommer efter att flödet sitter.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action='/api/knowledge/sources' method='post' className='space-y-4'>
-                <div className='space-y-2'>
-                  <Label htmlFor='title'>Titel</Label>
-                  <Input
-                    id='title'
-                    name='title'
-                    placeholder='Ex. Lysande customer notes'
-                    required
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='sourceUrl'>URL</Label>
-                  <Input id='sourceUrl' name='sourceUrl' type='url' placeholder='https://...' />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='rawContent'>Råtext</Label>
-                  <Textarea
-                    id='rawContent'
-                    name='rawContent'
-                    placeholder='Klistra in anteckningar, transkript, research, lösa tankar...'
-                    className='min-h-48'
-                  />
-                </div>
-                <Button type='submit' className='w-full' disabled={!snapshot.dbOnline}>
-                  Spara till raw inbox
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card className='xl:col-span-3'>
-            <CardHeader>
-              <CardTitle>Knowledge sources</CardTitle>
-              <CardDescription>
-                Rådata, extraktion, wiki, review och context-promotion.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              {snapshot.sources.length === 0 ? (
-                <div className='text-muted-foreground rounded-xl border border-dashed p-6 text-sm'>
-                  Inga källor ännu. Lägg in första råtexten eller URL:en.
-                </div>
-              ) : (
-                snapshot.sources.map((source) => (
-                  <div key={source.id} className='rounded-xl border bg-background/40 p-4'>
-                    <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-                      <div className='min-w-0 space-y-1'>
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <div className='font-medium'>{source.title}</div>
-                          <Badge variant='secondary'>{source.kind}</Badge>
-                          <Badge variant={source.status === 'raw' ? 'outline' : 'default'}>
-                            {source.status}
-                          </Badge>
-                        </div>
-                        <div className='text-muted-foreground text-sm'>
-                          {source.summary || 'Ingen sammanfattning ännu.'}
-                        </div>
-                        <div className='text-muted-foreground font-mono text-xs'>
-                          {source.wikiPath ?? source.rawPath}
-                        </div>
-                        {source.sourceUrl && (
-                          <a
-                            className='text-primary text-xs underline'
-                            href={source.sourceUrl}
-                            target='_blank'
-                          >
-                            {source.sourceUrl}
-                          </a>
-                        )}
-                        {source.wikiContent && (
-                          <details className='mt-3 rounded-lg border bg-muted/30 p-3'>
-                            <summary className='cursor-pointer text-sm font-medium'>
-                              Visa wiki
-                            </summary>
-                            <pre className='text-muted-foreground mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-relaxed'>
-                              {source.wikiContent}
-                            </pre>
-                          </details>
-                        )}
-                      </div>
-                      <div className='flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col'>
-                        <form action='/api/knowledge/sources/extract' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <Button size='sm' variant='outline' disabled={source.status !== 'raw'}>
-                            Extract
-                          </Button>
-                        </form>
-                        <form action='/api/knowledge/sources/queue' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={!['raw', 'extracted'].includes(source.status)}
-                          >
-                            Wikify
-                          </Button>
-                        </form>
-                        <form action='/api/knowledge/sources/transition' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <input type='hidden' name='status' value='reviewed' />
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={source.status !== 'wikified'}
-                          >
-                            Review
-                          </Button>
-                        </form>
-                        <form action='/api/knowledge/sources/transition' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <input type='hidden' name='status' value='promoted' />
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={source.status !== 'reviewed'}
-                          >
-                            Promote
-                          </Button>
-                        </form>
-                        <form action='/api/knowledge/sources/transition' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <input type='hidden' name='status' value='archived' />
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={source.status === 'archived'}
-                          >
-                            Archive
-                          </Button>
-                        </form>
-                        <form action='/api/knowledge/sources/delete' method='post'>
-                          <input type='hidden' name='id' value={source.id} />
-                          <Button size='sm' variant='destructive'>
-                            Ta bort
-                          </Button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </PageContainer>
   );
