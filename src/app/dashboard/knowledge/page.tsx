@@ -27,42 +27,42 @@ const lifecycleSteps: Array<{
     label: 'Råkälla',
     short: 'Raw',
     detail: 'Fångad men ej bearbetad',
-    tone: 'border-slate-400/40 bg-slate-500/10 text-slate-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     id: 'extracted',
     label: 'Extraherad',
     short: 'Extracted',
     detail: 'Läsbar text finns',
-    tone: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     id: 'wikified',
     label: 'Wikifierad',
     short: 'Wiki',
     detail: 'Syntetiserad note',
-    tone: 'border-violet-400/40 bg-violet-500/10 text-violet-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     id: 'reviewed',
     label: 'Granskad',
     short: 'Reviewed',
     detail: 'Godkänd av människa/agent',
-    tone: 'border-amber-400/40 bg-amber-500/10 text-amber-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     id: 'promoted',
     label: 'Promoterad',
     short: 'Context',
     detail: 'OpenClaw-context kandidat',
-    tone: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     id: 'archived',
     label: 'Arkiverad',
     short: 'Archived',
     detail: 'Inte i aktiv vault',
-    tone: 'border-zinc-400/40 bg-zinc-500/10 text-zinc-300'
+    tone: 'border-border bg-muted/40 text-card-foreground'
   }
 ];
 

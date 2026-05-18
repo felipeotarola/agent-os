@@ -10,16 +10,16 @@ export const metadata = {
 };
 
 const priorityTone = {
-  high: 'border-rose-400/35 bg-rose-500/10 text-rose-200',
-  medium: 'border-amber-400/35 bg-amber-500/10 text-amber-200',
-  low: 'border-slate-400/35 bg-slate-500/10 text-slate-200'
+  high: 'border-border bg-muted/40 text-card-foreground',
+  medium: 'border-border bg-muted/40 text-card-foreground',
+  low: 'border-border bg-muted/40 text-card-foreground'
 };
 
 const kindTone = {
-  task: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200',
-  knowledge: 'border-violet-400/30 bg-violet-500/10 text-violet-200',
-  agent: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200',
-  system: 'border-slate-400/30 bg-slate-500/10 text-slate-200'
+  task: 'border-border bg-muted/40 text-card-foreground',
+  knowledge: 'border-border bg-muted/40 text-card-foreground',
+  agent: 'border-border bg-muted/40 text-card-foreground',
+  system: 'border-border bg-muted/40 text-card-foreground'
 };
 
 function ActionCard({ item }: { item: ActionCenterItem }) {

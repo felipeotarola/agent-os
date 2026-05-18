@@ -11,16 +11,16 @@ export const metadata = {
 };
 
 const statAccents = [
-  { icon: '◎', color: 'cyan', classes: 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200' },
-  { icon: '▣', color: 'violet', classes: 'border-violet-400/25 bg-violet-500/10 text-violet-200' },
+  { icon: '◎', color: 'cyan', classes: 'border-border bg-muted/40 text-card-foreground' },
+  { icon: '▣', color: 'violet', classes: 'border-border bg-muted/40 text-card-foreground' },
   {
     icon: '●',
     color: 'emerald',
-    classes: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200'
+    classes: 'border-border bg-muted/40 text-card-foreground'
   },
-  { icon: '✦', color: 'blue', classes: 'border-blue-400/25 bg-blue-500/10 text-blue-200' },
-  { icon: '↻', color: 'amber', classes: 'border-amber-400/25 bg-amber-500/10 text-amber-200' },
-  { icon: '⌁', color: 'slate', classes: 'border-slate-400/25 bg-slate-500/10 text-slate-200' }
+  { icon: '✦', color: 'blue', classes: 'border-border bg-muted/40 text-card-foreground' },
+  { icon: '↻', color: 'amber', classes: 'border-border bg-muted/40 text-card-foreground' },
+  { icon: '⌁', color: 'slate', classes: 'border-border bg-muted/40 text-card-foreground' }
 ];
 
 const knowledgeStages = [
@@ -28,59 +28,59 @@ const knowledgeStages = [
     key: 'raw',
     label: 'Raw',
     detail: 'Inbox',
-    dot: 'bg-slate-300',
-    card: 'border-slate-400/25 bg-slate-400/10 text-slate-200'
+    dot: 'bg-muted-foreground',
+    card: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     key: 'extracted',
     label: 'Extracted',
     detail: 'Readable',
-    dot: 'bg-cyan-300',
-    card: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-200'
+    dot: 'bg-primary',
+    card: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     key: 'wikified',
     label: 'Wiki',
     detail: 'Notes',
-    dot: 'bg-violet-300',
-    card: 'border-violet-400/25 bg-violet-400/10 text-violet-200'
+    dot: 'bg-primary',
+    card: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     key: 'reviewed',
     label: 'Reviewed',
     detail: 'Trusted',
-    dot: 'bg-amber-300',
-    card: 'border-amber-400/25 bg-amber-400/10 text-amber-200'
+    dot: 'bg-primary',
+    card: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     key: 'promoted',
     label: 'Context',
     detail: 'OpenClaw',
-    dot: 'bg-emerald-300',
-    card: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+    dot: 'bg-primary',
+    card: 'border-border bg-muted/40 text-card-foreground'
   },
   {
     key: 'archived',
     label: 'Archive',
     detail: 'Cold',
-    dot: 'bg-zinc-300',
-    card: 'border-zinc-400/25 bg-zinc-400/10 text-zinc-200'
+    dot: 'bg-muted-foreground',
+    card: 'border-border bg-muted/40 text-card-foreground'
   }
 ] as const;
 
 const taskColors = ['#22d3ee', '#8b5cf6', '#f59e0b', '#10b981', '#64748b', '#ef4444'];
 
 const agentAvatarPalettes = [
-  'from-cyan-300 via-blue-400 to-indigo-500 text-slate-950 shadow-cyan-500/20',
-  'from-violet-300 via-fuchsia-400 to-pink-500 text-white shadow-fuchsia-500/20',
-  'from-emerald-300 via-teal-400 to-cyan-500 text-slate-950 shadow-emerald-500/20',
-  'from-amber-300 via-orange-400 to-rose-500 text-slate-950 shadow-orange-500/20',
-  'from-lime-300 via-green-400 to-emerald-600 text-slate-950 shadow-green-500/20',
-  'from-sky-300 via-cyan-400 to-teal-500 text-slate-950 shadow-sky-500/20'
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20',
+  'from-primary/70 via-primary to-primary/80 text-primary-foreground shadow-primary/20'
 ];
 
 function StatusDot({ ok }: { ok: boolean }) {
-  return <span className={`size-2 rounded-full ${ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />;
+  return <span className={`size-2 rounded-full ${ok ? 'bg-primary' : 'bg-muted-foreground'}`} />;
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'outline' {
@@ -338,7 +338,7 @@ export default async function OverviewPage() {
                 <div>
                   <Badge
                     variant='outline'
-                    className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'
+                    className='border-border bg-muted/40 text-card-foreground'
                   >
                     <StatusDot ok={snapshot.dbOnline} /> live cockpit
                   </Badge>
@@ -360,13 +360,13 @@ export default async function OverviewPage() {
                   <span className='text-muted-foreground'>Cai has your daily cockpit ready</span>
                   <Badge
                     variant='outline'
-                    className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
+                    className='border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
                   >
                     ◎ Memory healthy
                   </Badge>
                   <Badge
                     variant='outline'
-                    className='border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-100'
+                    className='border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
                   >
                     ↝ {activeRunLabel}
                   </Badge>
@@ -398,7 +398,7 @@ export default async function OverviewPage() {
                       href={item.href}
                       className='group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
                     >
-                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100'>
+                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
                         {item.icon}
                       </span>
                       <span className='min-w-0 flex-1'>
@@ -442,7 +442,7 @@ export default async function OverviewPage() {
             <div className='overview-cockpit-subpanel rounded-3xl border p-4 shadow-inner'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
                 <div className='flex items-start gap-4'>
-                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-3xl shadow-lg shadow-cyan-500/10'>
+                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-3xl shadow-lg'>
                     🤖
                   </div>
                   <div>
@@ -463,9 +463,7 @@ export default async function OverviewPage() {
                   <span className='hidden text-border md:inline'>•</span>
                   <span>Morgon 08:15 · dispatch 08:30 · kväll 19:45/20:30</span>
                   <span className='hidden text-border md:inline'>•</span>
-                  <Badge className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'>
-                    LIVE
-                  </Badge>
+                  <Badge className='border-border bg-muted/40 text-card-foreground'>LIVE</Badge>
                 </div>
               </div>
 
@@ -487,8 +485,8 @@ export default async function OverviewPage() {
                       bitcoinChange === null
                         ? 'text-muted-foreground'
                         : bitcoinChange >= 0
-                          ? 'text-emerald-300'
-                          : 'text-rose-300'
+                          ? 'text-primary'
+                          : 'text-destructive'
                     }`}
                   >
                     {percent(bitcoinChange)} senaste 24h
@@ -497,14 +495,14 @@ export default async function OverviewPage() {
                   <div className='mt-4 flex flex-wrap gap-2'>
                     <Badge
                       variant='outline'
-                      className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+                      className='border-border bg-muted/40 text-card-foreground'
                     >
                       {briefing.bitcoin.source}
                     </Badge>
                     {briefing.bitcoin.priceUsd !== null && (
                       <Badge
                         variant='outline'
-                        className='border-cyan-400/25 bg-cyan-400/10 text-cyan-100'
+                        className='border-border bg-muted/40 text-card-foreground'
                       >
                         {compactNumber(briefing.bitcoin.priceUsd, 'USD')}
                       </Badge>
@@ -557,12 +555,12 @@ export default async function OverviewPage() {
                             variant='outline'
                             className={`shrink-0 border-border text-[10px] ${
                               item.tag === 'AI'
-                                ? 'bg-violet-400/15 text-violet-200'
+                                ? 'bg-muted text-muted-foreground'
                                 : item.tag === 'Bitcoin'
-                                  ? 'bg-orange-400/15 text-orange-200'
+                                  ? 'bg-muted text-muted-foreground'
                                   : item.tag === 'Sverige'
-                                    ? 'bg-blue-400/15 text-blue-200'
-                                    : 'bg-pink-400/15 text-pink-200'
+                                    ? 'bg-muted text-muted-foreground'
+                                    : 'bg-muted text-muted-foreground'
                             }`}
                           >
                             {item.tag}
@@ -582,7 +580,7 @@ export default async function OverviewPage() {
 
                 <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='mb-3 flex items-center gap-3'>
-                    <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-lg text-violet-200'>
+                    <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-lg text-card-foreground'>
                       〽
                     </div>
                     <div className='font-semibold text-foreground'>Personliga signaler</div>
@@ -604,7 +602,7 @@ export default async function OverviewPage() {
                               <div className='font-medium text-foreground'>{signal.title}</div>
                               <span
                                 className={
-                                  signal.status === 'warn' ? 'text-amber-300' : 'text-emerald-300'
+                                  signal.status === 'warn' ? 'text-primary' : 'text-primary'
                                 }
                               >
                                 {signal.status === 'warn' ? '△' : '⌁'}
@@ -629,7 +627,7 @@ export default async function OverviewPage() {
 
                 <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='mb-4 flex items-center gap-3'>
-                    <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-violet-200'>
+                    <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                       ✉
                     </div>
                     <div className='font-semibold text-foreground'>Senaste Cai-meddelande</div>
@@ -673,7 +671,9 @@ export default async function OverviewPage() {
                     </Badge>
                   </div>
                   <div className='mt-4 text-muted-foreground text-xs'>{stat.label}</div>
-                  <div className='mt-1 text-3xl font-semibold text-white'>{stat.value}</div>
+                  <div className='mt-1 text-3xl font-semibold text-card-foreground'>
+                    {stat.value}
+                  </div>
                   <div className='text-muted-foreground mt-2 line-clamp-2 min-h-8 text-xs'>
                     {stat.detail}
                   </div>
@@ -686,19 +686,19 @@ export default async function OverviewPage() {
           })}
         </section>
 
-        <section className='rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5'>
+        <section className='rounded-3xl border bg-card p-5 text-card-foreground shadow-sm'>
           <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center'>
             <div className='space-y-2'>
               <div className='flex flex-wrap items-center gap-2'>
-                <div className='flex size-9 items-center justify-center rounded-xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-200'>
+                <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                   ≋
                 </div>
-                <div className='font-medium text-white'>Live operations</div>
+                <div className='font-medium text-card-foreground'>Live operations</div>
                 <Badge variant={activeRunCount ? 'default' : 'outline'}>
                   {activeRunCount ? 'KÖR' : 'IDLE'}
                 </Badge>
               </div>
-              <p className='text-sm text-slate-300'>
+              <p className='text-sm text-muted-foreground'>
                 {subagents?.ok
                   ? activeRunCount
                     ? `${runningRuns[0]?.title ?? 'OpenClaw activity'} · ${activeTaskRunCount} task runs, ${activeSessionCount} active sessions.`
@@ -709,15 +709,19 @@ export default async function OverviewPage() {
               </p>
             </div>
             <div className='grid gap-2 sm:grid-cols-3'>
-              <div className='rounded-xl border border-slate-700 bg-slate-950/50 p-3'>
-                <div className='text-[10px] uppercase tracking-wide text-slate-500'>Source</div>
-                <div className='mt-1 truncate font-mono text-xs text-slate-200'>
+              <div className='rounded-xl border border-border bg-muted/40 p-3'>
+                <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+                  Source
+                </div>
+                <div className='mt-1 truncate font-mono text-xs text-card-foreground'>
                   {subagents?.source ?? 'missing'}
                 </div>
               </div>
-              <div className='rounded-xl border border-slate-700 bg-slate-950/50 p-3'>
-                <div className='text-[10px] uppercase tracking-wide text-slate-500'>Heartbeat</div>
-                <div className='mt-1 font-mono text-xs text-slate-200'>
+              <div className='rounded-xl border border-border bg-muted/40 p-3'>
+                <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+                  Heartbeat
+                </div>
+                <div className='mt-1 font-mono text-xs text-card-foreground'>
                   {timeLabel(subagents?.checkedAt) ?? 'none'}
                 </div>
               </div>
@@ -887,7 +891,7 @@ export default async function OverviewPage() {
               </div>
             </CardHeader>
             <CardContent className='space-y-5'>
-              <div className='rounded-2xl border border-cyan-400/15 bg-slate-950/40 p-4'>
+              <div className='rounded-2xl border border-border bg-muted/40 p-4'>
                 <div className='relative grid grid-cols-6 gap-2'>
                   <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-slate-500/40 via-cyan-300/60 to-emerald-300/50' />
                   {knowledgeStages.map((stage) => {
@@ -903,10 +907,10 @@ export default async function OverviewPage() {
                             stage.dot
                           } ${active ? 'shadow-lg shadow-cyan-500/20 ring-4 ring-white/10' : 'opacity-55'}`}
                         >
-                          <span className='size-2 rounded-full bg-slate-950/80' />
+                          <span className='size-2 rounded-full bg-background' />
                         </div>
                         <div className='min-w-0'>
-                          <div className='truncate text-[11px] font-medium text-white'>
+                          <div className='truncate text-[11px] font-medium text-card-foreground'>
                             {stage.label}
                           </div>
                           <div className='text-muted-foreground truncate text-[10px]'>
@@ -931,7 +935,7 @@ export default async function OverviewPage() {
               <div className='space-y-2'>
                 <div className='flex items-center justify-between text-xs'>
                   <span className='text-muted-foreground'>Pipeline maturity</span>
-                  <span className='font-mono text-cyan-200'>{knowledge.progress}%</span>
+                  <span className='font-mono text-primary'>{knowledge.progress}%</span>
                 </div>
                 <Progress value={knowledge.progress} className='h-1.5' />
               </div>

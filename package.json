@@ -23,7 +23,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/db-seed.ts",
     "db:studio": "drizzle-kit studio",
-    "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs",
+    "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs",
     "prebuild": "npm run check:runtime-mocks"
   },
   "dependencies": {
