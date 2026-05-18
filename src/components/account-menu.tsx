@@ -15,22 +15,28 @@ import Link from 'next/link';
 import * as React from 'react';
 
 const avatarStorageKey = 'agent-os:user-avatar';
+const profileNameStorageKey = 'agent-os:profile-name';
+const defaultProfileName = 'Felipe';
 
-function useLocalAvatar() {
+function useLocalProfile() {
   const [avatar, setAvatar] = React.useState<string | null>(null);
+  const [name, setName] = React.useState(defaultProfileName);
 
   React.useEffect(() => {
-    const syncAvatar = () => setAvatar(window.localStorage.getItem(avatarStorageKey));
-    syncAvatar();
-    window.addEventListener('storage', syncAvatar);
-    window.addEventListener('agent-os-avatar-updated', syncAvatar);
+    const syncProfile = () => {
+      setAvatar(window.localStorage.getItem(avatarStorageKey));
+      setName(window.localStorage.getItem(profileNameStorageKey)?.trim() || defaultProfileName);
+    };
+    syncProfile();
+    window.addEventListener('storage', syncProfile);
+    window.addEventListener('agent-os-profile-updated', syncProfile);
     return () => {
-      window.removeEventListener('storage', syncAvatar);
-      window.removeEventListener('agent-os-avatar-updated', syncAvatar);
+      window.removeEventListener('storage', syncProfile);
+      window.removeEventListener('agent-os-profile-updated', syncProfile);
     };
   }, []);
 
-  return avatar;
+  return { avatar, name };
 }
 
 function AccountAvatar({ avatar }: { avatar: string | null }) {
@@ -44,7 +50,7 @@ function AccountAvatar({ avatar }: { avatar: string | null }) {
 
 export function AccountMenu() {
   const { isMobile } = useSidebar();
-  const avatar = useLocalAvatar();
+  const { avatar, name } = useLocalProfile();
 
   return (
     <DropdownMenu>
@@ -55,7 +61,7 @@ export function AccountMenu() {
         >
           <AccountAvatar avatar={avatar} />
           <div className='grid flex-1 text-left text-sm leading-tight'>
-            <span className='truncate font-semibold'>Felipe × Cai</span>
+            <span className='truncate font-semibold'>{name}</span>
             <span className='text-muted-foreground truncate text-xs'>Local-first / portable</span>
           </div>
           <Icons.chevronsDown className='ml-auto size-4' />
@@ -71,7 +77,7 @@ export function AccountMenu() {
           <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
             <AccountAvatar avatar={avatar} />
             <div className='grid flex-1 text-left text-sm leading-tight'>
-              <span className='truncate font-semibold'>Felipe × Cai</span>
+              <span className='truncate font-semibold'>{name}</span>
               <span className='truncate text-xs'>Agent OS account</span>
             </div>
           </div>
@@ -97,4 +103,4 @@ export function AccountMenu() {
   );
 }
 
-export { avatarStorageKey };
+export { avatarStorageKey, defaultProfileName, profileNameStorageKey };

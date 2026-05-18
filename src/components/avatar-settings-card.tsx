@@ -6,16 +6,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Icons } from '@/components/icons';
-import { avatarStorageKey } from '@/components/account-menu';
+import {
+  avatarStorageKey,
+  defaultProfileName,
+  profileNameStorageKey
+} from '@/components/account-menu';
 import * as React from 'react';
 
 export function AvatarSettingsCard() {
   const [avatar, setAvatar] = React.useState<string | null>(null);
+  const [name, setName] = React.useState(defaultProfileName);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setAvatar(window.localStorage.getItem(avatarStorageKey));
+    setName(window.localStorage.getItem(profileNameStorageKey)?.trim() || defaultProfileName);
   }, []);
+
+  function persistName(value: string) {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== defaultProfileName) {
+      window.localStorage.setItem(profileNameStorageKey, trimmed);
+    } else {
+      window.localStorage.removeItem(profileNameStorageKey);
+    }
+    setName(trimmed || defaultProfileName);
+    window.dispatchEvent(new Event('agent-os-profile-updated'));
+  }
 
   function persistAvatar(value: string | null) {
     if (value) {
@@ -24,7 +41,7 @@ export function AvatarSettingsCard() {
       window.localStorage.removeItem(avatarStorageKey);
     }
     setAvatar(value);
-    window.dispatchEvent(new Event('agent-os-avatar-updated'));
+    window.dispatchEvent(new Event('agent-os-profile-updated'));
   }
 
   async function onAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -63,10 +80,31 @@ export function AvatarSettingsCard() {
             <AvatarFallback className='rounded-2xl text-2xl'>⚛️</AvatarFallback>
           </Avatar>
           <div className='space-y-1 text-sm'>
-            <div className='font-medium'>Felipe × Cai</div>
+            <div className='font-medium'>{name}</div>
             <div className='text-muted-foreground'>Visas i sidebarens account-menu.</div>
           </div>
         </div>
+
+        <form
+          className='space-y-2'
+          onSubmit={(event) => {
+            event.preventDefault();
+            persistName(name);
+          }}
+        >
+          <Label htmlFor='profile-name'>Display name</Label>
+          <div className='flex gap-2'>
+            <Input
+              id='profile-name'
+              value={name}
+              maxLength={40}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={defaultProfileName}
+            />
+            <Button type='submit'>Save</Button>
+          </div>
+          <div className='text-muted-foreground text-xs'>Default: {defaultProfileName}</div>
+        </form>
 
         <div className='space-y-2'>
           <Label htmlFor='avatar-upload'>Upload image</Label>
