@@ -43,6 +43,9 @@
 
 @layer components {
   .overview-cockpit {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
     background:
       radial-gradient(
         circle at 12% 8%,
@@ -68,13 +71,23 @@
   }
 
   .overview-cockpit-panel {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     background: color-mix(in oklch, var(--card) 76%, transparent);
     border-color: color-mix(in oklch, var(--border) 70%, var(--primary) 30%);
   }
 
   .overview-cockpit-subpanel {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     background: color-mix(in oklch, var(--background) 76%, transparent);
     border-color: color-mix(in oklch, var(--border) 78%, var(--primary) 22%);
+  }
+
+  .overview-cockpit :where(div, a, p, span, pre) {
+    min-width: 0;
   }
 }
 

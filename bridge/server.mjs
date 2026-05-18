@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
@@ -18,6 +18,8 @@ const bridgeVersion = String(packageJson.version ?? 'unknown');
 const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
+const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
+const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 
 function configuredAgents() {
   try {
@@ -62,6 +64,168 @@ function compactTaskTitle(value) {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim();
   if (!text) return null;
   return text.length > 140 ? `${text.slice(0, 137)}…` : text;
+}
+
+function readTextSlice(path, maxChars = 80000) {
+  const buffer = readFileSync(path);
+  return buffer.toString('utf8', 0, Math.min(buffer.length, maxChars));
+}
+
+function sessionAgentRoot(agentId) {
+  return `/root/.openclaw/agents/${agentId}`;
+}
+
+function sessionCandidateFiles() {
+  const files = [];
+  for (const agentId of SESSION_HARVEST_AGENTS) {
+    for (const dir of SESSION_HARVEST_DIRS) {
+      const root = `${sessionAgentRoot(agentId)}/${dir}`;
+      if (!existsSync(root)) continue;
+      for (const name of readdirSync(root)) {
+        if (name.includes('trajectory') || name.includes('checkpoint')) continue;
+        if (!name.endsWith('.md') && !name.endsWith('.jsonl')) continue;
+        const path = `${root}/${name}`;
+        try {
+          const stat = statSync(path);
+          if (!stat.isFile() || stat.size < 2500) continue;
+          files.push({ agentId, path, name, size: stat.size, mtimeMs: stat.mtimeMs });
+        } catch {
+          // Ignore files that disappear during inventory.
+        }
+      }
+    }
+  }
+  return files;
+}
+
+function sessionSignalScore(text) {
+  const value = text.toLowerCase();
+  const keywords = [
+    'remember',
+    'kom ihåg',
+    'beslut',
+    'decision',
+    'todo',
+    'nästa steg',
+    'next step',
+    'felipe asked',
+    'felipe said',
+    'ska',
+    'bör',
+    'memory',
+    'agent os',
+    'lysande',
+    'sladdis',
+    'charles'
+  ];
+  const keywordScore = keywords.reduce((sum, keyword) => sum + (value.includes(keyword) ? 1 : 0), 0);
+  const userTurns = (text.match(/(^|\n)(User|Human|Felipe):/g) ?? []).length;
+  const assistantTurns = (text.match(/(^|\n)Assistant:/g) ?? []).length;
+  return keywordScore * 10 + Math.min(40, userTurns + assistantTurns) + Math.min(40, Math.floor(text.length / 5000));
+}
+
+function sessionTitle(agentId, path, text) {
+  const firstHumanLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => /^(User|Human|Felipe):\s+/.test(line));
+  const label = firstHumanLine?.replace(/^(User|Human|Felipe):\s+/, '').slice(0, 90);
+  const base = path.split('/').pop()?.replace(/\.(md|jsonl).*$/, '') ?? 'session';
+  return `${agentId} session: ${label || base}`;
+}
+
+function extractSessionSummary(agentId, path, text) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const signalLines = lines
+    .filter((line) => /remember|kom ihåg|beslut|decision|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|implemented|created|fixed|deployed/i.test(line))
+    .slice(0, 8)
+    .map((line) => line.replace(/\s+/g, ' ').slice(0, 220));
+  return [
+    `Harvested ${agentId} session for review.`,
+    `Source: ${path}`,
+    `Signals: ${signalLines.length ? signalLines.join(' · ') : 'long/high-signal session; needs review.'}`
+  ].join('\n');
+}
+
+async function sessionKnowledgeInventory({ limit = 25, minScore = 35 } = {}) {
+  const existing = await sql`
+    select source_url as "sourceUrl"
+    from knowledge_sources
+    where kind in ('agent-session', 'chat-session')
+  `;
+  const seen = new Set(existing.map((row) => row.sourceUrl));
+  const candidates = sessionCandidateFiles()
+    .map((file) => {
+      const text = readTextSlice(file.path, 90000);
+      const score = sessionSignalScore(text);
+      return {
+        ...file,
+        score,
+        title: sessionTitle(file.agentId, file.path, text),
+        sourceUrl: `session://${file.agentId}/${file.name}`,
+        alreadyImported: seen.has(`session://${file.agentId}/${file.name}`)
+      };
+    })
+    .filter((file) => file.score >= minScore)
+    .toSorted((a, b) => b.score - a.score || b.mtimeMs - a.mtimeMs)
+    .slice(0, limit);
+
+  return {
+    contract: 'agent-os.session-knowledge-inventory.v1',
+    generatedAt: new Date().toISOString(),
+    source: 'openclaw:agent-session-files',
+    minScore,
+    candidates
+  };
+}
+
+async function harvestSessionKnowledge(input = {}) {
+  const limit = Math.min(Number(input.limit ?? 5), 20);
+  const minScore = Number(input.minScore ?? 35);
+  const dryRun = Boolean(input.dryRun);
+  const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
+  const selected = inventory.candidates.filter((candidate) => !candidate.alreadyImported).slice(0, limit);
+  const imported = [];
+
+  if (!dryRun) {
+    for (const candidate of selected) {
+      const text = readTextSlice(candidate.path, 90000);
+      const summary = extractSessionSummary(candidate.agentId, candidate.path, text);
+      const rawContent = [
+        `# ${candidate.title}`,
+        '',
+        `Agent: ${candidate.agentId}`,
+        `Source file: ${candidate.path}`,
+        `Signal score: ${candidate.score}`,
+        '',
+        '## Extracted signals',
+        summary,
+        '',
+        '## Raw transcript excerpt',
+        text.slice(0, 60000)
+      ].join('\n');
+      const slug = slugify(candidate.title) || crypto.randomUUID();
+      const rawPath = `knowledge/sessions/${new Date().toISOString().slice(0, 10)}-${slug}.md`;
+      const id = crypto.randomUUID();
+      await sql`
+        insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
+        values (${id}, ${candidate.title}, 'agent-session', 'extracted', ${candidate.sourceUrl}, ${rawContent}, ${rawPath}, ${summary.slice(0, 1000)}, ${sql.json({ createdFrom: 'session-harvester', agentId: candidate.agentId, sessionPath: candidate.path, score: candidate.score, harvestedAt: new Date().toISOString() })})
+      `;
+      imported.push({ id, title: candidate.title, agentId: candidate.agentId, score: candidate.score, rawPath });
+    }
+  }
+
+  await auditEvent('session_harvest', `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`, { dryRun, minScore, limit, imported }, 5);
+  return {
+    contract: 'agent-os.session-knowledge-harvest.v1',
+    generatedAt: new Date().toISOString(),
+    dryRun,
+    selected,
+    imported
+  };
 }
 
 async function auditEvent(kind, message, metadata = {}, throttleMinutes = 30) {
@@ -1380,6 +1544,17 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources/delete') {
       return send(res, 200, await deleteKnowledgeSource(await readJson(req)));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/knowledge/sessions/inventory') {
+      return send(res, 200, await sessionKnowledgeInventory({
+        limit: Number(url.searchParams.get('limit') ?? 25),
+        minScore: Number(url.searchParams.get('minScore') ?? 35)
+      }));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/knowledge/sessions/harvest') {
+      return send(res, 200, await harvestSessionKnowledge(await readJson(req)));
     }
 
     send(res, 404, { error: 'not_found' });

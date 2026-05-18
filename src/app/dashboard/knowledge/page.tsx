@@ -340,6 +340,7 @@ export default async function KnowledgePage({
     promoted?: string;
     archived?: string;
     deleted?: string;
+    sessions?: string;
     error?: string;
   }>;
 }) {
@@ -379,6 +380,7 @@ export default async function KnowledgePage({
           params.promoted ||
           params.archived ||
           params.deleted ||
+          params.sessions ||
           params.error) && (
           <Card className={params.error ? 'border-destructive/40' : 'border-primary/40'}>
             <CardContent className='pt-6 text-sm'>
@@ -390,6 +392,10 @@ export default async function KnowledgePage({
               {params.promoted && 'Knowledge promoted som OpenClaw context-kandidat.'}
               {params.archived && 'Knowledge arkiverad.'}
               {params.deleted && 'Knowledge-källa borttagen.'}
+              {params.sessions === 'harvested' &&
+                'Agent-/chat-sessioner importerade till Knowledge Inbox för review.'}
+              {params.sessions === 'previewed' &&
+                'Session harvester preview körd. Använd JSON-endpointen för detaljer.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
               {params.error === 'missing' && 'Titel och antingen URL eller råtext krävs.'}
@@ -474,6 +480,58 @@ export default async function KnowledgePage({
 
           <div className='space-y-4 xl:col-span-4'>
             <SourceInspector source={nextSource} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Agent session harvester</CardTitle>
+                <CardDescription>
+                  Importerar långa/högsignal-sessioner från Cai, Charles och Sladdis som reviewbara
+                  Knowledge-källor. Inget promoteras automatiskt.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action='/api/knowledge/sessions/harvest' method='post' className='space-y-4'>
+                  <div className='grid grid-cols-2 gap-3'>
+                    <div className='space-y-2'>
+                      <Label htmlFor='session-limit'>Max</Label>
+                      <Input
+                        id='session-limit'
+                        name='limit'
+                        type='number'
+                        defaultValue={5}
+                        min={1}
+                        max={20}
+                      />
+                    </div>
+                    <div className='space-y-2'>
+                      <Label htmlFor='session-score'>Min score</Label>
+                      <Input
+                        id='session-score'
+                        name='minScore'
+                        type='number'
+                        defaultValue={35}
+                        min={1}
+                      />
+                    </div>
+                  </div>
+                  <div className='text-muted-foreground text-xs leading-5'>
+                    Skapar status <code>extracted</code> med rå transcript-excerpt + signaler.
+                    Review/Wikify/Promote görs separat.
+                  </div>
+                  <SubmitButton
+                    className='w-full'
+                    disabled={!snapshot.dbOnline}
+                    pendingText='Skördar…'
+                  >
+                    Harvest sessions to inbox
+                  </SubmitButton>
+                </form>
+                <Button asChild variant='outline' className='mt-3 w-full'>
+                  <Link href='/api/knowledge/sessions/inventory' target='_blank'>
+                    Preview inventory JSON
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Lägg till rådata</CardTitle>
