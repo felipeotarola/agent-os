@@ -36,6 +36,7 @@ The project follows a feature-based folder structure designed for scalability in
 - PostCSS with `@tailwindcss/postcss` plugin
 - shadcn/ui component library (Radix UI primitives)
 - CSS custom properties for theming (OKLCH color format)
+- **Design rule:** all new dashboard sections/containers must use theme tokens and shared UI primitives. Do not hard-code custom colored sections with `text-white`, `text-cyan-*`, `bg-slate-*`, etc. See `docs/DESIGN.md`.
 
 ### State Management
 
