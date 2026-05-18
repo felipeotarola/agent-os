@@ -1,7 +1,8 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { KanbanItem } from '@/components/ui/kanban';
+import { KanbanItem, KanbanItemHandle } from '@/components/ui/kanban';
+import { Icons } from '@/components/icons';
 import type { Task } from '../utils/store';
 
 interface TaskCardProps extends Omit<React.ComponentProps<typeof KanbanItem>, 'value'> {
@@ -12,30 +13,28 @@ interface TaskCardProps extends Omit<React.ComponentProps<typeof KanbanItem>, 'v
 export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
   return (
     <KanbanItem key={task.id} value={task.id} asChild {...props}>
-      <div
-        className='bg-card hover:border-primary/40 cursor-pointer rounded-md border p-3 shadow-xs transition-colors'
-        onClick={() => onOpen?.(task)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') onOpen?.(task);
-        }}
-        role='button'
-        tabIndex={0}
-      >
+      <div className='bg-card hover:border-primary/40 rounded-md border p-3 shadow-xs transition-colors'>
         <div className='flex flex-col gap-2'>
           <div className='flex items-center justify-between gap-2'>
             <span className='line-clamp-1 text-sm font-medium'>{task.title}</span>
-            <Badge
-              variant={
-                task.priority === 'high'
-                  ? 'destructive'
-                  : task.priority === 'medium'
-                    ? 'default'
-                    : 'secondary'
-              }
-              className='pointer-events-none h-5 rounded-sm px-1.5 text-[11px] capitalize'
-            >
-              {task.priority}
-            </Badge>
+            <div className='flex shrink-0 items-center gap-1.5'>
+              <Badge
+                variant={
+                  task.priority === 'high'
+                    ? 'destructive'
+                    : task.priority === 'medium'
+                      ? 'default'
+                      : 'secondary'
+                }
+                className='pointer-events-none h-5 rounded-sm px-1.5 text-[11px] capitalize'
+              >
+                {task.priority}
+              </Badge>
+              <KanbanItemHandle className='text-muted-foreground hover:text-foreground rounded-sm p-1'>
+                <Icons.gripVertical className='size-3.5' />
+                <span className='sr-only'>Dra task</span>
+              </KanbanItemHandle>
+            </div>
           </div>
           <div className='text-muted-foreground flex items-center justify-between text-xs'>
             {task.assignee && (
@@ -55,7 +54,17 @@ export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
           {task.description && (
             <p className='text-muted-foreground line-clamp-2 text-xs'>{task.description}</p>
           )}
-          <div className='text-primary text-[10px] font-medium'>Öppna / editera →</div>
+          <button
+            type='button'
+            className='text-primary hover:text-primary/80 w-fit text-[10px] font-medium underline-offset-2 hover:underline'
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen?.(task);
+            }}
+          >
+            Öppna / editera →
+          </button>
         </div>
       </div>
     </KanbanItem>

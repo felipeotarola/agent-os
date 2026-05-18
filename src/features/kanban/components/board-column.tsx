@@ -30,7 +30,7 @@ export function TaskColumn({ value, tasks, onTaskOpen, ...props }: TaskColumnPro
       </div>
       <div className='flex flex-col gap-2 p-0.5'>
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onTaskOpen} asHandle />
+          <TaskCard key={task.id} task={task} onOpen={onTaskOpen} />
         ))}
       </div>
     </KanbanColumn>
