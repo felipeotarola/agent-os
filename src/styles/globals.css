@@ -9,9 +9,26 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
+
+  html {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    width: 100%;
+    max-width: 100dvw;
+    overflow-x: clip;
+  }
+
+  body > * {
+    max-width: 100dvw;
   }
 
   /* Global scrollbar styling to match ScrollArea */
