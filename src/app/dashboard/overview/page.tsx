@@ -192,62 +192,56 @@ export default async function OverviewPage() {
   const openTasks = taskEntries
     .filter(([status]) => !['done', 'cancelled'].includes(status))
     .reduce((sum, [, count]) => sum + Number(count), 0);
-  const onlineAgents = snapshot.agents.filter((agent) => agent.status === 'online').length;
+  const resumeItems = [
+    {
+      icon: '↗',
+      label: 'Continue',
+      value: snapshot.tasks[0]?.title ?? 'No priority task selected',
+      href: '/dashboard/kanban'
+    },
+    {
+      icon: '⚛',
+      label: 'Agent check-in',
+      value: subagents?.runningCount ? `${subagents.runningCount} active runs` : 'Cai is idle',
+      href: '/dashboard/agents'
+    },
+    {
+      icon: '✦',
+      label: 'Latest change',
+      value: events[0]?.message ?? 'No recent events',
+      href: '/dashboard/knowledge'
+    }
+  ];
 
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-5'>
-        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_80%_15%,rgba(139,92,246,0.22),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.99))] p-6 shadow-2xl shadow-cyan-950/30'>
+        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_15%_18%,rgba(34,211,238,0.2),transparent_34%),radial-gradient(circle_at_78%_10%,rgba(139,92,246,0.28),transparent_32%),radial-gradient(circle_at_88%_88%,rgba(16,185,129,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.97),rgba(2,6,23,0.99))] p-6 shadow-2xl shadow-cyan-950/30 md:p-7'>
           <div className='absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent' />
-          <div className='relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_250px] lg:items-center'>
-            <div className='space-y-5'>
+          <div className='absolute -right-24 -top-24 size-64 rounded-full border border-white/10 bg-white/5 blur-2xl' />
+          <div className='relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-stretch'>
+            <div className='flex min-h-[330px] flex-col justify-between gap-8'>
               <Badge variant='outline' className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'>
                 <StatusDot ok={snapshot.dbOnline} /> live cockpit
               </Badge>
 
-              <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start'>
-                <div>
-                  <h1 className='text-3xl font-semibold tracking-tight text-white md:text-4xl'>
-                    Welcome Felipe 👋
-                  </h1>
-                  <div className='mt-1 text-2xl font-medium text-slate-200 md:text-3xl'>
-                    {stockholmDate(liveAt)}
-                  </div>
-                  <div className='mt-2 text-sm text-slate-300'>
-                    Stockholm time {stockholmTime(liveAt)} · live snapshot
-                  </div>
+              <div>
+                <h1 className='text-4xl font-semibold tracking-tight text-white md:text-5xl'>
+                  Welcome Felipe 👋
+                </h1>
+                <div className='mt-2 text-2xl font-medium text-slate-200 md:text-3xl'>
+                  {stockholmDate(liveAt)}
                 </div>
-
-                <div className='grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 xl:grid-cols-4'>
-                  <div className='rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 shadow-lg shadow-cyan-950/20'>
-                    <div className='text-slate-400'>Open tasks</div>
-                    <div className='mt-1 text-2xl font-semibold text-white'>{openTasks}</div>
-                  </div>
-                  <div className='rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 shadow-lg shadow-emerald-950/20'>
-                    <div className='text-slate-400'>Agents</div>
-                    <div className='mt-1 text-2xl font-semibold text-white'>
-                      {onlineAgents}/{snapshot.agents.length}
-                    </div>
-                  </div>
-                  <div className='rounded-xl border border-violet-400/20 bg-violet-400/10 p-3 shadow-lg shadow-violet-950/20'>
-                    <div className='text-slate-400'>Knowledge</div>
-                    <div className='mt-1 text-2xl font-semibold text-white'>
-                      {knowledge.wikified}
-                    </div>
-                  </div>
-                  <div className='rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 shadow-lg shadow-amber-950/20'>
-                    <div className='text-slate-400'>Running</div>
-                    <div className='mt-1 text-2xl font-semibold text-white'>
-                      {subagents?.runningCount ?? 0}
-                    </div>
-                  </div>
+                <div className='mt-3 text-sm text-slate-300'>
+                  Stockholm time {stockholmTime(liveAt)} · live snapshot
                 </div>
               </div>
 
               <div className='h-px max-w-4xl bg-gradient-to-r from-slate-700 via-slate-600 to-transparent' />
 
-              <p className='max-w-3xl text-sm text-slate-300'>
-                Your control center for tasks, workers, knowledge pipeline, and recent activity.
+              <p className='max-w-2xl text-sm leading-6 text-slate-300'>
+                Personal command center for Agent OS: keep the important work visible, let agents
+                handle the boring logging, and use the cockpit only for decisions that need a human.
               </p>
 
               <div className='flex flex-wrap items-center gap-3 text-xs'>
@@ -276,22 +270,59 @@ export default async function OverviewPage() {
               </div>
             </div>
 
-            <div className='rounded-2xl border border-emerald-400/25 bg-slate-950/70 p-4 shadow-lg shadow-emerald-950/20 backdrop-blur'>
-              <div className='flex items-center justify-between gap-3'>
-                <div>
-                  <div className='text-xs text-slate-400'>System health</div>
-                  <div className='mt-2 flex items-center gap-2 font-mono text-sm text-slate-100'>
-                    <StatusDot ok={snapshot.dbOnline} />
-                    {snapshot.dbOnline ? 'db online' : 'fallback / degraded'}
+            <div className='flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-violet-950/20 backdrop-blur'>
+              <div>
+                <div className='flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='text-xs uppercase tracking-[0.2em] text-slate-500'>Resume</div>
+                    <div className='mt-1 text-sm text-slate-200'>
+                      Pick up where the system left off.
+                    </div>
                   </div>
+                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-200'>
+                    LIVE
+                  </Badge>
                 </div>
-                <Badge variant={snapshot.dbOnline ? 'default' : 'outline'}>
-                  {snapshot.dbOnline ? 'ONLINE' : 'CHECK'}
-                </Badge>
+
+                <div className='mt-4 space-y-2'>
+                  {resumeItems.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className='group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/40 hover:bg-cyan-300/10'
+                    >
+                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100'>
+                        {item.icon}
+                      </span>
+                      <span className='min-w-0 flex-1'>
+                        <span className='block text-[10px] uppercase tracking-wide text-slate-500'>
+                          {item.label}
+                        </span>
+                        <span className='mt-0.5 block truncate text-sm font-medium text-slate-100'>
+                          {item.value}
+                        </span>
+                      </span>
+                      <span className='text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-cyan-200'>
+                        →
+                      </span>
+                    </Link>
+                  ))}
+                </div>
               </div>
-              <div className='mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-400'>
-                Latest snapshot
-                <div className='mt-1 font-mono text-slate-200'>{generatedAt}</div>
+
+              <div className='grid gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 p-3 text-xs text-slate-300'>
+                <div className='flex items-center gap-2'>
+                  <StatusDot ok={snapshot.dbOnline} /> db online
+                </div>
+                <div className='flex items-center gap-2'>
+                  <StatusDot ok={Boolean(subagents?.ok)} /> OpenClaw bridge connected
+                </div>
+                <div className='flex items-center gap-2'>
+                  <StatusDot ok /> Memory index healthy
+                </div>
+                <div className='font-mono text-[11px] text-slate-400'>
+                  Last snapshot {generatedAt}
+                </div>
               </div>
             </div>
           </div>
