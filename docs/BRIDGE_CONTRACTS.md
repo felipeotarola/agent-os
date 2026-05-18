@@ -129,6 +129,33 @@ Contract: `agent-os.task-dispatch-summary.v1`. Used by Cai's morning/evening dis
 
 The helper `node scripts/agent-dispatcher-summary.mjs` reads `.env`, calls this endpoint, and prints the Swedish dispatcher prompt Cai should summarize to Felipe.
 
+## `POST /knowledge/sources/delete`
+
+Deletes one real knowledge source from Postgres by `id`. The generated vault files (`rawPath`/`wikiPath`) disappear from the next `/knowledge/snapshot` because the vault is derived from `knowledge_sources`; root generated files (`agents.md`, `index.md`, `log.md`) are not individually deletable.
+
+Request:
+
+```json
+{ "id": "knowledge-source-id" }
+```
+
+Response:
+
+```json
+{
+  "deleted": true,
+  "source": {
+    "id": "knowledge-source-id",
+    "title": "Old mock note",
+    "status": "wikified",
+    "rawPath": "knowledge/raw/...md",
+    "wikiPath": "knowledge/wiki/...md"
+  }
+}
+```
+
+The bridge writes a `knowledge_deleted` task event with safe path metadata and no raw content.
+
 ## Audit events
 
 The existing `task_events` table is used as the audit stream. Bridge health/subagent snapshot failures write throttled events (`bridge_health_failed`, `subagent_snapshot_failed`) with safe metadata and no secrets. The throttle prevents noisy spam while keeping visible operational failures in Recent events.

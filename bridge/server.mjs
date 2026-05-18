@@ -1039,6 +1039,33 @@ async function queueKnowledgeSource(input) {
   return result[0];
 }
 
+async function deleteKnowledgeSource(input) {
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const rows = await sql`
+    delete from knowledge_sources
+    where id = ${id}
+    returning id, title, status, raw_path as "rawPath", wiki_path as "wikiPath"
+  `;
+  if (!rows.length) {
+    const error = new Error('source not found');
+    error.status = 404;
+    throw error;
+  }
+
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, null, 'cai', 'knowledge_deleted', ${`Knowledge source deleted: ${rows[0].title}`}, ${sql.json({ sourceId: rows[0].id, status: rows[0].status, rawPath: rows[0].rawPath, wikiPath: rows[0].wikiPath })})
+  `;
+
+  return { deleted: true, source: rows[0] };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -1120,6 +1147,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources/queue') {
       return send(res, 200, await queueKnowledgeSource(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/knowledge/sources/delete') {
+      return send(res, 200, await deleteKnowledgeSource(await readJson(req)));
     }
 
     send(res, 404, { error: 'not_found' });

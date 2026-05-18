@@ -13,7 +13,13 @@ import Link from 'next/link';
 export default async function KnowledgePage({
   searchParams
 }: {
-  searchParams: Promise<{ created?: string; queued?: string; wikified?: string; error?: string }>;
+  searchParams: Promise<{
+    created?: string;
+    queued?: string;
+    wikified?: string;
+    deleted?: string;
+    error?: string;
+  }>;
 }) {
   const [snapshot, params] = await Promise.all([getKnowledgeSnapshot(), searchParams]);
 
@@ -37,12 +43,13 @@ export default async function KnowledgePage({
           </div>
         </div>
 
-        {(params.created || params.queued || params.error) && (
+        {(params.created || params.queued || params.wikified || params.deleted || params.error) && (
           <Card className={params.error ? 'border-destructive/40' : 'border-primary/40'}>
             <CardContent className='pt-6 text-sm'>
               {params.created && 'Källa sparad i raw-inboxen.'}
               {params.queued && 'Källa köad för wikifiering.'}
               {params.wikified && 'Källa wikifierad till en knowledge page.'}
+              {params.deleted && 'Knowledge-källa borttagen.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
               {params.error === 'missing' && 'Titel och antingen URL eller råtext krävs.'}
@@ -215,12 +222,20 @@ export default async function KnowledgePage({
                           </details>
                         )}
                       </div>
-                      <form action='/api/knowledge/sources/queue' method='post'>
-                        <input type='hidden' name='id' value={source.id} />
-                        <Button size='sm' variant='outline' disabled={source.status !== 'raw'}>
-                          {source.status === 'wikified' ? 'Wikifierad' : 'Wikifiera'}
-                        </Button>
-                      </form>
+                      <div className='flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col'>
+                        <form action='/api/knowledge/sources/queue' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <Button size='sm' variant='outline' disabled={source.status !== 'raw'}>
+                            {source.status === 'wikified' ? 'Wikifierad' : 'Wikifiera'}
+                          </Button>
+                        </form>
+                        <form action='/api/knowledge/sources/delete' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <Button size='sm' variant='destructive'>
+                            Ta bort
+                          </Button>
+                        </form>
+                      </div>
                     </div>
                   </div>
                 ))
