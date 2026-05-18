@@ -446,6 +446,28 @@ export function VaultGraph({ files }: VaultGraphProps) {
     return () => window.removeEventListener('resize', onResize);
   }, [draw]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = canvas.getBoundingClientRect();
+      const before = worldPoint(event, canvas, viewRef.current);
+      const scale = clamp(viewRef.current.scale * (event.deltaY > 0 ? 0.9 : 1.1), 0.28, 3.2);
+      viewRef.current = {
+        scale,
+        x: event.clientX - rect.left - before.x * scale,
+        y: event.clientY - rect.top - before.y * scale
+      };
+      draw();
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [draw]);
+
   const findNodeAt = useCallback((x: number, y: number) => {
     const nodes = nodesRef.current;
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
@@ -510,24 +532,7 @@ export function VaultGraph({ files }: VaultGraphProps) {
             <canvas
               ref={canvasRef}
               className='block size-full cursor-grab active:cursor-grabbing'
-              onWheel={(event) => {
-                event.preventDefault();
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                const rect = canvas.getBoundingClientRect();
-                const before = worldPoint(event, canvas, viewRef.current);
-                const scale = clamp(
-                  viewRef.current.scale * (event.deltaY > 0 ? 0.9 : 1.1),
-                  0.28,
-                  3.2
-                );
-                viewRef.current = {
-                  scale,
-                  x: event.clientX - rect.left - before.x * scale,
-                  y: event.clientY - rect.top - before.y * scale
-                };
-                draw();
-              }}
+              style={{ touchAction: 'none' }}
               onPointerDown={(event) => {
                 const canvas = canvasRef.current;
                 if (!canvas) return;
