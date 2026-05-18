@@ -16,7 +16,11 @@ export default async function KnowledgePage({
   searchParams: Promise<{
     created?: string;
     queued?: string;
+    extracted?: string;
     wikified?: string;
+    reviewed?: string;
+    promoted?: string;
+    archived?: string;
     deleted?: string;
     error?: string;
   }>;
@@ -43,12 +47,24 @@ export default async function KnowledgePage({
           </div>
         </div>
 
-        {(params.created || params.queued || params.wikified || params.deleted || params.error) && (
+        {(params.created ||
+          params.queued ||
+          params.extracted ||
+          params.wikified ||
+          params.reviewed ||
+          params.promoted ||
+          params.archived ||
+          params.deleted ||
+          params.error) && (
           <Card className={params.error ? 'border-destructive/40' : 'border-primary/40'}>
             <CardContent className='pt-6 text-sm'>
               {params.created && 'Källa sparad i raw-inboxen.'}
               {params.queued && 'Källa köad för wikifiering.'}
+              {params.extracted && 'Källa extraherad till läsbar råtext.'}
               {params.wikified && 'Källa wikifierad till en knowledge page.'}
+              {params.reviewed && 'Knowledge markerad som reviewed.'}
+              {params.promoted && 'Knowledge promoted som OpenClaw context-kandidat.'}
+              {params.archived && 'Knowledge arkiverad.'}
               {params.deleted && 'Knowledge-källa borttagen.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
@@ -68,6 +84,43 @@ export default async function KnowledgePage({
             </Card>
           ))}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Context pipeline</CardTitle>
+            <CardDescription>
+              Synlig lifecycle från rå källa till godkänd OpenClaw-context. Agent OS styr och
+              granskar; OpenClaw är fortfarande runtime.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='grid grid-cols-2 gap-2 md:grid-cols-6'>
+              {(
+                snapshot.lifecycle ?? [
+                  'raw',
+                  'extracted',
+                  'wikified',
+                  'reviewed',
+                  'promoted',
+                  'archived'
+                ]
+              ).map((status) => (
+                <div key={status} className='rounded-xl border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-[11px] uppercase tracking-wide'>
+                    {status}
+                  </div>
+                  <div className='mt-1 text-2xl font-semibold'>
+                    {snapshot.lifecycleCounts?.[status] ?? 0}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className='text-muted-foreground mt-3 text-xs'>
+              raw → extracted → wikified → reviewed → promoted → used as context in OpenClaw →
+              archived
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -176,8 +229,10 @@ export default async function KnowledgePage({
 
           <Card className='xl:col-span-3'>
             <CardHeader>
-              <CardTitle>Raw inbox</CardTitle>
-              <CardDescription>Källor och wikifierade knowledge-sidor.</CardDescription>
+              <CardTitle>Knowledge sources</CardTitle>
+              <CardDescription>
+                Rådata, extraktion, wiki, review och context-promotion.
+              </CardDescription>
             </CardHeader>
             <CardContent className='space-y-3'>
               {snapshot.sources.length === 0 ? (
@@ -223,10 +278,53 @@ export default async function KnowledgePage({
                         )}
                       </div>
                       <div className='flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col'>
-                        <form action='/api/knowledge/sources/queue' method='post'>
+                        <form action='/api/knowledge/sources/extract' method='post'>
                           <input type='hidden' name='id' value={source.id} />
                           <Button size='sm' variant='outline' disabled={source.status !== 'raw'}>
-                            {source.status === 'wikified' ? 'Wikifierad' : 'Wikifiera'}
+                            Extract
+                          </Button>
+                        </form>
+                        <form action='/api/knowledge/sources/queue' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={!['raw', 'extracted'].includes(source.status)}
+                          >
+                            Wikify
+                          </Button>
+                        </form>
+                        <form action='/api/knowledge/sources/transition' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <input type='hidden' name='status' value='reviewed' />
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={source.status !== 'wikified'}
+                          >
+                            Review
+                          </Button>
+                        </form>
+                        <form action='/api/knowledge/sources/transition' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <input type='hidden' name='status' value='promoted' />
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={source.status !== 'reviewed'}
+                          >
+                            Promote
+                          </Button>
+                        </form>
+                        <form action='/api/knowledge/sources/transition' method='post'>
+                          <input type='hidden' name='id' value={source.id} />
+                          <input type='hidden' name='status' value='archived' />
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={source.status === 'archived'}
+                          >
+                            Archive
                           </Button>
                         </form>
                         <form action='/api/knowledge/sources/delete' method='post'>

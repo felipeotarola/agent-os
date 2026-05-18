@@ -856,6 +856,26 @@ function wikifySource(source) {
   return { summary, wikiPath, wikiContent };
 }
 
+
+function stripHtml(html) {
+  return String(html ?? '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function metadataPatch(patch) {
+  return sql`coalesce(metadata, '{}'::jsonb) || ${sql.json(patch)}`;
+}
+
 function rawMarkdown(source) {
   return [
     '---',
@@ -896,8 +916,10 @@ function buildVaultSnapshot(sources) {
     seen.add(next);
     return next;
   };
-  const wikified = sources.filter((source) => source.status === 'wikified' && source.wikiPath);
-  const raw = sources.filter((source) => source.status !== 'wikified');
+  const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
+  const activeSources = sources.filter((source) => source.status !== 'archived');
+  const wikified = activeSources.filter((source) => wikiStatuses.has(source.status) && source.wikiPath);
+  const raw = activeSources.filter((source) => !wikiStatuses.has(source.status));
   const agentsMd = [
     '# agents.md',
     '',
@@ -945,9 +967,9 @@ function buildVaultSnapshot(sources) {
     { path: uniquePath('index.md'), content: indexMd },
     { path: uniquePath('log.md'), content: logMd }
   ];
-  for (const source of sources) {
+  for (const source of activeSources) {
     files.push({ path: uniquePath(source.rawPath), content: rawMarkdown(source) });
-    if (source.status === 'wikified' && source.wikiPath && source.wikiContent) {
+    if (wikiStatuses.has(source.status) && source.wikiPath && source.wikiContent) {
       files.push({ path: uniquePath(source.wikiPath), content: source.wikiContent });
     }
   }
@@ -965,15 +987,19 @@ async function knowledgeSnapshot() {
     sql`select status, count(*)::int as count from knowledge_sources group by status`
   ]);
 
+  const lifecycle = ['raw', 'extracted', 'wikified', 'reviewed', 'promoted', 'archived'];
   const byStatus = new Map(counts.map((row) => [row.status, Number(row.count)]));
+  const lifecycleCounts = Object.fromEntries(lifecycle.map((status) => [status, byStatus.get(status) ?? 0]));
   const vault = buildVaultSnapshot(sources);
   return {
     dbOnline: true,
     sources,
+    lifecycle,
+    lifecycleCounts,
     stats: [
-      { label: 'Raw inbox', value: String(byStatus.get('raw') ?? 0), detail: 'Nya källor som väntar på syntes' },
-      { label: 'Köade', value: String(byStatus.get('queued') ?? 0), detail: 'Markerade för wikifiering' },
-      { label: 'Wikifierade', value: String(byStatus.get('wikified') ?? 0), detail: 'Syntetiserade knowledge pages' }
+      { label: 'Raw', value: String(lifecycleCounts.raw), detail: 'Untrusted captured sources' },
+      { label: 'Extracted', value: String(lifecycleCounts.extracted), detail: 'Readable content extracted' },
+      { label: 'Context-ready', value: String(lifecycleCounts.promoted), detail: 'Reviewed and approved for OpenClaw context' }
     ],
     vault
   };
@@ -1027,7 +1053,7 @@ async function queueKnowledgeSource(input) {
   const wiki = wikifySource(source[0]);
   const result = await sql`
     update knowledge_sources
-    set status = 'wikified', summary = ${wiki.summary}, wiki_path = ${wiki.wikiPath}, wiki_content = ${wiki.wikiContent}, updated_at = now(), metadata = ${sql.json({ wikifiedFrom: 'bridge', wikifiedAt: new Date().toISOString() })}
+    set status = 'wikified', summary = ${wiki.summary}, wiki_path = ${wiki.wikiPath}, wiki_content = ${wiki.wikiContent}, updated_at = now(), metadata = ${metadataPatch({ wikifiedFrom: 'bridge', wikifiedAt: new Date().toISOString() })}
     where id = ${id}
     returning id, title, status
   `;
@@ -1037,6 +1063,98 @@ async function queueKnowledgeSource(input) {
     throw error;
   }
   return result[0];
+}
+
+
+async function extractKnowledgeSource(input) {
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const rows = await sql`
+    select id, title, source_url as "sourceUrl", raw_content as "rawContent", metadata
+    from knowledge_sources
+    where id = ${id}
+    limit 1
+  `;
+  if (!rows.length) {
+    const error = new Error('source not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const source = rows[0];
+  let extractedText = String(source.rawContent ?? '').trim();
+  let fetchStatus = 'not-needed';
+  let fetchError = null;
+
+  if (source.sourceUrl && extractedText.length < 500) {
+    try {
+      const response = await fetch(source.sourceUrl, {
+        headers: { 'user-agent': 'AgentOSKnowledgeExtractor/1.0 (+https://www.felipeotarola.com)' }
+      });
+      fetchStatus = `${response.status}`;
+      const html = await response.text();
+      extractedText = stripHtml(html).slice(0, 60000);
+    } catch (error) {
+      fetchStatus = 'error';
+      fetchError = error.message ?? 'fetch_failed';
+    }
+  }
+
+  const summary = extractedText ? firstSentence(extractedText) : source.sourceUrl || 'No readable text extracted yet.';
+  const result = await sql`
+    update knowledge_sources
+    set status = 'extracted', raw_content = ${extractedText}, summary = ${summary}, updated_at = now(), metadata = ${metadataPatch({ extractedFrom: 'bridge', extractedAt: new Date().toISOString(), fetchStatus, fetchError })}
+    where id = ${id}
+    returning id, title, status, summary
+  `;
+
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, null, 'cai', 'knowledge_extracted', ${`Knowledge source extracted: ${source.title}`}, ${sql.json({ sourceId: id, fetchStatus, fetchError })})
+  `;
+
+  return result[0];
+}
+
+async function transitionKnowledgeSource(input) {
+  const id = String(input.id ?? '').trim();
+  const status = String(input.status ?? '').trim();
+  const allowed = new Set(['reviewed', 'promoted', 'archived']);
+  if (!id || !allowed.has(status)) {
+    const error = new Error('id and valid status are required');
+    error.status = 400;
+    throw error;
+  }
+
+  const patch = { transitionedFrom: 'bridge', transitionedAt: new Date().toISOString() };
+  if (status === 'promoted') {
+    patch.promotedTo = 'openclaw-context-candidate';
+    patch.promotedAt = new Date().toISOString();
+  }
+
+  const rows = await sql`
+    update knowledge_sources
+    set status = ${status}, updated_at = now(), metadata = ${metadataPatch(patch)}
+    where id = ${id}
+    returning id, title, status, raw_path as "rawPath", wiki_path as "wikiPath"
+  `;
+  if (!rows.length) {
+    const error = new Error('source not found');
+    error.status = 404;
+    throw error;
+  }
+
+  await sql`
+    insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
+    values (${crypto.randomUUID()}, null, 'cai', ${`knowledge_${status}`}, ${`Knowledge source marked ${status}: ${rows[0].title}`}, ${sql.json({ sourceId: rows[0].id, status, rawPath: rows[0].rawPath, wikiPath: rows[0].wikiPath })})
+  `;
+
+  return rows[0];
 }
 
 async function deleteKnowledgeSource(input) {
@@ -1147,6 +1265,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources/queue') {
       return send(res, 200, await queueKnowledgeSource(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/knowledge/sources/extract') {
+      return send(res, 200, await extractKnowledgeSource(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/knowledge/sources/transition') {
+      return send(res, 200, await transitionKnowledgeSource(await readJson(req)));
     }
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sources/delete') {

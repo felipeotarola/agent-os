@@ -19,6 +19,8 @@ export type KnowledgeSnapshot = {
     createdAt: Date;
   }>;
   stats: Array<{ label: string; value: string; detail: string }>;
+  lifecycle?: string[];
+  lifecycleCounts?: Record<string, number>;
   vault: VaultSnapshot;
 };
 
@@ -54,9 +56,10 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
     ]);
 
     const byStatus = new Map(counts.map((row) => [row.status, Number(row.count)]));
-    const rawCount = byStatus.get('raw') ?? 0;
-    const queuedCount = byStatus.get('queued') ?? 0;
-    const wikiCount = byStatus.get('wikified') ?? 0;
+    const lifecycle = ['raw', 'extracted', 'wikified', 'reviewed', 'promoted', 'archived'];
+    const lifecycleCounts = Object.fromEntries(
+      lifecycle.map((status) => [status, byStatus.get(status) ?? 0])
+    );
 
     const mappedSources = sources.map((source) => ({
       id: source.id,
@@ -74,10 +77,20 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
     return {
       dbOnline: true,
       sources: mappedSources,
+      lifecycle,
+      lifecycleCounts,
       stats: [
-        { label: 'Raw inbox', value: String(rawCount), detail: 'Nya källor som väntar på syntes' },
-        { label: 'Köade', value: String(queuedCount), detail: 'Markerade för wikifiering' },
-        { label: 'Wikifierade', value: String(wikiCount), detail: 'Syntetiserade knowledge pages' }
+        { label: 'Raw', value: String(lifecycleCounts.raw), detail: 'Untrusted captured sources' },
+        {
+          label: 'Extracted',
+          value: String(lifecycleCounts.extracted),
+          detail: 'Readable content extracted'
+        },
+        {
+          label: 'Context-ready',
+          value: String(lifecycleCounts.promoted),
+          detail: 'Reviewed and approved for OpenClaw context'
+        }
       ],
       vault: buildVaultSnapshot(mappedSources)
     };
@@ -87,7 +100,14 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
   }
 }
 
-export const KNOWLEDGE_LIFECYCLE_STATUSES = ['raw', 'queued', 'wikified'] as const;
-export const PLANNED_KNOWLEDGE_LIFECYCLE_STATUSES = ['reviewed', 'archived'] as const;
+export const KNOWLEDGE_LIFECYCLE_STATUSES = [
+  'raw',
+  'extracted',
+  'wikified',
+  'reviewed',
+  'promoted',
+  'archived'
+] as const;
+export const PLANNED_KNOWLEDGE_LIFECYCLE_STATUSES = [] as const;
 
 export type KnowledgeLifecycleStatus = (typeof KNOWLEDGE_LIFECYCLE_STATUSES)[number];

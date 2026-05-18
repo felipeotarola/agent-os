@@ -68,8 +68,12 @@ function rawMarkdown(source: VaultSource) {
 }
 
 function buildIndex(sources: VaultSource[]) {
-  const wikified = sources.filter((source) => source.status === 'wikified' && source.wikiPath);
-  const raw = sources.filter((source) => source.status !== 'wikified');
+  const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
+  const activeSources = sources.filter((source) => source.status !== 'archived');
+  const wikified = activeSources.filter(
+    (source) => wikiStatuses.has(source.status) && source.wikiPath
+  );
+  const raw = activeSources.filter((source) => !wikiStatuses.has(source.status));
 
   return [
     '# Agent OS Vault Index',
@@ -142,9 +146,12 @@ export function buildVaultSnapshot(sources: VaultSource[]): VaultSnapshot {
     { path: uniquePath('log.md', seen), content: buildLog(sources) }
   ];
 
-  for (const source of sources) {
+  const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
+  const activeSources = sources.filter((source) => source.status !== 'archived');
+
+  for (const source of activeSources) {
     files.push({ path: uniquePath(source.rawPath, seen), content: rawMarkdown(source) });
-    if (source.status === 'wikified' && source.wikiPath && source.wikiContent) {
+    if (wikiStatuses.has(source.status) && source.wikiPath && source.wikiContent) {
       files.push({ path: uniquePath(source.wikiPath, seen), content: source.wikiContent });
     }
   }
