@@ -59,13 +59,6 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: 'Journal',
-        url: '/dashboard/journal',
-        icon: 'forms',
-        shortcut: ['j', 'j'],
-        items: []
-      },
-      {
         title: 'Memory',
         url: '/dashboard/memory',
         icon: 'sparkles',
