@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { getCockpitSnapshot } from '@/db/queries';
+import { getCaiBriefing } from '@/lib/briefing';
 import Link from 'next/link';
 
 export const metadata = {
@@ -118,6 +118,20 @@ function stockholmTime(value: Date) {
   }).format(value);
 }
 
+function compactNumber(value: number | null, currency?: string) {
+  if (value === null) return '—';
+  return new Intl.NumberFormat('sv-SE', {
+    maximumFractionDigits: 0,
+    ...(currency ? { style: 'currency', currency } : {})
+  }).format(value);
+}
+
+function percent(value: number | null) {
+  if (value === null) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(2)}%`;
+}
+
 function taskProgress(status: string) {
   if (status === 'done') return 100;
   if (status === 'review') return 82;
@@ -178,7 +192,8 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 }
 
 export default async function OverviewPage() {
-  const snapshot = await getCockpitSnapshot();
+  const briefing = await getCaiBriefing();
+  const snapshot = briefing.cockpit;
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
   const knowledgeCounts = knowledge as Record<string, number>;
   const taskStatus = snapshot.taskStatus ?? {};
@@ -189,11 +204,52 @@ export default async function OverviewPage() {
   const runningRuns = recentRuns.filter((run) => run.status === 'running');
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
+  const topAgent = briefing.dispatch.byAgent[0];
+  const briefingCards = [
+    {
+      label: 'Actionable tasks',
+      value: String(briefing.dispatch.actionableCount),
+      detail: topAgent
+        ? `${topAgent.agentName} har mest att ta ställning till`
+        : 'Ingen agentkö just nu',
+      tone: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-100',
+      icon: '⌘'
+    },
+    {
+      label: 'Bitcoin',
+      value: compactNumber(briefing.bitcoin.priceSek, 'SEK'),
+      detail: `${percent(briefing.bitcoin.change24h)} senaste 24h`,
+      tone:
+        briefing.bitcoin.change24h === null
+          ? 'border-slate-400/25 bg-slate-400/10 text-slate-100'
+          : briefing.bitcoin.change24h >= 0
+            ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100'
+            : 'border-rose-400/25 bg-rose-400/10 text-rose-100',
+      icon: '₿'
+    },
+    {
+      label: 'News radar',
+      value: String(briefing.news.items.length),
+      detail: briefing.news.ok ? 'frontpage-signaler hämtade live' : 'nyhetskälla saknas',
+      tone: 'border-violet-400/25 bg-violet-400/10 text-violet-100',
+      icon: '✦'
+    },
+    {
+      label: 'Open tasks',
+      value: String(briefing.pulse.openTasks),
+      detail: `${briefing.pulse.waitingTasks} waiting · ${briefing.pulse.reviewTasks} review`,
+      tone: 'border-amber-400/25 bg-amber-400/10 text-amber-100',
+      icon: '↻'
+    }
+  ];
   const resumeItems = [
     {
       icon: '↗',
-      label: 'Continue',
-      value: snapshot.tasks[0]?.title ?? 'No priority task selected',
+      label: 'Briefing priority',
+      value:
+        briefing.dispatch.byAgent[0]?.tasks[0]?.title ??
+        snapshot.tasks[0]?.title ??
+        'No priority task selected',
       href: '/dashboard/kanban'
     },
     {
@@ -219,7 +275,7 @@ export default async function OverviewPage() {
           <div className='relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-stretch'>
             <div className='flex min-h-[330px] flex-col justify-between gap-8'>
               <Badge variant='outline' className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'>
-                <StatusDot ok={snapshot.dbOnline} /> live cockpit
+                <StatusDot ok={snapshot.dbOnline} /> Cai briefing · live cockpit
               </Badge>
 
               <div>
@@ -237,9 +293,24 @@ export default async function OverviewPage() {
               <div className='h-px max-w-4xl bg-gradient-to-r from-slate-700 via-slate-600 to-transparent' />
 
               <p className='max-w-2xl text-sm leading-6 text-slate-300'>
-                Personal command center for Agent OS: keep the important work visible, let agents
-                handle the boring logging, and use the cockpit only for decisions that need a human.
+                Din morgon/kvällsbriefing direkt i Overview: agentkö, beslut som behövs,
+                marknadspuls och nyhetssignaler — utan en separat briefing-sida.
               </p>
+
+              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                {briefingCards.map((card) => (
+                  <div key={card.label} className={`rounded-2xl border p-4 ${card.tone}`}>
+                    <div className='flex items-center justify-between gap-3'>
+                      <div className='text-xs text-slate-400'>{card.label}</div>
+                      <div className='rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm'>
+                        {card.icon}
+                      </div>
+                    </div>
+                    <div className='mt-3 text-2xl font-semibold text-white'>{card.value}</div>
+                    <div className='mt-1 line-clamp-2 text-xs text-slate-300'>{card.detail}</div>
+                  </div>
+                ))}
+              </div>
 
               <div className='flex flex-wrap items-center gap-3 text-xs'>
                 <span className='text-slate-400'>Focus now</span>
@@ -323,6 +394,107 @@ export default async function OverviewPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className='grid gap-4 xl:grid-cols-12'>
+          <Card className='border-cyan-400/20 bg-cyan-400/5 xl:col-span-5'>
+            <CardHeader className='pb-3'>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <CardTitle>Cai dispatch</CardTitle>
+                  <CardDescription>Morgon/kvällsbriefingen, direkt i Overview.</CardDescription>
+                </div>
+                <Button asChild size='sm' variant='outline'>
+                  <Link href='/dashboard/kanban'>Tasks →</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {briefing.dispatch.byAgent.length === 0 ? (
+                <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
+                  Inga agentkopplade tasks i backlog/waiting/review just nu.
+                </div>
+              ) : (
+                briefing.dispatch.byAgent.slice(0, 3).map((group) => (
+                  <div key={group.agentId} className='rounded-xl border bg-background/40 p-3'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <div className='truncate font-medium'>
+                          {group.emoji && <span className='mr-2'>{group.emoji}</span>}
+                          {group.agentName}
+                        </div>
+                        <div className='text-muted-foreground mt-1 text-xs'>
+                          {group.count} tasks · {group.highPriorityCount} high priority
+                        </div>
+                      </div>
+                      <Badge variant={group.highPriorityCount ? 'default' : 'outline'}>
+                        {group.agentId}
+                      </Badge>
+                    </div>
+                    <div className='mt-3 space-y-2'>
+                      {group.tasks.slice(0, 2).map((task) => (
+                        <div key={task.id} className='rounded-lg border bg-background/50 p-2'>
+                          <div className='flex flex-wrap gap-1'>
+                            <Badge variant='outline'>{task.priority}</Badge>
+                            <Badge variant='secondary'>{task.status}</Badge>
+                          </div>
+                          <div className='mt-1 line-clamp-1 text-sm font-medium'>{task.title}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className='border-violet-400/20 bg-violet-400/5 xl:col-span-4'>
+            <CardHeader className='pb-3'>
+              <CardTitle>News radar</CardTitle>
+              <CardDescription>Publika signaler utan API-nyckel än.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-2'>
+              {briefing.news.items.length === 0 ? (
+                <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
+                  Ingen nyhetskälla svarade just nu.
+                </div>
+              ) : (
+                briefing.news.items.slice(0, 5).map((item) => (
+                  <a
+                    key={`${item.title}-${item.url}`}
+                    href={item.url}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='block rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/5'
+                  >
+                    <div className='line-clamp-2 text-sm font-medium'>{item.title}</div>
+                    <div className='text-muted-foreground mt-2 text-xs'>{item.source}</div>
+                  </a>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className='border-amber-400/20 bg-amber-400/5 xl:col-span-3'>
+            <CardHeader className='pb-3'>
+              <CardTitle>Market pulse</CardTitle>
+              <CardDescription>Startar med Bitcoin.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div className='rounded-2xl border border-amber-400/25 bg-amber-400/10 p-5'>
+                <div className='text-sm text-amber-100'>Bitcoin / SEK</div>
+                <div className='mt-2 text-3xl font-semibold text-white'>
+                  {compactNumber(briefing.bitcoin.priceSek, 'SEK')}
+                </div>
+                <Badge variant='outline' className='mt-3 border-white/10 bg-white/5'>
+                  {percent(briefing.bitcoin.change24h)} 24h
+                </Badge>
+              </div>
+              <div className='text-muted-foreground rounded-xl border bg-background/40 p-3 text-xs'>
+                Source: {briefing.bitcoin.source}
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         <section className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>

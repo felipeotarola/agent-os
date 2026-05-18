@@ -12,13 +12,6 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: 'Cai Briefing',
-        url: '/dashboard/briefing',
-        icon: 'sparkles',
-        shortcut: ['b', 'r'],
-        items: []
-      },
-      {
         title: 'Tasks',
         url: '/dashboard/kanban',
         icon: 'kanban',
