@@ -24,9 +24,48 @@ const statAccents = [
 ];
 
 const knowledgeStages = [
-  { key: 'raw', label: 'Raw', tone: 'bg-slate-400' },
-  { key: 'queued', label: 'Queued', tone: 'bg-cyan-400' },
-  { key: 'wikified', label: 'Wiki', tone: 'bg-violet-400' }
+  {
+    key: 'raw',
+    label: 'Raw',
+    detail: 'Inbox',
+    dot: 'bg-slate-300',
+    card: 'border-slate-400/25 bg-slate-400/10 text-slate-200'
+  },
+  {
+    key: 'queued',
+    label: 'Queued',
+    detail: 'Ready',
+    dot: 'bg-cyan-300',
+    card: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-200'
+  },
+  {
+    key: 'wikified',
+    label: 'Wiki',
+    detail: 'Notes',
+    dot: 'bg-violet-300',
+    card: 'border-violet-400/25 bg-violet-400/10 text-violet-200'
+  },
+  {
+    key: 'reviewed',
+    label: 'Reviewed',
+    detail: 'Trusted',
+    dot: 'bg-amber-300',
+    card: 'border-amber-400/25 bg-amber-400/10 text-amber-200'
+  },
+  {
+    key: 'promoted',
+    label: 'Context',
+    detail: 'OpenClaw',
+    dot: 'bg-emerald-300',
+    card: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+  },
+  {
+    key: 'archived',
+    label: 'Archive',
+    detail: 'Cold',
+    dot: 'bg-zinc-300',
+    card: 'border-zinc-400/25 bg-zinc-400/10 text-zinc-200'
+  }
 ] as const;
 
 const taskColors = ['#22d3ee', '#8b5cf6', '#f59e0b', '#10b981', '#64748b', '#ef4444'];
@@ -149,6 +188,7 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 export default async function OverviewPage() {
   const snapshot = await getCockpitSnapshot();
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
+  const knowledgeCounts = knowledge as Record<string, number>;
   const taskStatus = snapshot.taskStatus ?? {};
   const taskEntries = Object.entries(taskStatus);
   const events = snapshot.events ?? [];
@@ -464,33 +504,62 @@ export default async function OverviewPage() {
               <div className='flex items-start justify-between gap-3'>
                 <div>
                   <CardTitle>Knowledge pipeline</CardTitle>
-                  <CardDescription>Rådata till wiki/context-kandidat.</CardDescription>
+                  <CardDescription>Raw input → reviewed context.</CardDescription>
                 </div>
                 <Link href='/dashboard/knowledge' className='text-primary text-xs hover:underline'>
                   Öppna Knowledge inbox →
                 </Link>
               </div>
             </CardHeader>
-            <CardContent className='space-y-4'>
-              <div className='flex items-center gap-2'>
-                {knowledgeStages.map((stage, index) => (
-                  <div key={stage.key} className='flex flex-1 items-center gap-2'>
-                    <div className={`size-3 rounded-full ${stage.tone} ring-4 ring-white/5`} />
-                    {index < knowledgeStages.length - 1 && (
-                      <div className='h-px flex-1 bg-border' />
-                    )}
-                  </div>
-                ))}
+            <CardContent className='space-y-5'>
+              <div className='rounded-2xl border border-cyan-400/15 bg-slate-950/40 p-4'>
+                <div className='relative grid grid-cols-6 gap-2'>
+                  <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-slate-500/40 via-cyan-300/60 to-emerald-300/50' />
+                  {knowledgeStages.map((stage) => {
+                    const count = knowledgeCounts[stage.key] ?? 0;
+                    const active = count > 0;
+                    return (
+                      <div
+                        key={stage.key}
+                        className='relative flex flex-col items-center gap-2 text-center'
+                      >
+                        <div
+                          className={`z-10 flex size-8 items-center justify-center rounded-full border border-white/15 ${
+                            stage.dot
+                          } ${active ? 'shadow-lg shadow-cyan-500/20 ring-4 ring-white/10' : 'opacity-55'}`}
+                        >
+                          <span className='size-2 rounded-full bg-slate-950/80' />
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='truncate text-[11px] font-medium text-white'>
+                            {stage.label}
+                          </div>
+                          <div className='text-muted-foreground truncate text-[10px]'>
+                            {stage.detail}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className='grid grid-cols-3 gap-2 text-center text-sm'>
+
+              <div className='grid grid-cols-2 gap-2 text-center text-sm md:grid-cols-3 xl:grid-cols-6'>
                 {knowledgeStages.map((stage) => (
-                  <div key={stage.key} className='rounded-lg border bg-background/40 p-3'>
-                    <div className='text-2xl font-semibold'>{knowledge[stage.key]}</div>
-                    <div className='text-muted-foreground text-xs'>{stage.label}</div>
+                  <div key={stage.key} className={`rounded-xl border p-3 ${stage.card}`}>
+                    <div className='text-2xl font-semibold'>{knowledgeCounts[stage.key] ?? 0}</div>
+                    <div className='mt-1 text-[11px]'>{stage.label}</div>
                   </div>
                 ))}
               </div>
-              <Progress value={knowledge.progress} className='h-1.5' />
+
+              <div className='space-y-2'>
+                <div className='flex items-center justify-between text-xs'>
+                  <span className='text-muted-foreground'>Pipeline maturity</span>
+                  <span className='font-mono text-cyan-200'>{knowledge.progress}%</span>
+                </div>
+                <Progress value={knowledge.progress} className='h-1.5' />
+              </div>
             </CardContent>
           </Card>
 
