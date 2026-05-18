@@ -498,202 +498,317 @@ export default async function OverviewPage() {
           </div>
         </section>
 
-        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/25 bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.22),transparent_35%),radial-gradient(circle_at_82%_12%,rgba(139,92,246,0.18),transparent_30%),linear-gradient(135deg,rgba(8,19,35,0.96),rgba(2,6,23,0.98))] p-4 shadow-2xl shadow-cyan-950/30 md:p-5'>
-          <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent' />
-          <div className='absolute -left-24 top-10 size-64 rounded-full bg-cyan-400/10 blur-3xl' />
-          <div className='absolute -right-24 bottom-0 size-72 rounded-full bg-emerald-400/10 blur-3xl' />
+        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/25 bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_76%_4%,rgba(139,92,246,0.24),transparent_32%),radial-gradient(circle_at_88%_88%,rgba(16,185,129,0.1),transparent_30%),linear-gradient(135deg,rgba(8,19,35,0.98),rgba(2,6,23,0.99))] p-4 shadow-2xl shadow-cyan-950/35 md:p-5'>
+          <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent' />
+          <div className='absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent' />
+          <div className='absolute -left-24 top-10 size-72 rounded-full bg-cyan-400/10 blur-3xl' />
+          <div className='absolute -right-24 top-0 size-80 rounded-full bg-violet-500/10 blur-3xl' />
+          <div className='absolute -right-20 bottom-0 size-72 rounded-full bg-emerald-400/10 blur-3xl' />
 
-          <div className='relative z-10'>
-            <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
-              <div className='flex items-start gap-4'>
-                <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-3xl shadow-lg shadow-cyan-500/10'>
-                  🤖
-                </div>
+          <div className='relative z-10 space-y-5'>
+            <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_450px_300px] xl:items-stretch'>
+              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-inner shadow-black/20 md:p-6'>
                 <div>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <h2 className='text-2xl font-semibold tracking-tight text-white'>
-                      Kaj Briefing
-                    </h2>
-                    <span className='text-xl'>✨</span>
+                  <Badge
+                    variant='outline'
+                    className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'
+                  >
+                    <StatusDot ok={snapshot.dbOnline} /> live cockpit
+                  </Badge>
+
+                  <div className='mt-7'>
+                    <h1 className='text-4xl font-semibold tracking-tight text-white md:text-5xl'>
+                      Welcome Felipe 👋
+                    </h1>
+                    <div className='mt-2 text-2xl font-medium text-slate-200 md:text-3xl'>
+                      {stockholmDate(liveAt)}
+                    </div>
+                    <div className='mt-3 text-sm text-slate-300'>
+                      Stockholm time {stockholmTime(liveAt)} · live snapshot
+                    </div>
                   </div>
-                  <p className='mt-1 text-sm text-slate-300'>
-                    Nyheter, bitcoin och signaler Kaj håller koll på åt dig.
-                  </p>
+                </div>
+
+                <div className='mt-6 flex flex-wrap items-center gap-3 text-xs'>
+                  <span className='text-slate-400'>Kaj has your daily cockpit ready</span>
+                  <Badge
+                    variant='outline'
+                    className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
+                  >
+                    ◎ Memory healthy
+                  </Badge>
+                  <Badge
+                    variant='outline'
+                    className='border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-100'
+                  >
+                    ↝{' '}
+                    {subagents?.runningCount
+                      ? `${subagents.runningCount} active runs`
+                      : 'No active runs'}
+                  </Badge>
                 </div>
               </div>
 
-              <div className='flex flex-wrap items-center gap-3 text-xs text-slate-400'>
-                <span>Senast uppdaterad {stockholmTime(liveAt).replace(' CEST', '')}</span>
-                <span className='hidden text-slate-600 md:inline'>•</span>
-                <span>Nästa briefing 20:00</span>
-                <span className='hidden text-slate-600 md:inline'>•</span>
-                <Badge className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'>
-                  LIVE
-                </Badge>
+              <div className='rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-violet-950/20 backdrop-blur'>
+                <div className='mb-4 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='text-xs uppercase tracking-[0.2em] text-slate-500'>Resume</div>
+                    <div className='mt-1 text-sm text-slate-200'>
+                      Pick up where the system left off.
+                    </div>
+                  </div>
+                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-200'>
+                    LIVE
+                  </Badge>
+                </div>
+
+                <div className='space-y-2'>
+                  {resumeItems.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className='group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/40 hover:bg-cyan-300/10'
+                    >
+                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100'>
+                        {item.icon}
+                      </span>
+                      <span className='min-w-0 flex-1'>
+                        <span className='block text-[10px] uppercase tracking-wide text-slate-500'>
+                          {item.label}
+                        </span>
+                        <span className='mt-0.5 block truncate text-sm font-medium text-slate-100'>
+                          {item.value}
+                        </span>
+                      </span>
+                      <span className='text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-cyan-200'>
+                        →
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              <div className='rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-cyan-950/20 backdrop-blur'>
+                <div className='grid h-full content-center gap-4 text-sm text-slate-300'>
+                  <div className='flex items-center gap-3'>
+                    <StatusDot ok={snapshot.dbOnline} />
+                    <span>db online</span>
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <StatusDot ok={Boolean(subagents?.ok)} />
+                    <span>OpenClaw bridge connected</span>
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <StatusDot ok />
+                    <span>Memory index healthy</span>
+                  </div>
+                  <div className='h-px bg-white/10' />
+                  <div className='font-mono text-[11px] text-slate-400'>
+                    Last snapshot {generatedAt}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-              <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
-                <div className='flex items-center gap-2'>
-                  <div className='flex size-9 items-center justify-center rounded-xl bg-orange-500 text-lg shadow-lg shadow-orange-500/20'>
-                    ₿
+            <div className='rounded-3xl border border-white/10 bg-slate-950/35 p-4 shadow-inner shadow-black/20'>
+              <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                <div className='flex items-start gap-4'>
+                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-3xl shadow-lg shadow-cyan-500/10'>
+                    🤖
                   </div>
-                  <div className='font-semibold text-white'>Bitcoin</div>
-                </div>
-
-                <div className='mt-4 text-4xl font-semibold tracking-tight text-white'>
-                  {bitcoinPriceDisplay}
-                </div>
-
-                <div
-                  className={`mt-2 text-sm font-medium ${
-                    bitcoinChange >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                  }`}
-                >
-                  {percent(bitcoinChange)} senaste 24h
-                </div>
-
-                <div className='mt-4 flex flex-wrap gap-2'>
-                  <Badge
-                    variant='outline'
-                    className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
-                  >
-                    7d +8.1%
-                  </Badge>
-                  <Badge
-                    variant='outline'
-                    className='border-cyan-400/25 bg-cyan-400/10 text-cyan-100'
-                  >
-                    Fear & Greed 72
-                  </Badge>
-                </div>
-
-                <BitcoinSparkline />
-
-                <p className='mt-3 text-sm leading-5 text-slate-300'>
-                  Lugn uppgång. Viktig nivå att bevaka: $105k.
-                </p>
-              </div>
-
-              <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
-                <div className='mb-4 flex items-center gap-3'>
-                  <div className='flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg'>
-                    ▣
-                  </div>
-                  <div className='font-semibold text-white'>Dagens nyheter</div>
-                </div>
-
-                <div className='divide-y divide-white/10'>
-                  {visibleNews.map((item) => (
-                    <a
-                      key={`${item.title}-${item.tag}`}
-                      href={item.url}
-                      target={item.url === '#' ? undefined : '_blank'}
-                      rel={item.url === '#' ? undefined : 'noreferrer'}
-                      className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
-                    >
-                      <div className='min-w-0 flex-1'>
-                        <div className='line-clamp-1 text-sm font-medium text-slate-100 transition group-hover:text-cyan-200'>
-                          {item.title}
-                        </div>
-                      </div>
-                      <Badge
-                        variant='outline'
-                        className={`shrink-0 border-white/10 text-[10px] ${
-                          item.tag === 'AI'
-                            ? 'bg-violet-400/15 text-violet-200'
-                            : item.tag === 'Bitcoin'
-                              ? 'bg-orange-400/15 text-orange-200'
-                              : item.tag === 'Sverige'
-                                ? 'bg-blue-400/15 text-blue-200'
-                                : 'bg-pink-400/15 text-pink-200'
-                        }`}
-                      >
-                        {item.tag}
-                      </Badge>
-                    </a>
-                  ))}
-                </div>
-
-                <Link
-                  href='/dashboard/knowledge'
-                  className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
-                >
-                  Visa alla nyheter →
-                </Link>
-              </div>
-
-              <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
-                <div className='mb-3 flex items-center gap-3'>
-                  <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-lg text-violet-200'>
-                    〽
-                  </div>
-                  <div className='font-semibold text-white'>Personliga signaler</div>
-                </div>
-
-                <div className='divide-y divide-white/10'>
-                  {personalSignals.map((signal) => (
-                    <div key={signal.title} className='flex gap-3 py-3 first:pt-0 last:pb-0'>
-                      <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-sm text-slate-200'>
-                        {signal.icon}
-                      </div>
-                      <div className='min-w-0 flex-1'>
-                        <div className='flex items-start justify-between gap-2'>
-                          <div className='font-medium text-white'>{signal.title}</div>
-                          <span
-                            className={
-                              signal.status === 'warn'
-                                ? 'text-amber-300'
-                                : 'text-emerald-300'
-                            }
-                          >
-                            {signal.status === 'warn' ? '△' : '⌁'}
-                          </span>
-                        </div>
-                        <div className='mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400'>
-                          {signal.body}
-                        </div>
-                      </div>
+                  <div>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <h2 className='text-2xl font-semibold tracking-tight text-white'>
+                        Kaj Briefing
+                      </h2>
+                      <span className='text-xl'>✨</span>
                     </div>
-                  ))}
+                    <p className='mt-1 text-sm text-slate-300'>
+                      Nyheter, bitcoin och signaler Kaj håller koll på åt dig.
+                    </p>
+                  </div>
                 </div>
 
-                <Link
-                  href='/dashboard/kanban'
-                  className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
-                >
-                  Visa alla signaler →
-                </Link>
+                <div className='flex flex-wrap items-center gap-3 text-xs text-slate-400'>
+                  <span>Senast uppdaterad {stockholmTime(liveAt).replace(' CEST', '')}</span>
+                  <span className='hidden text-slate-600 md:inline'>•</span>
+                  <span>Nästa briefing 20:00</span>
+                  <span className='hidden text-slate-600 md:inline'>•</span>
+                  <Badge className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'>
+                    LIVE
+                  </Badge>
+                </div>
               </div>
 
-              <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
-                <div className='mb-4 flex items-center gap-3'>
-                  <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-violet-200'>
-                    ✉
+              <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
+                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                  <div className='flex items-center gap-2'>
+                    <div className='flex size-9 items-center justify-center rounded-xl bg-orange-500 text-lg shadow-lg shadow-orange-500/20'>
+                      ₿
+                    </div>
+                    <div className='font-semibold text-white'>Bitcoin</div>
                   </div>
-                  <div className='font-semibold text-white'>Senaste Kaj-meddelande</div>
-                </div>
 
-                <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
-                  <p className='whitespace-pre-line text-sm leading-6 text-slate-200'>
-                    {latestKajMessage}
+                  <div className='mt-4 text-4xl font-semibold tracking-tight text-white'>
+                    {bitcoinPriceDisplay}
+                  </div>
+
+                  <div
+                    className={`mt-2 text-sm font-medium ${
+                      bitcoinChange >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                    }`}
+                  >
+                    {percent(bitcoinChange)} senaste 24h
+                  </div>
+
+                  <div className='mt-4 flex flex-wrap gap-2'>
+                    <Badge
+                      variant='outline'
+                      className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+                    >
+                      7d +8.1%
+                    </Badge>
+                    <Badge
+                      variant='outline'
+                      className='border-cyan-400/25 bg-cyan-400/10 text-cyan-100'
+                    >
+                      Fear & Greed 72
+                    </Badge>
+                  </div>
+
+                  <BitcoinSparkline />
+
+                  <p className='mt-3 text-sm leading-5 text-slate-300'>
+                    Lugn uppgång. Viktig nivå att bevaka: $105k.
                   </p>
-                  <div className='mt-3 text-right text-xs text-slate-500'>
-                    {stockholmTime(liveAt).replace(' CEST', '')}
-                  </div>
                 </div>
 
-                <div className='mt-4 grid grid-cols-3 gap-2'>
-                  <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
-                    👁 Visa
-                  </Button>
-                  <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
-                    ✈ Skicka
-                  </Button>
-                  <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
-                    📌 Pin
-                  </Button>
+                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                  <div className='mb-4 flex items-center justify-between gap-3'>
+                    <div className='flex items-center gap-3'>
+                      <div className='flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg'>
+                        ▣
+                      </div>
+                      <div className='font-semibold text-white'>Dagens nyheter</div>
+                    </div>
+                    <Button
+                      size='icon'
+                      variant='outline'
+                      className='size-8 border-white/10 bg-white/[0.03]'
+                    >
+                      +
+                    </Button>
+                  </div>
+
+                  <div className='divide-y divide-white/10'>
+                    {visibleNews.map((item) => (
+                      <a
+                        key={`${item.title}-${item.tag}`}
+                        href={item.url}
+                        target={item.url === '#' ? undefined : '_blank'}
+                        rel={item.url === '#' ? undefined : 'noreferrer'}
+                        className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
+                      >
+                        <div className='min-w-0 flex-1'>
+                          <div className='line-clamp-2 text-sm font-medium text-slate-100 transition group-hover:text-cyan-200'>
+                            {item.title}
+                          </div>
+                        </div>
+                        <Badge
+                          variant='outline'
+                          className={`shrink-0 border-white/10 text-[10px] ${
+                            item.tag === 'AI'
+                              ? 'bg-violet-400/15 text-violet-200'
+                              : item.tag === 'Bitcoin'
+                                ? 'bg-orange-400/15 text-orange-200'
+                                : item.tag === 'Sverige'
+                                  ? 'bg-blue-400/15 text-blue-200'
+                                  : 'bg-pink-400/15 text-pink-200'
+                          }`}
+                        >
+                          {item.tag}
+                        </Badge>
+                      </a>
+                    ))}
+                  </div>
+
+                  <Link
+                    href='/dashboard/knowledge'
+                    className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
+                  >
+                    Visa alla nyheter →
+                  </Link>
+                </div>
+
+                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                  <div className='mb-3 flex items-center gap-3'>
+                    <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-lg text-violet-200'>
+                      〽
+                    </div>
+                    <div className='font-semibold text-white'>Personliga signaler</div>
+                  </div>
+
+                  <div className='divide-y divide-white/10'>
+                    {personalSignals.map((signal) => (
+                      <div key={signal.title} className='flex gap-3 py-3 first:pt-0 last:pb-0'>
+                        <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-sm text-slate-200'>
+                          {signal.icon}
+                        </div>
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className='font-medium text-white'>{signal.title}</div>
+                            <span
+                              className={
+                                signal.status === 'warn' ? 'text-amber-300' : 'text-emerald-300'
+                              }
+                            >
+                              {signal.status === 'warn' ? '△' : '⌁'}
+                            </span>
+                          </div>
+                          <div className='mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400'>
+                            {signal.body}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Link
+                    href='/dashboard/kanban'
+                    className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
+                  >
+                    Visa alla signaler →
+                  </Link>
+                </div>
+
+                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                  <div className='mb-4 flex items-center gap-3'>
+                    <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-violet-200'>
+                      ✉
+                    </div>
+                    <div className='font-semibold text-white'>Senaste Kaj-meddelande</div>
+                  </div>
+
+                  <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
+                    <p className='whitespace-pre-line text-sm leading-6 text-slate-200'>
+                      {latestKajMessage}
+                    </p>
+                    <div className='mt-3 text-right text-xs text-slate-500'>
+                      {stockholmTime(liveAt).replace(' CEST', '')}
+                    </div>
+                  </div>
+
+                  <div className='mt-4 grid grid-cols-3 gap-2'>
+                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                      👁 Visa
+                    </Button>
+                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                      ✈ Skicka
+                    </Button>
+                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                      📌 Pin
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
