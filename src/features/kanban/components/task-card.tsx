@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { KanbanItem, KanbanItemHandle } from '@/components/ui/kanban';
 import { Icons } from '@/components/icons';
@@ -10,7 +11,20 @@ interface TaskCardProps extends Omit<React.ComponentProps<typeof KanbanItem>, 'v
   onOpen?: (task: Task) => void;
 }
 
+function shortTaskId(id: string) {
+  return id.length > 12 ? id.slice(0, 8) : id;
+}
+
 export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyTaskId(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    await navigator.clipboard.writeText(task.id);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
+
   return (
     <KanbanItem key={task.id} value={task.id} asChild {...props}>
       <div className='bg-card hover:border-primary/40 rounded-md border p-3 shadow-xs transition-colors'>
@@ -36,14 +50,28 @@ export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
               </KanbanItemHandle>
             </div>
           </div>
-          <div className='text-muted-foreground flex items-center justify-between text-xs'>
-            {task.assignee && (
-              <div className='flex items-center gap-1'>
-                <div className='bg-primary/20 size-2 rounded-full' />
-                <span className='line-clamp-1'>{task.assignee}</span>
-              </div>
+          <div className='text-muted-foreground flex items-center justify-between gap-2 text-xs'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <button
+                type='button'
+                title={`Copy ticket ID: ${task.id}`}
+                className='hover:bg-muted hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors'
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={copyTaskId}
+              >
+                <Icons.copy className='size-3' />
+                {copied ? 'copied' : shortTaskId(task.id)}
+              </button>
+              {task.assignee && (
+                <div className='flex min-w-0 items-center gap-1'>
+                  <div className='bg-primary/20 size-2 shrink-0 rounded-full' />
+                  <span className='line-clamp-1'>{task.assignee}</span>
+                </div>
+              )}
+            </div>
+            {task.dueDate && (
+              <time className='shrink-0 text-[10px] tabular-nums'>{task.dueDate}</time>
             )}
-            {task.dueDate && <time className='text-[10px] tabular-nums'>{task.dueDate}</time>}
           </div>
           {(task.projectName || task.source) && (
             <div className='text-muted-foreground flex items-center justify-between gap-2 text-[10px]'>

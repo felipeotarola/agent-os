@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +51,7 @@ export function TaskDetailDialog({
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [comment, setComment] = useState('');
+  const [copiedId, setCopiedId] = useState(false);
 
   const initial = useMemo(
     () => ({
@@ -97,6 +99,13 @@ export function TaskDetailDialog({
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function copyTaskId() {
+    if (!task?.id) return;
+    await navigator.clipboard.writeText(task.id);
+    setCopiedId(true);
+    window.setTimeout(() => setCopiedId(false), 1200);
   }
 
   async function addComment() {
@@ -248,9 +257,19 @@ export function TaskDetailDialog({
             </div>
 
             <div className='grid gap-2 rounded-xl border bg-muted/30 p-3 text-xs md:grid-cols-2'>
-              <div>
-                <span className='text-muted-foreground'>ID:</span>{' '}
-                <span className='font-mono'>{task.id}</span>
+              <div className='flex min-w-0 items-center gap-2'>
+                <span className='text-muted-foreground'>ID:</span>
+                <code className='min-w-0 truncate font-mono'>{task.id}</code>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-7 shrink-0 gap-1 px-2 text-[11px]'
+                  onClick={copyTaskId}
+                >
+                  <Icons.copy className='size-3' />
+                  {copiedId ? 'Kopierad' : 'Kopiera'}
+                </Button>
               </div>
               <div>
                 <span className='text-muted-foreground'>Project:</span>{' '}
