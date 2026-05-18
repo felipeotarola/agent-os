@@ -51,11 +51,43 @@ function labelFor(path: string) {
   return path.split('/').at(-1)!.replace(/\.md$/, '').replaceAll('-', ' ').slice(0, 32);
 }
 
-function colorFor(folder: string) {
-  if (folder.includes('/wiki')) return 'hsl(var(--primary))';
-  if (folder.includes('/raw')) return 'hsl(var(--muted-foreground))';
-  if (folder.includes('journal')) return 'hsl(var(--chart-3))';
-  return 'hsl(var(--chart-2))';
+type GraphTheme = {
+  primary: string;
+  muted: string;
+  mutedForeground: string;
+  foreground: string;
+  border: string;
+  chart2: string;
+  chart3: string;
+};
+
+function readTheme(): GraphTheme {
+  const style = window.getComputedStyle(document.documentElement);
+  const probe = document.createElement('canvas').getContext('2d');
+  const canvasColor = (raw: string, fallback: string) => {
+    if (!probe || !raw) return fallback;
+    probe.fillStyle = '#010203';
+    probe.fillStyle = raw;
+    return probe.fillStyle === '#010203' ? fallback : raw;
+  };
+  const cssVar = (name: string, fallback: string) =>
+    canvasColor(style.getPropertyValue(name).trim(), fallback);
+  return {
+    primary: cssVar('--primary', '#6366f1'),
+    muted: cssVar('--muted', '#27272a'),
+    mutedForeground: cssVar('--muted-foreground', '#a1a1aa'),
+    foreground: cssVar('--foreground', '#fafafa'),
+    border: cssVar('--border', '#3f3f46'),
+    chart2: cssVar('--chart-2', '#22c55e'),
+    chart3: cssVar('--chart-3', '#f59e0b')
+  };
+}
+
+function colorFor(folder: string, theme: GraphTheme) {
+  if (folder.includes('/wiki')) return theme.primary;
+  if (folder.includes('/raw')) return theme.mutedForeground;
+  if (folder.includes('journal')) return theme.chart3;
+  return theme.chart2;
 }
 
 function extractWikiLinks(content: string) {
@@ -247,10 +279,13 @@ export function VaultGraph({ files }: VaultGraphProps) {
 
     const width = canvas.width / dpr;
     const height = canvas.height / dpr;
+    const theme = readTheme();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = 'hsl(var(--muted) / 0.18)';
+    ctx.fillStyle = theme.muted;
+    ctx.globalAlpha = 0.18;
     ctx.fillRect(0, 0, width, height);
+    ctx.globalAlpha = 1;
 
     const view = viewRef.current;
     ctx.save();
@@ -284,9 +319,11 @@ export function VaultGraph({ files }: VaultGraphProps) {
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
-      ctx.strokeStyle = active ? 'hsl(var(--primary) / 0.85)' : 'hsl(var(--border) / 0.58)';
+      ctx.strokeStyle = active ? theme.primary : theme.border;
+      ctx.globalAlpha = active ? 0.85 : 0.58;
       ctx.lineWidth = active ? 2.2 / view.scale : 1.2 / view.scale;
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     for (const node of nodes) {
@@ -299,18 +336,18 @@ export function VaultGraph({ files }: VaultGraphProps) {
       );
       ctx.beginPath();
       ctx.arc(node.x, node.y, active ? node.r + 5 : node.r, 0, Math.PI * 2);
-      ctx.fillStyle = colorFor(node.folder);
+      ctx.fillStyle = colorFor(node.folder, theme);
       ctx.globalAlpha = active || !selected || connected ? 1 : 0.42;
       ctx.fill();
       ctx.globalAlpha = 1;
       if (active) {
-        ctx.strokeStyle = 'hsl(var(--foreground))';
+        ctx.strokeStyle = theme.foreground;
         ctx.lineWidth = 2 / view.scale;
         ctx.stroke();
       }
       if (view.scale > 0.55 || active) {
         ctx.font = `${active ? 12 : 10}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-        ctx.fillStyle = 'hsl(var(--foreground))';
+        ctx.fillStyle = theme.foreground;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText(node.label, node.x, node.y + node.r + 6);
@@ -318,7 +355,7 @@ export function VaultGraph({ files }: VaultGraphProps) {
     }
     ctx.restore();
 
-    ctx.fillStyle = 'hsl(var(--muted-foreground))';
+    ctx.fillStyle = theme.mutedForeground;
     ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillText(
       'wheel: zoom · drag background: pan · drag node: move · double click: focus',
