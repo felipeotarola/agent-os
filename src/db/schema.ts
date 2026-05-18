@@ -77,9 +77,56 @@ export const knowledgeSources = pgTable('knowledge_sources', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const conversations = pgTable('conversations', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull().default(''),
+  agentId: text('agent_id'),
+  status: text('status').notNull().default('active'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const messages = pgTable('messages', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id')
+    .notNull()
+    .references(() => conversations.id),
+  role: text('role').notNull().default('assistant'),
+  author: text('author'),
+  content: text('content').notNull().default(''),
+  attachments: jsonb('attachments').$type<unknown[]>().notNull().default([]),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const runs = pgTable('runs', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').references(() => conversations.id),
+  status: text('status').notNull().default('running'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const events = pgTable('events', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').references(() => runs.id),
+  conversationId: text('conversation_id').references(() => conversations.id),
+  kind: text('kind').notNull().default('event'),
+  sequence: integer('sequence').notNull().default(0),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type TaskEvent = typeof taskEvents.$inferSelect;
 export type Artifact = typeof artifacts.$inferSelect;
 export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
+export type Conversation = typeof conversations.$inferSelect;
+export type Message = typeof messages.$inferSelect;
+export type Run = typeof runs.$inferSelect;
+export type Event = typeof events.$inferSelect;
