@@ -203,6 +203,7 @@ function PipelineStep({ status, count }: { status: string; count: number }) {
 
 function SourceActions({ source }: { source: KnowledgeSource }) {
   const action = nextAction(source);
+  const showArchive = normalizeStatus(source.status) !== 'archived' && action?.label !== 'Archive';
   return (
     <div className='grid grid-cols-2 gap-2 lg:grid-cols-1'>
       {action ? (
@@ -217,12 +218,14 @@ function SourceActions({ source }: { source: KnowledgeSource }) {
           No next action
         </Badge>
       )}
-      <ActionForm
-        source={source}
-        action='/api/knowledge/sources/transition'
-        label='Archive'
-        hidden={{ status: 'archived' }}
-      />
+      {showArchive && (
+        <ActionForm
+          source={source}
+          action='/api/knowledge/sources/transition'
+          label='Archive'
+          hidden={{ status: 'archived' }}
+        />
+      )}
     </div>
   );
 }
@@ -255,6 +258,7 @@ function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
           reviewable.slice(0, 8).map((source) => {
             const action = nextAction(source);
             const meta = statusMeta(source.status);
+            const showArchive = action?.label !== 'Archive';
             return (
               <div key={source.id} className='rounded-xl border bg-background/40 p-3'>
                 <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
@@ -280,12 +284,14 @@ function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
                         variant='default'
                       />
                     )}
-                    <ActionForm
-                      source={source}
-                      action='/api/knowledge/sources/transition'
-                      label='Archive'
-                      hidden={{ status: 'archived' }}
-                    />
+                    {showArchive && (
+                      <ActionForm
+                        source={source}
+                        action='/api/knowledge/sources/transition'
+                        label='Archive'
+                        hidden={{ status: 'archived' }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

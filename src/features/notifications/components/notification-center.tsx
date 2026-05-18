@@ -60,12 +60,12 @@ export function NotificationCenter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-[calc(100vw-2rem)] p-0 sm:w-[420px]' sideOffset={8}>
-        <div className='flex items-center justify-between px-4 py-3'>
-          <Link href='/dashboard/notifications' className='group flex items-center gap-1'>
+        <div className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between'>
+          <Link href='/dashboard/notifications' className='group flex min-w-0 items-center gap-1'>
             <h4 className='text-sm font-semibold group-hover:underline'>Notifications</h4>
             <Icons.chevronRight className='text-muted-foreground h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5' />
           </Link>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2 sm:justify-end'>
             <span className='bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs'>
               {snapshot.source}
             </span>
@@ -73,7 +73,7 @@ export function NotificationCenter() {
               <Button
                 variant='ghost'
                 size='sm'
-                className='text-muted-foreground h-auto px-2 py-1 text-xs'
+                className='text-muted-foreground h-auto max-w-full whitespace-normal px-2 py-1 text-left text-xs leading-snug'
                 onClick={markAllAsRead}
               >
                 Mark all as read
