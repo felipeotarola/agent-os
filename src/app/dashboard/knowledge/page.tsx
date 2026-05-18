@@ -14,9 +14,10 @@ import { VaultGraph } from './vault-graph';
 type KnowledgeSource = Awaited<ReturnType<typeof getKnowledgeSnapshot>>['sources'][number];
 
 type LifecycleStatus = 'raw' | 'extracted' | 'wikified' | 'reviewed' | 'promoted' | 'archived';
+type ActiveLifecycleStatus = Exclude<LifecycleStatus, 'archived'>;
 
 const lifecycleSteps: Array<{
-  id: LifecycleStatus;
+  id: ActiveLifecycleStatus;
   label: string;
   short: string;
   detail: string;
@@ -56,30 +57,44 @@ const lifecycleSteps: Array<{
     short: 'Context',
     detail: 'OpenClaw-context kandidat',
     tone: 'border-border bg-muted/40 text-card-foreground'
-  },
-  {
-    id: 'archived',
-    label: 'Arkiverad',
-    short: 'Archived',
-    detail: 'Inte i aktiv vault',
-    tone: 'border-border bg-muted/40 text-card-foreground'
   }
 ];
+
+const archivedMeta = {
+  id: 'archived' as const,
+  label: 'Arkiverad',
+  short: 'Archived',
+  detail: 'Utanför aktiv kö',
+  tone: 'border-border bg-muted/40 text-card-foreground'
+};
 
 const lifecycleOrder = lifecycleSteps.map((step) => step.id);
 
 function normalizeStatus(status: string): LifecycleStatus {
-  if (lifecycleOrder.includes(status as LifecycleStatus)) return status as LifecycleStatus;
+  if (status === 'archived') return 'archived';
+  if (lifecycleOrder.includes(status as ActiveLifecycleStatus))
+    return status as ActiveLifecycleStatus;
   if (status === 'queued') return 'extracted';
   return 'raw';
 }
 
 function statusMeta(status: string) {
+  if (normalizeStatus(status) === 'archived') return archivedMeta;
   return lifecycleSteps.find((step) => step.id === normalizeStatus(status)) ?? lifecycleSteps[0];
 }
 
 function statusIndex(status: string) {
-  return lifecycleOrder.indexOf(normalizeStatus(status));
+  const normalized = normalizeStatus(status);
+  if (normalized === 'archived') return lifecycleOrder.length - 1;
+  return lifecycleOrder.indexOf(normalized);
+}
+
+function isActiveLifecycleStatus(status: string): status is ActiveLifecycleStatus {
+  return lifecycleOrder.includes(status as ActiveLifecycleStatus);
+}
+
+function isArchived(source: KnowledgeSource) {
+  return normalizeStatus(source.status) === 'archived';
 }
 
 function nextAction(source: KnowledgeSource) {
@@ -421,11 +436,10 @@ export default async function KnowledgePage({
   }>;
 }) {
   const [snapshot, params] = await Promise.all([getKnowledgeSnapshot(), searchParams]);
-  const pipeline = snapshot.lifecycle ?? lifecycleOrder;
+  const pipeline = (snapshot.lifecycle ?? lifecycleOrder).filter(isActiveLifecycleStatus);
   const counts = snapshot.lifecycleCounts ?? {};
-  const activeSources = snapshot.sources.filter(
-    (source) => normalizeStatus(source.status) !== 'archived'
-  );
+  const activeSources = snapshot.sources.filter((source) => !isArchived(source));
+  const archivedSources = snapshot.sources.filter(isArchived);
   const nextSource = activeSources.find((source) => nextAction(source)) ?? activeSources[0];
 
   return (
@@ -495,16 +509,21 @@ export default async function KnowledgePage({
           <CardHeader>
             <CardTitle>Kunskapsflöde</CardTitle>
             <CardDescription>
-              raw → extracted → wikified → reviewed → promoted → used as context in OpenClaw →
-              archived
+              raw → extracted → wikified → reviewed → promoted → used as context in OpenClaw.
+              Archive är en sidoväg, inte ett aktivt steg.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6'>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5'>
               {pipeline.map((status) => (
                 <PipelineStep key={status} status={status} count={counts[status] ?? 0} />
               ))}
             </div>
+            {archivedSources.length > 0 && (
+              <div className='text-muted-foreground mt-4 rounded-xl border bg-muted/30 p-3 text-sm'>
+                {archivedSources.length} arkiverade källor ligger utanför den aktiva kön.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -519,13 +538,14 @@ export default async function KnowledgePage({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {snapshot.sources.length === 0 ? (
+              {activeSources.length === 0 ? (
                 <div className='text-muted-foreground rounded-xl border border-dashed p-6 text-sm'>
-                  Inga källor ännu. Lägg in första råtexten eller URL:en.
+                  Inga aktiva källor i kön. Lägg in första råtexten/URL:en eller återställ något
+                  från archive senare.
                 </div>
               ) : (
                 <div className='space-y-2'>
-                  {snapshot.sources.map((source) => {
+                  {activeSources.map((source) => {
                     const meta = statusMeta(source.status);
                     return (
                       <div key={source.id} className='rounded-xl border bg-background/40 p-4'>
