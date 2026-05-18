@@ -39,14 +39,20 @@ export function ChatArea({
   return (
     <section className='flex min-h-0 flex-1 flex-col bg-background'>
       <ChatHeader agent={agent} isLoadingHistory={isLoadingHistory} />
-      <div ref={scrollRef} className='min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6'>
-        <div className='mx-auto flex max-w-4xl flex-col gap-3'>
-          <div className='mb-2 flex flex-wrap items-center gap-2'>
+      <div
+        ref={scrollRef}
+        className='min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.08),_transparent_28rem)] px-3 py-4 sm:px-6'
+      >
+        <div className='mx-auto flex max-w-3xl flex-col gap-3 pb-3'>
+          <div className='mb-1 flex flex-wrap items-center gap-2 px-1'>
             <Badge variant='secondary' className='rounded-full'>
               {agent.tone}
             </Badge>
+            <Badge variant='outline' className='rounded-full'>
+              Rich mobile chat
+            </Badge>
             {isLoadingHistory ? (
-              <span className='text-muted-foreground text-xs'>Loading history…</span>
+              <span className='text-muted-foreground text-xs'>Syncing history…</span>
             ) : null}
           </div>
           {messages.map((message) => (
@@ -59,6 +65,7 @@ export function ChatArea({
                 role: 'system',
                 content: error,
                 createdAt: new Date().toISOString(),
+                parts: [{ type: 'text', text: error }],
                 error: true
               }}
             />

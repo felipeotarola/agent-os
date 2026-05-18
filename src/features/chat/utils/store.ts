@@ -32,7 +32,8 @@ const initialMessages = Object.fromEntries(
         id: agent.id + '-welcome',
         role: 'assistant',
         content: defaultWelcomeByAgent[agent.id],
-        createdAt: INITIAL_WELCOME_TIMESTAMP
+        createdAt: INITIAL_WELCOME_TIMESTAMP,
+        parts: [{ type: 'text', text: defaultWelcomeByAgent[agent.id] }]
       }
     ]
   ])

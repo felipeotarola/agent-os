@@ -67,7 +67,8 @@ function normalizeMessage(value: unknown, index: number): ChatMessage | null {
     id: stringFrom(value.id, 'history-message-' + index),
     role: roleFrom(value.role ?? value.sender),
     content,
-    createdAt: timestampFrom(value, '2026-01-01T00:00:00.000Z')
+    createdAt: timestampFrom(value, '2026-01-01T00:00:00.000Z'),
+    parts: [{ type: 'text', text: content }]
   };
 }
 
@@ -98,7 +99,8 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
         id: 'assistant-response',
         role: 'assistant',
         content,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        parts: [{ type: 'text', text: content }]
       };
     }
   }
@@ -198,6 +200,7 @@ export function Messenger() {
         role: 'user',
         content,
         createdAt: new Date(submittedAt).toISOString(),
+        parts: [{ type: 'text', text: content }],
         pending: true
       };
 
@@ -233,6 +236,15 @@ export function Messenger() {
             role: 'system',
             content: 'Run started. Waiting for Cai’s answer…',
             createdAt: new Date().toISOString(),
+            parts: [
+              {
+                type: 'run-status',
+                title: 'Run started',
+                status: 'running',
+                detail: 'Waiting for Cai’s answer…',
+                runId: isRecord(payload) ? stringFrom(payload.runId) : undefined
+              }
+            ],
             pending: true
           }
         );
