@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { VaultFile } from '@/lib/vault';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 type VaultExplorerProps = {
@@ -62,7 +63,7 @@ function renderMarkdown(content: string) {
 
 export function VaultExplorer({ files }: VaultExplorerProps) {
   const sortedFiles = useMemo(
-    () => [...files].sort((a, b) => a.path.localeCompare(b.path)),
+    () => files.toSorted((a, b) => a.path.localeCompare(b.path)),
     [files]
   );
   const [selectedPath, setSelectedPath] = useState(sortedFiles[0]?.path ?? '');
@@ -71,7 +72,7 @@ export function VaultExplorer({ files }: VaultExplorerProps) {
     const counts = new Map<string, number>();
     for (const file of sortedFiles)
       counts.set(folderFor(file.path), (counts.get(folderFor(file.path)) ?? 0) + 1);
-    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return [...counts.entries()].toSorted(([a], [b]) => a.localeCompare(b));
   }, [sortedFiles]);
 
   if (!selected) {
@@ -132,7 +133,7 @@ export function VaultExplorer({ files }: VaultExplorerProps) {
           <div className='flex gap-2'>
             <Badge variant='secondary'>{folderFor(selected.path)}</Badge>
             <Button asChild size='sm' variant='outline'>
-              <a href='/api/knowledge/vault/export'>Download zip</a>
+              <Link href='/api/knowledge/vault/export'>Download zip</Link>
             </Button>
           </div>
         </div>

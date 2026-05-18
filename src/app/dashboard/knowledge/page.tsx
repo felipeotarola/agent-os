@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { getKnowledgeSnapshot } from '@/db/knowledge';
 import { VaultGraph } from './vault-graph';
 import { VaultExplorer } from './vault-explorer';
+import Link from 'next/link';
 
 export default async function KnowledgePage({
   searchParams
@@ -72,7 +73,7 @@ export default async function KnowledgePage({
                 </CardDescription>
               </div>
               <Button asChild variant='outline'>
-                <a href='/api/knowledge/vault/export'>Download vault.zip</a>
+                <Link href='/api/knowledge/vault/export'>Download vault.zip</Link>
               </Button>
             </div>
           </CardHeader>

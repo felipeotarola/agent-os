@@ -383,7 +383,7 @@ export default function DemoForm() {
                   name='website'
                   label='Website'
                   type='url'
-                  placeholder='https://example.com'
+                  placeholder='internal-note'
                 />
               </div>
 

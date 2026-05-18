@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getKnowledgeSnapshot } from '@/db/knowledge';
+import Link from 'next/link';
 
 export default async function WikiPage() {
   const snapshot = await getKnowledgeSnapshot();
@@ -28,7 +29,7 @@ export default async function WikiPage() {
             </p>
           </div>
           <Button asChild variant='outline'>
-            <a href='/api/knowledge/vault/export'>Download vault.zip</a>
+            <Link href='/api/knowledge/vault/export'>Download vault.zip</Link>
           </Button>
         </div>
 

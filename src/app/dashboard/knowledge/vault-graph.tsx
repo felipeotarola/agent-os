@@ -47,7 +47,7 @@ function extractWikiLinks(content: string) {
 }
 
 function buildGraph(files: VaultFile[]) {
-  const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
+  const sorted = files.toSorted((a, b) => a.path.localeCompare(b.path));
   const pathSet = new Set(sorted.map((file) => file.path));
   const width = 900;
   const height = 520;

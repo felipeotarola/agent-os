@@ -1,9 +1,5 @@
-import ChatViewPage from '@/features/chat/components/chat-view-page';
+import { notFound } from 'next/navigation';
 
-export const metadata = {
-  title: 'Dashboard: Chat'
-};
-
-export default function Page() {
-  return <ChatViewPage />;
+export default function DisabledTemplatePage() {
+  notFound();
 }

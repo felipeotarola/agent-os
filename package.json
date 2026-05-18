@@ -1,5 +1,5 @@
 {
-  "name": "next-shadcn-dashboard-starter",
+  "name": "agent-os",
   "version": "1.0.0",
   "private": true,
   "author": {
@@ -104,7 +104,6 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.9.0",
     "@types/node": "22.10.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

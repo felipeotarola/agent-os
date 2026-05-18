@@ -18,7 +18,7 @@ export async function bridgeRequest<T>(path: string, init: RequestInit = {}): Pr
     headers: {
       authorization: `Bearer ${config.token}`,
       'content-type': 'application/json',
-      ...(init.headers ?? {})
+      ...init.headers
     },
     cache: 'no-store'
   });

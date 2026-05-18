@@ -31,13 +31,6 @@ export const navGroups: NavGroup[] = [
         icon: 'chat',
         shortcut: ['c', 'c'],
         items: []
-      },
-      {
-        title: 'Affiliate',
-        url: '/dashboard/affiliate',
-        icon: 'billing',
-        shortcut: ['f', 'f'],
-        items: []
       }
     ]
   },
@@ -60,7 +53,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Journal',
-        url: '/dashboard/forms/basic',
+        url: '/dashboard/journal',
         icon: 'forms',
         shortcut: ['j', 'j'],
         items: []
@@ -86,7 +79,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Settings',
-        url: '/dashboard/elements/icons',
+        url: '/dashboard/settings',
         icon: 'settings',
         shortcut: ['s', 's'],
         items: []
