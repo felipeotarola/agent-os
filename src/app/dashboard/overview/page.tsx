@@ -99,6 +99,11 @@ function timeLabel(value?: string | null) {
   });
 }
 
+function timeLabelFromMs(value?: number | null) {
+  if (!value) return null;
+  return timeLabel(new Date(value).toISOString());
+}
+
 function stockholmDate(value: Date) {
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Europe/Stockholm',
@@ -130,6 +135,24 @@ function percent(value: number | null) {
   if (value === null) return '—';
   const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
+}
+
+function newsTag(item: { title: string; source: string }) {
+  const haystack = `${item.title} ${item.source}`.toLowerCase();
+  if (haystack.includes('bitcoin') || haystack.includes('btc') || haystack.includes('crypto')) {
+    return 'Bitcoin';
+  }
+  if (haystack.includes('ai') || haystack.includes('openai') || haystack.includes('agent')) {
+    return 'AI';
+  }
+  if (item.source.toLowerCase().includes('svt')) return 'Sverige';
+  return 'Tech';
+}
+
+function briefPreview(text?: string | null) {
+  const value = String(text ?? '').trim();
+  if (!value) return 'Ingen skickad Cai-brief hittad ännu.';
+  return value.length > 1250 ? `${value.slice(0, 1250).trim()}…` : value;
 }
 
 function taskProgress(status: string) {
@@ -222,51 +245,12 @@ export default async function OverviewPage() {
   const taskStatus = snapshot.taskStatus ?? {};
   const taskEntries = Object.entries(taskStatus);
   const events = snapshot.events ?? [];
+  const visibleEvents = events.filter((event) => !event.kind.startsWith('cai_brief_cron_'));
   const subagents = snapshot.subagents;
   const recentRuns = subagents?.recent ?? [];
   const runningRuns = recentRuns.filter((run) => run.status === 'running');
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
-  const topAgent = briefing.dispatch.byAgent[0];
-
-  const briefingCards = [
-    {
-      label: 'Actionable tasks',
-      value: String(briefing.dispatch.actionableCount),
-      detail: topAgent
-        ? `${topAgent.agentName} har mest att ta ställning till`
-        : 'Ingen agentkö just nu',
-      tone: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-100',
-      icon: '⌘'
-    },
-    {
-      label: 'Bitcoin',
-      value: compactNumber(briefing.bitcoin.priceSek, 'SEK'),
-      detail: `${percent(briefing.bitcoin.change24h)} senaste 24h`,
-      tone:
-        briefing.bitcoin.change24h === null
-          ? 'border-slate-400/25 bg-slate-400/10 text-slate-100'
-          : briefing.bitcoin.change24h >= 0
-            ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100'
-            : 'border-rose-400/25 bg-rose-400/10 text-rose-100',
-      icon: '₿'
-    },
-    {
-      label: 'News radar',
-      value: String(briefing.news.items.length),
-      detail: briefing.news.ok ? 'frontpage-signaler hämtade live' : 'nyhetskälla saknas',
-      tone: 'border-violet-400/25 bg-violet-400/10 text-violet-100',
-      icon: '✦'
-    },
-    {
-      label: 'Open tasks',
-      value: String(briefing.pulse.openTasks),
-      detail: `${briefing.pulse.waitingTasks} waiting · ${briefing.pulse.reviewTasks} review`,
-      tone: 'border-amber-400/25 bg-amber-400/10 text-amber-100',
-      icon: '↻'
-    }
-  ];
-
   const resumeItems = [
     {
       icon: '↗',
@@ -286,87 +270,47 @@ export default async function OverviewPage() {
     {
       icon: '✦',
       label: 'Latest change',
-      value: events[0]?.message ?? 'No recent events',
+      value: visibleEvents[0]?.message ?? 'No recent events',
       href: '/dashboard/knowledge'
     }
   ];
 
-  const bitcoinChange = briefing.bitcoin.change24h ?? 2.4;
+  const bitcoinChange = briefing.bitcoin.change24h;
   const bitcoinPriceDisplay =
     briefing.bitcoin.priceSek !== null
       ? compactNumber(briefing.bitcoin.priceSek, 'SEK')
-      : '$104,230';
+      : briefing.bitcoin.priceUsd !== null
+        ? compactNumber(briefing.bitcoin.priceUsd, 'USD')
+        : 'Ingen BTC-data';
 
   const visibleNews =
     briefing.news.items.length > 0
-      ? briefing.news.items.slice(0, 4).map((item, index) => ({
+      ? briefing.news.items.slice(0, 4).map((item) => ({
           title: item.title,
           source: item.source,
           url: item.url,
-          tag: index === 0 ? 'AI' : index === 1 ? 'Bitcoin' : index === 2 ? 'Sverige' : 'Startups'
+          tag: newsTag(item)
         }))
-      : [
-          {
-            title: 'OpenAI lanserar GPT-5.1 med bättre resonemang',
-            source: 'Mock news',
-            url: '#',
-            tag: 'AI'
-          },
-          {
-            title: 'Bitcoin tillbaka över $104k – stark instit demand',
-            source: 'Mock news',
-            url: '#',
-            tag: 'Bitcoin'
-          },
-          {
-            title: 'Riksbanken sänker räntan med 0,25 procentenheter',
-            source: 'Mock news',
-            url: '#',
-            tag: 'Sverige'
-          },
-          {
-            title: 'Northvolt säkrar nytt kapital inför nästa fas',
-            source: 'Mock news',
-            url: '#',
-            tag: 'Startups'
-          }
-        ];
+      : [];
 
   const personalSignals = [
-    {
-      title: 'Lysande',
-      body: 'Fortsatt positiv trend i affiliate-intresse. Bevaka konvertering nästa 48h.',
-      icon: '☼',
-      status: 'up'
-    },
-    {
-      title: 'Sladdis',
-      body: 'Amazon stats hämtar felaktiga siffror. Åtgärd behövs i parser-logik.',
-      icon: '⚡',
-      status: 'warn'
-    },
-    {
-      title: 'OpenClaw',
-      body: 'Bridge stabil. 3 nya integrations-möjligheter upptäckta.',
+    ...briefing.dispatch.byAgent.slice(0, 3).map((group) => ({
+      title: group.agentName,
+      body: `${group.count} agentägda tasks väntar${group.highPriorityCount ? ` · ${group.highPriorityCount} high priority` : ''}. Först: ${group.tasks[0]?.title ?? 'öppna task-kön'}.`,
+      icon: group.emoji || '⚛',
+      status: group.highPriorityCount ? 'warn' : 'up'
+    })),
+    ...visibleEvents.slice(0, 2).map((event) => ({
+      title: event.kind,
+      body: event.message,
       icon: '⟳',
       status: 'up'
-    }
-  ];
+    }))
+  ].slice(0, 4);
 
-  const latestCaiMessage = [
-    'Hej Felipe! 👋',
-    '',
-    briefing.bitcoin.priceSek !== null
-      ? `Dagens läge är stabilt. Bitcoin håller styrkan kring ${compactNumber(
-          briefing.bitcoin.priceSek,
-          'SEK'
-        )} och nyhetsflödet är positivt.`
-      : 'Dagens läge är stabilt. Bitcoin håller styrkan över $104k och nyhetsflödet är positivt.',
-    '',
-    'Fokus idag: affiliate-optimering och Sladdis parser-fix.',
-    '',
-    '– Cai'
-  ].join('\n');
+  const latestCaiRun = briefing.latestMessage.latest;
+  const latestCaiMessage = briefPreview(latestCaiRun?.summary);
+  const latestCaiTime = timeLabelFromMs(latestCaiRun?.runAtMs) ?? 'ingen cron-run hittad';
 
   return (
     <PageContainer>
@@ -510,7 +454,7 @@ export default async function OverviewPage() {
                 <div className='text-muted-foreground flex flex-wrap items-center gap-3 text-xs'>
                   <span>Senast uppdaterad {stockholmTime(liveAt).replace(' CEST', '')}</span>
                   <span className='hidden text-border md:inline'>•</span>
-                  <span>Nästa briefing 20:00</span>
+                  <span>Morgon 08:15 · dispatch 08:30 · kväll 19:45/20:30</span>
                   <span className='hidden text-border md:inline'>•</span>
                   <Badge className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'>
                     LIVE
@@ -533,7 +477,11 @@ export default async function OverviewPage() {
 
                   <div
                     className={`mt-2 text-sm font-medium ${
-                      bitcoinChange >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                      bitcoinChange === null
+                        ? 'text-muted-foreground'
+                        : bitcoinChange >= 0
+                          ? 'text-emerald-300'
+                          : 'text-rose-300'
                     }`}
                   >
                     {percent(bitcoinChange)} senaste 24h
@@ -544,20 +492,22 @@ export default async function OverviewPage() {
                       variant='outline'
                       className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
                     >
-                      7d +8.1%
+                      {briefing.bitcoin.source}
                     </Badge>
-                    <Badge
-                      variant='outline'
-                      className='border-cyan-400/25 bg-cyan-400/10 text-cyan-100'
-                    >
-                      Fear & Greed 72
-                    </Badge>
+                    {briefing.bitcoin.priceUsd !== null && (
+                      <Badge
+                        variant='outline'
+                        className='border-cyan-400/25 bg-cyan-400/10 text-cyan-100'
+                      >
+                        {compactNumber(briefing.bitcoin.priceUsd, 'USD')}
+                      </Badge>
+                    )}
                   </div>
 
                   <BitcoinSparkline />
 
                   <p className='mt-3 text-sm leading-5 text-muted-foreground'>
-                    Lugn uppgång. Viktig nivå att bevaka: $105k.
+                    Livepris via publik crypto-API. Ingen prognos, bara lägesbild.
                   </p>
                 </div>
 
@@ -569,52 +519,57 @@ export default async function OverviewPage() {
                       </div>
                       <div className='font-semibold text-foreground'>Dagens nyheter</div>
                     </div>
-                    <Button
-                      size='icon'
-                      variant='outline'
-                      className='size-8 border-border bg-background/45'
-                    >
-                      +
-                    </Button>
+                    <Badge variant='outline' className='border-border bg-background/45 text-[10px]'>
+                      {briefing.news.source}
+                    </Badge>
                   </div>
 
                   <div className='divide-y divide-border'>
-                    {visibleNews.map((item) => (
-                      <a
-                        key={`${item.title}-${item.tag}`}
-                        href={item.url}
-                        target={item.url === '#' ? undefined : '_blank'}
-                        rel={item.url === '#' ? undefined : 'noreferrer'}
-                        className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
-                      >
-                        <div className='min-w-0 flex-1'>
-                          <div className='line-clamp-2 text-sm font-medium text-card-foreground transition group-hover:text-primary'>
-                            {item.title}
-                          </div>
-                        </div>
-                        <Badge
-                          variant='outline'
-                          className={`shrink-0 border-border text-[10px] ${
-                            item.tag === 'AI'
-                              ? 'bg-violet-400/15 text-violet-200'
-                              : item.tag === 'Bitcoin'
-                                ? 'bg-orange-400/15 text-orange-200'
-                                : item.tag === 'Sverige'
-                                  ? 'bg-blue-400/15 text-blue-200'
-                                  : 'bg-pink-400/15 text-pink-200'
-                          }`}
+                    {visibleNews.length === 0 ? (
+                      <div className='text-muted-foreground rounded-xl border border-dashed p-4 text-sm'>
+                        RSS-källorna gav inga nyheter just nu.
+                      </div>
+                    ) : (
+                      visibleNews.map((item) => (
+                        <a
+                          key={`${item.title}-${item.url}`}
+                          href={item.url}
+                          target='_blank'
+                          rel='noreferrer'
+                          className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
                         >
-                          {item.tag}
-                        </Badge>
-                      </a>
-                    ))}
+                          <div className='min-w-0 flex-1'>
+                            <div className='line-clamp-2 text-sm font-medium text-card-foreground transition group-hover:text-primary'>
+                              {item.title}
+                            </div>
+                            <div className='text-muted-foreground mt-1 text-[11px]'>
+                              {item.source}
+                            </div>
+                          </div>
+                          <Badge
+                            variant='outline'
+                            className={`shrink-0 border-border text-[10px] ${
+                              item.tag === 'AI'
+                                ? 'bg-violet-400/15 text-violet-200'
+                                : item.tag === 'Bitcoin'
+                                  ? 'bg-orange-400/15 text-orange-200'
+                                  : item.tag === 'Sverige'
+                                    ? 'bg-blue-400/15 text-blue-200'
+                                    : 'bg-pink-400/15 text-pink-200'
+                            }`}
+                          >
+                            {item.tag}
+                          </Badge>
+                        </a>
+                      ))
+                    )}
                   </div>
 
                   <Link
                     href='/dashboard/knowledge'
                     className='mt-5 inline-flex text-sm font-medium text-primary hover:text-primary/80'
                   >
-                    Visa alla nyheter →
+                    RSS: SVT + HN + Bitcoin →
                   </Link>
                 </div>
 
@@ -627,28 +582,34 @@ export default async function OverviewPage() {
                   </div>
 
                   <div className='divide-y divide-border'>
-                    {personalSignals.map((signal) => (
-                      <div key={signal.title} className='flex gap-3 py-3 first:pt-0 last:pb-0'>
-                        <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-background/45 text-sm text-card-foreground'>
-                          {signal.icon}
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                          <div className='flex items-start justify-between gap-2'>
-                            <div className='font-medium text-foreground'>{signal.title}</div>
-                            <span
-                              className={
-                                signal.status === 'warn' ? 'text-amber-300' : 'text-emerald-300'
-                              }
-                            >
-                              {signal.status === 'warn' ? '△' : '⌁'}
-                            </span>
-                          </div>
-                          <div className='text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-5'>
-                            {signal.body}
-                          </div>
-                        </div>
+                    {personalSignals.length === 0 ? (
+                      <div className='text-muted-foreground rounded-xl border border-dashed p-4 text-sm'>
+                        Inga agent- eller eventsignaler i snapshoten just nu.
                       </div>
-                    ))}
+                    ) : (
+                      personalSignals.map((signal) => (
+                        <div key={signal.title} className='flex gap-3 py-3 first:pt-0 last:pb-0'>
+                          <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-background/45 text-sm text-card-foreground'>
+                            {signal.icon}
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='flex items-start justify-between gap-2'>
+                              <div className='font-medium text-foreground'>{signal.title}</div>
+                              <span
+                                className={
+                                  signal.status === 'warn' ? 'text-amber-300' : 'text-emerald-300'
+                                }
+                              >
+                                {signal.status === 'warn' ? '△' : '⌁'}
+                              </span>
+                            </div>
+                            <div className='text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-5'>
+                              {signal.body}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <Link
@@ -672,20 +633,14 @@ export default async function OverviewPage() {
                       {latestCaiMessage}
                     </p>
                     <div className='mt-3 text-right text-xs text-muted-foreground'>
-                      {stockholmTime(liveAt).replace(' CEST', '')}
+                      {latestCaiRun
+                        ? `${latestCaiRun.label} · ${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                        : latestCaiTime}
                     </div>
                   </div>
 
-                  <div className='mt-4 grid grid-cols-3 gap-2'>
-                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
-                      👁 Visa
-                    </Button>
-                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
-                      ✈ Skicka
-                    </Button>
-                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
-                      📌 Pin
-                    </Button>
+                  <div className='mt-4 text-xs text-muted-foreground'>
+                    Källa: OpenClaw cron-runs för morgon-/kvällsbrief och Agent OS-dispatch.
                   </div>
                 </div>
               </div>

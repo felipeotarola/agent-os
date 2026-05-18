@@ -49,6 +49,26 @@ type NewsSnapshot = {
   error?: string;
 };
 
+type CaiBriefMessageRun = {
+  jobId: string;
+  label: string;
+  slot: string;
+  status: string;
+  summary: string;
+  delivered: boolean;
+  deliveryStatus: string | null;
+  runAtMs: number;
+  ts: number;
+};
+
+type CaiBriefMessageSnapshot = {
+  ok: boolean;
+  source: string;
+  latest: CaiBriefMessageRun | null;
+  runs: CaiBriefMessageRun[];
+  error?: string;
+};
+
 const fallbackDispatch: DispatchSummary = {
   generatedAt: new Date().toISOString(),
   actionableCount: 0,
@@ -89,37 +109,84 @@ async function getBitcoinSnapshot(): Promise<BitcoinSnapshot> {
     };
   } catch (error) {
     console.error('Bitcoin briefing fetch failed', error);
-    return {
-      ok: false,
-      priceSek: null,
-      priceUsd: null,
-      change24h: null,
-      source: 'coingecko:error'
-    };
+    try {
+      const response = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC', {
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error(`Coinbase ${response.status}`, { cause: error });
+      const json = await response.json();
+      const rates = json.data?.rates ?? {};
+      return {
+        ok: true,
+        priceSek: toNumber(rates.SEK),
+        priceUsd: toNumber(rates.USD),
+        change24h: null,
+        source: 'coinbase:exchange-rates:fallback'
+      };
+    } catch (fallbackError) {
+      console.error('Bitcoin fallback fetch failed', fallbackError);
+      return {
+        ok: false,
+        priceSek: null,
+        priceUsd: null,
+        change24h: null,
+        source: 'bitcoin:error'
+      };
+    }
   }
+}
+
+function decodeXml(value: string) {
+  return value
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&apos;', "'")
+    .trim();
+}
+
+function tagValue(item: string, tag: string) {
+  const match = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  if (!match) return null;
+  return decodeXml(match[1].replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, ''));
+}
+
+async function getRssItems(url: string, source: string, limit = 4): Promise<NewsItem[]> {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`${source} RSS ${response.status}`);
+  const xml = await response.text();
+  return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)]
+    .map((match) => {
+      const item = match[0];
+      return {
+        title: tagValue(item, 'title') ?? '',
+        url: tagValue(item, 'link') ?? '',
+        source,
+        publishedAt: tagValue(item, 'pubDate') ?? null
+      };
+    })
+    .filter((item) => item.title && item.url)
+    .slice(0, limit);
 }
 
 async function getNewsSnapshot(): Promise<NewsSnapshot> {
   try {
-    const response = await fetch(
-      'https://hn.algolia.com/api/v1/search_by_date?tags=front_page&hitsPerPage=6',
-      { cache: 'no-store' }
-    );
-    if (!response.ok) throw new Error(`HN ${response.status}`);
-    const json = await response.json();
-    const items = (Array.isArray(json.hits) ? json.hits : [])
-      .map((hit: Record<string, unknown>) => ({
-        title: String(hit.title || hit.story_title || '').trim(),
-        url: String(
-          hit.url || hit.story_url || `https://news.ycombinator.com/item?id=${hit.objectID}`
-        ).trim(),
-        source: 'Hacker News',
-        publishedAt: typeof hit.created_at === 'string' ? hit.created_at : null
-      }))
-      .filter((item: NewsItem) => item.title && item.url)
-      .slice(0, 5);
+    const [svt, hn, btc] = await Promise.allSettled([
+      getRssItems('https://www.svt.se/nyheter/rss.xml', 'SVT Nyheter', 3),
+      getRssItems('https://hnrss.org/frontpage', 'Hacker News', 3),
+      getRssItems('https://cointelegraph.com/rss/tag/bitcoin', 'Cointelegraph Bitcoin', 2)
+    ]);
 
-    return { ok: true, items, source: 'hackernews:front_page' };
+    const items = [svt, hn, btc]
+      .flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+      .filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index)
+      .slice(0, 8);
+
+    if (items.length > 0) return { ok: true, items, source: 'rss:svt+hn+bitcoin' };
+
+    throw new Error('all RSS sources returned zero items');
   } catch (error) {
     console.error('News briefing fetch failed', error);
     return {
@@ -131,12 +198,34 @@ async function getNewsSnapshot(): Promise<NewsSnapshot> {
   }
 }
 
+async function getLatestCaiBriefMessage(): Promise<CaiBriefMessageSnapshot> {
+  if (!hasBridge()) {
+    return { ok: false, source: 'bridge:not-configured', latest: null, runs: [] };
+  }
+  try {
+    const result = await bridgeRequest<Omit<CaiBriefMessageSnapshot, 'ok'>>(
+      '/cai/latest-brief-message'
+    );
+    return { ok: true, ...result };
+  } catch (error) {
+    console.error('Latest Cai brief message failed', error);
+    return {
+      ok: false,
+      source: 'openclaw:cron-runs:error',
+      latest: null,
+      runs: [],
+      error: error instanceof Error ? error.message : 'unknown cron run error'
+    };
+  }
+}
+
 export async function getCaiBriefing() {
-  const [cockpit, dispatch, bitcoin, news] = await Promise.all([
+  const [cockpit, dispatch, bitcoin, news, latestMessage] = await Promise.all([
     getCockpitSnapshot(),
     getDispatchSummary(),
     getBitcoinSnapshot(),
-    getNewsSnapshot()
+    getNewsSnapshot(),
+    getLatestCaiBriefMessage()
   ]);
 
   const taskStatus = cockpit.taskStatus ?? {};
@@ -153,6 +242,7 @@ export async function getCaiBriefing() {
     dispatch,
     bitcoin,
     news,
+    latestMessage,
     pulse: {
       openTasks,
       reviewTasks: Number(taskStatus.review ?? 0),

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
@@ -354,6 +354,67 @@ async function taskDispatchSummary() {
     actionableCount,
     byAgent,
     suggestedMessage: lines.join('\n')
+  };
+}
+
+const CAI_BRIEF_JOB_IDS = [
+  { id: '8a1af0f0-8ea8-40b3-97ba-c5658ed7c306', label: 'Morgonbrief', slot: 'morning' },
+  { id: 'f907cdef-03ca-4710-aee2-e673c0c52363', label: 'Kvällsbrief', slot: 'evening' },
+  { id: '52e0ff6b-8753-4c92-a478-ff3c99f9ed43', label: 'Agent OS morgondispatch', slot: 'morning-dispatch' },
+  { id: '585c20ef-09b0-47b2-ab95-19e746fa526e', label: 'Agent OS kvällsdispatch', slot: 'evening-dispatch' }
+];
+
+async function cronRuns(jobId) {
+  const path = `/root/.openclaw/cron/runs/${jobId}.jsonl`;
+  if (existsSync(path)) {
+    try {
+      return readFileSync(path, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+        .toReversed()
+        .slice(0, 3);
+    } catch (error) {
+      await auditEvent('cai_brief_cron_file_read_failed', 'Failed to read Cai briefing cron JSONL', { jobId, error: error.message }, 60);
+    }
+  }
+
+  try {
+    const result = await openclawJson(['cron', 'runs', '--id', jobId, '--limit', '3', '--timeout', '20000'], { timeout: 30000 });
+    return Array.isArray(result.entries) ? result.entries : [];
+  } catch (error) {
+    await auditEvent('cai_brief_cron_read_failed', 'Failed to read Cai briefing cron runs', { jobId, error: error.message }, 60);
+    return [];
+  }
+}
+
+async function latestCaiBriefMessage() {
+  const runGroups = await Promise.all(CAI_BRIEF_JOB_IDS.map(async (job) => ({ job, runs: await cronRuns(job.id) })));
+  const entries = runGroups
+    .flatMap(({ job, runs }) =>
+      runs.map((run) => ({
+        jobId: job.id,
+        label: job.label,
+        slot: job.slot,
+        status: run.status,
+        summary: typeof run.summary === 'string' ? run.summary.trim() : '',
+        delivered: Boolean(run.delivered),
+        deliveryStatus: run.deliveryStatus ?? null,
+        runAtMs: Number(run.runAtMs ?? run.ts ?? 0),
+        ts: Number(run.ts ?? run.runAtMs ?? 0)
+      }))
+    )
+    .filter((entry) => entry.status === 'ok' && entry.summary)
+    .toSorted((a, b) => b.runAtMs - a.runAtMs);
+
+  const latest = entries[0] ?? null;
+  return {
+    contract: 'agent-os.cai-latest-brief-message.v1',
+    generatedAt: new Date().toISOString(),
+    source: 'openclaw:cron-runs',
+    latest,
+    runs: entries.slice(0, 6)
   };
 }
 
@@ -1275,6 +1336,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {
       return send(res, 200, await taskDispatchSummary());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/cai/latest-brief-message') {
+      return send(res, 200, await latestCaiBriefMessage());
     }
 
     if (req.method === 'POST' && url.pathname === '/tasks') {
