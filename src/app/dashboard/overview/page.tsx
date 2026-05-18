@@ -118,14 +118,6 @@ function stockholmTime(value: Date) {
   }).format(value);
 }
 
-function stockholmHour(value: Date) {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    hour: 'numeric',
-    hour12: false
-  }).format(value);
-}
-
 function taskProgress(status: string) {
   if (status === 'done') return 100;
   if (status === 'review') return 82;
@@ -205,58 +197,82 @@ export default async function OverviewPage() {
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-5'>
-        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.22),transparent_32%),radial-gradient(circle_at_85%_10%,rgba(139,92,246,0.20),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))] p-6 shadow-2xl shadow-cyan-950/30'>
+        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_80%_15%,rgba(139,92,246,0.22),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.99))] p-6 shadow-2xl shadow-cyan-950/30'>
           <div className='absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent' />
-          <div className='relative z-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_290px] lg:items-end'>
-            <div className='space-y-3'>
+          <div className='relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_250px] lg:items-center'>
+            <div className='space-y-5'>
               <Badge variant='outline' className='border-cyan-300/40 bg-cyan-400/10 text-cyan-100'>
-                ⚛️ live cockpit
+                <StatusDot ok={snapshot.dbOnline} /> live cockpit
               </Badge>
-              <div className='grid gap-3 rounded-2xl border border-white/10 bg-slate-950/45 p-4 backdrop-blur md:grid-cols-[minmax(0,1fr)_auto] md:items-center'>
+
+              <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start'>
                 <div>
-                  <div className='text-sm text-cyan-100'>Welcome Felipe</div>
-                  <div className='mt-1 text-2xl font-semibold text-white md:text-3xl'>
+                  <h1 className='text-3xl font-semibold tracking-tight text-white md:text-4xl'>
+                    Welcome Felipe 👋
+                  </h1>
+                  <div className='mt-1 text-2xl font-medium text-slate-200 md:text-3xl'>
                     {stockholmDate(liveAt)}
                   </div>
-                  <div className='mt-1 text-sm text-slate-300'>
-                    Stockholm time {stockholmTime(liveAt)} · hour {stockholmHour(liveAt)} · live
-                    snapshot
+                  <div className='mt-2 text-sm text-slate-300'>
+                    Stockholm time {stockholmTime(liveAt)} · live snapshot
                   </div>
                 </div>
-                <div className='grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 md:grid-cols-2 xl:grid-cols-4'>
-                  <div className='rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3'>
+
+                <div className='grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 xl:grid-cols-4'>
+                  <div className='rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 shadow-lg shadow-cyan-950/20'>
                     <div className='text-slate-400'>Open tasks</div>
-                    <div className='mt-1 text-xl font-semibold text-white'>{openTasks}</div>
+                    <div className='mt-1 text-2xl font-semibold text-white'>{openTasks}</div>
                   </div>
-                  <div className='rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3'>
+                  <div className='rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 shadow-lg shadow-emerald-950/20'>
                     <div className='text-slate-400'>Agents</div>
-                    <div className='mt-1 text-xl font-semibold text-white'>
+                    <div className='mt-1 text-2xl font-semibold text-white'>
                       {onlineAgents}/{snapshot.agents.length}
                     </div>
                   </div>
-                  <div className='rounded-xl border border-violet-400/20 bg-violet-400/10 p-3'>
+                  <div className='rounded-xl border border-violet-400/20 bg-violet-400/10 p-3 shadow-lg shadow-violet-950/20'>
                     <div className='text-slate-400'>Knowledge</div>
-                    <div className='mt-1 text-xl font-semibold text-white'>
+                    <div className='mt-1 text-2xl font-semibold text-white'>
                       {knowledge.wikified}
                     </div>
                   </div>
-                  <div className='rounded-xl border border-amber-400/20 bg-amber-400/10 p-3'>
+                  <div className='rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 shadow-lg shadow-amber-950/20'>
                     <div className='text-slate-400'>Running</div>
-                    <div className='mt-1 text-xl font-semibold text-white'>
+                    <div className='mt-1 text-2xl font-semibold text-white'>
                       {subagents?.runningCount ?? 0}
                     </div>
                   </div>
                 </div>
               </div>
-              <div>
-                <h1 className='text-4xl font-semibold tracking-tight text-white md:text-6xl'>
-                  Agent OS Overview
-                </h1>
-                <p className='mt-3 max-w-3xl text-sm leading-6 text-slate-300 md:text-base'>
-                  Kontrollpanel för agentarbete: live-status, prioriterade tasks, körande workers,
-                  kunskapspipeline och senaste audit-spår. Färre dashboards, mer “vad behöver hända
-                  nu?”.
-                </p>
+
+              <div className='h-px max-w-4xl bg-gradient-to-r from-slate-700 via-slate-600 to-transparent' />
+
+              <p className='max-w-3xl text-sm text-slate-300'>
+                Your control center for tasks, workers, knowledge pipeline, and recent activity.
+              </p>
+
+              <div className='flex flex-wrap items-center gap-3 text-xs'>
+                <span className='text-slate-400'>Focus now</span>
+                <Badge
+                  variant='outline'
+                  className='border-violet-400/30 bg-violet-400/10 px-3 py-1.5 text-violet-100'
+                >
+                  ⌘ {Number(taskStatus.review ?? 0)} tasks need review
+                </Badge>
+                <Badge
+                  variant='outline'
+                  className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
+                >
+                  ◎ Memory healthy
+                </Badge>
+                <Badge
+                  variant='outline'
+                  className='border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-100'
+                >
+                  ↝{' '}
+                  {subagents?.runningCount
+                    ? `${subagents.runningCount} active runs`
+                    : 'No active runs'}
+                </Badge>
               </div>
             </div>
 
