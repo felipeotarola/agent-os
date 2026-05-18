@@ -16,6 +16,7 @@ import { navGroups } from '@/config/nav-config';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { AccountMenu } from '../account-menu';
 import { Icons } from '../icons';
 
 export default function AppSidebar() {
@@ -70,17 +71,7 @@ export default function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size='lg'>
-              <div className='border-primary/30 bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg border'>
-                ⚛️
-              </div>
-              <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-semibold'>Felipe × Cai</span>
-                <span className='text-muted-foreground truncate text-xs'>
-                  Local-first / portable
-                </span>
-              </div>
-            </SidebarMenuButton>
+            <AccountMenu />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

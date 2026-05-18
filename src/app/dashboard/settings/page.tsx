@@ -1,4 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
+import { AvatarSettingsCard } from '@/components/avatar-settings-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getSystemStatus } from '@/db/system';
@@ -167,19 +168,23 @@ export default async function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className='xl:col-span-2'>
-            <CardHeader>
-              <CardTitle>Guardrails</CardTitle>
-              <CardDescription>Håll copilotten ren medan vi bygger upp den igen.</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-2'>
-              {guardrails.map((guardrail) => (
-                <div key={guardrail} className='rounded-xl border bg-background/40 p-3 text-sm'>
-                  {guardrail}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className='space-y-4 xl:col-span-2'>
+            <AvatarSettingsCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Guardrails</CardTitle>
+                <CardDescription>Håll copilotten ren medan vi bygger upp den igen.</CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                {guardrails.map((guardrail) => (
+                  <div key={guardrail} className='rounded-xl border bg-background/40 p-3 text-sm'>
+                    {guardrail}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </PageContainer>

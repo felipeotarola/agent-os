@@ -189,9 +189,6 @@ export default async function OverviewPage() {
   const runningRuns = recentRuns.filter((run) => run.status === 'running');
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
-  const openTasks = taskEntries
-    .filter(([status]) => !['done', 'cancelled'].includes(status))
-    .reduce((sum, [, count]) => sum + Number(count), 0);
   const resumeItems = [
     {
       icon: '↗',
