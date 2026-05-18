@@ -259,10 +259,13 @@ async function openclawStatus() {
 }
 
 async function subagentRunsSnapshot() {
-  const source = 'openclaw-cli:tasks-list:subagent';
+  const source = 'openclaw-cli:tasks-list+sessions-active';
   try {
-    const payload = await openclawJson(['tasks', 'list', '--runtime', 'subagent', '--json'], { timeout: 12000 });
-    const rows = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const [taskPayload, sessionPayload] = await Promise.all([
+      openclawJson(['tasks', 'list', '--json'], { timeout: 12000 }),
+      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], { timeout: 12000 })
+    ]);
+    const rows = Array.isArray(taskPayload.tasks) ? taskPayload.tasks : [];
     const runs = rows.slice(0, 12).map((task) => {
       const status = normalizeRunStatus(task.status);
       return {
@@ -280,11 +283,44 @@ async function subagentRunsSnapshot() {
         finishedAt: isoOrNull(task.finishedAt)
       };
     });
-    const runningCount = runs.filter((run) => ['queued', 'running'].includes(run.status)).length;
-    return { ok: true, source, available: true, runningCount, recent: runs, error: null, checkedAt: new Date().toISOString() };
+    const activeTaskRuns = runs.filter((run) => ['queued', 'running'].includes(run.status));
+    const sessionRows = Array.isArray(sessionPayload.sessions) ? sessionPayload.sessions : [];
+    const activeSessions = sessionRows
+      .filter((session) => Number(session.ageMs ?? Infinity) <= 30 * 60 * 1000)
+      .slice(0, 8)
+      .map((session) => ({
+        id: String(session.key ?? session.sessionId ?? crypto.randomUUID()),
+        taskId: null,
+        runId: session.sessionId ? String(session.sessionId) : null,
+        sessionKey: session.key ? String(session.key) : null,
+        label: `${session.agentId ?? 'agent'} ${session.kind ?? 'session'}`,
+        title: `${session.agentId ?? 'agent'} ${session.kind ?? 'session'} activity`,
+        status: 'active',
+        runtime: 'session',
+        ownerKey: session.key ? String(session.key) : null,
+        startedAt: null,
+        updatedAt: isoOrNull(session.updatedAt),
+        finishedAt: null,
+        agentId: session.agentId ? String(session.agentId) : null,
+        ageMs: Number(session.ageMs ?? 0),
+        totalTokens: typeof session.totalTokens === 'number' ? session.totalTokens : null
+      }));
+    const recent = [...activeTaskRuns, ...runs.filter((run) => !['queued', 'running'].includes(run.status)).slice(0, 8), ...activeSessions].slice(0, 16);
+    return {
+      ok: true,
+      source,
+      available: true,
+      runningCount: activeTaskRuns.length + activeSessions.length,
+      activeTaskRunCount: activeTaskRuns.length,
+      activeSessionCount: activeSessions.length,
+      recent,
+      activeSessions,
+      error: null,
+      checkedAt: new Date().toISOString()
+    };
   } catch (error) {
     await auditEvent('subagent_snapshot_failed', 'Subagent/background run snapshot failed', { source, error: error.message }, 30);
-    return { ok: false, source, available: false, runningCount: 0, recent: [], error: error.message, checkedAt: new Date().toISOString() };
+    return { ok: false, source, available: false, runningCount: 0, activeTaskRunCount: 0, activeSessionCount: 0, recent: [], activeSessions: [], error: error.message, checkedAt: new Date().toISOString() };
   }
 }
 

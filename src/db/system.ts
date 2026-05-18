@@ -44,6 +44,8 @@ export type SystemStatus = {
     source: string;
     available: boolean;
     runningCount: number;
+    activeTaskRunCount?: number;
+    activeSessionCount?: number;
     recent: Array<{
       id: string;
       label: string;
@@ -52,6 +54,19 @@ export type SystemStatus = {
       startedAt: string | null;
       updatedAt: string | null;
       finishedAt: string | null;
+      runtime?: string;
+      agentId?: string | null;
+    }>;
+    activeSessions?: Array<{
+      id: string;
+      label: string;
+      title: string;
+      status: string;
+      startedAt: string | null;
+      updatedAt: string | null;
+      finishedAt: string | null;
+      runtime?: string;
+      agentId?: string | null;
     }>;
     error: string | null;
     checkedAt: string;
@@ -93,7 +108,10 @@ export async function getSystemStatus(): Promise<SystemStatus> {
         source: 'fallback:no-bridge',
         available: false,
         runningCount: 0,
+        activeTaskRunCount: 0,
+        activeSessionCount: 0,
         recent: [],
+        activeSessions: [],
         error: 'Bridge saknas',
         checkedAt: new Date().toISOString()
       },

@@ -248,7 +248,17 @@ export default async function OverviewPage() {
   const visibleEvents = events.filter((event) => !event.kind.startsWith('cai_brief_cron_'));
   const subagents = snapshot.subagents;
   const recentRuns = subagents?.recent ?? [];
-  const runningRuns = recentRuns.filter((run) => run.status === 'running');
+  const runningRuns = recentRuns.filter((run) =>
+    ['queued', 'running', 'active'].includes(run.status)
+  );
+  const activeRunCount = subagents?.runningCount ?? runningRuns.length;
+  const activeTaskRunCount =
+    subagents?.activeTaskRunCount ?? runningRuns.filter((run) => run.runtime !== 'session').length;
+  const activeSessionCount =
+    subagents?.activeSessionCount ?? runningRuns.filter((run) => run.runtime === 'session').length;
+  const activeRunLabel = activeRunCount
+    ? `${activeRunCount} active ${activeRunCount === 1 ? 'run/session' : 'runs/sessions'}`
+    : 'No active runs';
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
   const resumeItems = [
@@ -264,7 +274,7 @@ export default async function OverviewPage() {
     {
       icon: '⚛',
       label: 'Agent check-in',
-      value: subagents?.runningCount ? `${subagents.runningCount} active runs` : 'Cai is idle',
+      value: activeRunCount ? activeRunLabel : 'Cai is idle',
       href: '/dashboard/agents'
     },
     {
@@ -358,10 +368,7 @@ export default async function OverviewPage() {
                     variant='outline'
                     className='border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-100'
                   >
-                    ↝{' '}
-                    {subagents?.runningCount
-                      ? `${subagents.runningCount} active runs`
-                      : 'No active runs'}
+                    ↝ {activeRunLabel}
                   </Badge>
                 </div>
               </div>
@@ -687,16 +694,17 @@ export default async function OverviewPage() {
                   ≋
                 </div>
                 <div className='font-medium text-white'>Live operations</div>
-                <Badge variant={subagents?.runningCount ? 'default' : 'outline'}>
-                  {subagents?.runningCount ? 'KÖR' : 'IDLE'}
+                <Badge variant={activeRunCount ? 'default' : 'outline'}>
+                  {activeRunCount ? 'KÖR' : 'IDLE'}
                 </Badge>
               </div>
               <p className='text-sm text-slate-300'>
                 {subagents?.ok
-                  ? runningRuns[0]?.title ||
-                    (recentRuns.length > 0
-                      ? 'Inga aktiva runs just nu, men OpenClaw har recent task-spår.'
-                      : 'Inga aktiva eller recent subagent/background runs just nu.')
+                  ? activeRunCount
+                    ? `${runningRuns[0]?.title ?? 'OpenClaw activity'} · ${activeTaskRunCount} task runs, ${activeSessionCount} active sessions.`
+                    : recentRuns.length > 0
+                      ? 'Inga aktiva task runs/sessions just nu, men OpenClaw har recent task-spår.'
+                      : 'Inga aktiva eller recent OpenClaw task runs/sessions just nu.'
                   : `Subagent source unavailable: ${subagents?.error ?? 'bridge did not return a source'}.`}
               </p>
             </div>

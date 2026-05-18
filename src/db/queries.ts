@@ -16,6 +16,9 @@ export type SubagentRun = {
   startedAt: string | null;
   updatedAt: string | null;
   finishedAt: string | null;
+  agentId?: string | null;
+  ageMs?: number;
+  totalTokens?: number | null;
 };
 
 export type SubagentRunsSnapshot = {
@@ -23,7 +26,10 @@ export type SubagentRunsSnapshot = {
   source: string;
   available: boolean;
   runningCount: number;
+  activeTaskRunCount?: number;
+  activeSessionCount?: number;
   recent: SubagentRun[];
+  activeSessions?: SubagentRun[];
   error: string | null;
   checkedAt: string;
 };
@@ -86,7 +92,10 @@ const fallbackSnapshot: CockpitSnapshot = {
     source: 'fallback:no-bridge-or-db',
     available: false,
     runningCount: 0,
+    activeTaskRunCount: 0,
+    activeSessionCount: 0,
     recent: [],
+    activeSessions: [],
     error: 'Bridge/DB saknas',
     checkedAt: new Date().toISOString()
   }
@@ -171,7 +180,10 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
         source: 'fallback:direct-db',
         available: false,
         runningCount: 0,
+        activeTaskRunCount: 0,
+        activeSessionCount: 0,
         recent: [],
+        activeSessions: [],
         error: 'Subagent runs require the bridge OpenClaw CLI source',
         checkedAt: new Date().toISOString()
       }
