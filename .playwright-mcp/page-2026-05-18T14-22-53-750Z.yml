@@ -1,0 +1,16 @@
+- generic [active] [ref=e1]:
+  - region "Notifications alt+T"
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: ⚛️ Cai OS
+        - heading "Logga in" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Agent OS cockpit är privat. Signup är avstängt.
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - text: Email
+          - textbox "Email" [ref=e10]: feot1000@gmail.com
+        - generic [ref=e11]:
+          - text: Lösenord
+          - textbox "Lösenord" [ref=e12]
+        - button "Logga in" [ref=e13]

@@ -371,16 +371,16 @@ export default async function OverviewPage() {
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-5'>
-        <section className='relative overflow-hidden rounded-3xl border border-cyan-400/25 bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_76%_4%,rgba(139,92,246,0.24),transparent_32%),radial-gradient(circle_at_88%_88%,rgba(16,185,129,0.1),transparent_30%),linear-gradient(135deg,rgba(8,19,35,0.98),rgba(2,6,23,0.99))] p-4 shadow-2xl shadow-cyan-950/35 md:p-5'>
-          <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent' />
-          <div className='absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent' />
-          <div className='absolute -left-24 top-10 size-72 rounded-full bg-cyan-400/10 blur-3xl' />
-          <div className='absolute -right-24 top-0 size-80 rounded-full bg-violet-500/10 blur-3xl' />
-          <div className='absolute -right-20 bottom-0 size-72 rounded-full bg-emerald-400/10 blur-3xl' />
+        <section className='overview-cockpit relative overflow-hidden rounded-3xl border border-border p-4 text-card-foreground md:p-5'>
+          <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent' />
+          <div className='absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent' />
+          <div className='absolute -left-24 top-10 size-72 rounded-full bg-primary/10 blur-3xl' />
+          <div className='absolute -right-24 top-0 size-80 rounded-full bg-accent/20 blur-3xl' />
+          <div className='absolute -right-20 bottom-0 size-72 rounded-full bg-chart-3/10 blur-3xl' />
 
           <div className='relative z-10 space-y-5'>
             <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_450px_300px] xl:items-stretch'>
-              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-inner shadow-black/20 md:p-6'>
+              <div className='overview-cockpit-panel flex min-h-[210px] flex-col justify-between rounded-2xl border p-5 shadow-inner md:p-6'>
                 <div>
                   <Badge
                     variant='outline'
@@ -390,20 +390,20 @@ export default async function OverviewPage() {
                   </Badge>
 
                   <div className='mt-7'>
-                    <h1 className='text-4xl font-semibold tracking-tight text-white md:text-5xl'>
+                    <h1 className='text-4xl font-semibold tracking-tight text-foreground md:text-5xl'>
                       Welcome Felipe 👋
                     </h1>
-                    <div className='mt-2 text-2xl font-medium text-slate-200 md:text-3xl'>
+                    <div className='mt-2 text-2xl font-medium text-card-foreground md:text-3xl'>
                       {stockholmDate(liveAt)}
                     </div>
-                    <div className='mt-3 text-sm text-slate-300'>
+                    <div className='mt-3 text-sm text-muted-foreground'>
                       Stockholm time {stockholmTime(liveAt)} · live snapshot
                     </div>
                   </div>
                 </div>
 
                 <div className='mt-6 flex flex-wrap items-center gap-3 text-xs'>
-                  <span className='text-slate-400'>Cai has your daily cockpit ready</span>
+                  <span className='text-muted-foreground'>Cai has your daily cockpit ready</span>
                   <Badge
                     variant='outline'
                     className='border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-100'
@@ -422,15 +422,20 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-violet-950/20 backdrop-blur'>
+              <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-lg backdrop-blur'>
                 <div className='mb-4 flex items-center justify-between gap-3'>
                   <div>
-                    <div className='text-xs uppercase tracking-[0.2em] text-slate-500'>Resume</div>
-                    <div className='mt-1 text-sm text-slate-200'>
+                    <div className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>
+                      Resume
+                    </div>
+                    <div className='mt-1 text-sm text-card-foreground'>
                       Pick up where the system left off.
                     </div>
                   </div>
-                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-200'>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-background/40 text-foreground'
+                  >
                     LIVE
                   </Badge>
                 </div>
@@ -440,20 +445,20 @@ export default async function OverviewPage() {
                     <Link
                       key={item.label}
                       href={item.href}
-                      className='group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/40 hover:bg-cyan-300/10'
+                      className='group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
                     >
                       <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100'>
                         {item.icon}
                       </span>
                       <span className='min-w-0 flex-1'>
-                        <span className='block text-[10px] uppercase tracking-wide text-slate-500'>
+                        <span className='text-muted-foreground block text-[10px] uppercase tracking-wide'>
                           {item.label}
                         </span>
-                        <span className='mt-0.5 block truncate text-sm font-medium text-slate-100'>
+                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
                           {item.value}
                         </span>
                       </span>
-                      <span className='text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-cyan-200'>
+                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
                         →
                       </span>
                     </Link>
@@ -461,8 +466,8 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-cyan-950/20 backdrop-blur'>
-                <div className='grid h-full content-center gap-4 text-sm text-slate-300'>
+              <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-lg backdrop-blur'>
+                <div className='text-muted-foreground grid h-full content-center gap-4 text-sm'>
                   <div className='flex items-center gap-3'>
                     <StatusDot ok={snapshot.dbOnline} />
                     <span>db online</span>
@@ -475,15 +480,15 @@ export default async function OverviewPage() {
                     <StatusDot ok />
                     <span>Memory index healthy</span>
                   </div>
-                  <div className='h-px bg-white/10' />
-                  <div className='font-mono text-[11px] text-slate-400'>
+                  <div className='h-px bg-border' />
+                  <div className='font-mono text-[11px] text-muted-foreground'>
                     Last snapshot {generatedAt}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className='rounded-3xl border border-white/10 bg-slate-950/35 p-4 shadow-inner shadow-black/20'>
+            <div className='overview-cockpit-subpanel rounded-3xl border p-4 shadow-inner'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
                 <div className='flex items-start gap-4'>
                   <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-3xl shadow-lg shadow-cyan-500/10'>
@@ -491,22 +496,22 @@ export default async function OverviewPage() {
                   </div>
                   <div>
                     <div className='flex flex-wrap items-center gap-2'>
-                      <h2 className='text-2xl font-semibold tracking-tight text-white'>
+                      <h2 className='text-2xl font-semibold tracking-tight text-foreground'>
                         Cai Briefing
                       </h2>
                       <span className='text-xl'>✨</span>
                     </div>
-                    <p className='mt-1 text-sm text-slate-300'>
+                    <p className='mt-1 text-sm text-muted-foreground'>
                       Nyheter, bitcoin och signaler Cai håller koll på åt dig.
                     </p>
                   </div>
                 </div>
 
-                <div className='flex flex-wrap items-center gap-3 text-xs text-slate-400'>
+                <div className='text-muted-foreground flex flex-wrap items-center gap-3 text-xs'>
                   <span>Senast uppdaterad {stockholmTime(liveAt).replace(' CEST', '')}</span>
-                  <span className='hidden text-slate-600 md:inline'>•</span>
+                  <span className='hidden text-border md:inline'>•</span>
                   <span>Nästa briefing 20:00</span>
-                  <span className='hidden text-slate-600 md:inline'>•</span>
+                  <span className='hidden text-border md:inline'>•</span>
                   <Badge className='border-emerald-400/25 bg-emerald-400/10 text-emerald-200'>
                     LIVE
                   </Badge>
@@ -514,15 +519,15 @@ export default async function OverviewPage() {
               </div>
 
               <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='flex items-center gap-2'>
                     <div className='flex size-9 items-center justify-center rounded-xl bg-orange-500 text-lg shadow-lg shadow-orange-500/20'>
                       ₿
                     </div>
-                    <div className='font-semibold text-white'>Bitcoin</div>
+                    <div className='font-semibold text-foreground'>Bitcoin</div>
                   </div>
 
-                  <div className='mt-4 text-4xl font-semibold tracking-tight text-white'>
+                  <div className='mt-4 text-4xl font-semibold tracking-tight text-foreground'>
                     {bitcoinPriceDisplay}
                   </div>
 
@@ -551,29 +556,29 @@ export default async function OverviewPage() {
 
                   <BitcoinSparkline />
 
-                  <p className='mt-3 text-sm leading-5 text-slate-300'>
+                  <p className='mt-3 text-sm leading-5 text-muted-foreground'>
                     Lugn uppgång. Viktig nivå att bevaka: $105k.
                   </p>
                 </div>
 
-                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='mb-4 flex items-center justify-between gap-3'>
                     <div className='flex items-center gap-3'>
-                      <div className='flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg'>
+                      <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
                         ▣
                       </div>
-                      <div className='font-semibold text-white'>Dagens nyheter</div>
+                      <div className='font-semibold text-foreground'>Dagens nyheter</div>
                     </div>
                     <Button
                       size='icon'
                       variant='outline'
-                      className='size-8 border-white/10 bg-white/[0.03]'
+                      className='size-8 border-border bg-background/45'
                     >
                       +
                     </Button>
                   </div>
 
-                  <div className='divide-y divide-white/10'>
+                  <div className='divide-y divide-border'>
                     {visibleNews.map((item) => (
                       <a
                         key={`${item.title}-${item.tag}`}
@@ -583,13 +588,13 @@ export default async function OverviewPage() {
                         className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
                       >
                         <div className='min-w-0 flex-1'>
-                          <div className='line-clamp-2 text-sm font-medium text-slate-100 transition group-hover:text-cyan-200'>
+                          <div className='line-clamp-2 text-sm font-medium text-card-foreground transition group-hover:text-primary'>
                             {item.title}
                           </div>
                         </div>
                         <Badge
                           variant='outline'
-                          className={`shrink-0 border-white/10 text-[10px] ${
+                          className={`shrink-0 border-border text-[10px] ${
                             item.tag === 'AI'
                               ? 'bg-violet-400/15 text-violet-200'
                               : item.tag === 'Bitcoin'
@@ -607,29 +612,29 @@ export default async function OverviewPage() {
 
                   <Link
                     href='/dashboard/knowledge'
-                    className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
+                    className='mt-5 inline-flex text-sm font-medium text-primary hover:text-primary/80'
                   >
                     Visa alla nyheter →
                   </Link>
                 </div>
 
-                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='mb-3 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-lg text-violet-200'>
                       〽
                     </div>
-                    <div className='font-semibold text-white'>Personliga signaler</div>
+                    <div className='font-semibold text-foreground'>Personliga signaler</div>
                   </div>
 
-                  <div className='divide-y divide-white/10'>
+                  <div className='divide-y divide-border'>
                     {personalSignals.map((signal) => (
                       <div key={signal.title} className='flex gap-3 py-3 first:pt-0 last:pb-0'>
-                        <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-sm text-slate-200'>
+                        <div className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-background/45 text-sm text-card-foreground'>
                           {signal.icon}
                         </div>
                         <div className='min-w-0 flex-1'>
                           <div className='flex items-start justify-between gap-2'>
-                            <div className='font-medium text-white'>{signal.title}</div>
+                            <div className='font-medium text-foreground'>{signal.title}</div>
                             <span
                               className={
                                 signal.status === 'warn' ? 'text-amber-300' : 'text-emerald-300'
@@ -638,7 +643,7 @@ export default async function OverviewPage() {
                               {signal.status === 'warn' ? '△' : '⌁'}
                             </span>
                           </div>
-                          <div className='mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400'>
+                          <div className='text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-5'>
                             {signal.body}
                           </div>
                         </div>
@@ -648,37 +653,37 @@ export default async function OverviewPage() {
 
                   <Link
                     href='/dashboard/kanban'
-                    className='mt-5 inline-flex text-sm font-medium text-cyan-200 hover:text-cyan-100'
+                    className='mt-5 inline-flex text-sm font-medium text-primary hover:text-primary/80'
                   >
                     Visa alla signaler →
                   </Link>
                 </div>
 
-                <div className='rounded-2xl border border-white/10 bg-slate-950/45 p-4 shadow-inner shadow-black/20'>
+                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
                   <div className='mb-4 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-violet-200'>
                       ✉
                     </div>
-                    <div className='font-semibold text-white'>Senaste Cai-meddelande</div>
+                    <div className='font-semibold text-foreground'>Senaste Cai-meddelande</div>
                   </div>
 
-                  <div className='rounded-2xl border border-white/10 bg-white/[0.04] p-4'>
-                    <p className='whitespace-pre-line text-sm leading-6 text-slate-200'>
+                  <div className='rounded-2xl border border-border bg-background/45 p-4'>
+                    <p className='whitespace-pre-line text-sm leading-6 text-card-foreground'>
                       {latestCaiMessage}
                     </p>
-                    <div className='mt-3 text-right text-xs text-slate-500'>
+                    <div className='mt-3 text-right text-xs text-muted-foreground'>
                       {stockholmTime(liveAt).replace(' CEST', '')}
                     </div>
                   </div>
 
                   <div className='mt-4 grid grid-cols-3 gap-2'>
-                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
                       👁 Visa
                     </Button>
-                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
                       ✈ Skicka
                     </Button>
-                    <Button size='sm' variant='outline' className='border-white/10 bg-white/[0.03]'>
+                    <Button size='sm' variant='outline' className='border-border bg-background/45'>
                       📌 Pin
                     </Button>
                   </div>

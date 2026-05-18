@@ -1,0 +1,30 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - text: Sidan kunde inte hittas
+      - paragraph [ref=e8]: Felkod 404
+      - heading "Hoppsan." [level=1] [ref=e9]
+      - paragraph [ref=e10]: Länken du öppnade verkar vara gammal, felstavad eller borttagen. Vi hjälper dig tillbaka till rätt vy.
+      - generic [ref=e11]:
+        - link "Till startsidan" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - img
+          - text: Till startsidan
+        - link "Gå till appen" [ref=e13] [cursor=pointer]:
+          - /url: /app/overview
+          - img
+          - text: Gå till appen
+      - generic [ref=e14]:
+        - link "Boka en demo" [ref=e15] [cursor=pointer]:
+          - /url: /demo
+        - link "Läs bloggen" [ref=e16] [cursor=pointer]:
+          - /url: /blog
+        - link "Öppna dashboard" [ref=e17] [cursor=pointer]:
+          - /url: /app
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=e23] [cursor=pointer]:
+    - img [ref=e24]
+  - alert [ref=e27]
