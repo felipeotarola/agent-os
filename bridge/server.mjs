@@ -291,6 +291,72 @@ async function tasksSnapshot() {
   };
 }
 
+async function taskDispatchSummary() {
+  await ensureTaskBoardColumns();
+  const actionableStatuses = ['backlog', 'waiting', 'review'];
+  const rows = await sql`
+    select t.id, t.project_id as "projectId", p.name as "projectName", t.title, t.description, t.status, t.priority, t.owner_agent_id as "ownerAgentId", t.source, t.due_at as "dueAt", t.position, t.updated_at as "updatedAt"
+    from tasks t
+    left join projects p on p.id = t.project_id
+    where t.status in ('backlog', 'waiting', 'review', 'todo')
+      and t.owner_agent_id is not null
+      and t.owner_agent_id <> ''
+    order by t.priority desc, t.updated_at asc, t.position asc
+    limit 50
+  `;
+  const agentsById = new Map(configuredAgents().map((agent) => [agent.id, agent]));
+  const tasks = rows
+    .map(mapTask)
+    .filter((task) => actionableStatuses.includes(task.status));
+  const grouped = new Map();
+
+  for (const task of tasks) {
+    const agentId = task.assignee;
+    if (!agentId) continue;
+    const group = grouped.get(agentId) ?? {
+      agentId,
+      agentName: agentsById.get(agentId)?.identityName ?? agentsById.get(agentId)?.name ?? agentId,
+      emoji: agentsById.get(agentId)?.identityEmoji ?? '',
+      count: 0,
+      highPriorityCount: 0,
+      tasks: []
+    };
+    group.count += 1;
+    if (task.priority === 'high') group.highPriorityCount += 1;
+    if (group.tasks.length < 5) group.tasks.push(task);
+    grouped.set(agentId, group);
+  }
+
+  const byAgent = [...grouped.values()].toSorted((a, b) => {
+    if (b.highPriorityCount !== a.highPriorityCount) return b.highPriorityCount - a.highPriorityCount;
+    return b.count - a.count;
+  });
+  const actionableCount = tasks.length;
+  const lines = [];
+  if (!actionableCount) {
+    lines.push('Inga agentkopplade tasks i backlog/waiting/review just nu.');
+  } else {
+    lines.push(`Det finns ${actionableCount} agentkopplade tasks att ta ställning till:`);
+    for (const group of byAgent) {
+      lines.push(`- ${group.emoji ? `${group.emoji} ` : ''}${group.agentName} (${group.agentId}): ${group.count} task${group.count === 1 ? '' : 's'}${group.highPriorityCount ? ` · ${group.highPriorityCount} high` : ''}`);
+      for (const [index, task] of group.tasks.entries()) {
+        lines.push(`  ${index + 1}. [${task.priority}/${task.status}] ${task.title} (${task.id})`);
+      }
+      if (group.count > group.tasks.length) lines.push(`  … +${group.count - group.tasks.length} fler`);
+    }
+  }
+
+  return {
+    contract: 'agent-os.task-dispatch-summary.v1',
+    generatedAt: new Date().toISOString(),
+    source: 'bridge:postgres',
+    actionableStatuses,
+    actionableCount,
+    byAgent,
+    suggestedMessage: lines.join('\n')
+  };
+}
+
 async function overviewSnapshot() {
   await ensureTaskBoardColumns();
   const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory, subagents] = await Promise.all([
@@ -1022,6 +1088,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks') {
       return send(res, 200, await tasksSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {
+      return send(res, 200, await taskDispatchSummary());
     }
 
     if (req.method === 'POST' && url.pathname === '/tasks') {

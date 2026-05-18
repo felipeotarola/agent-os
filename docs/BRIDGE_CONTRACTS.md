@@ -102,6 +102,33 @@ When the OpenClaw task source is unavailable, `ok=false`, `available=false`, `re
 
 The cockpit overview includes the `/system/subagents` payload under `subagents` and adds a `Subagents` stat card. The UI displays a truthful empty state if the source is unavailable or if OpenClaw returns no runs.
 
+## `GET /tasks/dispatch-summary`
+
+Contract: `agent-os.task-dispatch-summary.v1`. Used by Cai's morning/evening dispatcher to ask Felipe whether any agent-owned tasks should start. It only returns real Postgres tasks with an owner agent and status `backlog`, `waiting`, or `review` (`todo` is normalized to `backlog`). It does not auto-start work.
+
+```json
+{
+  "contract": "agent-os.task-dispatch-summary.v1",
+  "generatedAt": "2026-05-18T08:30:00.000Z",
+  "source": "bridge:postgres",
+  "actionableStatuses": ["backlog", "waiting", "review"],
+  "actionableCount": 3,
+  "byAgent": [
+    {
+      "agentId": "charles",
+      "agentName": "Charles",
+      "emoji": "🧭",
+      "count": 2,
+      "highPriorityCount": 1,
+      "tasks": []
+    }
+  ],
+  "suggestedMessage": "Det finns 3 agentkopplade tasks att ta ställning till:\n- 🧭 Charles ..."
+}
+```
+
+The helper `node scripts/agent-dispatcher-summary.mjs` reads `.env`, calls this endpoint, and prints the Swedish dispatcher prompt Cai should summarize to Felipe.
+
 ## Audit events
 
 The existing `task_events` table is used as the audit stream. Bridge health/subagent snapshot failures write throttled events (`bridge_health_failed`, `subagent_snapshot_failed`) with safe metadata and no secrets. The throttle prevents noisy spam while keeping visible operational failures in Recent events.
