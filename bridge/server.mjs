@@ -670,11 +670,39 @@ async function updateTask(input) {
     error.status = 400;
     throw error;
   }
-  const status = normalizeTaskStatus(String(input.status ?? 'backlog'));
-  const position = Number(input.position ?? 0);
+  const hasTitle = Object.prototype.hasOwnProperty.call(input, 'title');
+  const title = hasTitle ? String(input.title ?? '').trim() : null;
+  if (hasTitle && !title) {
+    const error = new Error('title is required');
+    error.status = 400;
+    throw error;
+  }
+  const hasDescription = Object.prototype.hasOwnProperty.call(input, 'description');
+  const description = hasDescription ? String(input.description ?? '').trim() : null;
+  const hasStatus = Object.prototype.hasOwnProperty.call(input, 'status');
+  const status = hasStatus ? normalizeTaskStatus(String(input.status ?? 'backlog')) : null;
+  const hasPriority = Object.prototype.hasOwnProperty.call(input, 'priority');
+  const priority = hasPriority ? taskPriorityValue(String(input.priority ?? 'medium')) : null;
+  const hasOwnerAgentId = Object.prototype.hasOwnProperty.call(input, 'ownerAgentId');
+  const ownerAgentId = hasOwnerAgentId ? String(input.ownerAgentId ?? '').trim() || null : null;
+  const hasProjectId = Object.prototype.hasOwnProperty.call(input, 'projectId');
+  const projectId = hasProjectId ? String(input.projectId ?? '').trim() || null : null;
+  const hasDueDate = Object.prototype.hasOwnProperty.call(input, 'dueDate');
+  const dueAt = hasDueDate && input.dueDate ? new Date(String(input.dueDate)).toISOString() : null;
+  const hasPosition = Object.prototype.hasOwnProperty.call(input, 'position');
+  const position = hasPosition ? Number(input.position ?? 0) : null;
   const rows = await sql`
     update tasks
-    set status = ${status}, position = ${position}, updated_at = now()
+    set
+      title = case when ${hasTitle} then ${title} else title end,
+      description = case when ${hasDescription} then ${description} else description end,
+      status = case when ${hasStatus} then ${status} else status end,
+      priority = case when ${hasPriority} then ${priority} else priority end,
+      owner_agent_id = case when ${hasOwnerAgentId} then ${ownerAgentId} else owner_agent_id end,
+      project_id = case when ${hasProjectId} then ${projectId} else project_id end,
+      due_at = case when ${hasDueDate} then ${dueAt}::timestamptz else due_at end,
+      position = case when ${hasPosition} then ${position} else position end,
+      updated_at = now()
     where id = ${id}
     returning id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
   `;
@@ -683,9 +711,10 @@ async function updateTask(input) {
     error.status = 404;
     throw error;
   }
+  const eventKind = hasStatus && Object.keys(input).every((key) => ['id', 'status', 'position'].includes(key)) ? 'moved' : 'updated';
   await sql`
     insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
-    values (${crypto.randomUUID()}, ${id}, 'cai', 'moved', ${`Task moved to ${status}`}, ${sql.json({ status, position, source: 'cockpit' })})
+    values (${crypto.randomUUID()}, ${id}, 'cai', ${eventKind}, ${eventKind === 'moved' ? `Task moved to ${status}` : `Task updated: ${rows[0].title}`}, ${sql.json({ status, position, source: 'cockpit', fields: Object.keys(input).filter((key) => key !== 'id') })})
   `;
   return mapTask(rows[0]);
 }

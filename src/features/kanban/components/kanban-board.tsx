@@ -6,6 +6,7 @@ import type { KanbanColumns, Task } from '../utils/store';
 import { TASK_COLUMNS } from '../utils/store';
 import { TaskColumn } from './board-column';
 import { TaskCard } from './task-card';
+import { TaskDetailDialog } from './task-detail-dialog';
 import { createRestrictToContainer } from '../utils/restrict-to-container';
 
 type KanbanBoardProps = {
@@ -41,6 +42,7 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
     normalizeColumns(initialColumns, orderedColumns)
   );
   const [syncState, setSyncState] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- factory function, stable after mount
@@ -60,6 +62,25 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
           console.error('Failed to persist task board', error);
           setSyncState('error');
         });
+    },
+    [orderedColumns]
+  );
+
+  const updateTaskInColumns = useCallback(
+    (updatedTask: Task) => {
+      setColumnsState((currentColumns) => {
+        const nextColumns = normalizeColumns(currentColumns, orderedColumns);
+        for (const column of Object.keys(nextColumns)) {
+          nextColumns[column] = nextColumns[column].filter((task) => task.id !== updatedTask.id);
+        }
+        const status = orderedColumns.includes(updatedTask.status) ? updatedTask.status : 'backlog';
+        nextColumns[status] = [...(nextColumns[status] ?? []), updatedTask].sort(
+          (a, b) => (a.position ?? 0) - (b.position ?? 0)
+        );
+        return nextColumns;
+      });
+      setSelectedTask(updatedTask);
+      setSyncState('saved');
     },
     [orderedColumns]
   );
@@ -89,6 +110,7 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
                 key={columnValue}
                 value={columnValue}
                 tasks={columns[columnValue] ?? []}
+                onTaskOpen={setSelectedTask}
               />
             ))}
           </KanbanBoardPrimitive>
@@ -109,6 +131,14 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
           }}
         </KanbanOverlay>
       </Kanban>
+      <TaskDetailDialog
+        task={selectedTask}
+        open={Boolean(selectedTask)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTask(null);
+        }}
+        onTaskUpdate={updateTaskInColumns}
+      />
     </div>
   );
 }

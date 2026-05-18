@@ -6,12 +6,21 @@ import type { Task } from '../utils/store';
 
 interface TaskCardProps extends Omit<React.ComponentProps<typeof KanbanItem>, 'value'> {
   task: Task;
+  onOpen?: (task: Task) => void;
 }
 
-export function TaskCard({ task, ...props }: TaskCardProps) {
+export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
   return (
     <KanbanItem key={task.id} value={task.id} asChild {...props}>
-      <div className='bg-card rounded-md border p-3 shadow-xs'>
+      <div
+        className='bg-card hover:border-primary/40 cursor-pointer rounded-md border p-3 shadow-xs transition-colors'
+        onClick={() => onOpen?.(task)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') onOpen?.(task);
+        }}
+        role='button'
+        tabIndex={0}
+      >
         <div className='flex flex-col gap-2'>
           <div className='flex items-center justify-between gap-2'>
             <span className='line-clamp-1 text-sm font-medium'>{task.title}</span>
@@ -46,6 +55,7 @@ export function TaskCard({ task, ...props }: TaskCardProps) {
           {task.description && (
             <p className='text-muted-foreground line-clamp-2 text-xs'>{task.description}</p>
           )}
+          <div className='text-primary text-[10px] font-medium'>Öppna / editera →</div>
         </div>
       </div>
     </KanbanItem>

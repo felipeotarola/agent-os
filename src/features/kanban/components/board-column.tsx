@@ -9,9 +9,10 @@ import { TaskCard } from './task-card';
 
 interface TaskColumnProps extends Omit<React.ComponentProps<typeof KanbanColumn>, 'children'> {
   tasks: Task[];
+  onTaskOpen?: (task: Task) => void;
 }
 
-export function TaskColumn({ value, tasks, ...props }: TaskColumnProps) {
+export function TaskColumn({ value, tasks, onTaskOpen, ...props }: TaskColumnProps) {
   return (
     <KanbanColumn value={value} className='w-full shrink-0 md:w-[320px]' {...props}>
       <div className='flex items-center justify-between'>
@@ -29,7 +30,7 @@ export function TaskColumn({ value, tasks, ...props }: TaskColumnProps) {
       </div>
       <div className='flex flex-col gap-2 p-0.5'>
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} asHandle />
+          <TaskCard key={task.id} task={task} onOpen={onTaskOpen} asHandle />
         ))}
       </div>
     </KanbanColumn>
