@@ -49,6 +49,25 @@ async function openclawText(args, options = {}) {
   });
   return stdout.trim();
 }
+
+async function gatewayJson(method, params = {}, options = {}) {
+  const { stdout } = await execFileAsync('node', [
+    OPENCLAW_CLI,
+    'gateway',
+    'call',
+    method,
+    '--json',
+    '--params',
+    JSON.stringify(params),
+    '--timeout',
+    String(options.timeout ?? 12000)
+  ], {
+    timeout: (options.timeout ?? 12000) + 2000,
+    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 6,
+    env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
+  });
+  return JSON.parse(stdout || '{}');
+}
 async function gogJson(args, options = {}) {
   const keyringPasswordPath = '/root/.config/gogcli/keyring-password';
   const keyringPassword = existsSync(keyringPasswordPath)
@@ -1154,6 +1173,148 @@ async function readJson(req) {
   return JSON.parse(body);
 }
 
+function boundedInt(value, fallback, { min = 1, max = 200 } = {}) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
+function optionalBoolean(value) {
+  if (value == null || value === '') return undefined;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function requireNonEmpty(value, field) {
+  const text = String(value ?? '').trim();
+  if (text) return text;
+  const error = new Error(`${field} is required`);
+  error.status = 400;
+  throw error;
+}
+
+function chatSessionListParams(url) {
+  const params = {
+    limit: boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 })
+  };
+  const activeMinutes = url.searchParams.get('activeMinutes');
+  if (activeMinutes != null && activeMinutes !== '') params.activeMinutes = boundedInt(activeMinutes, 0, { min: 0, max: 60 * 24 * 30 });
+  for (const key of ['includeGlobal', 'includeUnknown', 'showArchived']) {
+    const value = optionalBoolean(url.searchParams.get(key));
+    if (value !== undefined) params[key] = value;
+  }
+  return params;
+}
+
+async function chatSessions(url) {
+  return {
+    contract: 'agent-os.chat.sessions.v1',
+    source: 'openclaw-gateway:sessions.list',
+    ...(await gatewayJson('sessions.list', chatSessionListParams(url), { timeout: 15000, maxBuffer: 1024 * 1024 * 8 }))
+  };
+}
+
+async function chatHistory(url) {
+  const sessionKey = requireNonEmpty(url.searchParams.get('sessionKey'), 'sessionKey');
+  const params = {
+    sessionKey,
+    limit: boundedInt(url.searchParams.get('limit'), 100, { min: 1, max: 300 })
+  };
+  const maxChars = url.searchParams.get('maxChars');
+  if (maxChars != null && maxChars !== '') params.maxChars = boundedInt(maxChars, 12000, { min: 100, max: 100000 });
+  return {
+    contract: 'agent-os.chat.history.v1',
+    source: 'openclaw-gateway:chat.history',
+    ...(await gatewayJson('chat.history', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 10 }))
+  };
+}
+
+async function chatSend(input) {
+  const sessionKey = requireNonEmpty(input.sessionKey ?? input.key, 'sessionKey');
+  const message = String(input.message ?? '').trim();
+  const attachments = Array.isArray(input.attachments) ? input.attachments : undefined;
+  if (!message && (!attachments || attachments.length === 0)) {
+    const error = new Error('message or attachments is required');
+    error.status = 400;
+    throw error;
+  }
+  const idempotencyKey = String(input.idempotencyKey ?? input.runId ?? crypto.randomUUID()).trim();
+  const params = {
+    sessionKey,
+    message,
+    deliver: input.deliver === true,
+    idempotencyKey
+  };
+  if (typeof input.sessionId === 'string' && input.sessionId.trim()) params.sessionId = input.sessionId.trim();
+  if (attachments) params.attachments = attachments;
+  const result = await gatewayJson('chat.send', params, { timeout: 30000, maxBuffer: 1024 * 1024 * 4 });
+  return {
+    contract: 'agent-os.chat.send.v1',
+    source: 'openclaw-gateway:chat.send',
+    sessionKey,
+    idempotencyKey,
+    ...result
+  };
+}
+
+async function chatAbort(input) {
+  const params = { sessionKey: requireNonEmpty(input.sessionKey ?? input.key, 'sessionKey') };
+  if (typeof input.runId === 'string' && input.runId.trim()) params.runId = input.runId.trim();
+  return {
+    contract: 'agent-os.chat.abort.v1',
+    source: 'openclaw-gateway:chat.abort',
+    ...(await gatewayJson('chat.abort', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 2 }))
+  };
+}
+
+function sendSse(res, event, data) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+async function chatEvents(req, res, url) {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-store, no-transform',
+    connection: 'keep-alive'
+  });
+
+  const sessionKey = String(url.searchParams.get('sessionKey') ?? '').trim();
+  const maxMs = boundedInt(url.searchParams.get('maxMs'), 55000, { min: 5000, max: 5 * 60 * 1000 });
+  let closed = false;
+  req.on('close', () => { closed = true; });
+
+  sendSse(res, 'hello', {
+    contract: 'agent-os.chat.events.v1',
+    source: 'bridge:sse-snapshot-mvp',
+    sessionKey: sessionKey || null,
+    note: 'MVP stream: emits an initial history snapshot plus keepalives. TODO: replace with a long-lived Gateway event subscription.'
+  });
+
+  if (sessionKey) {
+    try {
+      const historyUrl = new URL(url);
+      historyUrl.searchParams.set('sessionKey', sessionKey);
+      historyUrl.searchParams.set('limit', String(boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 })));
+      sendSse(res, 'history', await chatHistory(historyUrl));
+    } catch (error) {
+      sendSse(res, 'error', { error: error.message ?? 'history_failed' });
+    }
+  }
+
+  const startedAt = Date.now();
+  const interval = setInterval(() => {
+    if (closed || Date.now() - startedAt >= maxMs) {
+      clearInterval(interval);
+      if (!closed) {
+        sendSse(res, 'done', { reason: 'maxMs', ts: Date.now() });
+        res.end();
+      }
+      return;
+    }
+    sendSse(res, 'keepalive', { ts: Date.now() });
+  }, 15000);
+}
+
 function slugify(value) {
   return value
     .toLowerCase()
@@ -1909,6 +2070,26 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/agents') {
       return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/chat/sessions') {
+      return send(res, 200, await chatSessions(url));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/chat/history') {
+      return send(res, 200, await chatHistory(url));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/chat/send') {
+      return send(res, 202, await chatSend(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/chat/abort') {
+      return send(res, 200, await chatAbort(await readJson(req)));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/chat/events') {
+      return await chatEvents(req, res, url);
     }
 
     if (req.method === 'GET' && url.pathname === '/system/status') {
