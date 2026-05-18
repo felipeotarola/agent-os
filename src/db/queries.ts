@@ -39,7 +39,16 @@ export type CockpitSnapshot = {
     priority?: string;
   }>;
   agents: Array<{ name: string; role: string; detail: string; status: string }>;
-  knowledge?: { raw: number; queued: number; wikified: number; progress: number };
+  knowledge?: {
+    raw: number;
+    queued: number;
+    extracted?: number;
+    wikified: number;
+    reviewed?: number;
+    promoted?: number;
+    archived?: number;
+    progress: number;
+  };
   subagents?: SubagentRunsSnapshot;
   taskStatus?: Record<string, number>;
   events?: Array<{ kind: string; message: string; createdAt: string }>;

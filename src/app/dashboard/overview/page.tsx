@@ -32,9 +32,9 @@ const knowledgeStages = [
     card: 'border-slate-400/25 bg-slate-400/10 text-slate-200'
   },
   {
-    key: 'queued',
-    label: 'Queued',
-    detail: 'Ready',
+    key: 'extracted',
+    label: 'Extracted',
+    detail: 'Readable',
     dot: 'bg-cyan-300',
     card: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-200'
   },

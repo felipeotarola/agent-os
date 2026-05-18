@@ -390,10 +390,15 @@ async function overviewSnapshot() {
   const onlineAgents = agentRows.filter((agent) => agent.status === 'online').length;
   const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
   const memoryChunks = memoryAgents.reduce((sum, entry) => sum + Number(entry.status?.chunks ?? 0), 0);
-  const wikified = knowledgeByStatus.get('wikified') ?? 0;
   const raw = knowledgeByStatus.get('raw') ?? 0;
-  const knowledgeTotal = wikified + raw + (knowledgeByStatus.get('queued') ?? 0);
-  const knowledgeProgress = knowledgeTotal ? Math.round((wikified / knowledgeTotal) * 100) : 0;
+  const extracted = knowledgeByStatus.get('extracted') ?? knowledgeByStatus.get('queued') ?? 0;
+  const wikified = knowledgeByStatus.get('wikified') ?? 0;
+  const reviewed = knowledgeByStatus.get('reviewed') ?? 0;
+  const promoted = knowledgeByStatus.get('promoted') ?? 0;
+  const archived = knowledgeByStatus.get('archived') ?? 0;
+  const knowledgeTotal = raw + extracted + wikified + reviewed + promoted + archived;
+  const processedKnowledge = wikified + reviewed + promoted + archived;
+  const knowledgeProgress = knowledgeTotal ? Math.round((processedKnowledge / knowledgeTotal) * 100) : 0;
 
   return {
     dbOnline: true,
@@ -416,8 +421,12 @@ async function overviewSnapshot() {
     agents: agentRows.map((agent) => ({ name: agent.name, role: agent.role, detail: agent.detail, status: agent.status })),
     knowledge: {
       raw,
-      queued: knowledgeByStatus.get('queued') ?? 0,
+      queued: extracted,
+      extracted,
       wikified,
+      reviewed,
+      promoted,
+      archived,
       progress: knowledgeProgress
     },
     taskStatus: Object.fromEntries(taskByStatus),
