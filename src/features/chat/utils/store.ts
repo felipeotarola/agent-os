@@ -22,7 +22,7 @@ type ChatState = {
   setError: (error: string | null) => void;
 };
 
-const now = () => new Date().toISOString();
+const INITIAL_WELCOME_TIMESTAMP = '2026-01-01T00:00:00.000Z';
 
 const initialMessages = Object.fromEntries(
   chatAgents.map((agent) => [
@@ -32,7 +32,7 @@ const initialMessages = Object.fromEntries(
         id: agent.id + '-welcome',
         role: 'assistant',
         content: defaultWelcomeByAgent[agent.id],
-        createdAt: now()
+        createdAt: INITIAL_WELCOME_TIMESTAMP
       }
     ]
   ])

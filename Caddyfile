@@ -7,5 +7,5 @@ api.felipeotarola.com {
     Referrer-Policy "no-referrer"
   }
 
-  reverse_proxy agent-os-bridge:8787
+  reverse_proxy 127.0.0.1:8787
 }

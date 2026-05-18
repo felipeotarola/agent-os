@@ -3,9 +3,7 @@ services:
     image: caddy:2-alpine
     container_name: agent-os-caddy
     restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
+    network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -21,13 +19,14 @@ services:
     command: node bridge/server.mjs
     environment:
       BRIDGE_PORT: 8787
-      BRIDGE_DATABASE_URL: postgres://agent_os:${POSTGRES_PASSWORD:-agent_os_local_password}@postgres:5432/${POSTGRES_DB:-agent_os}
+      BRIDGE_DATABASE_URL: postgres://agent_os:${POSTGRES_PASSWORD:-agent_os_local_password}@127.0.0.1:${POSTGRES_PORT:-5433}/${POSTGRES_DB:-agent_os}
       AGENT_OS_BRIDGE_TOKEN: ${AGENT_OS_BRIDGE_TOKEN:?AGENT_OS_BRIDGE_TOKEN is required}
       AGENT_OS_AGENTS_JSON: ${AGENT_OS_AGENTS_JSON:-[]}
       AGENT_OS_GMAIL_ACCOUNT: ${AGENT_OS_GMAIL_ACCOUNT:-feot1000@gmail.com}
     volumes:
       - ./:/app:ro
       - /root/.openclaw:/root/.openclaw:ro
+      - /root/.openclaw/identity:/root/.openclaw/identity:rw
       - /root/.openclaw/agents/main/sessions:/root/.openclaw/agents/main/sessions:rw
       - /root/.openclaw/agents/main/agent:/root/.openclaw/agents/main/agent:rw
       - /root/.openclaw/tasks:/root/.openclaw/tasks:rw
@@ -39,10 +38,7 @@ services:
       - ./bridge/bin/qmd:/usr/bin/qmd:ro
       - /usr/lib/node_modules/openclaw:/usr/lib/node_modules/openclaw:ro
       - /usr/lib/node_modules/@tobilu/qmd:/usr/lib/node_modules/@tobilu/qmd:ro
-    ports:
-      - '127.0.0.1:8787:8787'
-    expose:
-      - '8787'
+    network_mode: host
     depends_on:
       postgres:
         condition: service_healthy

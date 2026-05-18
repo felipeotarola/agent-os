@@ -7,6 +7,12 @@ interface MessageBubbleProps {
   message: ChatMessage;
 }
 
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(11, 16);
+}
+
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
@@ -33,12 +39,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             isUser ? 'text-primary-foreground/70' : 'text-muted-foreground'
           )}
         >
-          {message.pending
-            ? 'Sending…'
-            : new Date(message.createdAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+          {message.pending ? 'Sending…' : formatMessageTime(message.createdAt)}
         </div>
       </div>
     </article>
