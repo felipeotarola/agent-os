@@ -97,6 +97,8 @@ function conversationIdFrom(record: JsonRecord, fallback?: string) {
     asString(record.conversationId) ||
     asString(record.conversation_id) ||
     asString(record.threadId) ||
+    asString(record.sessionKey) ||
+    asString(record.session_key) ||
     fallback
   );
 }
@@ -235,8 +237,8 @@ export async function mirrorChatPayload(payload: unknown, context: unknown = {})
     await ensureChatMirrorTables();
 
     const contextRecord = isRecord(context) ? context : {};
-    const fallbackConversationId = conversationIdFrom(contextRecord);
     const records = isRecord(payload) ? payload : {};
+    const fallbackConversationId = conversationIdFrom(contextRecord) || conversationIdFrom(records);
 
     const conversationRecords = [
       ...collectPayloadRecords(payload, 'conversations'),
@@ -246,6 +248,22 @@ export async function mirrorChatPayload(payload: unknown, context: unknown = {})
     const normalizedConversations = conversationRecords
       .map(normalizeConversation)
       .filter((conversation): conversation is NormalizedConversation => Boolean(conversation));
+
+    if (
+      fallbackConversationId &&
+      !normalizedConversations.some((item) => item.id === fallbackConversationId)
+    ) {
+      normalizedConversations.push({
+        id: fallbackConversationId,
+        title:
+          asString(contextRecord.agentId) ||
+          asString(contextRecord.agent) ||
+          fallbackConversationId,
+        agentId: asString(contextRecord.agentId) || asString(contextRecord.agent) || null,
+        status: 'active',
+        metadata: metadata({ context, source: 'chat-mirror-fallback' })
+      });
+    }
 
     const messageRecords = [
       ...collectPayloadRecords(payload, 'messages'),

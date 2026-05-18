@@ -1,5 +1,14 @@
-import { notFound } from 'next/navigation';
+import PageContainer from '@/components/layout/page-container';
+import ChatViewPage from '@/features/chat/components/chat-view-page';
 
-export default function DisabledTemplatePage() {
-  notFound();
+export const metadata = {
+  title: 'Agent OS: Chat'
+};
+
+export default function ChatPage() {
+  return (
+    <PageContainer>
+      <ChatViewPage />
+    </PageContainer>
+  );
 }

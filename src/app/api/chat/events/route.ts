@@ -1,14 +1,25 @@
-import { mirrorChatPayload, sanitizeChatPayload } from '@/db/chat';
-import { bridgeRequest } from '@/lib/bridge';
+import { bridgeFetch } from '@/lib/bridge';
+import { normalizeChatSearchParams, requireChatSession } from '@/lib/chat-routing';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.toString();
-  const path = query ? `/chat/events?${query}` : '/chat/events';
-  const result = await bridgeRequest(path);
+  const auth = await requireChatSession(request);
+  if ('response' in auth) return auth.response;
 
-  const sanitized = sanitizeChatPayload(result);
-  await mirrorChatPayload(sanitized, Object.fromEntries(request.nextUrl.searchParams));
+  const routed = normalizeChatSearchParams(request.nextUrl.searchParams);
+  if (!routed)
+    return NextResponse.json({ error: 'agent or sessionKey is required' }, { status: 400 });
 
-  return NextResponse.json(sanitized, { headers: { 'cache-control': 'no-store' } });
+  const bridgeResponse = await bridgeFetch(`/chat/events?${routed.params.toString()}`, {
+    headers: { accept: 'text/event-stream' }
+  });
+
+  return new Response(bridgeResponse.body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-store, no-transform',
+      connection: 'keep-alive'
+    }
+  });
 }

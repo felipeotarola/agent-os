@@ -10,6 +10,11 @@ export function hasBridge() {
 }
 
 export async function bridgeRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await bridgeFetch(path, init);
+  return response.json() as Promise<T>;
+}
+
+export async function bridgeFetch(path: string, init: RequestInit = {}) {
   const config = bridgeConfig();
   if (!config) throw new Error('Agent OS bridge is not configured');
 
@@ -28,5 +33,5 @@ export async function bridgeRequest<T>(path: string, init: RequestInit = {}): Pr
     throw new Error(`Bridge request failed ${response.status}: ${body}`);
   }
 
-  return response.json() as Promise<T>;
+  return response;
 }

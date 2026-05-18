@@ -1,129 +1,259 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'motion/react';
+import { FormEvent, useCallback, useEffect } from 'react';
+import { chatAgents } from '../utils/data';
 import { useChatStore } from '../utils/store';
-import type { Attachment, Message } from '../utils/types';
+import type { AgentId, ChatMessage, ChatMessageRole } from '../utils/types';
+import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 import { ConversationSelect } from './conversation-select';
-import { ChatArea } from './chat-area';
+
+const agentById = Object.fromEntries(chatAgents.map((agent) => [agent.id, agent])) as Record<
+  AgentId,
+  (typeof chatAgents)[number]
+>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function stringFrom(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function textFromContent(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (isRecord(part)) return stringFrom(part.text, stringFrom(part.content));
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
+  }
+  if (isRecord(value)) return stringFrom(value.text, stringFrom(value.content));
+  return '';
+}
+
+function roleFrom(value: unknown): ChatMessageRole {
+  if (value === 'user' || value === 'assistant' || value === 'system') return value;
+  if (value === 'contact' || value === 'agent') return 'assistant';
+  return 'assistant';
+}
+
+function normalizeMessage(value: unknown, index: number): ChatMessage | null {
+  if (!isRecord(value)) return null;
+  const content =
+    textFromContent(value.content) || stringFrom(value.text, stringFrom(value.message));
+  if (!content.trim()) return null;
+
+  return {
+    id: stringFrom(value.id, 'message-' + index + '-' + Date.now()),
+    role: roleFrom(value.role ?? value.sender),
+    content,
+    createdAt: stringFrom(value.createdAt, stringFrom(value.timestamp, new Date().toISOString()))
+  };
+}
+
+function extractMessages(payload: unknown): ChatMessage[] {
+  const source = Array.isArray(payload)
+    ? payload
+    : isRecord(payload) && Array.isArray(payload.messages)
+      ? payload.messages
+      : [];
+
+  return source
+    .map((message, index) => normalizeMessage(message, index))
+    .filter((message): message is ChatMessage => message !== null);
+}
+
+function extractAssistantMessage(payload: unknown): ChatMessage | null {
+  if (isRecord(payload)) {
+    const direct = normalizeMessage(payload, 0);
+    if (direct) return { ...direct, role: 'assistant' };
+
+    const nested = normalizeMessage(payload.message, 0) ?? normalizeMessage(payload.reply, 0);
+    if (nested) return { ...nested, role: 'assistant' };
+
+    const content =
+      stringFrom(payload.response) || textFromContent(payload.content) || stringFrom(payload.text);
+    if (content.trim()) {
+      return {
+        id: 'assistant-' + Date.now(),
+        role: 'assistant',
+        content,
+        createdAt: new Date().toISOString()
+      };
+    }
+  }
+
+  return null;
+}
 
 export function Messenger() {
   const {
-    conversations,
-    selectedConversationId,
+    selectedAgentId,
+    messagesByAgent,
     draft,
-    replyCursor,
-    selectConversation,
+    isLoadingHistory,
+    isSending,
+    error,
+    selectAgent,
     setDraft,
-    sendMessage,
-    addIncomingMessage,
-    advanceReplyCursor,
-    getActiveConversation
+    setHistory,
+    addMessage,
+    replaceMessage,
+    setIsLoadingHistory,
+    setIsSending,
+    setError
   } = useChatStore();
 
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const shouldReduceMotion = useReducedMotion();
-  const replyTimeoutRef = useRef<number | null>(null);
-  const selectedRef = useRef(selectedConversationId);
+  const selectedAgent = agentById[selectedAgentId];
+  const messages = messagesByAgent[selectedAgentId];
 
   useEffect(() => {
-    selectedRef.current = selectedConversationId;
-    setAttachments([]);
-  }, [selectedConversationId]);
+    let ignore = false;
 
-  useEffect(() => {
-    return () => {
-      if (replyTimeoutRef.current) {
-        window.clearTimeout(replyTimeoutRef.current);
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams({ agent: selectedAgentId });
+        const response = await fetch('/api/chat/history?' + params.toString(), {
+          headers: { accept: 'application/json' }
+        });
+
+        if (response.status === 404) return;
+        if (!response.ok) throw new Error('History request failed with ' + response.status);
+
+        const payload: unknown = await response.json();
+        if (!ignore) setHistory(selectedAgentId, extractMessages(payload));
+      } catch (loadError) {
+        if (!ignore) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Could not load chat history. Showing local starter thread.'
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoadingHistory(false);
       }
+    }
+
+    void loadHistory();
+
+    return () => {
+      ignore = true;
     };
-  }, []);
-
-  const handleAddAttachments = useCallback((files: FileList) => {
-    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
-      id: 'file-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-      name: file.name,
-      size: file.size,
-      type: file.type
-    }));
-    setAttachments((prev) => [...prev, ...newAttachments]);
-  }, []);
-
-  const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  }, [selectedAgentId, setError, setHistory, setIsLoadingHistory]);
 
   const handleSubmit = useCallback(
-    (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const active = getActiveConversation();
-      if ((!draft.trim() && attachments.length === 0) || !active) return;
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const content = draft.trim();
+      if (!content || isSending) return;
 
-      const conversationId = active.id;
-      sendMessage(draft, attachments.length > 0 ? attachments : undefined);
-      setAttachments([]);
+      const agentId = selectedAgentId;
+      const optimisticId = 'user-' + Date.now();
+      const optimisticMessage: ChatMessage = {
+        id: optimisticId,
+        role: 'user',
+        content,
+        createdAt: new Date().toISOString(),
+        pending: true
+      };
 
-      const autoReplies = active.autoReplies;
-      if (!autoReplies.length) return;
+      setDraft('');
+      setError(null);
+      setIsSending(true);
+      addMessage(agentId, optimisticMessage);
 
-      const cursor = replyCursor[conversationId] ?? 0;
-      const nextReply = autoReplies[cursor % autoReplies.length];
-      const delay = shouldReduceMotion ? 0 : 900;
-
-      replyTimeoutRef.current = window.setTimeout(() => {
-        const timestamp = new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit'
+      try {
+        const response = await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            agent: agentId,
+            agentName: agentById[agentId].name,
+            message: content
+          })
         });
-        const incoming: Message = {
-          id: 'incoming-' + Date.now().toString(),
-          sender: 'contact',
-          author: active.name,
-          text: nextReply,
-          timestamp
-        };
 
-        addIncomingMessage(conversationId, incoming);
-        advanceReplyCursor(conversationId);
-      }, delay);
+        if (!response.ok) throw new Error('Send request failed with ' + response.status);
+
+        const payload: unknown = await response.json();
+        const assistantMessage = extractAssistantMessage(payload);
+
+        replaceMessage(agentId, optimisticId, { ...optimisticMessage, pending: false });
+        addMessage(
+          agentId,
+          assistantMessage ?? {
+            id: 'run-' + Date.now(),
+            role: 'system',
+            content:
+              'Run started. Streaming UI comes next; refresh history in a moment for the final answer.',
+            createdAt: new Date().toISOString()
+          }
+        );
+      } catch (sendError) {
+        replaceMessage(agentId, optimisticId, {
+          ...optimisticMessage,
+          pending: false,
+          error: true
+        });
+        setError(
+          sendError instanceof Error
+            ? sendError.message
+            : 'Could not send message. The backend API may not be implemented yet.'
+        );
+      } finally {
+        setIsSending(false);
+      }
     },
     [
+      addMessage,
       draft,
-      attachments,
-      replyCursor,
-      shouldReduceMotion,
-      getActiveConversation,
-      sendMessage,
-      addIncomingMessage,
-      advanceReplyCursor
+      isSending,
+      replaceMessage,
+      selectedAgentId,
+      setDraft,
+      setError,
+      setIsSending
     ]
   );
 
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) return null;
-
   return (
-    <div className='border-border/50 bg-background/70 relative grid h-[calc(100dvh-5.5rem)] w-full grid-rows-[auto,1fr] gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:[grid-template-columns:30%_1fr] lg:grid-rows-[1fr] lg:gap-4 lg:rounded-3xl lg:p-5'>
-      <ConversationSelect
-        conversations={conversations}
-        selectedId={selectedConversationId}
-        onSelect={selectConversation}
-      />
+    <div className='flex h-[calc(100dvh-5rem)] min-h-[620px] overflow-hidden rounded-3xl border bg-background shadow-sm sm:h-[calc(100dvh-7rem)]'>
       <ConversationList
-        conversations={conversations}
-        selectedId={selectedConversationId}
-        onSelect={selectConversation}
+        agents={chatAgents}
+        selectedId={selectedAgentId}
+        messagesByAgent={messagesByAgent}
+        onSelect={selectAgent}
       />
-      <ChatArea
-        conversation={activeConversation}
-        draft={draft}
-        onDraftChange={setDraft}
-        onSubmit={handleSubmit}
-        attachments={attachments}
-        onAddAttachments={handleAddAttachments}
-        onRemoveAttachment={handleRemoveAttachment}
-      />
+      <div className='flex min-w-0 flex-1 flex-col'>
+        <ConversationSelect
+          agents={chatAgents}
+          selectedId={selectedAgentId}
+          onSelect={selectAgent}
+        />
+        <ChatArea
+          agent={selectedAgent}
+          messages={messages}
+          draft={draft}
+          isLoadingHistory={isLoadingHistory}
+          isSending={isSending}
+          error={error}
+          onDraftChange={setDraft}
+          onSubmit={handleSubmit}
+        />
+      </div>
     </div>
   );
 }

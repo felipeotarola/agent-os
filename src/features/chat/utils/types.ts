@@ -1,29 +1,20 @@
-export type Attachment = {
-  id: string;
+export type AgentId = 'cai' | 'charles' | 'sladdis';
+
+export type ChatAgent = {
+  id: AgentId;
   name: string;
-  size: number;
-  type: string;
-};
-
-export type Message = {
-  id: string;
-  sender: 'user' | 'contact';
-  author: string;
-  text: string;
-  timestamp: string;
-  attachments?: Attachment[];
-};
-
-export type ConversationStatus = 'online' | 'offline';
-
-export type Conversation = {
-  id: string;
-  name: string;
-  title: string;
-  status: ConversationStatus;
-  unread: number;
+  role: string;
   initials: string;
-  messages: Message[];
-  quickReplies: string[];
-  autoReplies: string[];
+  tone: string;
+};
+
+export type ChatMessageRole = 'user' | 'assistant' | 'system';
+
+export type ChatMessage = {
+  id: string;
+  role: ChatMessageRole;
+  content: string;
+  createdAt: string;
+  pending?: boolean;
+  error?: boolean;
 };
