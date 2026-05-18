@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getKnowledgeSnapshot } from '@/db/knowledge';
 import Link from 'next/link';
+import { SubmitButton } from './submit-button';
 import { VaultExplorer } from './vault-explorer';
 import { VaultGraph } from './vault-graph';
 
@@ -147,9 +148,15 @@ function ActionForm({
       {Object.entries(hidden).map(([name, value]) => (
         <input key={name} type='hidden' name={name} value={value} />
       ))}
-      <Button size='sm' variant={variant} disabled={disabled} className='w-full whitespace-nowrap'>
+      <SubmitButton
+        size='sm'
+        variant={variant}
+        disabled={disabled}
+        className='w-full whitespace-nowrap'
+        pendingText={`${label}…`}
+      >
         {label}
-      </Button>
+      </SubmitButton>
     </form>
   );
 }
@@ -491,9 +498,13 @@ export default async function KnowledgePage({
                       className='min-h-32'
                     />
                   </div>
-                  <Button type='submit' className='w-full' disabled={!snapshot.dbOnline}>
+                  <SubmitButton
+                    className='w-full'
+                    disabled={!snapshot.dbOnline}
+                    pendingText='Sparar…'
+                  >
                     Spara till raw inbox
-                  </Button>
+                  </SubmitButton>
                 </form>
               </CardContent>
             </Card>
