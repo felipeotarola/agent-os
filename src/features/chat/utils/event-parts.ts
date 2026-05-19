@@ -232,13 +232,18 @@ export function partsFromRecord(record: JsonRecord, fallbackText = ''): ChatMess
 
 export function normalizeMessage(value: unknown, index: number): ChatMessage | null {
   if (!isRecord(value)) return null;
+  const openclawMeta = isRecord(value.__openclaw) ? value.__openclaw : null;
   const content =
     textFromContent(value.content) || stringFrom(value.text, stringFrom(value.message));
   const parts = partsFromRecord(value, content);
   if (!content.trim() && !parts.length) return null;
 
   return {
-    id: stringFrom(value.id, stringFrom(value.messageId, 'history-message-' + index)),
+    id:
+      stringFrom(value.id) ||
+      stringFrom(value.messageId) ||
+      stringFrom(openclawMeta?.id) ||
+      'history-message-' + index,
     role: roleFrom(value.role ?? value.sender),
     content,
     createdAt: timestampFrom(value, new Date().toISOString()),

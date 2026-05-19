@@ -46,6 +46,10 @@ function messageFingerprint(message: ChatMessage) {
   return `${message.role}:${content || parts}`;
 }
 
+function sortMessages(messages: ChatMessage[]) {
+  return messages.toSorted((a, b) => messageTime(a) - messageTime(b));
+}
+
 function messageTime(message: ChatMessage) {
   const timestamp = new Date(message.createdAt).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -61,6 +65,40 @@ function isPendingRunPlaceholder(message: ChatMessage) {
     message.role === 'system' &&
     message.parts?.some((part) => part.type === 'run-status' && part.status === 'running')
   );
+}
+
+function pruneResolvedPendingRuns(messages: ChatMessage[], incoming: ChatMessage) {
+  if (incoming.role !== 'assistant' || incoming.pending) return messages;
+  const incomingTime = messageTime(incoming);
+
+  return messages.filter((message) => {
+    if (!isPendingRunPlaceholder(message)) return true;
+    const placeholderTime = messageTime(message);
+    return placeholderTime > incomingTime || incomingTime - placeholderTime > 15 * 60_000;
+  });
+}
+
+function mergeMessage(messages: ChatMessage[], incoming: ChatMessage) {
+  const incomingFingerprint = messageFingerprint(incoming);
+  const pruned = pruneResolvedPendingRuns(messages, incoming);
+  let replaced = false;
+
+  const merged = pruned.map((message) => {
+    if (message.id !== incoming.id && messageFingerprint(message) !== incomingFingerprint) {
+      return message;
+    }
+
+    replaced = true;
+    return {
+      ...incoming,
+      createdAt: message.pending || message.error ? message.createdAt : incoming.createdAt,
+      pending: incoming.pending,
+      error: incoming.error
+    };
+  });
+
+  if (!replaced) merged.push(incoming);
+  return sortMessages(merged);
 }
 
 function mergeHistory(agentId: AgentId, current: ChatMessage[], incoming: ChatMessage[]) {
@@ -86,7 +124,7 @@ function mergeHistory(agentId: AgentId, current: ChatMessage[], incoming: ChatMe
     return message.pending || message.error || messageTime(message) >= newestIncomingTime;
   });
 
-  return [...incoming, ...localTail].toSorted((a, b) => messageTime(a) - messageTime(b));
+  return sortMessages([...incoming, ...localTail]);
 }
 
 export const useChatStore = create<ChatState>()((set) => ({
@@ -110,19 +148,16 @@ export const useChatStore = create<ChatState>()((set) => ({
     set((state) => ({
       messagesByAgent: {
         ...state.messagesByAgent,
-        [agentId]: [...state.messagesByAgent[agentId], message]
+        [agentId]: sortMessages([...state.messagesByAgent[agentId], message])
       }
     })),
   upsertMessage: (agentId, message) =>
     set((state) => {
       const messages = state.messagesByAgent[agentId];
-      const existing = messages.some((item) => item.id === message.id);
       return {
         messagesByAgent: {
           ...state.messagesByAgent,
-          [agentId]: existing
-            ? messages.map((item) => (item.id === message.id ? message : item))
-            : [...messages, message]
+          [agentId]: mergeMessage(messages, message)
         }
       };
     }),
@@ -130,8 +165,8 @@ export const useChatStore = create<ChatState>()((set) => ({
     set((state) => ({
       messagesByAgent: {
         ...state.messagesByAgent,
-        [agentId]: state.messagesByAgent[agentId].map((item) =>
-          item.id === messageId ? message : item
+        [agentId]: sortMessages(
+          state.messagesByAgent[agentId].map((item) => (item.id === messageId ? message : item))
         )
       }
     })),
