@@ -1257,6 +1257,129 @@ async function upsertAffiliateAccount(input) {
   return rows[0];
 }
 
+async function supabaseSnapshot() {
+  const projectRef = String(
+    process.env.SUPABASE_PROJECT_REF ?? process.env.AGENT_OS_SUPABASE_PROJECT_REF ?? ''
+  ).trim();
+  const accessToken = String(
+    process.env.SUPABASE_ACCESS_TOKEN ?? process.env.AGENT_OS_SUPABASE_ACCESS_TOKEN ?? ''
+  ).trim();
+  const apiBase = String(
+    process.env.SUPABASE_MANAGEMENT_API_URL ?? 'https://api.supabase.com'
+  ).replace(/\/$/, '');
+  const generatedAt = new Date().toISOString();
+  const configured = Boolean(projectRef && accessToken);
+  const checks = [
+    {
+      id: 'project-ref',
+      label: 'Project ref configured',
+      ok: Boolean(projectRef),
+      detail: projectRef ? 'configured' : 'SUPABASE_PROJECT_REF missing'
+    },
+    {
+      id: 'access-token',
+      label: 'Read-only access token configured',
+      ok: Boolean(accessToken),
+      detail: accessToken ? 'configured in bridge env' : 'SUPABASE_ACCESS_TOKEN missing'
+    },
+    { id: 'api-base', label: 'Management API base', ok: Boolean(apiBase), detail: apiBase }
+  ];
+
+  if (!configured) {
+    return {
+      contract: 'agent-os.supabase-observability.v1',
+      source: 'bridge:supabase-env',
+      generatedAt,
+      configured: false,
+      connected: false,
+      project: null,
+      checks,
+      metrics: [],
+      alerts: [],
+      nextSteps: [
+        'Set SUPABASE_PROJECT_REF and a scoped read-only SUPABASE_ACCESS_TOKEN in the bridge environment.',
+        'Keep credentials server-side only; never expose Supabase tokens to the browser.',
+        'After config is present, fetch project metadata and add logs/usage endpoints behind this snapshot contract.'
+      ]
+    };
+  }
+
+  try {
+    const response = await fetch(`${apiBase}/v1/projects/${encodeURIComponent(projectRef)}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(3500)
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Supabase Management API ${response.status}: ${text.slice(0, 240)}`);
+    }
+    const project = JSON.parse(text || '{}');
+    const safeProject = {
+      ref: String(project.id ?? project.ref ?? projectRef),
+      name: String(project.name ?? 'Supabase project'),
+      region: project.region ? String(project.region) : null,
+      status: project.status ? String(project.status) : 'unknown',
+      database: project.database?.host ? { hostConfigured: true } : null,
+      createdAt: project.created_at ?? project.createdAt ?? null
+    };
+
+    return {
+      contract: 'agent-os.supabase-observability.v1',
+      source: 'supabase-management-api:project',
+      generatedAt,
+      configured: true,
+      connected: true,
+      project: safeProject,
+      checks: [
+        ...checks,
+        {
+          id: 'project-fetch',
+          label: 'Project metadata fetch',
+          ok: true,
+          detail: 'Management API returned project metadata'
+        }
+      ],
+      metrics: [
+        { label: 'Project status', value: safeProject.status, detail: 'From project metadata' },
+        { label: 'Region', value: safeProject.region ?? 'unknown', detail: 'Deployment region' }
+      ],
+      alerts: [],
+      nextSteps: [
+        'Add read-only logs/usage ingestion when Supabase API/log drain scope is confirmed.',
+        'Normalize auth/API/database/storage events into a small observability table with retention/redaction.',
+        'Wire important errors into Notifications and Command Center guarded refresh actions.'
+      ]
+    };
+  } catch (error) {
+    return {
+      contract: 'agent-os.supabase-observability.v1',
+      source: 'supabase-management-api:error',
+      generatedAt,
+      configured: true,
+      connected: false,
+      project: { ref: projectRef, name: 'Supabase project', status: 'unknown', region: null, createdAt: null },
+      checks: [
+        ...checks,
+        {
+          id: 'project-fetch',
+          label: 'Project metadata fetch',
+          ok: false,
+          detail: error.message ?? 'request failed'
+        }
+      ],
+      metrics: [],
+      alerts: [
+        { severity: 'warning', title: 'Supabase connector failed', detail: error.message ?? 'request failed' }
+      ],
+      nextSteps: [
+        'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in the bridge environment.',
+        'Confirm token scope permits read-only Management API project metadata access.',
+        'Keep the connector degraded until metadata reads succeed.'
+      ]
+    };
+  }
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -2571,6 +2694,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/affiliate/snapshot') {
       return send(res, 200, await affiliateSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/supabase/snapshot') {
+      return send(res, 200, await supabaseSnapshot());
     }
 
     if (req.method === 'POST' && url.pathname === '/affiliate/accounts') {

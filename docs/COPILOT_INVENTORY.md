@@ -79,6 +79,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 
 - Bridge contract documented in `docs/BRIDGE_CONTRACTS.md`; automated contract tests still missing.
 - Session retention/deletion policy documented in `docs/SESSION_RETENTION_POLICY.md`; V1 intentionally supports inventory/harvest/extract/review, not automatic hard deletion.
+- Supabase observability connector documented in `docs/SUPABASE_OBSERVABILITY.md`; V1 is read-only, env-only, empty-safe and exposed at `/dashboard/supabase`.
 - Safe write actions from cockpit to OpenClaw/DB with permission checks.
 - Import/export endpoints for knowledge vault and affiliate data need verification.
 - Health endpoint now exposes version, DB status, OpenClaw status, subagent visibility source and explicit last sync/null fields.

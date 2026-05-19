@@ -30,6 +30,7 @@ import {
   IconCopy,
   IconCreditCard,
   IconDeviceLaptop,
+  IconDatabase,
   IconDots,
   IconDotsVertical,
   IconEdit,
@@ -196,6 +197,7 @@ export const Icons = {
   lock: IconLock,
 
   // Data / Charts
+  database: IconDatabase,
   trendingDown: IconTrendingDown,
   trendingUp: IconTrendingUp,
   eyeOff: IconEyeOff,

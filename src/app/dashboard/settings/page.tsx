@@ -56,6 +56,12 @@ export default async function SettingsPage() {
       configured: status.memory.ok
     },
     {
+      name: 'Supabase observability',
+      status: 'bridge-ready',
+      detail: 'Read-only snapshot contract at /supabase/snapshot; credentials stay server-side.',
+      configured: Boolean(process.env.AGENT_OS_BRIDGE_URL && process.env.AGENT_OS_BRIDGE_TOKEN)
+    },
+    {
       name: 'Subagent runs',
       status: status.subagents?.ok ? 'ok' : 'missing',
       detail: status.subagents?.ok

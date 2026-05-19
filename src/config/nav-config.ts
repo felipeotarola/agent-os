@@ -66,6 +66,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Supabase',
+        url: '/dashboard/supabase',
+        icon: 'database',
+        shortcut: ['s', 'b'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/wiki',
         icon: 'page',
