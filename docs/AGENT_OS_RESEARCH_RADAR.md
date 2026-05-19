@@ -1,0 +1,142 @@
+# Agent OS Research Radar
+
+Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
+
+Last scan: 2026-05-19
+
+## What strong agentic systems tend to have
+
+Sources reviewed in this pass:
+
+- MindStudio: agentic OS components — identity, short/long memory, skills/tools, planning, orchestration, handoffs, evaluation, guardrails.
+- Microsoft Azure Architecture Center: orchestration patterns — direct model, single-agent-with-tools, multi-agent; sequential, concurrent, handoff/group patterns.
+- HITL Agent Inbox docs: review inbox states, assignments, filters, bulk operations, analytics, access control.
+- OpenAI ChatGPT agent announcement: unified research/action environment, multiple tool modes, connectors, virtual computer, interrupt/steer/pause/resume, asks permission before consequential actions.
+
+## Gap analysis vs current Agent OS / OpenClaw
+
+### Already mostly covered
+
+- Agent identity/context files: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `PROACTIVE.md`, agent workspaces.
+- Long-term memory: `MEMORY.md`, daily memory, QMD/session search, memory dreaming promotion.
+- Tool/skill layer: OpenClaw tools + skills + allowed tool lists.
+- Scheduling: OpenClaw cron, morning/evening briefs, proactive loop.
+- Multi-agent execution: Cai + Charles + Sladdis + subagents.
+- Guardrails: protected config paths, ask-first rules, tool policy, channel routing, read-only connector stance.
+- Cockpit surfaces: Overview, Radar, Action Center, Knowledge, Runway, Vercel/Supabase/GitHub.
+
+### Missing or weak
+
+1. **Handoff documents between agents**
+   - Workers currently return free-form summaries.
+   - Better: standardized `handoff.json`/markdown shape: goal, files changed, decisions, blockers, tests, next suggested action.
+
+2. **Eval/feedback loop**
+   - We run lint/build, but there is no persistent quality feedback: “was this useful?”, repeated mistakes, regression notes.
+   - Better: `Agent OS Evals` page + tiny feedback events table for completed tasks/briefs.
+
+3. **Agent Inbox / Review Queue**
+   - Knowledge has review states; Radar has signals; Action Center has actions.
+   - Missing unified “needs Felipe approval/review” inbox across: drafts, outreach, risky actions, memory promotions, suggested tasks, generated PRDs.
+
+4. **Runbook/workflow templates**
+   - Skills exist at OpenClaw level, but Agent OS lacks user-visible workflow templates: “research competitor”, “turn email into task”, “prepare outreach draft”, “ship small UI fix”.
+   - Better: reusable cockpit playbooks with allowed tools, ask-first boundaries, expected outputs.
+
+5. **Pause/resume/steer UI for long work**
+   - OpenClaw supports sessions/subagents/processes, but Agent OS UI could show running jobs with buttons: steer, pause/stop, summarize current progress.
+
+6. **Cost/time/token visibility per run**
+   - OpenClaw has status/session usage, but Agent OS cockpit does not yet expose cost/latency budget or “expensive task warning”.
+
+7. **Proactive hypothesis backlog**
+   - Cai now has a proactive loop, but Agent OS lacks a first-class backlog of “Cai noticed X, proposes Y because Z”.
+   - Better: `Opportunity Radar` page: observed signal → proposed action → confidence → risk → status.
+
+8. **Connector health SLAs**
+   - We have degraded states per connector, but no “last good snapshot”, “stale since”, “noise/failure trend”, or recurring repair suggestion.
+
+9. **Human preference model / decision log**
+   - Memory has preferences, but UI lacks a decision ledger: “Felipe prefers X; source; confidence; last confirmed”.
+
+## Recommended build order
+
+### 1. Agent Review Inbox
+
+Why: this converts proactivity into safe autonomy. Cai can prepare things, but Felipe reviews one queue instead of chasing chat.
+
+V1:
+- DB table: `review_items`
+- sources: Radar, Knowledge, Proactive Loop, briefs, subagent handoffs
+- states: `pending`, `approved`, `rejected`, `snoozed`, `done`
+- fields: title, detail, source, risk, proposed action, createdBy, createdAt
+- UI route: `/dashboard/review`
+- actions: approve/reject/snooze/open source
+
+### 2. Standard subagent handoff format
+
+Why: reduces lost context and makes orchestration more reliable.
+
+V1 handoff fields:
+- goal
+- summary
+- files changed
+- commands run
+- verification
+- blockers
+- decisions made
+- recommended next step
+
+### 3. Opportunity Radar
+
+Why: this is the “Cai noticed something” surface.
+
+V1:
+- local markdown or DB-backed list of opportunities
+- confidence + effort + risk
+- action buttons: create task, dismiss, ask Felipe, schedule follow-up
+
+### 4. Runbook templates
+
+Why: makes repeated work less chat-dependent.
+
+V1 templates:
+- Small Agent OS UI improvement
+- Connector health repair
+- Competitor/product research
+- Draft outreach but do not send
+- Turn meeting/email into task/follow-up
+
+### 5. Feedback/evals
+
+Why: teaches the system what was actually useful.
+
+V1:
+- thumbs up/down on briefs/tasks/proactive actions
+- “too noisy / useful / wrong / risky” tags
+- weekly summary of what to adjust
+
+## OpenClaw vs Agent OS split
+
+OpenClaw already provides primitives:
+- agents
+- tools
+- cron
+- memory
+- sessions/subagents
+- messaging
+- config/permissions
+
+Agent OS should provide the human cockpit layer:
+- what needs attention
+- what can be approved
+- what is running
+- what Cai recommends next
+- why a recommendation exists
+- what changed since last time
+
+## Next candidate task
+
+Build `/dashboard/review` as Agent Review Inbox V1.
+
+This is likely the highest-leverage missing piece because it lets Cai become more proactive without spraying Telegram or taking unsafe external actions.
