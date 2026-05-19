@@ -36,7 +36,11 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
       stringFrom(payload.response) || textFromContent(payload.content) || stringFrom(payload.text);
     if (content.trim()) {
       return {
-        id: 'assistant-response',
+        id:
+          stringFrom(payload.id) ||
+          stringFrom(payload.messageId) ||
+          stringFrom(payload.runId) ||
+          `assistant-response-${Date.now()}`,
         role: 'assistant',
         content,
         createdAt: new Date().toISOString(),

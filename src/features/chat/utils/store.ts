@@ -40,6 +40,55 @@ const initialMessages = Object.fromEntries(
   ])
 ) as MessagesByAgent;
 
+function messageFingerprint(message: ChatMessage) {
+  const content = message.content.trim();
+  const parts = message.parts?.length ? JSON.stringify(message.parts) : '';
+  return `${message.role}:${content || parts}`;
+}
+
+function messageTime(message: ChatMessage) {
+  const timestamp = new Date(message.createdAt).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isWelcomeMessage(agentId: AgentId, message: ChatMessage) {
+  return message.id === `${agentId}-welcome` && message.createdAt === INITIAL_WELCOME_TIMESTAMP;
+}
+
+function isPendingRunPlaceholder(message: ChatMessage) {
+  return (
+    message.pending === true &&
+    message.role === 'system' &&
+    message.parts?.some((part) => part.type === 'run-status' && part.status === 'running')
+  );
+}
+
+function mergeHistory(agentId: AgentId, current: ChatMessage[], incoming: ChatMessage[]) {
+  if (!incoming.length) {
+    return current.some((message) => !isWelcomeMessage(agentId, message))
+      ? current
+      : initialMessages[agentId];
+  }
+
+  const incomingIds = new Set(incoming.map((message) => message.id));
+  const incomingFingerprints = new Set(incoming.map(messageFingerprint));
+  const newestIncomingTime = Math.max(...incoming.map(messageTime));
+  const hasFreshCanonicalAssistant = incoming.some(
+    (message) => message.role === 'assistant' && messageTime(message) >= newestIncomingTime - 60_000
+  );
+
+  const localTail = current.filter((message) => {
+    if (isWelcomeMessage(agentId, message)) return false;
+    if (incomingIds.has(message.id)) return false;
+    if (incomingFingerprints.has(messageFingerprint(message))) return false;
+    if (isPendingRunPlaceholder(message) && hasFreshCanonicalAssistant) return false;
+
+    return message.pending || message.error || messageTime(message) >= newestIncomingTime;
+  });
+
+  return [...incoming, ...localTail].toSorted((a, b) => messageTime(a) - messageTime(b));
+}
+
 export const useChatStore = create<ChatState>()((set) => ({
   selectedAgentId: 'cai',
   messagesByAgent: initialMessages,
@@ -54,7 +103,7 @@ export const useChatStore = create<ChatState>()((set) => ({
     set((state) => ({
       messagesByAgent: {
         ...state.messagesByAgent,
-        [agentId]: messages.length ? messages : initialMessages[agentId]
+        [agentId]: mergeHistory(agentId, state.messagesByAgent[agentId], messages)
       }
     })),
   addMessage: (agentId, message) =>
