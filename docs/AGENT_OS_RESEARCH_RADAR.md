@@ -35,9 +35,9 @@ Sources reviewed in this pass:
    - We run lint/build, but there is no persistent quality feedback: “was this useful?”, repeated mistakes, regression notes.
    - Better: `Agent OS Evals` page + tiny feedback events table for completed tasks/briefs.
 
-3. **Agent Inbox / Review Queue**
+3. **Inbox Radar as Review Queue**
    - Knowledge has review states; Radar has signals; Action Center has actions.
-   - Missing unified “needs Felipe approval/review” inbox across: drafts, outreach, risky actions, memory promotions, suggested tasks, generated PRDs.
+   - Decision: do not create a separate Review page by default. Fold “needs Felipe approval/review” into Inbox Radar as one consolidated attention cockpit across drafts, outreach, risky actions, memory promotions, suggested tasks, generated PRDs and subagent handoffs.
 
 4. **Runbook/workflow templates**
    - Skills exist at OpenClaw level, but Agent OS lacks user-visible workflow templates: “research competitor”, “turn email into task”, “prepare outreach draft”, “ship small UI fix”.
@@ -61,17 +61,17 @@ Sources reviewed in this pass:
 
 ## Recommended build order
 
-### 1. Agent Review Inbox
+### 1. Inbox Radar V2: attention + review + approvals
 
-Why: this converts proactivity into safe autonomy. Cai can prepare things, but Felipe reviews one queue instead of chasing chat.
+Why: this converts proactivity into safe autonomy without creating another dashboard silo. Cai can prepare things, but Felipe reviews one consolidated cockpit instead of chasing Telegram or checking yet another page.
 
 V1:
-- DB table: `review_items`
-- sources: Radar, Knowledge, Proactive Loop, briefs, subagent handoffs
-- states: `pending`, `approved`, `rejected`, `snoozed`, `done`
-- fields: title, detail, source, risk, proposed action, createdBy, createdAt
-- UI route: `/dashboard/review`
-- actions: approve/reject/snooze/open source
+- Extend Radar items with `kind`: `signal`, `review`, `approval`, `draft`, `handoff`, `task`
+- Keep existing Radar state/actions: handled, snooze, create task, open source
+- Add queue filters inside `/dashboard/radar`: All, Review, Approvals, Signals, Tasks
+- Add central agent console: recommendation + explanation + “open Cai chat” path
+- Add flow diagram explaining sources → classification → Cai/Felipe decision → receipts/state
+- Later DB model can evolve from `radar_signals` into `inbox_items` without a separate route
 
 ### 2. Standard subagent handoff format
 
@@ -87,14 +87,14 @@ V1 handoff fields:
 - decisions made
 - recommended next step
 
-### 3. Opportunity Radar
+### 3. Opportunity Radar inside Inbox Radar
 
-Why: this is the “Cai noticed something” surface.
+Why: this is the “Cai noticed something” surface, but it should not become a separate page unless it proves it needs one.
 
 V1:
-- local markdown or DB-backed list of opportunities
-- confidence + effort + risk
-- action buttons: create task, dismiss, ask Felipe, schedule follow-up
+- represent opportunities as Radar `kind=signal` or `kind=review`
+- include confidence + effort + risk in metadata
+- action buttons: create task, dismiss/handled, ask Felipe, schedule follow-up
 
 ### 4. Runbook templates
 
@@ -137,6 +137,6 @@ Agent OS should provide the human cockpit layer:
 
 ## Next candidate task
 
-Build `/dashboard/review` as Agent Review Inbox V1.
+Continue Inbox Radar V2 rather than adding `/dashboard/review`.
 
-This is likely the highest-leverage missing piece because it lets Cai become more proactive without spraying Telegram or taking unsafe external actions.
+Highest-leverage next step: persist true `inbox_items`/review records in the bridge DB so proactive loops and subagents can create approval/review items directly instead of only surfacing derived signals.

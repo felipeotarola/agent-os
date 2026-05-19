@@ -24,6 +24,7 @@ export type RadarSignal = {
   title: string;
   detail: string;
   source: 'tasks' | 'knowledge' | 'notifications' | 'observability' | 'runway' | 'github';
+  kind: 'signal' | 'review' | 'approval' | 'draft' | 'handoff' | 'task';
   priority: 'high' | 'medium' | 'low';
   href: string;
   actionLabel: string;
@@ -101,6 +102,7 @@ export async function getRadarSnapshot() {
         title: item.title,
         detail: item.detail,
         source: item.kind === 'knowledge' ? 'knowledge' : 'tasks',
+        kind: item.kind === 'knowledge' ? 'review' : 'task',
         priority: priorityFromAction(item.priority),
         href: item.href,
         actionLabel: item.primaryLabel,
@@ -119,6 +121,7 @@ export async function getRadarSnapshot() {
         title: notification.title,
         detail: notification.body,
         source: 'notifications',
+        kind: unread ? 'review' : 'signal',
         priority: unread ? 'high' : 'low',
         href: `/dashboard/notifications/${notification.id}`,
         actionLabel: unread ? 'Review notification' : 'Open',
@@ -138,6 +141,7 @@ export async function getRadarSnapshot() {
         title: candidate.title,
         detail: `${candidate.from} · ${candidate.snippet}`,
         source: 'notifications',
+        kind: 'review',
         priority: candidate.score >= 70 ? 'high' : 'medium',
         href: '/dashboard/mail-radar',
         actionLabel: 'Open mail radar',
@@ -156,6 +160,7 @@ export async function getRadarSnapshot() {
         title: 'Calendar signals not connected',
         detail: calendar.alerts[0]?.detail ?? 'Calendar read scope is missing or unavailable.',
         source: 'notifications',
+        kind: 'signal',
         priority: calendar.configured ? 'medium' : 'low',
         href: '/dashboard/radar',
         actionLabel: 'Review connector',
@@ -171,6 +176,7 @@ export async function getRadarSnapshot() {
         title: event.title,
         detail: `${event.start ? new Date(event.start).toLocaleString('sv-SE') : 'unknown time'} · ${event.attendees} attendees`,
         source: 'notifications',
+        kind: hoursAway <= 4 ? 'review' : 'signal',
         priority: hoursAway <= 4 ? 'high' : 'medium',
         href: '/dashboard/radar',
         actionLabel: 'Open calendar',
@@ -189,6 +195,7 @@ export async function getRadarSnapshot() {
         title: 'GitHub signals not connected',
         detail: github.alerts[0]?.detail ?? 'GitHub token is missing or read failed.',
         source: 'notifications',
+        kind: 'signal',
         priority: github.configured ? 'medium' : 'low',
         href: '/dashboard/github',
         actionLabel: 'Review connector',
@@ -201,6 +208,7 @@ export async function getRadarSnapshot() {
         title: notification.title,
         detail: `${notification.repository} · ${notification.reason}`,
         source: 'notifications',
+        kind: notification.reason === 'mention' ? 'review' : 'signal',
         priority: notification.reason === 'mention' ? 'high' : 'medium',
         href: '/dashboard/github',
         actionLabel: 'Open GitHub',
@@ -213,6 +221,7 @@ export async function getRadarSnapshot() {
         title: pull.title,
         detail: `#${pull.number} by ${pull.author} · updated ${pull.updatedAt ? new Date(pull.updatedAt).toLocaleDateString('sv-SE') : 'unknown'}`,
         source: 'github',
+        kind: 'review',
         priority: 'medium',
         href: '/dashboard/github',
         actionLabel: 'Open GitHub',
@@ -233,6 +242,7 @@ export async function getRadarSnapshot() {
           supabase.alerts[0]?.detail ??
           'Connector is configured as degraded or missing environment.',
         source: 'observability',
+        kind: 'signal',
         priority: supabase.configured ? 'medium' : 'low',
         href: '/dashboard/supabase',
         actionLabel: 'Open Supabase',
@@ -245,6 +255,7 @@ export async function getRadarSnapshot() {
         title: alert.title,
         detail: alert.detail,
         source: 'observability',
+        kind: alert.severity === 'error' ? 'review' : 'signal',
         priority: alert.severity === 'error' ? 'high' : 'medium',
         href: '/dashboard/supabase',
         actionLabel: 'Inspect',
@@ -264,6 +275,7 @@ export async function getRadarSnapshot() {
         detail:
           vercel.alerts[0]?.detail ?? 'Connector is configured as degraded or missing environment.',
         source: 'observability',
+        kind: 'signal',
         priority: vercel.configured ? 'medium' : 'low',
         href: '/dashboard/vercel',
         actionLabel: 'Open Vercel',
@@ -276,6 +288,7 @@ export async function getRadarSnapshot() {
         title: alert.title,
         detail: alert.detail,
         source: 'observability',
+        kind: alert.severity === 'error' ? 'review' : 'signal',
         priority: alert.severity === 'error' ? 'high' : 'medium',
         href: '/dashboard/vercel',
         actionLabel: 'Inspect',
@@ -292,6 +305,7 @@ export async function getRadarSnapshot() {
       title: 'Runway needs active attention',
       detail: runway.nextSevenDays[0] ?? 'Use the runway plan to pick the next income action.',
       source: 'runway',
+      kind: 'approval',
       priority: 'high',
       href: '/dashboard/runway',
       actionLabel: 'Open runway',
@@ -327,7 +341,11 @@ export async function getRadarSnapshot() {
       notifications: deduped.filter((signal) => signal.source === 'notifications').length,
       observability: deduped.filter((signal) => signal.source === 'observability').length,
       runway: deduped.filter((signal) => signal.source === 'runway').length,
-      github: deduped.filter((signal) => signal.source === 'github').length
+      github: deduped.filter((signal) => signal.source === 'github').length,
+      review: deduped.filter((signal) => signal.kind === 'review').length,
+      approvals: deduped.filter((signal) => signal.kind === 'approval').length,
+      tasksKind: deduped.filter((signal) => signal.kind === 'task').length,
+      signalsKind: deduped.filter((signal) => signal.kind === 'signal').length
     },
     signals: deduped,
     sourceErrors,
@@ -338,6 +356,7 @@ export async function getRadarSnapshot() {
         detail:
           'No high-priority signals from tasks, knowledge, notifications, observability or runway.',
         source: 'tasks' as const,
+        kind: 'signal' as const,
         priority: 'low' as const,
         href: '/dashboard/overview',
         actionLabel: 'Open cockpit'
