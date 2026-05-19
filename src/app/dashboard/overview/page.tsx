@@ -353,8 +353,8 @@ export default async function OverviewPage() {
       <div className='flex flex-1 flex-col gap-5'>
         <section className='space-y-5'>
           <div className='space-y-5'>
-            <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_450px_300px] xl:items-stretch'>
-              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
+            <div className='grid gap-4 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,450px)_minmax(240px,300px)] 2xl:items-stretch'>
+              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border bg-card p-5 text-card-foreground shadow-sm md:p-6 lg:col-span-2 2xl:col-span-1'>
                 <div>
                   <Badge
                     variant='outline'
@@ -487,7 +487,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
+              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
                 <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                   <div className='flex items-center gap-2'>
                     <div className='flex size-9 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground shadow-sm shadow-primary/20'>
@@ -536,7 +536,7 @@ export default async function OverviewPage() {
                   </p>
                 </div>
 
-                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
+                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:col-span-1'>
                   <div className='mb-4 flex items-center justify-between gap-3'>
                     <div className='flex items-center gap-3'>
                       <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
@@ -692,7 +692,7 @@ export default async function OverviewPage() {
           </div>
         </section>
 
-        <section className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>
+        <section className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6'>
           {snapshot.stats.map((stat, index) => {
             const accent = statAccents[index % statAccents.length];
             return (
@@ -726,7 +726,7 @@ export default async function OverviewPage() {
         </section>
 
         <section className='rounded-3xl border bg-card p-5 text-card-foreground shadow-sm'>
-          <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center'>
+          <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] xl:items-center'>
             <div className='space-y-2'>
               <div className='flex flex-wrap items-center gap-2'>
                 <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
@@ -771,8 +771,8 @@ export default async function OverviewPage() {
           </div>
         </section>
 
-        <section className='grid grid-cols-1 gap-4 xl:grid-cols-12'>
-          <Card className='xl:col-span-5'>
+        <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
+          <Card className='2xl:col-span-5'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -834,7 +834,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='xl:col-span-4'>
+          <Card className='2xl:col-span-4'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -879,7 +879,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='xl:col-span-3 xl:row-span-2'>
+          <Card className='2xl:col-span-3 2xl:row-span-2'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -923,7 +923,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='xl:col-span-5'>
+          <Card className='2xl:col-span-5'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -937,7 +937,7 @@ export default async function OverviewPage() {
             </CardHeader>
             <CardContent className='space-y-5'>
               <div className='rounded-2xl border border-border bg-muted/40 p-4'>
-                <div className='relative grid grid-cols-6 gap-2'>
+                <div className='relative grid grid-cols-3 gap-3 sm:grid-cols-6 sm:gap-2'>
                   <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent' />
                   {knowledgeStages.map((stage) => {
                     const count = knowledgeCounts[stage.key] ?? 0;
@@ -968,7 +968,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid grid-cols-2 gap-2 text-center text-sm md:grid-cols-3 xl:grid-cols-6'>
+              <div className='grid grid-cols-2 gap-2 text-center text-sm md:grid-cols-3 2xl:grid-cols-6'>
                 {knowledgeStages.map((stage) => (
                   <div key={stage.key} className={`rounded-xl border p-3 ${stage.card}`}>
                     <div className='text-2xl font-semibold'>{knowledgeCounts[stage.key] ?? 0}</div>
@@ -987,7 +987,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='xl:col-span-4'>
+          <Card className='2xl:col-span-4'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -1005,7 +1005,7 @@ export default async function OverviewPage() {
                   Ingen task-statusdata.
                 </div>
               ) : (
-                <div className='flex items-center gap-5'>
+                <div className='flex flex-col gap-5 sm:flex-row sm:items-center'>
                   <Donut entries={taskEntries} />
                   <div className='min-w-0 flex-1 space-y-2'>
                     {taskEntries.map(([status, count], index) => (
