@@ -678,6 +678,33 @@ export default async function KnowledgePage({
             </Card>
             <Card>
               <CardHeader>
+                <CardTitle>Session retention policy</CardTitle>
+                <CardDescription>
+                  V1-policy: extrahera först, arkivera hellre än radera, ingen automatisk hard
+                  delete.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='text-muted-foreground space-y-3 text-sm leading-6'>
+                <ul className='list-disc space-y-1 pl-4'>
+                  <li>
+                    Behåll sessioner med promoted/reviewed knowledge, audit trail eller aktivt
+                    projektvärde.
+                  </li>
+                  <li>Reviewa högsignal-sessioner innan arkiv/delete.</li>
+                  <li>Delete kräver dry-run, dependency checks och explicit confirm.</li>
+                </ul>
+                <Button asChild variant='outline' className='w-full'>
+                  <Link
+                    href='https://github.com/felipeotarola/agent-os/blob/main/docs/SESSION_RETENTION_POLICY.md'
+                    target='_blank'
+                  >
+                    Open policy
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
                 <CardTitle>Lägg till rådata</CardTitle>
                 <CardDescription>Text/URL först. Fil/PDF kommer senare.</CardDescription>
               </CardHeader>
