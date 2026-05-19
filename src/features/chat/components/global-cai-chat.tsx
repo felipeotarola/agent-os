@@ -279,7 +279,7 @@ export function GlobalCaiChat() {
         type='button'
         onClick={() => setOpen(true)}
         variant='outline'
-        className='group fixed right-4 bottom-4 z-40 size-12 rounded-full border-border bg-background/90 p-0 shadow-lg backdrop-blur transition hover:bg-primary hover:text-primary-foreground md:right-6 md:bottom-6 lg:w-auto lg:px-4'
+        className='group fixed right-2 bottom-2 z-40 size-10 rounded-full border-border bg-background/90 p-0 opacity-90 shadow-lg backdrop-blur transition hover:bg-primary hover:text-primary-foreground min-[390px]:right-3 min-[390px]:bottom-3 md:right-6 md:bottom-6 md:size-12 md:opacity-100 lg:w-auto lg:px-4'
         aria-label={`Ask Cai about ${label}`}
       >
         <Icons.sparkles className='size-4 lg:mr-2' />

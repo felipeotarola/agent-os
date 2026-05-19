@@ -351,11 +351,11 @@ export default async function OverviewPage() {
 
   return (
     <PageContainer>
-      <div className='flex flex-1 flex-col gap-5'>
-        <section className='space-y-5'>
-          <div className='space-y-5'>
-            <div className='grid gap-4 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,450px)_minmax(240px,300px)] 2xl:items-stretch'>
-              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border bg-card p-5 text-card-foreground shadow-sm md:p-6 lg:col-span-2 2xl:col-span-1'>
+      <div className='flex flex-1 flex-col gap-4 md:gap-5'>
+        <section className='space-y-4 md:space-y-5'>
+          <div className='space-y-4 md:space-y-5'>
+            <div className='grid grid-cols-[minmax(0,1fr)] gap-3 md:gap-4 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,450px)_minmax(240px,300px)] 2xl:items-stretch'>
+              <div className='mobile-feed-card flex min-h-[210px] flex-col justify-between rounded-2xl border bg-card p-5 text-card-foreground shadow-sm max-md:min-h-0 max-md:p-4 md:p-6 lg:col-span-2 2xl:col-span-1'>
                 <div>
                   <Badge
                     variant='outline'
@@ -364,11 +364,11 @@ export default async function OverviewPage() {
                     <StatusDot ok={snapshot.dbOnline} /> live cockpit
                   </Badge>
 
-                  <div className='mt-7'>
-                    <h1 className='text-4xl font-semibold tracking-tight text-foreground md:text-5xl'>
-                      Welcome Felipe 👋
+                  <div className='mt-5 md:mt-7'>
+                    <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
+                      Welcome Felipe
                     </h1>
-                    <div className='mt-2 text-2xl font-medium text-card-foreground md:text-3xl'>
+                    <div className='mt-2 text-xl font-medium text-card-foreground md:text-3xl'>
                       {stockholmDate(liveAt)}
                     </div>
                     <div className='mt-3 text-sm text-muted-foreground'>
@@ -377,26 +377,26 @@ export default async function OverviewPage() {
                   </div>
                 </div>
 
-                <div className='mt-6 flex flex-wrap items-center gap-3 text-xs'>
+                <div className='mt-5 flex max-w-full flex-col items-start gap-2 text-xs min-[390px]:flex-row min-[390px]:flex-wrap md:mt-6 md:gap-3'>
                   <span className='text-muted-foreground'>Cai has your daily cockpit ready</span>
                   <Badge
                     variant='outline'
-                    className='border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
+                    className='max-w-full truncate border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
                   >
                     ◎ Memory healthy
                   </Badge>
                   <Badge
                     variant='outline'
-                    className='border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
+                    className='max-w-full truncate border-border bg-muted/40 px-3 py-1.5 text-card-foreground'
                   >
                     ↝ {activeRunLabel}
                   </Badge>
                 </div>
               </div>
 
-              <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
-                <div className='mb-4 flex items-center justify-between gap-3'>
-                  <div>
+              <div className='mobile-feed-card rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
+                <div className='mb-4 flex items-start justify-between gap-3'>
+                  <div className='min-w-0'>
                     <div className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>
                       Resume
                     </div>
@@ -417,20 +417,20 @@ export default async function OverviewPage() {
                     <Link
                       key={item.label}
                       href={item.href}
-                      className='group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
                     >
-                      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
+                      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground min-[390px]:size-9'>
                         {item.icon}
                       </span>
                       <span className='min-w-0 flex-1'>
                         <span className='text-muted-foreground block text-[10px] uppercase tracking-wide'>
                           {item.label}
                         </span>
-                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
+                        <span className='mt-0.5 block line-clamp-2 text-sm font-medium text-card-foreground min-[390px]:truncate'>
                           {item.value}
                         </span>
                       </span>
-                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                      <span className='hidden text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary min-[390px]:inline'>
                         →
                       </span>
                     </Link>
@@ -438,7 +438,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
+              <div className='mobile-feed-card rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                 <div className='text-muted-foreground grid h-full content-center gap-4 text-sm'>
                   <div className='flex items-center gap-3'>
                     <StatusDot ok={snapshot.dbOnline} />
@@ -460,18 +460,18 @@ export default async function OverviewPage() {
               </div>
             </div>
 
-            <div className='rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
+            <div className='mobile-feed-section rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
                 <div className='flex items-start gap-4'>
-                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-3xl shadow-sm'>
-                    🤖
+                  <div className='flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-2xl shadow-sm max-md:shadow-none md:size-14 md:text-3xl'>
+                    ⚛
                   </div>
                   <div>
                     <div className='flex flex-wrap items-center gap-2'>
                       <h2 className='text-2xl font-semibold tracking-tight text-foreground'>
                         Cai Briefing
                       </h2>
-                      <span className='text-xl'>✨</span>
+                      <span className='text-xl'>✦</span>
                     </div>
                     <p className='mt-1 text-sm text-muted-foreground'>
                       Nyheter, bitcoin och signaler Cai håller koll på åt dig.
@@ -479,7 +479,7 @@ export default async function OverviewPage() {
                   </div>
                 </div>
 
-                <div className='text-muted-foreground flex flex-wrap items-center gap-3 text-xs'>
+                <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs md:gap-3'>
                   <span>Senast uppdaterad {stockholmTime(liveAt).replace(' CEST', '')}</span>
                   <span className='hidden text-border md:inline'>•</span>
                   <span>Morgon 08:15 · dispatch 08:30 · kväll 19:45/20:30</span>
@@ -488,8 +488,8 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[minmax(250px,0.9fr)_minmax(0,1.25fr)_minmax(0,1fr)_290px]'>
-                <div className='order-4 rounded-2xl border bg-card/80 p-4 text-card-foreground shadow-sm 2xl:order-1'>
+              <div className='grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 md:gap-4 2xl:grid-cols-[minmax(250px,0.9fr)_minmax(0,1.25fr)_minmax(0,1fr)_290px]'>
+                <div className='mobile-feed-card order-4 rounded-2xl border bg-card/80 p-4 text-card-foreground shadow-sm 2xl:order-1'>
                   <div className='flex items-center justify-between gap-2'>
                     <div className='flex items-center gap-2'>
                       <div className='flex size-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-sm text-muted-foreground'>
@@ -518,7 +518,7 @@ export default async function OverviewPage() {
                     {percent(bitcoinChange)} 24h
                   </div>
 
-                  <div className='mt-4 rounded-2xl border bg-background/45 px-3 py-2'>
+                  <div className='mobile-chart-shell mt-4 rounded-2xl border bg-background/45 px-3 py-2'>
                     <div className='mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>
                       <span>BTC trend</span>
                       <span>24h</span>
@@ -553,7 +553,7 @@ export default async function OverviewPage() {
                             href={item.url}
                             target='_blank'
                             rel='noreferrer'
-                            className='group block rounded-xl border bg-background/35 px-3 py-2 transition hover:border-primary/40 hover:bg-muted/40'
+                            className='mobile-feed-row group block rounded-xl border bg-background/35 px-3 py-2 transition hover:border-primary/40 hover:bg-muted/40'
                           >
                             <div className='line-clamp-2 text-xs font-medium leading-5 text-card-foreground group-hover:text-primary'>
                               {item.title}
@@ -568,15 +568,18 @@ export default async function OverviewPage() {
                   </div>
                 </div>
 
-                <div className='order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
-                  <div className='mb-4 flex items-center justify-between gap-3'>
+                <div className='mobile-feed-card order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
+                  <div className='mb-4 flex flex-col items-start gap-2 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between min-[390px]:gap-3'>
                     <div className='flex items-center gap-3'>
                       <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
                         ▣
                       </div>
                       <div className='font-semibold text-foreground'>Dagens nyheter</div>
                     </div>
-                    <Badge variant='outline' className='border-border bg-background/45 text-[10px]'>
+                    <Badge
+                      variant='outline'
+                      className='max-w-full border-border bg-background/45 text-[10px]'
+                    >
                       {briefing.news.source}
                     </Badge>
                   </div>
@@ -593,9 +596,9 @@ export default async function OverviewPage() {
                           href={item.url}
                           target='_blank'
                           rel='noreferrer'
-                          className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
+                          className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0 max-md:py-3.5'
                         >
-                          <div className='relative size-14 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/60'>
+                          <div className='relative size-12 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/60 min-[390px]:size-14'>
                             {item.imageUrl ? (
                               <div
                                 aria-hidden='true'
@@ -649,7 +652,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='order-2 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-3'>
+                <div className='mobile-feed-card order-2 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-3'>
                   <div className='mb-3 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-lg text-card-foreground'>
                       〽
@@ -696,7 +699,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='order-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-4'>
+                <div className='mobile-feed-card order-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-4'>
                   <div className='mb-4 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                       ✉
@@ -704,7 +707,7 @@ export default async function OverviewPage() {
                     <div className='font-semibold text-foreground'>Senaste Cai-meddelande</div>
                   </div>
 
-                  <div className='rounded-2xl border border-border bg-muted/25 p-4'>
+                  <div className='mobile-soft-shell rounded-2xl border border-border bg-muted/25 p-4'>
                     <p className='whitespace-pre-line text-[15px] leading-7 text-card-foreground/90'>
                       {latestCaiMessage}
                     </p>
@@ -727,14 +730,17 @@ export default async function OverviewPage() {
           </div>
         </section>
 
-        <section className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6'>
+        <section className='grid grid-cols-2 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 2xl:grid-cols-6'>
           {snapshot.stats.map((stat, index) => {
             const accent = statAccents[index % statAccents.length];
             return (
-              <Card key={stat.label} className={`overflow-hidden border ${accent.classes}`}>
-                <CardContent className='p-4'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div className='rounded-xl border border-white/10 bg-background/50 px-2.5 py-1.5 text-sm'>
+              <Card
+                key={stat.label}
+                className={`mobile-compact-stat overflow-hidden border ${accent.classes}`}
+              >
+                <CardContent className='p-3 md:p-4'>
+                  <div className='flex items-start justify-between gap-2 md:gap-3'>
+                    <div className='rounded-xl border border-white/10 bg-background/50 px-2 py-1 text-xs md:px-2.5 md:py-1.5 md:text-sm'>
                       {accent.icon}
                     </div>
                     <Badge
@@ -744,14 +750,16 @@ export default async function OverviewPage() {
                       {stat.tone}
                     </Badge>
                   </div>
-                  <div className='mt-4 text-muted-foreground text-xs'>{stat.label}</div>
-                  <div className='mt-1 text-3xl font-semibold text-card-foreground'>
+                  <div className='mt-3 text-muted-foreground text-[11px] md:mt-4 md:text-xs'>
+                    {stat.label}
+                  </div>
+                  <div className='mt-1 text-2xl font-semibold text-card-foreground md:text-3xl'>
                     {stat.value}
                   </div>
-                  <div className='text-muted-foreground mt-2 line-clamp-2 min-h-8 text-xs'>
+                  <div className='text-muted-foreground mt-1 line-clamp-2 min-h-7 text-[11px] md:mt-2 md:min-h-8 md:text-xs'>
                     {stat.detail}
                   </div>
-                  <div className='mt-2'>
+                  <div className='mt-1.5 md:mt-2'>
                     <MiniSpark color={accent.color} />
                   </div>
                 </CardContent>
@@ -760,7 +768,7 @@ export default async function OverviewPage() {
           })}
         </section>
 
-        <section className='rounded-3xl border bg-card p-5 text-card-foreground shadow-sm'>
+        <section className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm md:p-5'>
           <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] xl:items-center'>
             <div className='space-y-2'>
               <div className='flex flex-wrap items-center gap-2'>
@@ -783,7 +791,7 @@ export default async function OverviewPage() {
               </p>
             </div>
             <div className='grid gap-2 sm:grid-cols-3'>
-              <div className='rounded-xl border border-border bg-muted/40 p-3'>
+              <div className='mobile-feed-row rounded-xl border border-border bg-muted/40 p-3'>
                 <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
                   Source
                 </div>
@@ -791,7 +799,7 @@ export default async function OverviewPage() {
                   {subagents?.source ?? 'missing'}
                 </div>
               </div>
-              <div className='rounded-xl border border-border bg-muted/40 p-3'>
+              <div className='mobile-feed-row rounded-xl border border-border bg-muted/40 p-3'>
                 <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
                   Heartbeat
                 </div>
@@ -807,7 +815,7 @@ export default async function OverviewPage() {
         </section>
 
         <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
-          <Card className='2xl:col-span-5'>
+          <Card className='mobile-feed-card 2xl:col-span-5'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -831,7 +839,7 @@ export default async function OverviewPage() {
                   return (
                     <div
                       key={`${task.title}-${task.status}`}
-                      className='rounded-xl border bg-background/40 p-3'
+                      className='mobile-feed-row rounded-xl border bg-background/40 p-3'
                     >
                       <div className='flex gap-3'>
                         <div
@@ -850,7 +858,7 @@ export default async function OverviewPage() {
                             {task.detail}
                           </div>
                           {rawData ? (
-                            <div className='mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground'>
+                            <div className='mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground max-md:border-0 max-md:bg-transparent max-md:px-0'>
                               rådata · {rawData}
                             </div>
                           ) : null}
@@ -869,7 +877,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='2xl:col-span-4'>
+          <Card className='mobile-feed-card 2xl:col-span-4'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -888,7 +896,10 @@ export default async function OverviewPage() {
                 </div>
               ) : (
                 snapshot.agents.slice(0, 5).map((agent, index) => (
-                  <div key={agent.name} className='rounded-xl border bg-background/40 p-3'>
+                  <div
+                    key={agent.name}
+                    className='mobile-feed-row rounded-xl border bg-background/40 p-3'
+                  >
                     <div className='flex items-start justify-between gap-3'>
                       <div className='flex min-w-0 gap-3'>
                         <div
@@ -914,7 +925,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='2xl:col-span-3 2xl:row-span-2'>
+          <Card className='mobile-feed-card 2xl:col-span-3 2xl:row-span-2'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -958,7 +969,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='2xl:col-span-5'>
+          <Card className='mobile-feed-card 2xl:col-span-5'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -971,7 +982,7 @@ export default async function OverviewPage() {
               </div>
             </CardHeader>
             <CardContent className='space-y-5'>
-              <div className='rounded-2xl border border-border bg-muted/40 p-4'>
+              <div className='mobile-chart-shell rounded-2xl border border-border bg-muted/40 p-4'>
                 <div className='relative grid grid-cols-3 gap-3 sm:grid-cols-6 sm:gap-2'>
                   <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent' />
                   {knowledgeStages.map((stage) => {
@@ -1003,10 +1014,15 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid grid-cols-2 gap-2 text-center text-sm md:grid-cols-3 2xl:grid-cols-6'>
+              <div className='grid grid-cols-3 gap-2 text-center text-sm md:grid-cols-3 2xl:grid-cols-6'>
                 {knowledgeStages.map((stage) => (
-                  <div key={stage.key} className={`rounded-xl border p-3 ${stage.card}`}>
-                    <div className='text-2xl font-semibold'>{knowledgeCounts[stage.key] ?? 0}</div>
+                  <div
+                    key={stage.key}
+                    className={`mobile-compact-stat rounded-xl border p-2 md:p-3 ${stage.card}`}
+                  >
+                    <div className='text-xl font-semibold md:text-2xl'>
+                      {knowledgeCounts[stage.key] ?? 0}
+                    </div>
                     <div className='mt-1 text-[11px]'>{stage.label}</div>
                   </div>
                 ))}
@@ -1022,7 +1038,7 @@ export default async function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card className='2xl:col-span-4'>
+          <Card className='mobile-feed-card 2xl:col-span-4'>
             <CardHeader className='pb-3'>
               <div className='flex items-start justify-between gap-3'>
                 <div>
@@ -1062,7 +1078,7 @@ export default async function OverviewPage() {
           </Card>
         </section>
 
-        <section className='flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
+        <section className='mobile-feed-card flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
           <div className='flex flex-wrap items-center gap-3'>
             <span className='flex items-center gap-1.5'>
               <StatusDot ok={snapshot.dbOnline} /> db
