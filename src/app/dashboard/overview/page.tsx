@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
 import { Progress } from '@/components/ui/progress';
+import { getCalendarSignals, type CalendarSignalSnapshot } from '@/db/external-signals';
 import { getActionCenterSnapshot, type ActionCenterItem } from '@/lib/action-center';
 import { getCaiBriefing } from '@/lib/briefing';
 import Link from 'next/link';
@@ -171,6 +172,169 @@ function taskProgress(status: string) {
   if (status === 'waiting') return 34;
   if (status === 'backlog') return 12;
   return 25;
+}
+
+function eventTimeLabel(value?: string | null) {
+  if (!value) return 'TBD';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'TBD';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function weekdayShort(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    weekday: 'short'
+  }).format(value);
+}
+
+function dayNumber(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    day: '2-digit'
+  }).format(value);
+}
+
+function sameStockholmDay(a: Date, b: Date) {
+  return (
+    new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short' }).format(
+      a
+    ) ===
+    new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short' }).format(b)
+  );
+}
+
+function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }) {
+  const now = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now);
+    date.setDate(now.getDate() + index);
+    const count = calendar.events.filter((event) =>
+      sameStockholmDay(new Date(event.start), date)
+    ).length;
+    return { date, count };
+  });
+  const upcoming = calendar.events
+    .filter((event) => {
+      const start = new Date(event.start).getTime();
+      return Number.isFinite(start) && start >= Date.now() - 60 * 60 * 1000;
+    })
+    .slice(0, 4);
+  const next = upcoming[0];
+
+  return (
+    <section className='mobile-feed-card overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-sm'>
+      <div className='grid gap-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]'>
+        <div className='relative border-b bg-muted/25 p-5 lg:border-r lg:border-b-0 md:p-6'>
+          <div className='flex items-start justify-between gap-3'>
+            <div>
+              <div className='text-muted-foreground text-xs uppercase tracking-[0.22em]'>
+                Calendar
+              </div>
+              <h2 className='mt-2 text-2xl font-semibold tracking-tight'>
+                {calendar.connected ? 'Upcoming schedule' : 'Calendar needs attention'}
+              </h2>
+            </div>
+            <Badge variant={calendar.connected ? 'default' : 'outline'}>
+              {calendar.connected ? `${calendar.counts.next24h} next 24h` : 'degraded'}
+            </Badge>
+          </div>
+
+          <div className='mt-5 grid grid-cols-7 gap-1.5'>
+            {days.map((day, index) => (
+              <div
+                key={day.date.toISOString()}
+                className={`rounded-2xl border px-2 py-3 text-center ${
+                  index === 0 ? 'border-primary/40 bg-primary/10' : 'bg-background/45'
+                }`}
+              >
+                <div className='text-muted-foreground text-[10px] uppercase'>
+                  {weekdayShort(day.date)}
+                </div>
+                <div className='mt-1 text-lg font-semibold'>{dayNumber(day.date)}</div>
+                <div className='mt-1 flex justify-center gap-0.5'>
+                  {Array.from({ length: Math.min(day.count, 3) }, (_, dot) => (
+                    <span key={dot} className='size-1 rounded-full bg-primary' />
+                  ))}
+                  {day.count === 0 && (
+                    <span className='size-1 rounded-full bg-muted-foreground/30' />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className='mt-5 rounded-2xl border bg-background/45 p-4'>
+            <div className='text-muted-foreground text-[10px] uppercase tracking-[0.18em]'>
+              Next event
+            </div>
+            {next ? (
+              <>
+                <div className='mt-2 line-clamp-2 text-lg font-semibold'>{next.title}</div>
+                <div className='text-muted-foreground mt-1 text-sm'>
+                  {eventTimeLabel(next.start)}–{eventTimeLabel(next.end)} · {next.attendees}{' '}
+                  attendees
+                </div>
+              </>
+            ) : (
+              <div className='text-muted-foreground mt-2 text-sm'>
+                No upcoming events in this window.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className='p-4 md:p-5'>
+          <div className='mb-4 flex items-center justify-between gap-3'>
+            <div className='font-semibold'>Today / next up</div>
+            <Badge variant='outline' className='border-border bg-muted/30'>
+              {calendar.source}
+            </Badge>
+          </div>
+          {upcoming.length === 0 ? (
+            <div className='text-muted-foreground rounded-2xl border border-dashed p-5 text-sm'>
+              {calendar.connected
+                ? 'No calendar events coming up.'
+                : (calendar.alerts[0]?.detail ?? 'Calendar connector is degraded.')}
+            </div>
+          ) : (
+            <div className='space-y-2'>
+              {upcoming.map((event) => (
+                <a
+                  key={event.id}
+                  href={event.htmlLink ?? 'https://calendar.google.com/calendar/u/0/r'}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='mobile-feed-row group flex gap-3 rounded-2xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                >
+                  <div className='flex w-16 shrink-0 flex-col items-center justify-center rounded-xl border bg-muted/40 px-2 py-2 text-center'>
+                    <span className='text-lg font-semibold'>{eventTimeLabel(event.start)}</span>
+                    <span className='text-muted-foreground text-[10px]'>STHLM</span>
+                  </div>
+                  <div className='min-w-0 flex-1'>
+                    <div className='line-clamp-1 font-medium group-hover:text-primary'>
+                      {event.title}
+                    </div>
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      {event.status} · {event.attendees} attendees
+                      {event.hangoutLink ? ' · Meet ready' : ''}
+                    </div>
+                  </div>
+                  <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                    →
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function taskRawData(task: {
@@ -367,7 +531,11 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 }
 
 export default async function OverviewPage() {
-  const [briefing, actionCenter] = await Promise.all([getCaiBriefing(), getActionCenterSnapshot()]);
+  const [briefing, actionCenter, calendar] = await Promise.all([
+    getCaiBriefing(),
+    getActionCenterSnapshot(),
+    getCalendarSignals()
+  ]);
   const snapshot = briefing.cockpit;
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
   const knowledgeCounts = knowledge as Record<string, number>;
@@ -561,6 +729,8 @@ export default async function OverviewPage() {
             </div>
 
             <ActionCenterPriorityCard item={nextAction} counts={actionCenter.counts} />
+
+            <CalendarOverviewCard calendar={calendar} />
 
             <div className='mobile-feed-section rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
