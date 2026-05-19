@@ -11,6 +11,7 @@ import {
   IconBrandVercel,
   IconBrightness,
   IconCalendar,
+  IconCash,
   IconCheck,
   IconChecks,
   IconChevronDown,
@@ -190,6 +191,7 @@ export const Icons = {
 
   // Commerce / Plans
   billing: IconCreditCard,
+  cash: IconCash,
   creditCard: IconCreditCard,
   product: IconBox,
   pro: IconCrown,
