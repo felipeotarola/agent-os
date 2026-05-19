@@ -74,7 +74,7 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
           nextColumns[column] = nextColumns[column].filter((task) => task.id !== updatedTask.id);
         }
         const status = orderedColumns.includes(updatedTask.status) ? updatedTask.status : 'backlog';
-        nextColumns[status] = [...(nextColumns[status] ?? []), updatedTask].sort(
+        nextColumns[status] = [...(nextColumns[status] ?? []), updatedTask].toSorted(
           (a, b) => (a.position ?? 0) - (b.position ?? 0)
         );
         return nextColumns;

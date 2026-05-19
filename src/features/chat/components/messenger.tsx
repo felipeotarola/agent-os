@@ -22,7 +22,7 @@ const agentById = Object.fromEntries(chatAgents.map((agent) => [agent.id, agent]
   (typeof chatAgents)[number]
 >;
 
-const historyPollDelaysMs = [900, 1800, 3200, 5200, 8000];
+const historyReconcileDelayMs = 12_000;
 
 function extractAssistantMessage(payload: unknown): ChatMessage | null {
   if (isRecord(payload)) {
@@ -233,15 +233,11 @@ export function Messenger() {
           }
         );
 
-        for (const delayMs of historyPollDelaysMs) {
-          await delay(delayMs);
-          const history = await loadHistory(agentId);
-          const hasFreshAssistant = history.some(
-            (message) =>
-              message.role === 'assistant' && new Date(message.createdAt).getTime() >= submittedAt
-          );
-          if (hasFreshAssistant) break;
-        }
+        void delay(historyReconcileDelayMs)
+          .then(() => loadHistory(agentId))
+          .catch(() => {
+            // Gateway SSE is the primary path; this is only a quiet stale-tab reconciliation.
+          });
       } catch (sendError) {
         replaceMessage(agentId, optimisticId, {
           ...optimisticMessage,

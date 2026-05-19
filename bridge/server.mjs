@@ -2396,5 +2396,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Agent OS bridge listening on ${port}`);
+  console.warn(`Agent OS bridge listening on ${port}`);
 });
