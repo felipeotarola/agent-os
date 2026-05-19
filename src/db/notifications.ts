@@ -34,3 +34,8 @@ export async function getNotifications(): Promise<NotificationSnapshot> {
     return emptySnapshot;
   }
 }
+
+export async function getNotificationById(id: string): Promise<CockpitNotification | null> {
+  const snapshot = await getNotifications();
+  return snapshot.notifications.find((notification) => notification.id === id) ?? null;
+}

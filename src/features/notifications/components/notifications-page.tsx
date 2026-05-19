@@ -26,6 +26,7 @@ function renderList(items: CockpitNotification[]) {
           status={notification.status}
           createdAt={notification.createdAt}
           actions={notification.actions}
+          detailHref={`/dashboard/notifications/${encodeURIComponent(notification.id)}`}
         />
       ))}
     </div>

@@ -28,6 +28,7 @@ export interface NotificationCardProps {
   onMarkAsRead?: (id: string) => void;
   onAction?: (notificationId: string, actionId: string, actionType: ActionType) => void;
   loadingActionId?: string;
+  detailHref?: string;
   className?: string;
 }
 
@@ -86,6 +87,7 @@ export const NotificationCard: FC<NotificationCardProps> = ({
   onMarkAsRead,
   onAction,
   loadingActionId,
+  detailHref,
   className
 }) => {
   const isUnread = status === 'unread';
@@ -104,14 +106,26 @@ export const NotificationCard: FC<NotificationCardProps> = ({
           <div className='min-w-0 flex-1 space-y-1'>
             {/* Title with unread indicator */}
             <div className='flex items-center gap-2'>
-              <h3
-                className={cn(
-                  'text-[15px] leading-tight font-semibold',
-                  isUnread ? 'text-foreground' : 'text-muted-foreground'
-                )}
-              >
-                {title}
-              </h3>
+              {detailHref ? (
+                <Link
+                  href={detailHref}
+                  className={cn(
+                    'text-[15px] leading-tight font-semibold hover:underline',
+                    isUnread ? 'text-foreground' : 'text-muted-foreground'
+                  )}
+                >
+                  {title}
+                </Link>
+              ) : (
+                <h3
+                  className={cn(
+                    'text-[15px] leading-tight font-semibold',
+                    isUnread ? 'text-foreground' : 'text-muted-foreground'
+                  )}
+                >
+                  {title}
+                </h3>
+              )}
               {isUnread && <div className='h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sky-500' />}
             </div>
 
@@ -146,6 +160,15 @@ export const NotificationCard: FC<NotificationCardProps> = ({
           {/* Actions */}
           {actions.length > 0 && (
             <div className={cn('flex flex-wrap items-center gap-2', !isUnread && 'opacity-60')}>
+              {detailHref && (
+                <Link
+                  href={detailHref}
+                  className='flex items-center gap-1.5 rounded-lg bg-accent px-4 py-1.5 text-xs font-normal text-muted-foreground transition hover:bg-accent hover:text-foreground'
+                >
+                  <span>Details</span>
+                  <Icons.chevronRight size={12} strokeWidth={2.5} />
+                </Link>
+              )}
               {actions.map((action) => {
                 const isLoading = loadingActionId === action.id;
                 const isExecuted = action.executed || false;

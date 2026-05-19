@@ -99,6 +99,7 @@ export function NotificationCenter() {
                   status={notification.status}
                   createdAt={notification.createdAt}
                   actions={notification.actions}
+                  detailHref={`/dashboard/notifications/${encodeURIComponent(notification.id)}`}
                   onMarkAsRead={markAsRead}
                   onAction={(notifId, actionId) => {
                     markAsRead(notifId);
