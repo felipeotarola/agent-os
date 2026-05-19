@@ -96,6 +96,10 @@ function mergeGlobalMessages(current: ChatMessage[], incoming: ChatMessage) {
   return [...current.filter((item) => !(item.pending && visible.role === 'assistant')), visible];
 }
 
+function mergeHistoryWithLocal(history: ChatMessage[], local: ChatMessage[]) {
+  return local.reduce((merged, message) => mergeGlobalMessages(merged, message), history);
+}
+
 function extractAssistantMessage(payload: unknown): ChatMessage | null {
   if (isRecord(payload)) {
     const direct = normalizeMessage(payload, 0);
@@ -152,7 +156,11 @@ export function GlobalCaiChat() {
     setIsLoading(true);
     fetchCaiHistory()
       .then((history) => {
-        if (!ignore) setMessages(history);
+        if (!ignore) {
+          setMessages((current) =>
+            current.length ? mergeHistoryWithLocal(history, current) : history
+          );
+        }
       })
       .catch(() => {
         if (!ignore) setError('Could not load Cai history. You can still send a message.');
@@ -202,14 +210,21 @@ export function GlobalCaiChat() {
         role: 'user',
         content,
         createdAt: new Date(submittedAt).toISOString(),
-        parts: [{ type: 'text', text: content }],
+        parts: [{ type: 'text', text: content }]
+      };
+      const thinkingMessage: ChatMessage = {
+        id: `global-cai-thinking-${submittedAt}`,
+        role: 'assistant',
+        content: 'Cai tänker…',
+        createdAt: new Date(submittedAt + 1).toISOString(),
+        parts: [{ type: 'text', text: 'Cai tänker…' }],
         pending: true
       };
 
       setDraft('');
       setError(null);
       setIsSending(true);
-      setMessages((current) => [...current, userMessage]);
+      setMessages((current) => [...current, userMessage, thinkingMessage]);
 
       try {
         const response = await fetch('/api/chat/send', {
@@ -233,16 +248,16 @@ export function GlobalCaiChat() {
         const payload = await response.json();
         const assistant = extractAssistantMessage(payload);
         setMessages((current) => {
-          const updated = current.map((item) =>
-            item.id === userMessage.id ? { ...item, pending: false } : item
-          );
+          const updated = assistant
+            ? current.filter((item) => item.id !== thinkingMessage.id)
+            : current;
           return assistant ? mergeGlobalMessages(updated, assistant) : updated;
         });
       } catch (sendError) {
         setMessages((current) =>
-          current.map((item) =>
-            item.id === userMessage.id ? { ...item, pending: false, error: true } : item
-          )
+          current
+            .filter((item) => item.id !== thinkingMessage.id)
+            .map((item) => (item.id === userMessage.id ? { ...item, error: true } : item))
         );
         setError(sendError instanceof Error ? sendError.message : 'Could not send message.');
       } finally {
@@ -282,9 +297,9 @@ export function GlobalCaiChat() {
 
           <div ref={scrollRef} className='min-h-0 flex-1 overflow-y-auto px-4 py-4'>
             <div className='flex flex-col gap-3'>
-              {isLoading ? (
-                <div className='text-muted-foreground rounded-2xl border border-dashed p-4 text-sm'>
-                  Loading Cai history…
+              {isLoading && messages.length === 0 ? (
+                <div className='text-muted-foreground rounded-2xl border border-dashed px-4 py-3 text-sm'>
+                  Synkar tidigare Cai-meddelanden…
                 </div>
               ) : null}
               {messages.length === 0 && !isLoading ? (
