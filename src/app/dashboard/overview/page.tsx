@@ -351,16 +351,10 @@ export default async function OverviewPage() {
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-5'>
-        <section className='overview-cockpit relative overflow-hidden rounded-3xl border border-border p-4 text-card-foreground md:p-5'>
-          <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent' />
-          <div className='absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent' />
-          <div className='absolute -left-24 top-10 size-72 rounded-full bg-primary/10 blur-3xl' />
-          <div className='absolute -right-24 top-0 size-80 rounded-full bg-accent/20 blur-3xl' />
-          <div className='absolute -right-20 bottom-0 size-72 rounded-full bg-chart-3/10 blur-3xl' />
-
-          <div className='relative z-10 space-y-5'>
+        <section className='space-y-5'>
+          <div className='space-y-5'>
             <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_450px_300px] xl:items-stretch'>
-              <div className='overview-cockpit-panel flex min-h-[210px] flex-col justify-between rounded-2xl border p-5 shadow-inner md:p-6'>
+              <div className='flex min-h-[210px] flex-col justify-between rounded-2xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
                 <div>
                   <Badge
                     variant='outline'
@@ -399,7 +393,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-lg backdrop-blur'>
+              <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                 <div className='mb-4 flex items-center justify-between gap-3'>
                   <div>
                     <div className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>
@@ -443,7 +437,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-lg backdrop-blur'>
+              <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                 <div className='text-muted-foreground grid h-full content-center gap-4 text-sm'>
                   <div className='flex items-center gap-3'>
                     <StatusDot ok={snapshot.dbOnline} />
@@ -465,10 +459,10 @@ export default async function OverviewPage() {
               </div>
             </div>
 
-            <div className='overview-cockpit-subpanel rounded-3xl border p-4 shadow-inner'>
+            <div className='rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
                 <div className='flex items-start gap-4'>
-                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-3xl shadow-lg'>
+                  <div className='flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-3xl shadow-sm'>
                     🤖
                   </div>
                   <div>
@@ -494,9 +488,9 @@ export default async function OverviewPage() {
               </div>
 
               <div className='grid gap-4 xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
+                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                   <div className='flex items-center gap-2'>
-                    <div className='flex size-9 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground shadow-lg shadow-primary/20'>
+                    <div className='flex size-9 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground shadow-sm shadow-primary/20'>
                       ₿
                     </div>
                     <div className='font-semibold text-foreground'>Bitcoin</div>
@@ -542,7 +536,7 @@ export default async function OverviewPage() {
                   </p>
                 </div>
 
-                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
+                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                   <div className='mb-4 flex items-center justify-between gap-3'>
                     <div className='flex items-center gap-3'>
                       <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
@@ -623,7 +617,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
+                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                   <div className='mb-3 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-lg text-card-foreground'>
                       〽
@@ -670,7 +664,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='overview-cockpit-panel rounded-2xl border p-4 shadow-inner'>
+                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
                   <div className='mb-4 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                       ✉
