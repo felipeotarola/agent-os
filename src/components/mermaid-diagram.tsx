@@ -18,18 +18,19 @@ export function MermaidDiagram({ chart, title }: MermaidDiagramProps) {
     async function renderDiagram() {
       try {
         const mermaid = (await import('mermaid')).default;
+        const isDark = document.documentElement.classList.contains('dark');
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
           theme: 'base',
           themeVariables: {
-            background: 'transparent',
-            primaryColor: 'hsl(var(--card))',
-            primaryTextColor: 'hsl(var(--card-foreground))',
-            primaryBorderColor: 'hsl(var(--border))',
-            lineColor: 'hsl(var(--muted-foreground))',
-            secondaryColor: 'hsl(var(--muted))',
-            tertiaryColor: 'hsl(var(--background))',
+            background: isDark ? '#111827' : '#ffffff',
+            primaryColor: isDark ? '#111827' : '#ffffff',
+            primaryTextColor: isDark ? '#f9fafb' : '#111827',
+            primaryBorderColor: isDark ? '#374151' : '#d1d5db',
+            lineColor: isDark ? '#9ca3af' : '#6b7280',
+            secondaryColor: isDark ? '#1f2937' : '#f3f4f6',
+            tertiaryColor: isDark ? '#030712' : '#f9fafb',
             fontFamily: 'inherit'
           }
         });

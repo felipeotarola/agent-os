@@ -8,36 +8,36 @@ export const metadata = {
 };
 
 const runtimeDiagram = `flowchart LR
-  Felipe[Felipe / Telegram / Web UI] --> AgentOS[Agent OS Dashboard<br/>Next.js App]
-  AgentOS --> API[Next.js API Routes<br/>/api/*]
-  AgentOS --> ServerHelpers[Server Helpers<br/>src/db + src/lib]
-  API --> Bridge[Agent OS Bridge<br/>bridge/server.mjs]
+  Felipe["Felipe / Telegram / Web UI"] --> AgentOS["Agent OS Dashboard<br/>Next.js App"]
+  AgentOS --> API["Next.js API Routes<br/>/api/*"]
+  AgentOS --> ServerHelpers["Server Helpers<br/>src/db + src/lib"]
+  API --> Bridge["Agent OS Bridge<br/>bridge/server.mjs"]
   ServerHelpers --> Bridge
-  Bridge --> Postgres[(Postgres<br/>Tasks · Knowledge · Events · Radar state)]
-  Bridge --> OpenClaw[OpenClaw Gateway<br/>WebSocket RPC + CLI fallback]
-  Bridge --> Gog[gog CLI<br/>Gmail + Calendar readonly]
-  Bridge --> GitHub[GitHub REST API<br/>readonly token]
-  Bridge --> Vercel[Vercel API<br/>readonly token]
-  Bridge --> Supabase[Supabase API<br/>readonly token]
-  OpenClaw --> Agents[Cai · Charles · Sladdis<br/>Subagents / sessions]
-  Agents --> Memory[OpenClaw Memory / QMD<br/>Long-term + session chunks]`;
+  Bridge --> Postgres[("Postgres<br/>Tasks · Knowledge · Events · Radar state")]
+  Bridge --> OpenClaw["OpenClaw Gateway<br/>WebSocket RPC + CLI fallback"]
+  Bridge --> Gog["gog CLI<br/>Gmail + Calendar readonly"]
+  Bridge --> GitHub["GitHub REST API<br/>readonly token"]
+  Bridge --> Vercel["Vercel API<br/>readonly token"]
+  Bridge --> Supabase["Supabase API<br/>readonly token"]
+  OpenClaw --> Agents["Cai · Charles · Sladdis<br/>Subagents / sessions"]
+  Agents --> Memory["OpenClaw Memory / QMD<br/>Long-term + session chunks"]`;
 
 const signalDiagram = `flowchart TD
-  Gmail[Gmail Radar] --> Radar[Inbox Radar<br/>src/lib/radar.ts]
-  Calendar[Calendar Snapshot] --> Radar
-  GitHub[GitHub Signals] --> Radar
-  Vercel[Vercel Observability] --> Radar
-  Supabase[Supabase Observability] --> Radar
-  Tasks[Task Board + Dispatch] --> Radar
-  Knowledge[Knowledge Inbox] --> Radar
-  Runway[Life OS Runway] --> Radar
-  Notifications[Notifications] --> Radar
-  Radar --> Overview[Overview Cockpit]
-  Radar --> ActionCenter[Action Center]
-  Radar --> UserDecision{Felipe decides}
-  UserDecision --> CreateTask[Create internal task]
-  UserDecision --> Snooze[Snooze / handled]
-  UserDecision --> OpenSource[Open source page]`;
+  Gmail["Gmail Radar"] --> Radar["Inbox Radar<br/>src/lib/radar.ts"]
+  Calendar["Calendar Snapshot"] --> Radar
+  GitHub["GitHub Signals"] --> Radar
+  Vercel["Vercel Observability"] --> Radar
+  Supabase["Supabase Observability"] --> Radar
+  Tasks["Task Board + Dispatch"] --> Radar
+  Knowledge["Knowledge Inbox"] --> Radar
+  Runway["Life OS Runway"] --> Radar
+  Notifications["Notifications"] --> Radar
+  Radar --> Overview["Overview Cockpit"]
+  Radar --> ActionCenter["Action Center"]
+  Radar --> UserDecision{"Felipe decides"}
+  UserDecision --> CreateTask["Create internal task"]
+  UserDecision --> Snooze["Snooze / handled"]
+  UserDecision --> OpenSource["Open source page"]`;
 
 const knowledgeDiagram = `stateDiagram-v2
   [*] --> raw: capture note / email / session / source
@@ -69,15 +69,15 @@ const agentDiagram = `sequenceDiagram
   Cai-->>Felipe: concise result + evidence`;
 
 const guardrailDiagram = `flowchart TD
-  External[External systems<br/>Gmail · Calendar · GitHub · Vercel · Supabase] --> ReadOnly[Read-only connectors]
-  ReadOnly --> Redaction[Redaction / summarization<br/>no tokens, no raw secrets]
-  Redaction --> Radar[Inbox Radar]
-  Radar --> Guarded[Guarded internal actions]
-  Guarded --> InternalWrites[Internal writes only<br/>Tasks · Knowledge · Radar state]
-  InternalWrites --> Audit[Task events / DB audit trail]
-  Guarded -.blocked.-> ExternalWrites[No external writes in V1<br/>no send / RSVP / PR comments / shell]
-  Secrets[Secrets] --> Env[Server env only]
-  Env -.never render.-> UI[Dashboard UI]`;
+  External["External systems<br/>Gmail · Calendar · GitHub · Vercel · Supabase"] --> ReadOnly["Read-only connectors"]
+  ReadOnly --> Redaction["Redaction / summarization<br/>no tokens, no raw secrets"]
+  Redaction --> Radar["Inbox Radar"]
+  Radar --> Guarded["Guarded internal actions"]
+  Guarded --> InternalWrites["Internal writes only<br/>Tasks · Knowledge · Radar state"]
+  InternalWrites --> Audit["Task events / DB audit trail"]
+  Guarded -.-> ExternalWrites["No external writes in V1<br/>no send / RSVP / PR comments / shell"]
+  Secrets["Secrets"] --> Env["Server env only"]
+  Env -.-> UI["Dashboard UI"]`;
 
 const surfaces = [
   [
