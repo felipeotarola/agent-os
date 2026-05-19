@@ -1,9 +1,19 @@
 import { bridgeRequest } from '@/lib/bridge';
 import { NextResponse, type NextRequest } from 'next/server';
 
-type GuardedAction = 'harvest-session-decisions';
+type GuardedAction = 'harvest-session-decisions' | 'process-knowledge-source';
 
-const allowedActions = new Set<GuardedAction>(['harvest-session-decisions']);
+const allowedActions = new Set<GuardedAction>([
+  'harvest-session-decisions',
+  'process-knowledge-source'
+]);
+
+const knowledgeAdvance: Record<string, { path: string; body: Record<string, string> }> = {
+  raw: { path: '/knowledge/sources/extract', body: {} },
+  extracted: { path: '/knowledge/sources/queue', body: {} },
+  wikified: { path: '/knowledge/sources/transition', body: { status: 'reviewed' } },
+  reviewed: { path: '/knowledge/sources/transition', body: { status: 'promoted' } }
+};
 
 function redirect(request: NextRequest, params: Record<string, string>) {
   const url = new URL('/dashboard/command', request.url);
@@ -32,6 +42,32 @@ export async function POST(request: NextRequest) {
     await bridgeRequest('/knowledge/sessions/harvest', {
       method: 'POST',
       body: JSON.stringify({ limit, minScore, signalsPerSession, dryRun: false })
+    });
+
+    return redirect(request, { action, status: 'ok' });
+  }
+
+  if (action === 'process-knowledge-source') {
+    const sourceId = String(form.get('sourceId') ?? '').trim();
+    const sourceStatus = String(form.get('sourceStatus') ?? '').trim();
+    const mode = String(form.get('mode') ?? 'advance').trim();
+
+    if (!sourceId) return redirect(request, { action, status: 'missing-source' });
+
+    if (mode === 'archive') {
+      await bridgeRequest('/knowledge/sources/transition', {
+        method: 'POST',
+        body: JSON.stringify({ id: sourceId, status: 'archived' })
+      });
+      return redirect(request, { action, status: 'archived' });
+    }
+
+    const next = knowledgeAdvance[sourceStatus];
+    if (!next) return redirect(request, { action, status: 'unsupported-status' });
+
+    await bridgeRequest(next.path, {
+      method: 'POST',
+      body: JSON.stringify({ id: sourceId, ...next.body })
     });
 
     return redirect(request, { action, status: 'ok' });

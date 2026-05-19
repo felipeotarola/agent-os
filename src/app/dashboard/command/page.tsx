@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getKnowledgeSnapshot } from '@/db/knowledge';
 import { getSystemStatus, runCommand } from '@/db/system';
 
 const commands = [
@@ -38,16 +39,36 @@ function formatUptime(seconds: number) {
   return `${mins}m`;
 }
 
+type CommandKnowledgeSource = Awaited<ReturnType<typeof getKnowledgeSnapshot>>['sources'][number];
+
+function knowledgePrimaryAction(source?: CommandKnowledgeSource) {
+  if (!source) return null;
+  if (source.status === 'raw') return { label: 'Extract', detail: 'Make raw source readable.' };
+  if (source.status === 'extracted')
+    return { label: 'Wikify', detail: 'Create reviewable wiki draft.' };
+  if (source.status === 'wikified')
+    return { label: 'Mark reviewed', detail: 'Approve the wiki draft for promotion review.' };
+  if (source.status === 'reviewed')
+    return { label: 'Promote', detail: 'Mark as context candidate.' };
+  return null;
+}
+
 export default async function CommandPage({
   searchParams
 }: {
   searchParams: Promise<{ run?: string; action?: string; status?: string }>;
 }) {
   const params = await searchParams;
-  const [status, commandResult] = await Promise.all([
+  const [status, commandResult, knowledge] = await Promise.all([
     getSystemStatus(),
-    params.run ? runCommand(params.run) : Promise.resolve(null)
+    params.run ? runCommand(params.run) : Promise.resolve(null),
+    getKnowledgeSnapshot()
   ]);
+  const nextKnowledgeSource =
+    knowledge.sources.find((source) =>
+      ['raw', 'extracted', 'wikified', 'reviewed'].includes(source.status)
+    ) ?? null;
+  const nextKnowledgeAction = knowledgePrimaryAction(nextKnowledgeSource ?? undefined);
 
   return (
     <PageContainer>
@@ -266,6 +287,81 @@ export default async function CommandPage({
                 </form>
               </div>
             </div>
+
+            <div className='rounded-2xl border bg-background/40 p-4'>
+              <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                <div className='max-w-2xl space-y-2'>
+                  <div className='font-medium'>Process next Knowledge source</div>
+                  {nextKnowledgeSource && nextKnowledgeAction ? (
+                    <>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <Badge variant='outline'>{nextKnowledgeSource.status}</Badge>
+                        <Badge variant='outline'>{nextKnowledgeSource.kind}</Badge>
+                      </div>
+                      <p className='text-sm font-medium'>{nextKnowledgeSource.title}</p>
+                      <p className='text-muted-foreground line-clamp-2 text-sm leading-6'>
+                        {nextKnowledgeSource.summary || nextKnowledgeAction.detail}
+                      </p>
+                    </>
+                  ) : (
+                    <p className='text-muted-foreground text-sm leading-6'>
+                      Ingen raw/extracted/wikified/reviewed knowledge source väntar just nu.
+                    </p>
+                  )}
+                </div>
+
+                {nextKnowledgeSource && nextKnowledgeAction ? (
+                  <form
+                    action='/api/command/actions'
+                    method='post'
+                    className='w-full space-y-3 lg:max-w-sm'
+                  >
+                    <input type='hidden' name='action' value='process-knowledge-source' />
+                    <input type='hidden' name='sourceId' value={nextKnowledgeSource.id} />
+                    <input type='hidden' name='sourceStatus' value={nextKnowledgeSource.status} />
+                    <input type='hidden' name='mode' value='advance' />
+                    <label className='flex items-start gap-2 text-xs text-muted-foreground'>
+                      <input name='confirm' type='checkbox' className='mt-0.5' />
+                      <span>Confirm: run “{nextKnowledgeAction.label}” on this exact source.</span>
+                    </label>
+                    <Button type='submit' className='w-full'>
+                      {nextKnowledgeAction.label} source
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            </div>
+
+            {nextKnowledgeSource ? (
+              <div className='rounded-2xl border bg-background/40 p-4'>
+                <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                  <div className='max-w-2xl space-y-1'>
+                    <div className='font-medium'>Archive next Knowledge source</div>
+                    <p className='text-muted-foreground text-sm leading-6'>
+                      Flyttar samma valda source ur aktiv kö. Använd när den är noise eller inte ska
+                      bli context.
+                    </p>
+                  </div>
+                  <form
+                    action='/api/command/actions'
+                    method='post'
+                    className='w-full space-y-3 lg:max-w-sm'
+                  >
+                    <input type='hidden' name='action' value='process-knowledge-source' />
+                    <input type='hidden' name='sourceId' value={nextKnowledgeSource.id} />
+                    <input type='hidden' name='sourceStatus' value={nextKnowledgeSource.status} />
+                    <input type='hidden' name='mode' value='archive' />
+                    <label className='flex items-start gap-2 text-xs text-muted-foreground'>
+                      <input name='confirm' type='checkbox' className='mt-0.5' />
+                      <span>Confirm: archive this exact source.</span>
+                    </label>
+                    <Button type='submit' variant='outline' className='w-full'>
+                      Archive source
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>
