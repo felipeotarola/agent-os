@@ -18,6 +18,7 @@ const bridgeVersion = String(packageJson.version ?? 'unknown');
 const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
 const GOG_CLI = process.env.GOG_CLI ?? 'gog';
 const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
+const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH ?? '/root/.openclaw/openclaw.json';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
@@ -68,6 +69,50 @@ async function gatewayJson(method, params = {}, options = {}) {
   });
   return JSON.parse(stdout || '{}');
 }
+
+function readGatewayToken() {
+  const envToken = String(process.env.OPENCLAW_GATEWAY_TOKEN ?? '').trim();
+  if (envToken) return envToken;
+
+  try {
+    const config = JSON.parse(readFileSync(OPENCLAW_CONFIG_PATH, 'utf8'));
+    return String(config.gateway?.auth?.token ?? '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function gatewayWsUrl() {
+  const explicit = String(process.env.OPENCLAW_GATEWAY_URL ?? process.env.GATEWAY_URL ?? '').trim();
+  if (explicit) return explicit;
+
+  const status = await openclawJson(['gateway', 'status', '--json'], { timeout: 12000 });
+  const url = String(status.rpc?.url ?? status.gateway?.probeUrl ?? '').trim();
+  if (url) return url;
+  throw new Error('Gateway WebSocket URL not available');
+}
+
+function gatewayFrameId(prefix = 'bridge') {
+  return `${prefix}-${Date.now()}-${crypto.randomUUID()}`;
+}
+
+function jsonMessage(data) {
+  if (typeof data === 'string') return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8');
+  return Buffer.from(data).toString('utf8');
+}
+
+const CHAT_GATEWAY_EVENTS = new Set([
+  'chat',
+  'session.message',
+  'session.tool',
+  'tool_call',
+  'tool_call_update',
+  'run',
+  'task',
+  'weather'
+]);
 async function gogJson(args, options = {}) {
   const keyringPasswordPath = '/root/.config/gogcli/keyring-password';
   const keyringPassword = existsSync(keyringPasswordPath)
@@ -1271,6 +1316,123 @@ function sendSse(res, event, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose }) {
+  if (typeof WebSocket !== 'function') throw new Error('WebSocket is not available in this Node runtime');
+
+  let ws = null;
+  let closed = false;
+  let connected = false;
+  let helloOk = null;
+  const acceptedSessionKeys = new Set([sessionKey]);
+  const pending = new Map();
+
+  const close = () => {
+    closed = true;
+    for (const { reject, timer } of pending.values()) {
+      clearTimeout(timer);
+      reject(new Error('Gateway WebSocket closed'));
+    }
+    pending.clear();
+    if (ws && ws.readyState <= 1) ws.close();
+  };
+
+  const request = (method, params = {}, { timeout = 12000 } = {}) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('Gateway WebSocket is not open'));
+    const id = gatewayFrameId(method);
+    const frame = { type: 'req', id, method, params };
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Gateway request timed out: ${method}`));
+      }, timeout);
+      pending.set(id, { resolve, reject, timer });
+      ws.send(JSON.stringify(frame));
+    });
+  };
+
+  const start = (async () => {
+    const [url, token] = await Promise.all([gatewayWsUrl(), Promise.resolve(readGatewayToken())]);
+    if (closed) return;
+
+    ws = new WebSocket(url);
+
+    ws.addEventListener('message', (messageEvent) => {
+      let frame;
+      try {
+        frame = JSON.parse(jsonMessage(messageEvent.data));
+      } catch {
+        return;
+      }
+
+      if (frame?.type === 'event') {
+        if (frame.event === 'connect.challenge') {
+          const nonce = String(frame.payload?.nonce ?? '').trim();
+          if (!nonce) {
+            onError(new Error('Gateway connect challenge missing nonce'));
+            close();
+            return;
+          }
+
+          request('connect', {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: 'gateway-client',
+              displayName: 'Agent OS bridge',
+              version: bridgeVersion,
+              platform: process.platform,
+              mode: 'backend'
+            },
+            role: 'operator',
+            scopes: ['operator.read'],
+            caps: [],
+            auth: token ? { token } : undefined
+          })
+            .then(async (payload) => {
+              connected = true;
+              helloOk = payload;
+              const subscription = await request('sessions.messages.subscribe', { key: sessionKey });
+              if (typeof subscription?.key === 'string' && subscription.key.trim()) acceptedSessionKeys.add(subscription.key.trim());
+              await request('sessions.subscribe', {});
+              onReady({ subscription, helloOk });
+            })
+            .catch(onError);
+          return;
+        }
+
+        if (connected && (frame.event !== 'tick' || process.env.AGENT_OS_STREAM_TICKS === '1')) {
+          if (!CHAT_GATEWAY_EVENTS.has(frame.event)) return;
+          if (frame.event === 'session.tool' && frame.payload?.sessionKey && !acceptedSessionKeys.has(frame.payload.sessionKey)) return;
+          onEvent(frame.event, frame.payload ?? {}, frame);
+        }
+        return;
+      }
+
+      if (frame?.type === 'res') {
+        const waiting = pending.get(frame.id);
+        if (!waiting) return;
+        pending.delete(frame.id);
+        clearTimeout(waiting.timer);
+        if (frame.ok) waiting.resolve(frame.payload);
+        else waiting.reject(new Error(frame.error?.message ?? 'Gateway request failed'));
+      }
+    });
+
+    ws.addEventListener('error', () => {
+      if (!closed) onError(new Error('Gateway WebSocket error'));
+    });
+
+    ws.addEventListener('close', () => {
+      if (!closed) onClose?.({ connected, helloOk });
+    });
+  })().catch((error) => {
+    if (!closed) onError(error);
+  });
+
+  return { close, start };
+}
+
 async function chatEvents(req, res, url) {
   res.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -1280,14 +1442,18 @@ async function chatEvents(req, res, url) {
 
   const sessionKey = String(url.searchParams.get('sessionKey') ?? '').trim();
   const maxMs = boundedInt(url.searchParams.get('maxMs'), 55000, { min: 5000, max: 5 * 60 * 1000 });
+  let gatewayStream = null;
   let closed = false;
-  req.on('close', () => { closed = true; });
+  req.on('close', () => {
+    closed = true;
+    gatewayStream?.close();
+  });
 
   sendSse(res, 'hello', {
     contract: 'agent-os.chat.events.v1',
-    source: 'bridge:sse-snapshot-mvp',
+    source: 'bridge:gateway-subscription',
     sessionKey: sessionKey || null,
-    note: 'MVP stream: emits an initial history snapshot plus keepalives. TODO: replace with a long-lived Gateway event subscription.'
+    note: 'Streaming canonical OpenClaw Gateway session events with history snapshot fallback.'
   });
 
   if (sessionKey) {
@@ -1299,12 +1465,35 @@ async function chatEvents(req, res, url) {
     } catch (error) {
       sendSse(res, 'error', { error: error.message ?? 'history_failed' });
     }
+
+    gatewayStream = openGatewayEventStream({
+      sessionKey,
+      onReady: ({ subscription }) => {
+        if (!closed) sendSse(res, 'gateway.ready', { sessionKey, subscription, ts: Date.now() });
+      },
+      onEvent: (event, payload, frame) => {
+        if (closed) return;
+        sendSse(res, event, {
+          ...payload,
+          gatewayEvent: event,
+          gatewaySeq: typeof frame.seq === 'number' ? frame.seq : undefined,
+          gatewayStateVersion: typeof frame.stateVersion === 'number' ? frame.stateVersion : undefined
+        });
+      },
+      onError: (error) => {
+        if (!closed) sendSse(res, 'gateway.error', { error: error.message ?? 'gateway_stream_failed', ts: Date.now() });
+      },
+      onClose: ({ connected }) => {
+        if (!closed) sendSse(res, 'gateway.closed', { connected, ts: Date.now() });
+      }
+    });
   }
 
   const startedAt = Date.now();
   const interval = setInterval(() => {
     if (closed || Date.now() - startedAt >= maxMs) {
       clearInterval(interval);
+      gatewayStream?.close();
       if (!closed) {
         sendSse(res, 'done', { reason: 'maxMs', ts: Date.now() });
         res.end();
