@@ -1,5 +1,6 @@
 import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { getCockpitSnapshot } from '@/db/queries';
+import type { CockpitSnapshot } from '@/db/queries';
 
 type DispatchTask = {
   id: string;
@@ -77,9 +78,55 @@ const fallbackDispatch: DispatchSummary = {
   suggestedMessage: 'Bridge dispatch-summary unavailable.'
 };
 
+const fallbackCockpit: CockpitSnapshot = {
+  dbOnline: false,
+  stats: [],
+  tasks: [],
+  agents: [],
+  subagents: {
+    ok: false,
+    source: 'overview:fallback',
+    available: false,
+    runningCount: 0,
+    activeTaskRunCount: 0,
+    activeSessionCount: 0,
+    recent: [],
+    activeSessions: [],
+    error: 'Overview snapshot timed out',
+    checkedAt: new Date().toISOString()
+  },
+  taskStatus: {},
+  events: [],
+  generatedAt: new Date().toISOString()
+};
+
 const NEWS_IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+const BITCOIN_CACHE_TTL_MS = 60 * 1000;
+const BRIDGE_CACHE_TTL_MS = 30 * 1000;
 
 const newsImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
+const briefingCache = new Map<string, { value: unknown; expiresAt: number }>();
+
+async function cachedBriefingValue<T>(
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  const cached = briefingCache.get(key) as { value: T; expiresAt: number } | undefined;
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  try {
+    const value = await fetcher();
+    briefingCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+    return value;
+  } catch (error) {
+    if (cached) return cached.value;
+    console.error(`Cai briefing ${key} failed`, error);
+    return fallback;
+  }
+}
 
 function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 1500) {
   return fetch(url, {
@@ -95,12 +142,15 @@ function toNumber(value: unknown) {
 
 async function getDispatchSummary(): Promise<DispatchSummary> {
   if (!hasBridge()) return fallbackDispatch;
-  try {
-    return await bridgeRequest<DispatchSummary>('/tasks/dispatch-summary');
-  } catch (error) {
-    console.error('Cai briefing dispatch summary failed', error);
-    return fallbackDispatch;
-  }
+  return cachedBriefingValue(
+    'dispatch',
+    BRIDGE_CACHE_TTL_MS,
+    () =>
+      bridgeRequest<DispatchSummary>('/tasks/dispatch-summary', {
+        signal: AbortSignal.timeout(1200)
+      }),
+    fallbackDispatch
+  );
 }
 
 async function getBitcoinSnapshot(): Promise<BitcoinSnapshot> {
@@ -150,6 +200,14 @@ async function getBitcoinSnapshot(): Promise<BitcoinSnapshot> {
     }
   }
 }
+
+const fallbackBitcoin: BitcoinSnapshot = {
+  ok: false,
+  priceSek: null,
+  priceUsd: null,
+  change24h: null,
+  source: 'bitcoin:fallback'
+};
 
 function decodeXml(value: string) {
   return value
@@ -233,6 +291,14 @@ async function getArticleImageUrl(url: string) {
   return imageUrl;
 }
 
+async function getArticleImageUrlFast(url: string) {
+  const cached = newsImageCache.get(url);
+  if (cached) return cached.imageUrl;
+
+  void getArticleImageUrl(url).catch(() => null);
+  return null;
+}
+
 function firstImageUrl(item: string) {
   const media = item.match(/<(media:content|media:thumbnail|enclosure)\b[^>]*>/i)?.[0];
   const mediaUrl = media ? (attrValue(media, 'url') ?? attrValue(media, 'href')) : null;
@@ -265,7 +331,7 @@ async function getRssItems(url: string, source: string, limit = 4): Promise<News
   return Promise.all(
     items.map(async (item) => ({
       ...item,
-      imageUrl: item.imageUrl ?? (await getArticleImageUrl(item.url))
+      imageUrl: item.imageUrl ?? (await getArticleImageUrlFast(item.url))
     }))
   );
 }
@@ -297,33 +363,42 @@ async function getNewsSnapshot(): Promise<NewsSnapshot> {
   }
 }
 
+const fallbackNews: NewsSnapshot = {
+  ok: false,
+  items: [],
+  source: 'news:fallback',
+  error: 'News briefing unavailable.'
+};
+
 async function getLatestCaiBriefMessage(): Promise<CaiBriefMessageSnapshot> {
   if (!hasBridge()) {
     return { ok: false, source: 'bridge:not-configured', latest: null, runs: [] };
   }
-  try {
-    const result = await bridgeRequest<Omit<CaiBriefMessageSnapshot, 'ok'>>(
-      '/cai/latest-brief-message'
-    );
-    return { ok: true, ...result };
-  } catch (error) {
-    console.error('Latest Cai brief message failed', error);
-    return {
+  return cachedBriefingValue<CaiBriefMessageSnapshot>(
+    'latest-cai-message',
+    BRIDGE_CACHE_TTL_MS,
+    async () => {
+      const result = await bridgeRequest<Omit<CaiBriefMessageSnapshot, 'ok'>>(
+        '/cai/latest-brief-message',
+        { signal: AbortSignal.timeout(1200) }
+      );
+      return { ok: true, ...result };
+    },
+    {
       ok: false,
-      source: 'openclaw:cron-runs:error',
+      source: 'openclaw:cron-runs:fallback',
       latest: null,
-      runs: [],
-      error: error instanceof Error ? error.message : 'unknown cron run error'
-    };
-  }
+      runs: []
+    }
+  );
 }
 
 export async function getCaiBriefing() {
   const [cockpit, dispatch, bitcoin, news, latestMessage] = await Promise.all([
-    getCockpitSnapshot(),
+    cachedBriefingValue('cockpit', 15_000, getCockpitSnapshot, fallbackCockpit),
     getDispatchSummary(),
-    getBitcoinSnapshot(),
-    getNewsSnapshot(),
+    cachedBriefingValue('bitcoin', BITCOIN_CACHE_TTL_MS, getBitcoinSnapshot, fallbackBitcoin),
+    cachedBriefingValue('news', NEWS_CACHE_TTL_MS, getNewsSnapshot, fallbackNews),
     getLatestCaiBriefMessage()
   ]);
 

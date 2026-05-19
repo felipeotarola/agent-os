@@ -106,7 +106,9 @@ const fallbackSnapshot: CockpitSnapshot = {
 export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
   if (hasBridge()) {
     try {
-      return await bridgeRequest<CockpitSnapshot>('/overview');
+      return await bridgeRequest<CockpitSnapshot>('/overview', {
+        signal: AbortSignal.timeout(1800)
+      });
     } catch (error) {
       console.error('Overview bridge snapshot failed', error);
     }

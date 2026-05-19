@@ -23,6 +23,15 @@ const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
+const runtimeCache = new Map();
+
+async function cachedRuntimeValue(key, ttlMs, fetcher) {
+  const cached = runtimeCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const value = await fetcher();
+  runtimeCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
 
 function configuredAgents() {
   try {
@@ -723,8 +732,8 @@ async function overviewSnapshot() {
       order by created_at desc
       limit 6
     `,
-    memoryStatus({ timeout: 1500 }),
-    subagentRunsSnapshot({ timeout: 1500 })
+    cachedRuntimeValue('overview:memory-status', 30_000, () => memoryStatus({ timeout: 650 })),
+    cachedRuntimeValue('overview:subagents', 15_000, () => subagentRunsSnapshot({ timeout: 650 }))
   ]);
 
   const taskByStatus = new Map(taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)]));
