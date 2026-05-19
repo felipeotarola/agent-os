@@ -91,7 +91,18 @@ function readGatewayToken() {
   }
 }
 
+let gatewayWsUrlPromise = null;
+
 async function gatewayWsUrl() {
+  if (gatewayWsUrlPromise) return gatewayWsUrlPromise;
+  gatewayWsUrlPromise = resolveGatewayWsUrl().catch((error) => {
+    gatewayWsUrlPromise = null;
+    throw error;
+  });
+  return gatewayWsUrlPromise;
+}
+
+async function resolveGatewayWsUrl() {
   const explicit = String(process.env.OPENCLAW_GATEWAY_URL ?? process.env.GATEWAY_URL ?? '').trim();
   if (explicit) return explicit;
 
@@ -110,6 +121,143 @@ function jsonMessage(data) {
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
   if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8');
   return Buffer.from(data).toString('utf8');
+}
+
+let gatewayRpcClient = null;
+
+function getGatewayRpcClient() {
+  gatewayRpcClient ??= createGatewayRpcClient();
+  return gatewayRpcClient;
+}
+
+function createGatewayRpcClient() {
+  let ws = null;
+  let connectPromise = null;
+  let connected = false;
+  const pending = new Map();
+
+  const reset = (error) => {
+    connected = false;
+    connectPromise = null;
+    if (ws && ws.readyState <= 1) ws.close();
+    ws = null;
+    for (const { reject, timer } of pending.values()) {
+      clearTimeout(timer);
+      reject(error ?? new Error('Gateway WebSocket closed'));
+    }
+    pending.clear();
+  };
+
+  const sendFrame = (frame) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('Gateway WebSocket is not open');
+    ws.send(JSON.stringify(frame));
+  };
+
+  const rawRequest = (method, params = {}, { timeout = 12000 } = {}) => {
+    const id = gatewayFrameId(method);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Gateway request timed out: ${method}`));
+      }, timeout);
+      pending.set(id, { resolve, reject, timer });
+      try {
+        sendFrame({ type: 'req', id, method, params });
+      } catch (error) {
+        clearTimeout(timer);
+        pending.delete(id);
+        reject(error);
+      }
+    });
+  };
+
+  const connect = () => {
+    if (connected && ws?.readyState === WebSocket.OPEN) return Promise.resolve();
+    if (connectPromise) return connectPromise;
+
+    connectPromise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reset(new Error('Gateway WebSocket connect timed out'));
+        reject(new Error('Gateway WebSocket connect timed out'));
+      }, 12000);
+
+      gatewayWsUrl()
+        .then((url) => {
+          ws = new WebSocket(url);
+          ws.addEventListener('message', (messageEvent) => {
+            let frame;
+            try {
+              frame = JSON.parse(jsonMessage(messageEvent.data));
+            } catch {
+              return;
+            }
+
+            if (frame?.type === 'event' && frame.event === 'connect.challenge') {
+              rawRequest('connect', {
+                minProtocol: 3,
+                maxProtocol: 3,
+                client: {
+                  id: 'gateway-client',
+                  displayName: 'Agent OS bridge RPC',
+                  version: bridgeVersion,
+                  platform: process.platform,
+                  mode: 'backend'
+                },
+                role: 'operator',
+                scopes: ['operator.read', 'operator.write'],
+                caps: [],
+                auth: readGatewayToken() ? { token: readGatewayToken() } : undefined
+              })
+                .then(() => {
+                  connected = true;
+                  clearTimeout(timer);
+                  resolve();
+                })
+                .catch((error) => {
+                  clearTimeout(timer);
+                  reset(error);
+                  reject(error);
+                });
+              return;
+            }
+
+            if (frame?.type === 'res') {
+              const waiting = pending.get(frame.id);
+              if (!waiting) return;
+              pending.delete(frame.id);
+              clearTimeout(waiting.timer);
+              if (frame.ok) waiting.resolve(frame.payload);
+              else waiting.reject(new Error(frame.error?.message ?? 'Gateway request failed'));
+            }
+          });
+          ws.addEventListener('error', () => reset(new Error('Gateway WebSocket error')));
+          ws.addEventListener('close', () => reset(new Error('Gateway WebSocket closed')));
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reset(error);
+          reject(error);
+        });
+    });
+
+    return connectPromise;
+  };
+
+  return {
+    async request(method, params = {}, options = {}) {
+      await connect();
+      return rawRequest(method, params, options);
+    }
+  };
+}
+
+async function gatewayRpcJson(method, params = {}, options = {}) {
+  try {
+    return await getGatewayRpcClient().request(method, params, { timeout: options.timeout ?? 12000 });
+  } catch (error) {
+    console.warn(`Gateway WebSocket RPC failed for ${method}; falling back to CLI:`, error.message ?? error);
+    return gatewayJson(method, params, options);
+  }
 }
 
 const CHAT_GATEWAY_EVENTS = new Set([
@@ -1266,7 +1414,7 @@ async function chatSessions(url) {
   return {
     contract: 'agent-os.chat.sessions.v1',
     source: 'openclaw-gateway:sessions.list',
-    ...(await gatewayJson('sessions.list', chatSessionListParams(url), { timeout: 15000, maxBuffer: 1024 * 1024 * 8 }))
+    ...(await gatewayRpcJson('sessions.list', chatSessionListParams(url), { timeout: 15000, maxBuffer: 1024 * 1024 * 8 }))
   };
 }
 
@@ -1281,7 +1429,7 @@ async function chatHistory(url) {
   return {
     contract: 'agent-os.chat.history.v1',
     source: 'openclaw-gateway:chat.history',
-    ...(await gatewayJson('chat.history', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 10 }))
+    ...(await gatewayRpcJson('chat.history', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 10 }))
   };
 }
 
@@ -1303,7 +1451,7 @@ async function chatSend(input) {
   };
   if (typeof input.sessionId === 'string' && input.sessionId.trim()) params.sessionId = input.sessionId.trim();
   if (attachments) params.attachments = attachments;
-  const result = await gatewayJson('chat.send', params, { timeout: 30000, maxBuffer: 1024 * 1024 * 4 });
+  const result = await gatewayRpcJson('chat.send', params, { timeout: 30000, maxBuffer: 1024 * 1024 * 4 });
   return {
     contract: 'agent-os.chat.send.v1',
     source: 'openclaw-gateway:chat.send',
@@ -1319,7 +1467,7 @@ async function chatAbort(input) {
   return {
     contract: 'agent-os.chat.abort.v1',
     source: 'openclaw-gateway:chat.abort',
-    ...(await gatewayJson('chat.abort', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 2 }))
+    ...(await gatewayRpcJson('chat.abort', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 2 }))
   };
 }
 

@@ -130,16 +130,24 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
   return null;
 }
 
+function sessionIdFromPayload(payload: unknown) {
+  return isRecord(payload) ? stringFrom(payload.sessionId) : '';
+}
+
 async function fetchCaiHistory() {
   const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
   const response = await fetch(`/api/chat/history?${params}`, {
     headers: { accept: 'application/json' }
   });
-  if (!response.ok) return [];
-  return extractMessages(await response.json())
-    .map(displayableGlobalMessage)
-    .filter((message): message is ChatMessage => message !== null)
-    .slice(-12);
+  if (!response.ok) return { messages: [], sessionId: '' };
+  const payload = await response.json();
+  return {
+    sessionId: sessionIdFromPayload(payload),
+    messages: extractMessages(payload)
+      .map(displayableGlobalMessage)
+      .filter((message): message is ChatMessage => message !== null)
+      .slice(-12)
+  };
 }
 
 export function GlobalCaiChat() {
@@ -152,6 +160,7 @@ export function GlobalCaiChat() {
   const [abortRunId, setAbortRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sessionIdRef = useRef<string>('');
   const label = useMemo(() => pageLabel(pathname), [pathname]);
   const hasPendingCai = messages.some(
     (message) => message.pending && message.content === pendingCaiText
@@ -162,8 +171,9 @@ export function GlobalCaiChat() {
     let ignore = false;
     setIsLoading(true);
     fetchCaiHistory()
-      .then((history) => {
+      .then(({ messages: history, sessionId }) => {
         if (!ignore) {
+          if (sessionId) sessionIdRef.current = sessionId;
           setMessages((current) =>
             current.length ? mergeHistoryWithLocal(history, current) : history
           );
@@ -181,7 +191,8 @@ export function GlobalCaiChat() {
   }, [messages.length, open]);
 
   const refreshHistory = useCallback(async () => {
-    const history = await fetchCaiHistory();
+    const { messages: history, sessionId } = await fetchCaiHistory();
+    if (sessionId) sessionIdRef.current = sessionId;
     setMessages((current) => mergeHistoryWithLocal(history, current));
   }, []);
 
@@ -190,7 +201,10 @@ export function GlobalCaiChat() {
     const source = new EventSource(`/api/chat/events?${params}`);
     const handleHistory = (event: MessageEvent<string>) => {
       try {
-        const history = extractMessages(JSON.parse(event.data))
+        const payload = JSON.parse(event.data);
+        const sessionId = sessionIdFromPayload(payload);
+        if (sessionId) sessionIdRef.current = sessionId;
+        const history = extractMessages(payload)
           .map(displayableGlobalMessage)
           .filter((message): message is ChatMessage => message !== null)
           .slice(-12);
@@ -264,6 +278,7 @@ export function GlobalCaiChat() {
             agent: 'cai',
             agentName: 'Cai',
             sessionKey: dashboardCaiSessionKey,
+            sessionId: sessionIdRef.current || undefined,
             message: `${contextPrefix(pathname)} ${content}`,
             idempotencyKey,
             pageContext: {
