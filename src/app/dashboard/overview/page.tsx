@@ -671,14 +671,17 @@ export default async function OverviewPage() {
                     <div className='font-semibold text-foreground'>Senaste Cai-meddelande</div>
                   </div>
 
-                  <div className='rounded-2xl border border-border bg-background/45 p-4'>
-                    <p className='whitespace-pre-line text-sm leading-6 text-card-foreground'>
+                  <div className='rounded-2xl border border-border bg-muted/25 p-4'>
+                    <p className='whitespace-pre-line text-[15px] leading-7 text-card-foreground/90'>
                       {latestCaiMessage}
                     </p>
-                    <div className='mt-3 text-right text-xs text-muted-foreground'>
-                      {latestCaiRun
-                        ? `${latestCaiRun.label} · ${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
-                        : latestCaiTime}
+                    <div className='mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 text-[11px] text-muted-foreground'>
+                      <span>{latestCaiRun?.label ?? 'Cai brief'}</span>
+                      <span>
+                        {latestCaiRun
+                          ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                          : latestCaiTime}
+                      </span>
                     </div>
                   </div>
 
