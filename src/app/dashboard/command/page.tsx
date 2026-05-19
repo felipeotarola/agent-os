@@ -2,6 +2,8 @@ import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { getSystemStatus, runCommand } from '@/db/system';
 
 const commands = [
@@ -39,7 +41,7 @@ function formatUptime(seconds: number) {
 export default async function CommandPage({
   searchParams
 }: {
-  searchParams: Promise<{ run?: string }>;
+  searchParams: Promise<{ run?: string; action?: string; status?: string }>;
 }) {
   const params = await searchParams;
   const [status, commandResult] = await Promise.all([
@@ -57,8 +59,8 @@ export default async function CommandPage({
             </Badge>
             <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Command</h1>
             <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
-              Läs av OpenClaw brainstemmen från cockpitten. V1 är medvetet read-only: status,
-              diagnostics och snapshots först; actions senare med guardrails.
+              Läs av OpenClaw brainstemmen från cockpitten och kör ett litet antal allowlistade
+              actions. Writes kräver explicit confirm och går via bridge/auditade endpoints.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>
@@ -190,6 +192,82 @@ export default async function CommandPage({
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Guarded actions</CardTitle>
+            <CardDescription>
+              Smala write-actions med confirm. Inga generiska shell-/Gateway-kommandon exponeras.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            {params.action && (
+              <div className='rounded-xl border bg-muted/30 p-3 text-sm'>
+                <span className='font-medium'>{params.action}</span>: {params.status}
+              </div>
+            )}
+
+            <div className='rounded-2xl border bg-background/40 p-4'>
+              <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                <div className='max-w-2xl space-y-1'>
+                  <div className='font-medium'>Harvest session decisions</div>
+                  <p className='text-muted-foreground text-sm leading-6'>
+                    Importera högsignal-sessioner och skapa reviewbara decision/TODO/preference
+                    items i Knowledge inbox. Inget promoteras automatiskt.
+                  </p>
+                </div>
+                <form
+                  action='/api/command/actions'
+                  method='post'
+                  className='w-full space-y-3 lg:max-w-sm'
+                >
+                  <input type='hidden' name='action' value='harvest-session-decisions' />
+                  <div className='grid grid-cols-3 gap-2'>
+                    <div className='space-y-1'>
+                      <Label htmlFor='command-session-limit'>Max</Label>
+                      <Input
+                        id='command-session-limit'
+                        name='limit'
+                        type='number'
+                        defaultValue={5}
+                        min={1}
+                        max={20}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <Label htmlFor='command-session-score'>Score</Label>
+                      <Input
+                        id='command-session-score'
+                        name='minScore'
+                        type='number'
+                        defaultValue={35}
+                        min={1}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <Label htmlFor='command-session-signals'>Signals</Label>
+                      <Input
+                        id='command-session-signals'
+                        name='signalsPerSession'
+                        type='number'
+                        defaultValue={8}
+                        min={1}
+                        max={12}
+                      />
+                    </div>
+                  </div>
+                  <label className='flex items-start gap-2 text-xs text-muted-foreground'>
+                    <input name='confirm' type='checkbox' className='mt-0.5' />
+                    <span>Confirm: create extracted Knowledge inbox items for review.</span>
+                  </label>
+                  <Button type='submit' className='w-full'>
+                    Run guarded harvest
+                  </Button>
+                </form>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </PageContainer>
   );
