@@ -216,10 +216,10 @@ function MiniSpark({ color = 'cyan' }: { color?: string }) {
 
 function BitcoinSparkline() {
   return (
-    <svg className='mt-4 h-20 w-full overflow-visible opacity-90' viewBox='0 0 220 80'>
+    <svg className='mt-3 h-12 w-full overflow-visible opacity-55' viewBox='0 0 220 80'>
       <defs>
         <linearGradient id='btcArea' x1='0' x2='0' y1='0' y2='1'>
-          <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.38' />
+          <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.18' />
           <stop offset='100%' stopColor='var(--primary)' stopOpacity='0' />
         </linearGradient>
       </defs>
@@ -231,7 +231,7 @@ function BitcoinSparkline() {
         d='M2 66 L24 60 L42 54 L60 64 L76 59 L92 42 L108 35 L126 33 L144 47 L162 35 L182 25 L202 32 L218 20'
         fill='none'
         stroke='var(--primary)'
-        strokeWidth='2'
+        strokeWidth='1.5'
       />
     </svg>
   );
@@ -487,21 +487,26 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[230px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
-                  <div className='flex items-center gap-2'>
-                    <div className='flex size-9 items-center justify-center rounded-xl bg-primary text-lg text-primary-foreground shadow-sm shadow-primary/20'>
-                      ₿
+              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[210px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
+                <div className='rounded-2xl border bg-card/80 p-3 text-card-foreground shadow-sm'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='flex items-center gap-2'>
+                      <div className='flex size-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-sm text-muted-foreground'>
+                        ₿
+                      </div>
+                      <div className='text-sm font-medium text-foreground'>Bitcoin</div>
                     </div>
-                    <div className='font-semibold text-foreground'>Bitcoin</div>
+                    <Badge variant='outline' className='border-border bg-muted/30 text-[10px]'>
+                      live
+                    </Badge>
                   </div>
 
-                  <div className='mt-4 text-4xl font-semibold tracking-tight text-foreground'>
+                  <div className='mt-3 text-2xl font-semibold tracking-tight text-foreground'>
                     {bitcoinPriceDisplay}
                   </div>
 
                   <div
-                    className={`mt-2 text-sm font-medium ${
+                    className={`mt-1 text-xs font-medium ${
                       bitcoinChange === null
                         ? 'text-muted-foreground'
                         : bitcoinChange >= 0
@@ -509,30 +514,24 @@ export default async function OverviewPage() {
                           : 'text-destructive'
                     }`}
                   >
-                    {percent(bitcoinChange)} senaste 24h
+                    {percent(bitcoinChange)} 24h
                   </div>
 
-                  <div className='mt-4 flex flex-wrap gap-2'>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
-                    >
+                  <BitcoinSparkline />
+
+                  <div className='mt-3 flex flex-wrap gap-1.5'>
+                    <Badge variant='outline' className='border-border bg-muted/30 text-[10px]'>
                       {briefing.bitcoin.source}
                     </Badge>
                     {briefing.bitcoin.priceUsd !== null && (
-                      <Badge
-                        variant='outline'
-                        className='border-border bg-muted/40 text-card-foreground'
-                      >
+                      <Badge variant='outline' className='border-border bg-muted/30 text-[10px]'>
                         {compactNumber(briefing.bitcoin.priceUsd, 'USD')}
                       </Badge>
                     )}
                   </div>
 
-                  <BitcoinSparkline />
-
-                  <p className='mt-3 text-sm leading-5 text-muted-foreground'>
-                    Livepris via publik crypto-API. Ingen prognos, bara lägesbild.
+                  <p className='mt-2 text-xs leading-5 text-muted-foreground'>
+                    Lägesbild, inte prognos.
                   </p>
                 </div>
 
