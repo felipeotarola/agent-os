@@ -37,14 +37,15 @@ const routeLabels: Array<[RegExp, string]> = [
   [/^\/dashboard\/agents/, 'Agents']
 ];
 
-const injectedPageContextPattern = /^Page context:[\s\S]*?\n\nFelipe says:\s*/i;
+const dashboardCaiSessionKey = 'session:dashboard-cai-copilot';
+const injectedPageContextPattern = /^[\s\S]*?Page context:[\s\S]*?\n\nFelipe says:\s*/i;
 
 function pageLabel(pathname: string) {
   return routeLabels.find(([pattern]) => pattern.test(pathname))?.[1] ?? 'Dashboard';
 }
 
 function contextPrefix(pathname: string) {
-  return `Page context: Felipe is currently on ${pageLabel(pathname)} (${pathname}). Use this page context to answer with relevant next steps or navigation-aware help.\n\nFelipe says:`;
+  return `You are Cai in the dashboard copilot drawer. Keep answers short, practical, and page-aware. Page context: Felipe is currently on ${pageLabel(pathname)} (${pathname}). Use this page context to answer with relevant next steps or navigation-aware help.\n\nFelipe says:`;
 }
 
 function stripInjectedPageContext(text: string) {
@@ -129,7 +130,8 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
 }
 
 async function fetchCaiHistory() {
-  const response = await fetch('/api/chat/history?agent=cai', {
+  const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
+  const response = await fetch(`/api/chat/history?${params}`, {
     headers: { accept: 'application/json' }
   });
   if (!response.ok) return [];
@@ -174,7 +176,8 @@ export function GlobalCaiChat() {
   }, [messages.length, open]);
 
   useEffect(() => {
-    const source = new EventSource('/api/chat/events?agent=cai');
+    const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
+    const source = new EventSource(`/api/chat/events?${params}`);
     const handleEvent = (eventName: string) => (event: MessageEvent<string>) => {
       try {
         const message = messageFromEvent(eventName, JSON.parse(event.data));
@@ -236,6 +239,7 @@ export function GlobalCaiChat() {
           body: JSON.stringify({
             agent: 'cai',
             agentName: 'Cai',
+            sessionKey: dashboardCaiSessionKey,
             message: `${contextPrefix(pathname)} ${content}`,
             pageContext: {
               pathname,
