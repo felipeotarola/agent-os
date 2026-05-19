@@ -30,7 +30,17 @@ export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
       <div className='bg-card hover:border-primary/40 rounded-md border p-3 shadow-xs transition-colors'>
         <div className='flex flex-col gap-2'>
           <div className='flex items-center justify-between gap-2'>
-            <span className='line-clamp-1 text-sm font-medium'>{task.title}</span>
+            <button
+              type='button'
+              className='line-clamp-1 min-w-0 text-left text-sm font-medium underline-offset-2 hover:text-primary hover:underline'
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen?.(task);
+              }}
+            >
+              {task.title}
+            </button>
             <div className='flex shrink-0 items-center gap-1.5'>
               <Badge
                 variant={
@@ -82,17 +92,6 @@ export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
           {task.description && (
             <p className='text-muted-foreground line-clamp-2 text-xs'>{task.description}</p>
           )}
-          <button
-            type='button'
-            className='text-primary hover:text-primary/80 w-fit text-[10px] font-medium underline-offset-2 hover:underline'
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpen?.(task);
-            }}
-          >
-            Öppna / editera →
-          </button>
         </div>
       </div>
     </KanbanItem>
