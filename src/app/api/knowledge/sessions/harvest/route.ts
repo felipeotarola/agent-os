@@ -5,11 +5,12 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const limit = Number(form.get('limit') ?? 5);
   const minScore = Number(form.get('minScore') ?? 35);
+  const signalsPerSession = Number(form.get('signalsPerSession') ?? 8);
   const dryRun = form.get('dryRun') === 'on';
 
   await bridgeRequest('/knowledge/sessions/harvest', {
     method: 'POST',
-    body: JSON.stringify({ limit, minScore, dryRun })
+    body: JSON.stringify({ limit, minScore, signalsPerSession, dryRun })
   });
 
   const status = dryRun ? 'previewed' : 'harvested';

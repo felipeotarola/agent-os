@@ -645,10 +645,21 @@ export default async function KnowledgePage({
                         min={1}
                       />
                     </div>
+                    <div className='space-y-2'>
+                      <Label htmlFor='session-signals'>Signals/session</Label>
+                      <Input
+                        id='session-signals'
+                        name='signalsPerSession'
+                        type='number'
+                        defaultValue={8}
+                        min={1}
+                        max={12}
+                      />
+                    </div>
                   </div>
                   <div className='text-muted-foreground text-xs leading-5'>
-                    Skapar status <code>extracted</code> med rå transcript-excerpt + signaler.
-                    Review/Wikify/Promote görs separat.
+                    Skapar status <code>extracted</code> med rå transcript-excerpt och separata
+                    reviewbara decision/TODO/preference-items. Review/Wikify/Promote görs separat.
                   </div>
                   <SubmitButton
                     className='w-full'

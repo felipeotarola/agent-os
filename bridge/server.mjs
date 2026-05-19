@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
@@ -391,6 +392,86 @@ function extractSessionSummary(agentId, path, text) {
   ].join('\n');
 }
 
+function hashText(value) {
+  return createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
+}
+
+function sessionSignalType(line) {
+  if (/\b(todo|next step|nästa steg|ska göra|follow[- ]?up|open todo)\b/i.test(line)) return 'todo';
+  if (/\b(decision|beslut|decided|bestämdes|valde|ska vara|should be)\b/i.test(line)) return 'decision';
+  if (/\b(prefers?|preference|vill ha|style|tone|persona|rules?)\b/i.test(line)) return 'preference';
+  if (/\b(lysande|agent os|roadmap|prd|gtm|product|kund|customer)\b/i.test(line)) return 'product-context';
+  if (/\b(fixed|implemented|bug|lesson|learned|validation|build|lint|commit|push)\b/i.test(line)) return 'technical-lesson';
+  if (/\b(agent|cai|charles|sladdis|subagent|heartbeat|memory|operating model)\b/i.test(line)) return 'agent-note';
+  return 'session-signal';
+}
+
+function sessionSignalPriority(type) {
+  if (type === 'decision' || type === 'todo') return 'high';
+  if (type === 'preference' || type === 'product-context') return 'medium';
+  return 'low';
+}
+
+function isSensitiveSessionLine(line) {
+  return /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank login|otp|2fa|private key)\b/i.test(line);
+}
+
+function cleanSessionSignalLine(line) {
+  return String(line ?? '')
+    .replace(/^(User|Human|Felipe|Assistant|System|Tool result|Tool):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 420);
+}
+
+function extractSessionDecisionItems(agentId, path, text, limit = 8) {
+  const lines = text
+    .split('\n')
+    .map((line) => cleanSessionSignalLine(line))
+    .filter((line) => line.length >= 24 && !isSensitiveSessionLine(line));
+
+  const signalLines = lines.filter((line) =>
+    /remember|kom ihåg|beslut|decision|decided|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|should|prefers?|vill ha|implemented|created|fixed|pushed|validated|lesson|Agent OS|Lysande|Charles|Sladdis|Cai/i.test(line)
+  );
+
+  const seen = new Set();
+  return signalLines
+    .map((line) => {
+      const type = sessionSignalType(line);
+      const key = `${type}:${line.toLowerCase()}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      const hash = hashText(`${agentId}:${path}:${type}:${line}`);
+      return {
+        id: crypto.randomUUID(),
+        hash,
+        type,
+        priority: sessionSignalPriority(type),
+        title: `${type.replaceAll('-', ' ')}: ${line.slice(0, 90)}`,
+        summary: line,
+        rawContent: [
+          `# Session ${type.replaceAll('-', ' ')}`,
+          '',
+          `Agent: ${agentId}`,
+          `Source file: ${path}`,
+          `Signal type: ${type}`,
+          `Review priority: ${sessionSignalPriority(type)}`,
+          '',
+          '## Extracted item',
+          '',
+          line,
+          '',
+          '## Review guidance',
+          '',
+          '- Keep only if this is durable and useful beyond this single chat.',
+          '- Promote only after checking that it contains no secrets or sensitive raw transcript content.'
+        ].join('\n')
+      };
+    })
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
 async function sessionKnowledgeInventory({ limit = 25, minScore = 35 } = {}) {
   const existing = await sql`
     select source_url as "sourceUrl"
@@ -426,6 +507,7 @@ async function sessionKnowledgeInventory({ limit = 25, minScore = 35 } = {}) {
 async function harvestSessionKnowledge(input = {}) {
   const limit = Math.min(Number(input.limit ?? 5), 20);
   const minScore = Number(input.minScore ?? 35);
+  const signalsPerSession = Math.min(Number(input.signalsPerSession ?? 8), 12);
   const dryRun = Boolean(input.dryRun);
   const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
   const selected = inventory.candidates.filter((candidate) => !candidate.alreadyImported).slice(0, limit);
@@ -435,6 +517,7 @@ async function harvestSessionKnowledge(input = {}) {
     for (const candidate of selected) {
       const text = readTextSlice(candidate.path, 90000);
       const summary = extractSessionSummary(candidate.agentId, candidate.path, text);
+      const signals = extractSessionDecisionItems(candidate.agentId, candidate.path, text, signalsPerSession);
       const rawContent = [
         `# ${candidate.title}`,
         '',
@@ -445,6 +528,11 @@ async function harvestSessionKnowledge(input = {}) {
         '## Extracted signals',
         summary,
         '',
+        '## Reviewable decision/action items',
+        ...(signals.length
+          ? signals.map((signal) => `- [${signal.priority}/${signal.type}] ${signal.summary}`)
+          : ['- No high-confidence durable decision/action items extracted deterministically.']),
+        '',
         '## Raw transcript excerpt',
         text.slice(0, 60000)
       ].join('\n');
@@ -453,13 +541,32 @@ async function harvestSessionKnowledge(input = {}) {
       const id = crypto.randomUUID();
       await sql`
         insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
-        values (${id}, ${candidate.title}, 'agent-session', 'extracted', ${candidate.sourceUrl}, ${rawContent}, ${rawPath}, ${summary.slice(0, 1000)}, ${sql.json({ createdFrom: 'session-harvester', agentId: candidate.agentId, sessionPath: candidate.path, score: candidate.score, harvestedAt: new Date().toISOString() })})
+        values (${id}, ${candidate.title}, 'agent-session', 'extracted', ${candidate.sourceUrl}, ${rawContent}, ${rawPath}, ${summary.slice(0, 1000)}, ${sql.json({ createdFrom: 'session-harvester', agentId: candidate.agentId, sessionPath: candidate.path, score: candidate.score, harvestedAt: new Date().toISOString(), extractedSignals: signals.map(({ hash, type, priority, summary }) => ({ hash, type, priority, summary })) })})
       `;
-      imported.push({ id, title: candidate.title, agentId: candidate.agentId, score: candidate.score, rawPath });
+
+      const importedSignals = [];
+      for (const signal of signals) {
+        const sourceUrl = `session-signal://${candidate.agentId}/${candidate.name}#${signal.hash}`;
+        const exists = await sql`
+          select id from knowledge_sources
+          where source_url = ${sourceUrl}
+          limit 1
+        `;
+        if (exists.length) continue;
+
+        const signalRawPath = `knowledge/sessions/signals/${new Date().toISOString().slice(0, 10)}-${signal.hash}.md`;
+        await sql`
+          insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
+          values (${signal.id}, ${signal.title}, ${signal.type}, 'extracted', ${sourceUrl}, ${signal.rawContent}, ${signalRawPath}, ${signal.summary}, ${sql.json({ createdFrom: 'session-decision-extractor', parentSourceId: id, agentId: candidate.agentId, sessionPath: candidate.path, sessionSourceUrl: candidate.sourceUrl, signalHash: signal.hash, signalType: signal.type, priority: signal.priority, harvestedAt: new Date().toISOString() })})
+        `;
+        importedSignals.push({ id: signal.id, title: signal.title, type: signal.type, priority: signal.priority, rawPath: signalRawPath });
+      }
+
+      imported.push({ id, title: candidate.title, agentId: candidate.agentId, score: candidate.score, rawPath, signals: importedSignals });
     }
   }
 
-  await auditEvent('session_harvest', `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`, { dryRun, minScore, limit, imported }, 5);
+  await auditEvent('session_harvest', `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`, { dryRun, minScore, limit, signalsPerSession, imported }, 5);
   return {
     contract: 'agent-os.session-knowledge-harvest.v1',
     generatedAt: new Date().toISOString(),
