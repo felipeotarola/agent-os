@@ -77,6 +77,10 @@ const fallbackDispatch: DispatchSummary = {
   suggestedMessage: 'Bridge dispatch-summary unavailable.'
 };
 
+const NEWS_IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const newsImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
+
 function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 1500) {
   return fetch(url, {
     ...init,
@@ -169,22 +173,82 @@ function attrValue(fragment: string, attr: string) {
   return match ? decodeXml(match[1]) : null;
 }
 
+function absoluteUrl(value: string | null, baseUrl: string) {
+  if (!value) return null;
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isLikelyImageUrl(value: string | null) {
+  return Boolean(value && /^https?:\/\//i.test(value));
+}
+
+function metaContent(html: string, key: string) {
+  const escaped = key.replaceAll(':', '\\:');
+  const match =
+    html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+>`, 'i'))?.[0] ??
+    html.match(
+      new RegExp(
+        `<meta[^>]+content=["'][^"']+["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`,
+        'i'
+      )
+    )?.[0];
+  return match ? attrValue(match, 'content') : null;
+}
+
+async function getArticleImageUrl(url: string) {
+  const cached = newsImageCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.imageUrl;
+
+  let imageUrl: string | null = null;
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        cache: 'force-cache',
+        headers: {
+          accept: 'text/html,application/xhtml+xml'
+        },
+        next: { revalidate: 21_600 }
+      },
+      900
+    );
+    if (response.ok) {
+      const html = await response.text();
+      imageUrl = absoluteUrl(
+        metaContent(html, 'og:image') ??
+          metaContent(html, 'twitter:image') ??
+          metaContent(html, 'twitter:image:src'),
+        response.url || url
+      );
+    }
+  } catch {
+    imageUrl = null;
+  }
+
+  newsImageCache.set(url, { imageUrl, expiresAt: Date.now() + NEWS_IMAGE_CACHE_TTL_MS });
+  return imageUrl;
+}
+
 function firstImageUrl(item: string) {
   const media = item.match(/<(media:content|media:thumbnail|enclosure)\b[^>]*>/i)?.[0];
-  const mediaUrl = media ? attrValue(media, 'url') : null;
-  if (mediaUrl && /\.(avif|gif|jpe?g|png|webp)(\?|#|$)/i.test(mediaUrl)) return mediaUrl;
+  const mediaUrl = media ? (attrValue(media, 'url') ?? attrValue(media, 'href')) : null;
+  if (isLikelyImageUrl(mediaUrl)) return mediaUrl;
 
   const description = tagValue(item, 'description') ?? tagValue(item, 'content:encoded') ?? '';
   const img = description.match(/<img\b[^>]*>/i)?.[0];
   const src = img ? attrValue(img, 'src') : null;
-  return src && /^https?:\/\//i.test(src) ? src : null;
+  return isLikelyImageUrl(src) ? src : null;
 }
 
 async function getRssItems(url: string, source: string, limit = 4): Promise<NewsItem[]> {
   const response = await fetchWithTimeout(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${source} RSS ${response.status}`);
   const xml = await response.text();
-  return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)]
+  const items = [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)]
     .map((match) => {
       const item = match[0];
       return {
@@ -197,6 +261,13 @@ async function getRssItems(url: string, source: string, limit = 4): Promise<News
     })
     .filter((item) => item.title && item.url)
     .slice(0, limit);
+
+  return Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      imageUrl: item.imageUrl ?? (await getArticleImageUrl(item.url))
+    }))
+  );
 }
 
 async function getNewsSnapshot(): Promise<NewsSnapshot> {
