@@ -1,4 +1,5 @@
 import { getNotifications } from '@/db/notifications';
+import { getCalendarSignals, getGitHubSignals, getGmailSignals } from '@/db/external-signals';
 import { getSupabaseSnapshot } from '@/db/supabase';
 import { getVercelSnapshot } from '@/db/vercel';
 import { getActionCenterSnapshot } from '@/lib/action-center';
@@ -28,13 +29,23 @@ function safeMessage(error: unknown) {
 }
 
 export async function getRadarSnapshot() {
-  const [actionCenterResult, notificationsResult, supabaseResult, vercelResult] =
-    await Promise.allSettled([
-      getActionCenterSnapshot(),
-      getNotifications(),
-      getSupabaseSnapshot(),
-      getVercelSnapshot()
-    ]);
+  const [
+    actionCenterResult,
+    notificationsResult,
+    supabaseResult,
+    vercelResult,
+    gmailResult,
+    calendarResult,
+    githubResult
+  ] = await Promise.allSettled([
+    getActionCenterSnapshot(),
+    getNotifications(),
+    getSupabaseSnapshot(),
+    getVercelSnapshot(),
+    getGmailSignals(),
+    getCalendarSignals(),
+    getGitHubSignals()
+  ]);
   const runway = getRunwaySnapshot();
   const signals: RadarSignal[] = [];
   const sourceErrors: string[] = [];
@@ -72,6 +83,100 @@ export async function getRadarSnapshot() {
     }
   } else {
     sourceErrors.push(`Notifications: ${safeMessage(notificationsResult.reason)}`);
+  }
+
+  if (gmailResult.status === 'fulfilled') {
+    for (const candidate of gmailResult.value.candidates
+      .filter((item) => item.score >= 55 && !item.saved)
+      .slice(0, 5)) {
+      signals.push({
+        id: `gmail:${candidate.threadId}`,
+        title: candidate.title,
+        detail: `${candidate.from} · ${candidate.snippet}`,
+        source: 'notifications',
+        priority: candidate.score >= 70 ? 'high' : 'medium',
+        href: '/dashboard/mail-radar',
+        actionLabel: 'Open mail radar',
+        meta: `Gmail · score ${candidate.score} · ${candidate.reasons.join(', ')}`
+      });
+    }
+  } else {
+    sourceErrors.push(`Gmail: ${safeMessage(gmailResult.reason)}`);
+  }
+
+  if (calendarResult.status === 'fulfilled') {
+    const calendar = calendarResult.value;
+    if (!calendar.connected) {
+      signals.push({
+        id: 'calendar:degraded',
+        title: 'Calendar signals not connected',
+        detail: calendar.alerts[0]?.detail ?? 'Calendar read scope is missing or unavailable.',
+        source: 'notifications',
+        priority: calendar.configured ? 'medium' : 'low',
+        href: '/dashboard/radar',
+        actionLabel: 'Review connector',
+        meta: calendar.source
+      });
+    }
+    for (const event of calendar.events.slice(0, 5)) {
+      const start = new Date(event.start).getTime();
+      const hoursAway = Number.isFinite(start) ? (start - Date.now()) / (60 * 60 * 1000) : 999;
+      if (hoursAway < -1 || hoursAway > 48) continue;
+      signals.push({
+        id: `calendar:${event.id}`,
+        title: event.title,
+        detail: `${event.start ? new Date(event.start).toLocaleString('sv-SE') : 'unknown time'} · ${event.attendees} attendees`,
+        source: 'notifications',
+        priority: hoursAway <= 4 ? 'high' : 'medium',
+        href: '/dashboard/radar',
+        actionLabel: 'Open calendar',
+        meta: `Calendar · ${event.status}`
+      });
+    }
+  } else {
+    sourceErrors.push(`Calendar: ${safeMessage(calendarResult.reason)}`);
+  }
+
+  if (githubResult.status === 'fulfilled') {
+    const github = githubResult.value;
+    if (!github.connected) {
+      signals.push({
+        id: 'github:degraded',
+        title: 'GitHub signals not connected',
+        detail: github.alerts[0]?.detail ?? 'GitHub token is missing or read failed.',
+        source: 'notifications',
+        priority: github.configured ? 'medium' : 'low',
+        href: '/dashboard/radar',
+        actionLabel: 'Review connector',
+        meta: github.source
+      });
+    }
+    for (const notification of github.notifications.filter((item) => item.unread).slice(0, 5)) {
+      signals.push({
+        id: `github:notification:${notification.id}`,
+        title: notification.title,
+        detail: `${notification.repository} · ${notification.reason}`,
+        source: 'notifications',
+        priority: notification.reason === 'mention' ? 'high' : 'medium',
+        href: '/dashboard/radar',
+        actionLabel: 'Open GitHub',
+        meta: `GitHub · ${notification.type}`
+      });
+    }
+    for (const pull of github.pullRequests.filter((item) => !item.draft).slice(0, 3)) {
+      signals.push({
+        id: `github:pr:${pull.id}`,
+        title: pull.title,
+        detail: `#${pull.number} by ${pull.author} · updated ${pull.updatedAt ? new Date(pull.updatedAt).toLocaleDateString('sv-SE') : 'unknown'}`,
+        source: 'tasks',
+        priority: 'medium',
+        href: '/dashboard/radar',
+        actionLabel: 'Open GitHub',
+        meta: 'GitHub PR'
+      });
+    }
+  } else {
+    sourceErrors.push(`GitHub: ${safeMessage(githubResult.reason)}`);
   }
 
   if (supabaseResult.status === 'fulfilled') {

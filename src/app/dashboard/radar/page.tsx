@@ -40,7 +40,8 @@ export default async function RadarPage() {
             <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Inbox Radar</h1>
             <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
               En prioriterad vy över vad Felipe faktiskt behöver bry sig om: tasks, knowledge,
-              notifications, observability och runway. V1 använder befintliga säkra connectors.
+              Gmail, Calendar, GitHub, notifications, observability och runway. V1 är read-only och
+              fail-soft.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>
@@ -149,7 +150,7 @@ export default async function RadarPage() {
                   'Prioritize across sources instead of making Felipe check every page.',
                   'Keep actions narrow: open, review, inspect — not destructive automation.',
                   'Degraded connectors are signals, not failures, until credentials are configured.',
-                  'Future V2 should add Gmail/Calendar/GitHub/Linear once real connectors exist.'
+                  'Next V2 should add persistent snooze/hide and guarded follow-up actions.'
                 ].map((item) => (
                   <div key={item} className='rounded-xl border bg-background/40 p-3'>
                     {item}

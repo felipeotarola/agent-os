@@ -7,21 +7,27 @@ Inbox Radar is the unified “what deserves Felipe's attention?” surface for A
 - UI route: `/dashboard/radar`
 - Helper: `src/lib/radar.ts`
 - Sources:
-  - Action Center tasks/knowledge
-  - Notifications
+- Action Center tasks/knowledge
+- Gmail high-signal threads
+- Calendar upcoming events
+- GitHub notifications/open PRs
+- Notifications
   - Supabase observability
   - Vercel observability
   - Runway picture
 
 ## V1 Scope
 
-Radar V1 does not add new external credentials. It aggregates existing safe snapshots and ranks signals by priority.
+Radar V1 aggregates existing safe snapshots plus read-only external signal connectors and ranks signals by priority.
 
 It highlights:
 
 - high-priority tasks/review items
 - knowledge sources needing extract/wikify/review/promote
 - unread notifications
+- high-signal Gmail threads
+- upcoming Calendar events
+- unread GitHub notifications and open PRs
 - degraded observability connectors or Vercel/Supabase alerts
 - urgent runway attention
 
@@ -35,7 +41,7 @@ It highlights:
 
 ## Next Expansion
 
-1. Add Gmail/Calendar/GitHub/Linear connectors as read-only signal sources.
-2. Add per-signal snooze/hide after persistence exists.
+1. Add per-signal snooze/hide after persistence exists.
+2. Add source allowlists and audit logs for external signal reads.
 3. Add guarded actions only when backend contracts are narrow and auditable.
 4. Feed high-value radar findings into daily Cai briefings.

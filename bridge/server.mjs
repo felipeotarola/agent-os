@@ -1543,6 +1543,181 @@ async function vercelSnapshot() {
   }
 }
 
+function calendarWebUrl(calendarId, eventId) {
+  if (!eventId) return 'https://calendar.google.com/calendar/u/0/r';
+  return `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(eventId)}?sf=true&output=xml&calendar=${encodeURIComponent(calendarId || 'primary')}`;
+}
+
+async function calendarSnapshot(url) {
+  const account = url.searchParams.get('account') || process.env.AGENT_OS_CALENDAR_ACCOUNT || GMAIL_ACCOUNT;
+  const days = Math.min(Math.max(Number(url.searchParams.get('days') ?? 7), 1), 30);
+  const max = Math.min(Number(url.searchParams.get('max') ?? 10), 25);
+
+  try {
+    const result = await gogJson([
+      'calendar',
+      'events',
+      '--account',
+      account,
+      '--days',
+      String(days),
+      '--max',
+      String(max),
+      '--all',
+      '--sort',
+      'start'
+    ], { timeout: 45000 });
+    const rawEvents = Array.isArray(result.events) ? result.events : Array.isArray(result.items) ? result.items : [];
+    const events = rawEvents.slice(0, max).map((event) => {
+      const calendarId = String(event.calendarId ?? event.calendar_id ?? event.calendar ?? 'primary');
+      const eventId = String(event.id ?? event.eventId ?? '');
+      const start = event.start?.dateTime ?? event.start?.date ?? event.start ?? event.startTime ?? null;
+      const end = event.end?.dateTime ?? event.end?.date ?? event.end ?? event.endTime ?? null;
+      return {
+        id: eventId || `${calendarId}:${start}:${event.summary ?? event.title ?? 'event'}`,
+        calendarId,
+        title: String(event.summary ?? event.title ?? '(no title)').slice(0, 180),
+        start: isoOrNull(start) ?? String(start ?? ''),
+        end: isoOrNull(end) ?? String(end ?? ''),
+        status: String(event.status ?? 'confirmed'),
+        attendees: Array.isArray(event.attendees) ? event.attendees.length : Number(event.attendeeCount ?? 0),
+        hangoutLink: event.hangoutLink ?? event.conferenceData?.entryPoints?.[0]?.uri ?? null,
+        htmlLink: event.htmlLink ?? calendarWebUrl(calendarId, eventId)
+      };
+    });
+    const now = Date.now();
+    const next24h = events.filter((event) => {
+      const time = new Date(event.start).getTime();
+      return Number.isFinite(time) && time >= now && time <= now + 24 * 60 * 60 * 1000;
+    });
+
+    return {
+      contract: 'agent-os.calendar-signals.v1',
+      source: 'gog:calendar:readonly',
+      generatedAt: new Date().toISOString(),
+      configured: true,
+      connected: true,
+      account,
+      days,
+      counts: { total: events.length, next24h: next24h.length },
+      events,
+      alerts: [],
+      nextSteps: ['Feed imminent events into Radar and Cai briefings.', 'Add RSVP/meeting actions only behind explicit guarded confirms.']
+    };
+  } catch (error) {
+    return {
+      contract: 'agent-os.calendar-signals.v1',
+      source: 'gog:calendar:error',
+      generatedAt: new Date().toISOString(),
+      configured: true,
+      connected: false,
+      account,
+      days,
+      counts: { total: 0, next24h: 0 },
+      events: [],
+      alerts: [{ severity: 'warning', title: 'Calendar connector failed', detail: error.message ?? 'request failed' }],
+      nextSteps: ['Grant read-only Google Calendar scope to gog or configure a separate calendar account.', 'Keep Calendar degraded until readonly event reads work.']
+    };
+  }
+}
+
+async function githubFetch(path, token) {
+  const response = await fetch(`https://api.github.com${path}`, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'agent-os-observability'
+    },
+    signal: AbortSignal.timeout(3500)
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`GitHub API ${response.status}: ${text.slice(0, 240)}`);
+  return JSON.parse(text || '{}');
+}
+
+async function githubSnapshot() {
+  const token = String(process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.AGENT_OS_GITHUB_TOKEN ?? '').trim();
+  const owner = String(process.env.GITHUB_OWNER ?? process.env.AGENT_OS_GITHUB_OWNER ?? '').trim();
+  const repo = String(process.env.GITHUB_REPO ?? process.env.AGENT_OS_GITHUB_REPO ?? '').trim();
+  const generatedAt = new Date().toISOString();
+
+  if (!token) {
+    return {
+      contract: 'agent-os.github-signals.v1',
+      source: 'bridge:github-env',
+      generatedAt,
+      configured: false,
+      connected: false,
+      account: null,
+      notifications: [],
+      pullRequests: [],
+      checks: [{ id: 'token', label: 'Read-only token configured', ok: false, detail: 'GITHUB_TOKEN/GH_TOKEN missing' }],
+      alerts: [],
+      nextSteps: ['Set a scoped read-only GITHUB_TOKEN or GH_TOKEN in the bridge environment.', 'Optionally set GITHUB_OWNER and GITHUB_REPO to prioritize one repo.']
+    };
+  }
+
+  try {
+    const [viewer, notifications, pulls] = await Promise.all([
+      githubFetch('/user', token),
+      githubFetch('/notifications?participating=false&per_page=20', token),
+      owner && repo ? githubFetch(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=10`, token) : Promise.resolve([])
+    ]);
+    const mappedNotifications = (Array.isArray(notifications) ? notifications : []).slice(0, 12).map((item) => ({
+      id: String(item.id),
+      reason: String(item.reason ?? 'notification'),
+      unread: Boolean(item.unread),
+      updatedAt: item.updated_at ?? null,
+      repository: item.repository?.full_name ?? 'unknown/repo',
+      title: String(item.subject?.title ?? '(no title)').slice(0, 180),
+      type: item.subject?.type ?? 'unknown',
+      url: item.repository?.html_url ?? null
+    }));
+    const mappedPulls = (Array.isArray(pulls) ? pulls : []).slice(0, 10).map((pull) => ({
+      id: String(pull.id),
+      number: pull.number,
+      title: String(pull.title ?? '(no title)').slice(0, 180),
+      state: pull.state ?? 'open',
+      draft: Boolean(pull.draft),
+      author: pull.user?.login ?? 'unknown',
+      updatedAt: pull.updated_at ?? null,
+      htmlUrl: pull.html_url ?? null
+    }));
+
+    return {
+      contract: 'agent-os.github-signals.v1',
+      source: 'github-api:notifications-pulls',
+      generatedAt,
+      configured: true,
+      connected: true,
+      account: { login: viewer.login ?? 'unknown' },
+      notifications: mappedNotifications,
+      pullRequests: mappedPulls,
+      checks: [
+        { id: 'token', label: 'Read-only token configured', ok: true, detail: 'configured in bridge env' },
+        { id: 'notifications', label: 'Notifications fetch', ok: true, detail: `${mappedNotifications.length} notifications` },
+        { id: 'pulls', label: 'Pull request fetch', ok: true, detail: owner && repo ? `${mappedPulls.length} open PRs for ${owner}/${repo}` : 'repo filter not configured' }
+      ],
+      alerts: mappedNotifications.filter((item) => item.unread).slice(0, 5).map((item) => ({ severity: 'info', title: item.title, detail: `${item.repository} · ${item.reason}` })),
+      nextSteps: ['Add issue/PR review guarded actions only after repo allowlist and audit logging exist.', 'Feed unread notifications and stale PRs into Radar.']
+    };
+  } catch (error) {
+    return {
+      contract: 'agent-os.github-signals.v1',
+      source: 'github-api:error',
+      generatedAt,
+      configured: true,
+      connected: false,
+      account: null,
+      notifications: [],
+      pullRequests: [],
+      checks: [{ id: 'github-fetch', label: 'GitHub API fetch', ok: false, detail: error.message ?? 'request failed' }],
+      alerts: [{ severity: 'warning', title: 'GitHub connector failed', detail: error.message ?? 'request failed' }],
+      nextSteps: ['Verify GITHUB_TOKEN/GH_TOKEN in the bridge environment.', 'Confirm token has read-only notification and repo metadata scopes.']
+    };
+  }
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -2865,6 +3040,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/vercel/snapshot') {
       return send(res, 200, await vercelSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/calendar/snapshot') {
+      return send(res, 200, await calendarSnapshot(url));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/github/snapshot') {
+      return send(res, 200, await githubSnapshot());
     }
 
     if (req.method === 'POST' && url.pathname === '/affiliate/accounts') {
