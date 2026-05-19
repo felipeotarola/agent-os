@@ -216,26 +216,25 @@ function MiniSpark({ color = 'cyan' }: { color?: string }) {
 
 function BitcoinSparkline() {
   return (
-    <svg
-      className='mt-3 hidden h-12 w-full overflow-visible opacity-55 2xl:block'
-      viewBox='0 0 220 80'
-    >
+    <svg className='h-20 w-full overflow-visible' viewBox='0 0 220 90' preserveAspectRatio='none'>
       <defs>
         <linearGradient id='btcArea' x1='0' x2='0' y1='0' y2='1'>
-          <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.18' />
+          <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.22' />
           <stop offset='100%' stopColor='var(--primary)' stopOpacity='0' />
         </linearGradient>
       </defs>
+      <path d='M0 70 H220 M0 46 H220 M0 22 H220' stroke='var(--border)' strokeWidth='1' />
       <path
-        d='M2 66 L24 60 L42 54 L60 64 L76 59 L92 42 L108 35 L126 33 L144 47 L162 35 L182 25 L202 32 L218 20 L218 80 L2 80 Z'
+        d='M2 72 L20 66 L38 62 L56 70 L74 63 L92 45 L110 37 L128 35 L146 50 L164 38 L184 26 L202 34 L218 20 L218 90 L2 90 Z'
         fill='url(#btcArea)'
       />
       <path
-        d='M2 66 L24 60 L42 54 L60 64 L76 59 L92 42 L108 35 L126 33 L144 47 L162 35 L182 25 L202 32 L218 20'
+        d='M2 72 L20 66 L38 62 L56 70 L74 63 L92 45 L110 37 L128 35 L146 50 L164 38 L184 26 L202 34 L218 20'
         fill='none'
         stroke='var(--primary)'
-        strokeWidth='1.5'
+        strokeWidth='2'
       />
+      <circle cx='218' cy='20' r='3' fill='var(--primary)' />
     </svg>
   );
 }
@@ -321,16 +320,15 @@ export default async function OverviewPage() {
         ? compactNumber(briefing.bitcoin.priceUsd, 'USD')
         : 'Ingen BTC-data';
 
-  const visibleNews =
-    briefing.news.items.length > 0
-      ? briefing.news.items.slice(0, 4).map((item) => ({
-          title: item.title,
-          source: item.source,
-          url: item.url,
-          imageUrl: item.imageUrl,
-          tag: newsTag(item)
-        }))
-      : [];
+  const briefingNews = briefing.news.items.map((item) => ({
+    title: item.title,
+    source: item.source,
+    url: item.url,
+    imageUrl: item.imageUrl,
+    tag: newsTag(item)
+  }));
+  const bitcoinNews = briefingNews.filter((item) => item.tag === 'Bitcoin').slice(0, 3);
+  const visibleNews = briefingNews.filter((item) => item.tag !== 'Bitcoin').slice(0, 4);
 
   const personalSignals = [
     ...briefing.dispatch.byAgent.slice(0, 3).map((group) => ({
@@ -490,8 +488,8 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[210px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-                <div className='order-4 rounded-2xl border bg-card/80 p-3 text-card-foreground shadow-sm 2xl:order-1'>
+              <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[minmax(250px,0.9fr)_minmax(0,1.25fr)_minmax(0,1fr)_290px]'>
+                <div className='order-4 rounded-2xl border bg-card/80 p-4 text-card-foreground shadow-sm 2xl:order-1'>
                   <div className='flex items-center justify-between gap-2'>
                     <div className='flex items-center gap-2'>
                       <div className='flex size-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-sm text-muted-foreground'>
@@ -520,7 +518,13 @@ export default async function OverviewPage() {
                     {percent(bitcoinChange)} 24h
                   </div>
 
-                  <BitcoinSparkline />
+                  <div className='mt-4 rounded-2xl border bg-background/45 px-3 py-2'>
+                    <div className='mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>
+                      <span>BTC trend</span>
+                      <span>24h</span>
+                    </div>
+                    <BitcoinSparkline />
+                  </div>
 
                   <div className='mt-3 flex flex-wrap gap-1.5'>
                     <Badge variant='outline' className='border-border bg-muted/30 text-[10px]'>
@@ -533,9 +537,35 @@ export default async function OverviewPage() {
                     )}
                   </div>
 
-                  <p className='mt-2 text-xs leading-5 text-muted-foreground'>
-                    Lägesbild, inte prognos.
-                  </p>
+                  <div className='mt-4 border-t pt-3'>
+                    <div className='mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                      Bitcoin news
+                    </div>
+                    {bitcoinNews.length === 0 ? (
+                      <p className='text-xs leading-5 text-muted-foreground'>
+                        Inga BTC-rubriker från RSS just nu. Lägesbild, inte prognos.
+                      </p>
+                    ) : (
+                      <div className='space-y-2'>
+                        {bitcoinNews.map((item) => (
+                          <a
+                            key={`${item.title}-${item.url}`}
+                            href={item.url}
+                            target='_blank'
+                            rel='noreferrer'
+                            className='group block rounded-xl border bg-background/35 px-3 py-2 transition hover:border-primary/40 hover:bg-muted/40'
+                          >
+                            <div className='line-clamp-2 text-xs font-medium leading-5 text-card-foreground group-hover:text-primary'>
+                              {item.title}
+                            </div>
+                            <div className='mt-1 text-[10px] text-muted-foreground'>
+                              {item.source}
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className='order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
