@@ -1658,11 +1658,14 @@ async function githubSnapshot() {
   }
 
   try {
-    const [viewer, notifications, pulls] = await Promise.all([
+    const [viewerResult, notificationsResult, pullsResult] = await Promise.allSettled([
       githubFetch('/user', token),
       githubFetch('/notifications?participating=false&per_page=20', token),
       owner && repo ? githubFetch(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=10`, token) : Promise.resolve([])
     ]);
+    if (viewerResult.status === 'rejected') throw viewerResult.reason;
+    const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : [];
+    const pulls = pullsResult.status === 'fulfilled' ? pullsResult.value : [];
     const mappedNotifications = (Array.isArray(notifications) ? notifications : []).slice(0, 12).map((item) => ({
       id: String(item.id),
       reason: String(item.reason ?? 'notification'),
@@ -1690,15 +1693,34 @@ async function githubSnapshot() {
       generatedAt,
       configured: true,
       connected: true,
-      account: { login: viewer.login ?? 'unknown' },
+      account: { login: viewerResult.value.login ?? 'unknown' },
       notifications: mappedNotifications,
       pullRequests: mappedPulls,
       checks: [
         { id: 'token', label: 'Read-only token configured', ok: true, detail: 'configured in bridge env' },
-        { id: 'notifications', label: 'Notifications fetch', ok: true, detail: `${mappedNotifications.length} notifications` },
-        { id: 'pulls', label: 'Pull request fetch', ok: true, detail: owner && repo ? `${mappedPulls.length} open PRs for ${owner}/${repo}` : 'repo filter not configured' }
+        {
+          id: 'notifications',
+          label: 'Notifications fetch',
+          ok: notificationsResult.status === 'fulfilled',
+          detail: notificationsResult.status === 'fulfilled'
+            ? `${mappedNotifications.length} notifications`
+            : `unavailable: ${notificationsResult.reason?.message ?? 'request failed'}`
+        },
+        {
+          id: 'pulls',
+          label: 'Pull request fetch',
+          ok: pullsResult.status === 'fulfilled',
+          detail: pullsResult.status === 'fulfilled'
+            ? (owner && repo ? `${mappedPulls.length} open PRs for ${owner}/${repo}` : 'repo filter not configured')
+            : `unavailable: ${pullsResult.reason?.message ?? 'request failed'}`
+        }
       ],
-      alerts: mappedNotifications.filter((item) => item.unread).slice(0, 5).map((item) => ({ severity: 'info', title: item.title, detail: `${item.repository} · ${item.reason}` })),
+      alerts: [
+        ...(notificationsResult.status === 'rejected'
+          ? [{ severity: 'warning', title: 'GitHub notifications unavailable', detail: notificationsResult.reason?.message ?? 'request failed' }]
+          : []),
+        ...mappedNotifications.filter((item) => item.unread).slice(0, 5).map((item) => ({ severity: 'info', title: item.title, detail: `${item.repository} · ${item.reason}` }))
+      ],
       nextSteps: ['Add issue/PR review guarded actions only after repo allowlist and audit logging exist.', 'Feed unread notifications and stale PRs into Radar.']
     };
   } catch (error) {
