@@ -489,7 +489,7 @@ export default async function OverviewPage() {
               </div>
 
               <div className='grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 md:gap-4 2xl:grid-cols-[minmax(250px,0.9fr)_minmax(0,1.25fr)_minmax(0,1fr)_290px]'>
-                <div className='mobile-feed-card order-4 rounded-2xl border bg-card/80 p-4 text-card-foreground shadow-sm 2xl:order-1'>
+                <div className='mobile-briefing-panel mobile-feed-card order-4 rounded-2xl border bg-card/80 p-4 text-card-foreground shadow-sm 2xl:order-1'>
                   <div className='flex items-center justify-between gap-2'>
                     <div className='flex items-center gap-2'>
                       <div className='flex size-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-sm text-muted-foreground'>
@@ -568,7 +568,7 @@ export default async function OverviewPage() {
                   </div>
                 </div>
 
-                <div className='mobile-feed-card order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
+                <div className='mobile-briefing-panel mobile-feed-card order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
                   <div className='mb-4 flex flex-col items-start gap-2 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between min-[390px]:gap-3'>
                     <div className='flex items-center gap-3'>
                       <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
@@ -652,7 +652,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='mobile-feed-card order-2 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-3'>
+                <div className='mobile-briefing-panel mobile-feed-card order-2 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-3'>
                   <div className='mb-3 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-lg text-card-foreground'>
                       〽
@@ -699,7 +699,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='mobile-feed-card order-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-4'>
+                <div className='mobile-briefing-panel mobile-feed-card order-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-4'>
                   <div className='mb-4 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                       ✉
@@ -707,7 +707,7 @@ export default async function OverviewPage() {
                     <div className='font-semibold text-foreground'>Senaste Cai-meddelande</div>
                   </div>
 
-                  <div className='mobile-soft-shell rounded-2xl border border-border bg-muted/25 p-4'>
+                  <div className='mobile-soft-shell rounded-2xl border border-border bg-muted/25 p-4 max-md:border-t max-md:border-border max-md:pt-3'>
                     <p className='whitespace-pre-line text-[15px] leading-7 text-card-foreground/90'>
                       {latestCaiMessage}
                     </p>
@@ -1078,7 +1078,7 @@ export default async function OverviewPage() {
           </Card>
         </section>
 
-        <section className='mobile-feed-card flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
+        <section className='mobile-status-strip mobile-feed-card flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
           <div className='flex flex-wrap items-center gap-3'>
             <span className='flex items-center gap-1.5'>
               <StatusDot ok={snapshot.dbOnline} /> db

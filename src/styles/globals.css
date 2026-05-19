@@ -82,6 +82,14 @@
   .mobile-soft-shell {
     @apply max-md:rounded-xl max-md:border-0 max-md:bg-muted/25 max-md:px-0 max-md:py-0 max-md:shadow-none;
   }
+
+  .mobile-briefing-panel {
+    @apply max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none;
+  }
+
+  .mobile-status-strip {
+    @apply max-md:rounded-none max-md:border-x-0 max-md:border-b-0 max-md:bg-transparent max-md:px-0 max-md:shadow-none;
+  }
 }
 
 /* View Transition Wave Effect */

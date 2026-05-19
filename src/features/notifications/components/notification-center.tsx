@@ -49,10 +49,14 @@ export function NotificationCenter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant='ghost' size='icon' className='relative h-8 w-8'>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='relative h-8 w-8 rounded-full bg-transparent shadow-none hover:bg-transparent hover:text-foreground'
+        >
           <Icons.notification className='h-4 w-4' />
           {count > 0 && (
-            <span className='bg-destructive text-destructive-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium'>
+            <span className='bg-destructive text-destructive-foreground absolute top-0 right-0 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] font-medium'>
               {count > 9 ? '9+' : count}
             </span>
           )}
@@ -89,7 +93,7 @@ export function NotificationCenter() {
               <p className='text-muted-foreground text-sm'>No relevant notifications</p>
             </div>
           ) : (
-            <div className='flex flex-col gap-1 p-2'>
+            <div className='flex flex-col gap-1 p-2 max-sm:gap-0 max-sm:px-4'>
               {visibleNotifications.map((notification) => (
                 <NotificationCard
                   key={notification.id}

@@ -95,12 +95,12 @@ export const NotificationCard: FC<NotificationCardProps> = ({
   return (
     <div
       className={cn(
-        'group relative w-full rounded-2xl transition-all',
+        'group relative w-full rounded-2xl transition-all max-sm:rounded-none max-sm:border-b max-sm:border-border max-sm:bg-transparent',
         isUnread ? 'bg-muted' : 'bg-muted/40',
         className
       )}
     >
-      <div className='px-4 py-3.5'>
+      <div className='px-4 py-3.5 max-sm:px-0'>
         <div className='flex items-start justify-between gap-3'>
           {/* Main content */}
           <div className='min-w-0 flex-1 space-y-1'>
@@ -146,7 +146,7 @@ export const NotificationCard: FC<NotificationCardProps> = ({
               type='button'
               onClick={() => onMarkAsRead(id)}
               className={cn(
-                'rounded-lg p-1.5 transition-colors',
+                'rounded-lg p-1.5 transition-colors max-sm:bg-transparent',
                 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
               aria-label='Mark as read'
@@ -163,7 +163,7 @@ export const NotificationCard: FC<NotificationCardProps> = ({
               {detailHref && (
                 <Link
                   href={detailHref}
-                  className='flex items-center gap-1.5 rounded-lg bg-accent px-4 py-1.5 text-xs font-normal text-muted-foreground transition hover:bg-accent hover:text-foreground'
+                  className='flex items-center gap-1.5 rounded-lg bg-accent px-4 py-1.5 text-xs font-normal text-muted-foreground transition hover:bg-accent hover:text-foreground max-sm:bg-transparent max-sm:px-0'
                 >
                   <span>Details</span>
                   <Icons.chevronRight size={12} strokeWidth={2.5} />
@@ -177,10 +177,10 @@ export const NotificationCard: FC<NotificationCardProps> = ({
                 const className = cn(
                   'flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-normal transition',
                   action.style === 'primary'
-                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                    ? 'bg-primary/10 text-primary hover:bg-primary/20 max-sm:bg-transparent max-sm:px-0'
                     : action.style === 'danger'
-                      ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
-                      : 'bg-accent text-muted-foreground hover:bg-accent hover:text-foreground',
+                      ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 max-sm:bg-transparent max-sm:px-0'
+                      : 'bg-accent text-muted-foreground hover:bg-accent hover:text-foreground max-sm:bg-transparent max-sm:px-0',
                   showLoading && 'opacity-50',
                   isExecuted && 'cursor-not-allowed opacity-60'
                 );
