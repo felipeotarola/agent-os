@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,14 @@ import type { ActionCenterItem, ActionCenterSnapshot } from '@/lib/action-center
 import Link from 'next/link';
 
 type FilterKey = 'all' | 'high' | 'task' | 'knowledge' | 'agent' | 'system';
+type ActionKind = 'advance' | 'archive' | 'complete' | 'snooze' | 'dismiss';
+
+type HiddenAction = {
+  hiddenUntil: string | null;
+  action: ActionKind;
+};
+
+const hiddenStorageKey = 'agent-os:action-center:hidden:v1';
 
 const priorityTone = {
   high: 'border-primary/40 bg-primary/10 text-primary',
@@ -53,6 +61,39 @@ function matchesFilter(item: ActionCenterItem, filter: FilterKey) {
   return item.kind === filter;
 }
 
+function actionVerb(action: ActionKind) {
+  if (action === 'advance') return 'Advancing';
+  if (action === 'archive') return 'Archiving';
+  if (action === 'complete') return 'Completing';
+  if (action === 'snooze') return 'Snoozing';
+  return 'Dismissing';
+}
+
+function knowledgeStatus(item: ActionCenterItem) {
+  return item.kind === 'knowledge' ? (item.meta ?? '').split(' · ')[0] : '';
+}
+
+function loadHiddenActions() {
+  if (typeof window === 'undefined') return {} as Record<string, HiddenAction>;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(hiddenStorageKey) ?? '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const now = Date.now();
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, HiddenAction>).filter(([, value]) => {
+        if (!value?.hiddenUntil) return true;
+        return new Date(value.hiddenUntil).getTime() > now;
+      })
+    ) as Record<string, HiddenAction>;
+  } catch {
+    return {};
+  }
+}
+
+function saveHiddenActions(hidden: Record<string, HiddenAction>) {
+  window.localStorage.setItem(hiddenStorageKey, JSON.stringify(hidden));
+}
+
 function StatTile({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
     <Card className='overflow-hidden transition-colors hover:border-primary/30'>
@@ -67,8 +108,19 @@ function StatTile({ label, value, detail }: { label: string; value: number; deta
   );
 }
 
-function ActionCard({ item, index }: { item: ActionCenterItem; index: number }) {
+function ActionCard({
+  item,
+  index,
+  pendingAction,
+  onAction
+}: {
+  item: ActionCenterItem;
+  index: number;
+  pendingAction?: ActionKind;
+  onAction: (item: ActionCenterItem, action: ActionKind) => void;
+}) {
   const prefersReducedMotion = useReducedMotion();
+  const pending = Boolean(pendingAction);
 
   return (
     <motion.article
@@ -105,22 +157,78 @@ function ActionCard({ item, index }: { item: ActionCenterItem; index: number }) 
           </div>
         </div>
 
-        <div className='flex shrink-0 gap-2 md:flex-col md:items-stretch'>
-          <Button asChild size='sm' className='rounded-full'>
-            <Link href={item.href}>{item.primaryLabel}</Link>
-          </Button>
-          {item.secondaryLabel ? (
-            <Button asChild size='sm' variant='outline' className='rounded-full'>
-              <Link href={item.href}>{item.secondaryLabel}</Link>
+        <div className='flex shrink-0 flex-wrap gap-2 md:max-w-36 md:flex-col md:items-stretch'>
+          {item.kind === 'knowledge' ? (
+            <Button
+              type='button'
+              size='sm'
+              className='rounded-full'
+              disabled={pending}
+              onClick={() => onAction(item, 'advance')}
+            >
+              {pendingAction === 'advance' ? `${actionVerb('advance')}…` : item.primaryLabel}
+            </Button>
+          ) : (
+            <Button asChild size='sm' className='rounded-full'>
+              <Link href={item.href}>{item.primaryLabel}</Link>
+            </Button>
+          )}
+
+          {item.kind === 'task' ? (
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              className='rounded-full'
+              disabled={pending}
+              onClick={() => onAction(item, 'complete')}
+            >
+              {pendingAction === 'complete' ? 'Completing…' : 'Done'}
             </Button>
           ) : null}
+
+          {item.kind === 'knowledge' ? (
+            <Button asChild size='sm' variant='outline' className='rounded-full'>
+              <Link href={item.href}>Open</Link>
+            </Button>
+          ) : null}
+
+          <Button
+            type='button'
+            size='sm'
+            variant='ghost'
+            className='rounded-full'
+            disabled={pending}
+            onClick={() =>
+              onAction(
+                item,
+                item.kind === 'knowledge' ? 'archive' : item.kind === 'task' ? 'snooze' : 'dismiss'
+              )
+            }
+          >
+            {pendingAction && pendingAction !== 'complete' && pendingAction !== 'advance'
+              ? `${actionVerb(pendingAction)}…`
+              : item.kind === 'knowledge'
+                ? 'Archive'
+                : item.kind === 'task'
+                  ? 'Snooze'
+                  : 'Dismiss'}
+          </Button>
         </div>
       </div>
     </motion.article>
   );
 }
 
-function NowCard({ item }: { item?: ActionCenterItem }) {
+function NowCard({
+  item,
+  pendingAction,
+  onAction
+}: {
+  item?: ActionCenterItem;
+  pendingAction?: ActionKind;
+  onAction: (item: ActionCenterItem, action: ActionKind) => void;
+}) {
   if (!item) {
     return (
       <Card className='overflow-hidden border-primary/20 bg-primary/5'>
@@ -155,14 +263,44 @@ function NowCard({ item }: { item?: ActionCenterItem }) {
             <p className='text-muted-foreground text-xs'>{reasonFor(item)}</p>
           </div>
           <div className='flex shrink-0 gap-2'>
-            <Button asChild className='rounded-full'>
-              <Link href={item.href}>{item.primaryLabel}</Link>
-            </Button>
-            {item.secondaryLabel ? (
-              <Button asChild variant='outline' className='rounded-full'>
-                <Link href={item.href}>{item.secondaryLabel}</Link>
+            {item.kind === 'knowledge' ? (
+              <Button
+                type='button'
+                className='rounded-full'
+                disabled={Boolean(pendingAction)}
+                onClick={() => onAction(item, 'advance')}
+              >
+                {pendingAction === 'advance' ? 'Advancing…' : item.primaryLabel}
               </Button>
-            ) : null}
+            ) : (
+              <Button asChild className='rounded-full'>
+                <Link href={item.href}>{item.primaryLabel}</Link>
+              </Button>
+            )}
+            <Button
+              type='button'
+              variant='outline'
+              className='rounded-full'
+              disabled={Boolean(pendingAction)}
+              onClick={() =>
+                onAction(
+                  item,
+                  item.kind === 'task'
+                    ? 'complete'
+                    : item.kind === 'knowledge'
+                      ? 'archive'
+                      : 'dismiss'
+                )
+              }
+            >
+              {pendingAction
+                ? `${actionVerb(pendingAction)}…`
+                : item.kind === 'task'
+                  ? 'Done'
+                  : item.kind === 'knowledge'
+                    ? 'Archive'
+                    : 'Dismiss'}
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -172,13 +310,87 @@ function NowCard({ item }: { item?: ActionCenterItem }) {
 
 export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot }) {
   const [filter, setFilter] = useState<FilterKey>('all');
-  const filteredItems = useMemo(
-    () => snapshot.items.filter((item) => matchesFilter(item, filter)),
-    [filter, snapshot.items]
+  const [hiddenActions, setHiddenActions] = useState<Record<string, HiddenAction>>({});
+  const [pendingById, setPendingById] = useState<Record<string, ActionKind>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hidden = loadHiddenActions();
+    setHiddenActions(hidden);
+    saveHiddenActions(hidden);
+  }, []);
+
+  const visibleItems = useMemo(
+    () => snapshot.items.filter((item) => !hiddenActions[item.id]),
+    [hiddenActions, snapshot.items]
   );
-  const highItems = snapshot.items.filter((item) => item.priority === 'high');
-  const nowItem = highItems[0] ?? snapshot.items[0];
+  const filteredItems = useMemo(
+    () => visibleItems.filter((item) => matchesFilter(item, filter)),
+    [filter, visibleItems]
+  );
+  const highItems = visibleItems.filter((item) => item.priority === 'high');
+  const nowItem = highItems[0] ?? visibleItems[0];
   const generated = new Date(snapshot.generatedAt).toLocaleString('sv-SE');
+  const counts = useMemo(
+    () => ({
+      total: visibleItems.length,
+      high: visibleItems.filter((item) => item.priority === 'high').length,
+      knowledge: visibleItems.filter((item) => item.kind === 'knowledge').length,
+      tasks: visibleItems.filter((item) => item.kind === 'task').length
+    }),
+    [visibleItems]
+  );
+
+  const hideItem = (
+    item: ActionCenterItem,
+    action: ActionKind,
+    hiddenUntil: string | null = null
+  ) => {
+    setHiddenActions((current) => {
+      const next = { ...current, [item.id]: { action, hiddenUntil } };
+      saveHiddenActions(next);
+      return next;
+    });
+  };
+
+  const handleAction = async (item: ActionCenterItem, action: ActionKind) => {
+    setPendingById((current) => ({ ...current, [item.id]: action }));
+    setNotice(null);
+    try {
+      if (action === 'dismiss') {
+        hideItem(item, action);
+        setNotice('Dismissed locally.');
+        return;
+      }
+
+      const response = await fetch('/api/action-center', {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id, action, status: knowledgeStatus(item) })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? `Action failed with ${response.status}`);
+
+      hideItem(item, action, typeof payload.hiddenUntil === 'string' ? payload.hiddenUntil : null);
+      setNotice(
+        action === 'snooze'
+          ? 'Snoozed until tomorrow morning.'
+          : action === 'complete'
+            ? 'Marked done.'
+            : action === 'archive'
+              ? 'Archived.'
+              : 'Advanced.'
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Action failed.');
+    } finally {
+      setPendingById((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+    }
+  };
 
   return (
     <div className='flex flex-1 flex-col gap-6'>
@@ -199,13 +411,27 @@ export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot
         </div>
       </div>
 
-      <NowCard item={nowItem} />
+      <NowCard
+        item={nowItem}
+        pendingAction={nowItem ? pendingById[nowItem.id] : undefined}
+        onAction={handleAction}
+      />
+
+      {notice ? (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className='rounded-2xl border bg-card px-4 py-3 text-sm shadow-sm'
+        >
+          {notice}
+        </motion.div>
+      ) : null}
 
       <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
-        <StatTile label='Total' value={snapshot.counts.total} detail='in queue' />
-        <StatTile label='High priority' value={snapshot.counts.high} detail='decide first' />
-        <StatTile label='Knowledge' value={snapshot.counts.knowledge} detail='reviewable' />
-        <StatTile label='Tasks' value={snapshot.counts.tasks} detail='work queue' />
+        <StatTile label='Total' value={counts.total} detail='in queue' />
+        <StatTile label='High priority' value={counts.high} detail='decide first' />
+        <StatTile label='Knowledge' value={counts.knowledge} detail='reviewable' />
+        <StatTile label='Tasks' value={counts.tasks} detail='work queue' />
       </div>
 
       <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]'>
@@ -253,7 +479,13 @@ export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot
               </motion.div>
             ) : (
               filteredItems.map((item, index) => (
-                <ActionCard key={item.id} item={item} index={index} />
+                <ActionCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  pendingAction={pendingById[item.id]}
+                  onAction={handleAction}
+                />
               ))
             )}
           </AnimatePresence>
