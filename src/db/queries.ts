@@ -37,12 +37,14 @@ export type SubagentRunsSnapshot = {
 export type CockpitSnapshot = {
   stats: Array<{ label: string; value: string; detail: string; tone: string }>;
   tasks: Array<{
+    id?: string;
     title: string;
     detail: string;
     status: string;
-    owner?: string;
-    project?: string;
+    owner?: string | null;
+    project?: string | null;
     priority?: string;
+    updatedAt?: string | null;
   }>;
   agents: Array<{ name: string; role: string; detail: string; status: string }>;
   knowledge?: {
@@ -165,9 +167,14 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
         }
       ],
       tasks: taskRows.map((task) => ({
+        id: task.id,
         title: task.title,
         detail: task.description,
-        status: task.status
+        status: task.status,
+        owner: task.ownerAgentId,
+        project: task.projectId,
+        priority: String(task.priority ?? ''),
+        updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : null
       })),
       agents: agentRows.map((agent) => ({
         name: agent.name,

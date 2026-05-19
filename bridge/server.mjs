@@ -342,12 +342,13 @@ async function openclawStatus() {
   }
 }
 
-async function subagentRunsSnapshot() {
+async function subagentRunsSnapshot(options = {}) {
   const source = 'openclaw-cli:tasks-list+sessions-active';
+  const timeout = options.timeout ?? 12000;
   try {
     const [taskPayload, sessionPayload] = await Promise.all([
-      openclawJson(['tasks', 'list', '--json'], { timeout: 12000 }),
-      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], { timeout: 12000 })
+      openclawJson(['tasks', 'list', '--json'], { timeout }),
+      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], { timeout })
     ]);
     const rows = Array.isArray(taskPayload.tasks) ? taskPayload.tasks : [];
     const runs = rows.slice(0, 12).map((task) => {
@@ -431,9 +432,9 @@ async function memorySearch(url) {
   return { query, corpus, results, source: 'openclaw-memory:qmd' };
 }
 
-async function memoryStatus() {
+async function memoryStatus(options = {}) {
   try {
-    return { status: await openclawJson(['memory', 'status', '--json']), source: 'openclaw-memory:qmd' };
+    return { status: await openclawJson(['memory', 'status', '--json'], { timeout: options.timeout ?? 20000 }), source: 'openclaw-memory:qmd' };
   } catch (error) {
     return { status: null, source: 'openclaw-memory:qmd', error: error.message };
   }
@@ -722,8 +723,8 @@ async function overviewSnapshot() {
       order by created_at desc
       limit 6
     `,
-    memoryStatus(),
-    subagentRunsSnapshot()
+    memoryStatus({ timeout: 1500 }),
+    subagentRunsSnapshot({ timeout: 1500 })
   ]);
 
   const taskByStatus = new Map(taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)]));
@@ -756,12 +757,14 @@ async function overviewSnapshot() {
       { label: 'Subagents', value: String(subagents.runningCount ?? 0), detail: subagents.ok ? `${subagents.recent.length} recent runs · ${subagents.source}` : `source unavailable: ${subagents.error}`, tone: 'OpenClaw tasks' }
     ],
     tasks: taskRows.map((task) => ({
+      id: task.id,
       title: task.title,
       detail: task.description,
       status: normalizeTaskStatus(task.status),
       owner: task.ownerAgentId,
       project: task.projectName,
-      priority: taskPriorityLabel(task.priority)
+      priority: taskPriorityLabel(task.priority),
+      updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : null
     })),
     agents: agentRows.map((agent) => ({ name: agent.name, role: agent.role, detail: agent.detail, status: agent.status })),
     knowledge: {

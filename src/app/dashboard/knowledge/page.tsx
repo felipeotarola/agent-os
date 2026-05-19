@@ -176,6 +176,29 @@ function ActionForm({
   );
 }
 
+function compactDate(value: Date | string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('sv-SE', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function rawSourceRows(source: KnowledgeSource) {
+  return [
+    ['id', source.id],
+    ['kind', source.kind],
+    ['status', source.status],
+    ['source', source.sourceUrl],
+    ['raw', source.rawPath],
+    ['wiki', source.wikiPath],
+    ['created', compactDate(source.createdAt)]
+  ].filter(([, value]) => Boolean(value));
+}
+
 function ProgressRail({ status }: { status: string }) {
   const current = statusIndex(status);
   return (
@@ -389,18 +412,30 @@ function SourceInspector({ source }: { source?: KnowledgeSource }) {
           )}
         </div>
 
-        <div className='space-y-2'>
-          <div className='text-xs font-medium'>Metadata</div>
-          <div className='text-muted-foreground font-mono text-[11px]'>
-            {source.wikiPath ?? source.rawPath}
+        <div className='rounded-xl border bg-muted/30 p-3'>
+          <div className='text-xs font-medium'>Rådata</div>
+          <div className='mt-2 space-y-1 font-mono text-[10px] text-muted-foreground'>
+            {rawSourceRows(source).map(([label, value]) => (
+              <div key={label} className='grid grid-cols-[4.5rem_1fr] gap-2'>
+                <span className='uppercase tracking-wide'>{label}</span>
+                <span className='truncate' title={String(value)}>
+                  {String(value)}
+                </span>
+              </div>
+            ))}
           </div>
+          {source.summary ? (
+            <div className='mt-3 line-clamp-3 rounded-lg bg-background/60 p-2 text-xs text-muted-foreground'>
+              {source.summary}
+            </div>
+          ) : null}
           {source.sourceUrl && (
             <a
-              className='text-primary block truncate text-xs underline'
+              className='text-primary mt-3 block truncate text-xs underline'
               href={source.sourceUrl}
               target='_blank'
             >
-              {source.sourceUrl}
+              Öppna källa →
             </a>
           )}
         </div>

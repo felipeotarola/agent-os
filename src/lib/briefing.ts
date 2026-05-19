@@ -77,6 +77,13 @@ const fallbackDispatch: DispatchSummary = {
   suggestedMessage: 'Bridge dispatch-summary unavailable.'
 };
 
+function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 1500) {
+  return fetch(url, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(timeoutMs)
+  });
+}
+
 function toNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -94,7 +101,7 @@ async function getDispatchSummary(): Promise<DispatchSummary> {
 
 async function getBitcoinSnapshot(): Promise<BitcoinSnapshot> {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=sek,usd&include_24hr_change=true',
       { cache: 'no-store' }
     );
@@ -111,9 +118,12 @@ async function getBitcoinSnapshot(): Promise<BitcoinSnapshot> {
   } catch (error) {
     console.error('Bitcoin briefing fetch failed', error);
     try {
-      const response = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC', {
-        cache: 'no-store'
-      });
+      const response = await fetchWithTimeout(
+        'https://api.coinbase.com/v2/exchange-rates?currency=BTC',
+        {
+          cache: 'no-store'
+        }
+      );
       if (!response.ok) throw new Error(`Coinbase ${response.status}`, { cause: error });
       const json = await response.json();
       const rates = json.data?.rates ?? {};
@@ -171,7 +181,7 @@ function firstImageUrl(item: string) {
 }
 
 async function getRssItems(url: string, source: string, limit = 4): Promise<NewsItem[]> {
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetchWithTimeout(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${source} RSS ${response.status}`);
   const xml = await response.text();
   return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)]

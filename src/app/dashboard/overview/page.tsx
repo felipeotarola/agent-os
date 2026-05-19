@@ -171,6 +171,24 @@ function taskProgress(status: string) {
   return 25;
 }
 
+function taskRawData(task: {
+  id?: string;
+  owner?: string | null;
+  project?: string | null;
+  priority?: string;
+  updatedAt?: string | null;
+}) {
+  return [
+    task.id ? `id:${task.id}` : null,
+    task.owner ? `owner:${task.owner}` : null,
+    task.project ? `project:${task.project}` : null,
+    task.priority ? `priority:${task.priority}` : null,
+    task.updatedAt ? `updated:${timeLabel(task.updatedAt)}` : null
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 function MiniSpark({ color = 'cyan' }: { color?: string }) {
   const stroke =
     color === 'violet'
@@ -780,6 +798,7 @@ export default async function OverviewPage() {
               ) : (
                 snapshot.tasks.slice(0, 5).map((task, index) => {
                   const progress = taskProgress(task.status);
+                  const rawData = taskRawData(task);
                   return (
                     <div
                       key={`${task.title}-${task.status}`}
@@ -801,6 +820,11 @@ export default async function OverviewPage() {
                           <div className='text-muted-foreground mt-1 line-clamp-1 text-xs'>
                             {task.detail}
                           </div>
+                          {rawData ? (
+                            <div className='mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground'>
+                              rådata · {rawData}
+                            </div>
+                          ) : null}
                           <div className='mt-3 flex items-center gap-2'>
                             <Progress value={progress} className='h-1.5' />
                             <span className='text-muted-foreground w-8 text-right text-[10px]'>
