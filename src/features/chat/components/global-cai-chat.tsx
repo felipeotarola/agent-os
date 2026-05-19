@@ -22,7 +22,7 @@ import {
   stringFrom,
   textFromContent
 } from '../utils/event-parts';
-import type { ChatMessage } from '../utils/types';
+import type { ChatMessage, ChatMessagePart } from '../utils/types';
 import { MessageBubble } from './message-bubble';
 
 const routeLabels: Array<[RegExp, string]> = [
@@ -37,12 +37,63 @@ const routeLabels: Array<[RegExp, string]> = [
   [/^\/dashboard\/agents/, 'Agents']
 ];
 
+const injectedPageContextPattern = /^Page context:[\s\S]*?\n\nFelipe says:\s*/i;
+
 function pageLabel(pathname: string) {
   return routeLabels.find(([pattern]) => pattern.test(pathname))?.[1] ?? 'Dashboard';
 }
 
 function contextPrefix(pathname: string) {
   return `Page context: Felipe is currently on ${pageLabel(pathname)} (${pathname}). Use this page context to answer with relevant next steps or navigation-aware help.\n\nFelipe says:`;
+}
+
+function stripInjectedPageContext(text: string) {
+  return text.replace(injectedPageContextPattern, '').trim();
+}
+
+function displayableGlobalMessage(message: ChatMessage): ChatMessage | null {
+  if (message.role === 'system') return null;
+
+  const content =
+    message.role === 'user' ? stripInjectedPageContext(message.content) : message.content;
+  const parts = (message.parts ?? [])
+    .map((part) => {
+      if (part.type !== 'text') return null;
+      const text = message.role === 'user' ? stripInjectedPageContext(part.text) : part.text;
+      return text ? { ...part, text } : null;
+    })
+    .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => Boolean(part));
+
+  if (!content.trim() && !parts.length) return null;
+  return {
+    ...message,
+    content,
+    parts: parts.length ? parts : content ? [{ type: 'text', text: content }] : []
+  };
+}
+
+function mergeGlobalMessages(current: ChatMessage[], incoming: ChatMessage) {
+  const visible = displayableGlobalMessage(incoming);
+  if (!visible) return current;
+
+  const existingById = current.findIndex((item) => item.id === visible.id);
+  if (existingById >= 0) {
+    return current.map((item, index) => (index === existingById ? visible : item));
+  }
+
+  const existingByContent = current.findIndex(
+    (item) =>
+      item.role === visible.role &&
+      item.content.trim() === visible.content.trim() &&
+      visible.content
+  );
+  if (existingByContent >= 0) {
+    return current.map((item, index) =>
+      index === existingByContent ? { ...item, ...visible, id: item.id, pending: false } : item
+    );
+  }
+
+  return [...current.filter((item) => !(item.pending && visible.role === 'assistant')), visible];
 }
 
 function extractAssistantMessage(payload: unknown): ChatMessage | null {
@@ -78,7 +129,10 @@ async function fetchCaiHistory() {
     headers: { accept: 'application/json' }
   });
   if (!response.ok) return [];
-  return extractMessages(await response.json()).slice(-12);
+  return extractMessages(await response.json())
+    .map(displayableGlobalMessage)
+    .filter((message): message is ChatMessage => message !== null)
+    .slice(-12);
 }
 
 export function GlobalCaiChat() {
@@ -117,23 +171,14 @@ export function GlobalCaiChat() {
       try {
         const message = messageFromEvent(eventName, JSON.parse(event.data));
         if (message) {
-          setMessages((current) => {
-            const existing = current.findIndex((item) => item.id === message.id);
-            if (existing >= 0) {
-              return current.map((item, index) => (index === existing ? message : item));
-            }
-            return [
-              ...current.filter((item) => !(item.pending && message.role === 'assistant')),
-              message
-            ];
-          });
+          setMessages((current) => mergeGlobalMessages(current, message));
         }
       } catch {
         // SSE is opportunistic; send response/history remains the fallback.
       }
     };
 
-    ['session.message', 'session.tool', 'chat', 'run', 'task'].forEach((eventName) =>
+    ['session.message', 'chat'].forEach((eventName) =>
       source.addEventListener(eventName, handleEvent(eventName))
     );
     return () => source.close();
@@ -187,27 +232,12 @@ export function GlobalCaiChat() {
 
         const payload = await response.json();
         const assistant = extractAssistantMessage(payload);
-        setMessages((current) => [
-          ...current.map((item) =>
+        setMessages((current) => {
+          const updated = current.map((item) =>
             item.id === userMessage.id ? { ...item, pending: false } : item
-          ),
-          assistant ?? {
-            id: `global-cai-run-${submittedAt}`,
-            role: 'system',
-            content: 'Run started. Waiting for Cai’s answer…',
-            createdAt: new Date().toISOString(),
-            parts: [
-              {
-                type: 'run-status',
-                title: 'Run started',
-                status: 'running',
-                detail: 'Waiting for Cai’s answer…',
-                runId: isRecord(payload) ? stringFrom(payload.runId) : undefined
-              }
-            ],
-            pending: true
-          }
-        ]);
+          );
+          return assistant ? mergeGlobalMessages(updated, assistant) : updated;
+        });
       } catch (sendError) {
         setMessages((current) =>
           current.map((item) =>
