@@ -216,7 +216,10 @@ function MiniSpark({ color = 'cyan' }: { color?: string }) {
 
 function BitcoinSparkline() {
   return (
-    <svg className='mt-3 h-12 w-full overflow-visible opacity-55' viewBox='0 0 220 80'>
+    <svg
+      className='mt-3 hidden h-12 w-full overflow-visible opacity-55 2xl:block'
+      viewBox='0 0 220 80'
+    >
       <defs>
         <linearGradient id='btcArea' x1='0' x2='0' y1='0' y2='1'>
           <stop offset='0%' stopColor='var(--primary)' stopOpacity='0.18' />
@@ -488,7 +491,7 @@ export default async function OverviewPage() {
               </div>
 
               <div className='grid gap-4 md:grid-cols-2 2xl:grid-cols-[210px_minmax(0,1.35fr)_minmax(0,1fr)_290px]'>
-                <div className='rounded-2xl border bg-card/80 p-3 text-card-foreground shadow-sm'>
+                <div className='order-4 rounded-2xl border bg-card/80 p-3 text-card-foreground shadow-sm 2xl:order-1'>
                   <div className='flex items-center justify-between gap-2'>
                     <div className='flex items-center gap-2'>
                       <div className='flex size-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-sm text-muted-foreground'>
@@ -535,7 +538,7 @@ export default async function OverviewPage() {
                   </p>
                 </div>
 
-                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:col-span-1'>
+                <div className='order-1 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm md:col-span-2 2xl:order-2 2xl:col-span-1'>
                   <div className='mb-4 flex items-center justify-between gap-3'>
                     <div className='flex items-center gap-3'>
                       <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-background/45 text-lg'>
@@ -616,7 +619,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
+                <div className='order-2 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-3'>
                   <div className='mb-3 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-lg text-card-foreground'>
                       〽
@@ -663,7 +666,7 @@ export default async function OverviewPage() {
                   </Link>
                 </div>
 
-                <div className='rounded-2xl border bg-card p-4 text-card-foreground shadow-sm'>
+                <div className='order-3 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm 2xl:order-4'>
                   <div className='mb-4 flex items-center gap-3'>
                     <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
                       ✉
