@@ -12,6 +12,7 @@ import type { NotificationSnapshot } from '@/db/notifications';
 import { actionHref } from '../utils/store';
 
 const MAX_VISIBLE = 5;
+const READ_STORAGE_KEY = 'agent-os.read-notifications';
 
 const emptySnapshot: NotificationSnapshot = {
   notifications: [],
@@ -23,6 +24,24 @@ const emptySnapshot: NotificationSnapshot = {
 export function NotificationCenter() {
   const [snapshot, setSnapshot] = useState<NotificationSnapshot>(emptySnapshot);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(READ_STORAGE_KEY);
+      if (stored) setReadIds(new Set(JSON.parse(stored)));
+    } catch {
+      // Local read state is a convenience only.
+    }
+  }, []);
+
+  const updateReadIds = (next: Set<string>) => {
+    setReadIds(next);
+    try {
+      window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...next].slice(-200)));
+    } catch {
+      // Ignore storage failures.
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -42,9 +61,9 @@ export function NotificationCenter() {
   );
   const count = notifications.filter((notification) => notification.status === 'unread').length;
   const visibleNotifications = notifications.slice(0, MAX_VISIBLE);
-  const markAsRead = (id: string) => setReadIds((current) => new Set([...current, id]));
+  const markAsRead = (id: string) => updateReadIds(new Set([...readIds, id]));
   const markAllAsRead = () =>
-    setReadIds(new Set(notifications.map((notification) => notification.id)));
+    updateReadIds(new Set(notifications.map((notification) => notification.id)));
 
   return (
     <Popover>

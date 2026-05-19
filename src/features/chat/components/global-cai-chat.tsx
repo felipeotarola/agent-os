@@ -39,6 +39,7 @@ const routeLabels: Array<[RegExp, string]> = [
 
 const dashboardCaiSessionKey = 'session:dashboard-cai-copilot';
 const injectedPageContextPattern = /^[\s\S]*?Page context:[\s\S]*?\n\nFelipe says:\s*/i;
+const pendingCaiText = 'Cai tänker…';
 
 function pageLabel(pathname: string) {
   return routeLabels.find(([pattern]) => pattern.test(pathname))?.[1] ?? 'Dashboard';
@@ -148,9 +149,13 @@ export function GlobalCaiChat() {
   const [draft, setDraft] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [abortRunId, setAbortRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const label = useMemo(() => pageLabel(pathname), [pathname]);
+  const hasPendingCai = messages.some(
+    (message) => message.pending && message.content === pendingCaiText
+  );
 
   useEffect(() => {
     if (!open || messages.length) return;
@@ -175,9 +180,25 @@ export function GlobalCaiChat() {
     };
   }, [messages.length, open]);
 
+  const refreshHistory = useCallback(async () => {
+    const history = await fetchCaiHistory();
+    setMessages((current) => mergeHistoryWithLocal(history, current));
+  }, []);
+
   useEffect(() => {
     const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
     const source = new EventSource(`/api/chat/events?${params}`);
+    const handleHistory = (event: MessageEvent<string>) => {
+      try {
+        const history = extractMessages(JSON.parse(event.data))
+          .map(displayableGlobalMessage)
+          .filter((message): message is ChatMessage => message !== null)
+          .slice(-12);
+        setMessages((current) => mergeHistoryWithLocal(history, current));
+      } catch {
+        // History snapshots are best-effort only.
+      }
+    };
     const handleEvent = (eventName: string) => (event: MessageEvent<string>) => {
       try {
         const message = messageFromEvent(eventName, JSON.parse(event.data));
@@ -189,6 +210,7 @@ export function GlobalCaiChat() {
       }
     };
 
+    source.addEventListener('history', handleHistory);
     ['session.message', 'chat'].forEach((eventName) =>
       source.addEventListener(eventName, handleEvent(eventName))
     );
@@ -205,9 +227,10 @@ export function GlobalCaiChat() {
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const content = draft.trim();
-      if (!content || isSending) return;
+      if (!content || isSending || hasPendingCai) return;
 
       const submittedAt = Date.now();
+      const idempotencyKey = `dashboard-cai-${submittedAt}`;
       const userMessage: ChatMessage = {
         id: `global-cai-user-${submittedAt}`,
         role: 'user',
@@ -218,15 +241,16 @@ export function GlobalCaiChat() {
       const thinkingMessage: ChatMessage = {
         id: `global-cai-thinking-${submittedAt}`,
         role: 'assistant',
-        content: 'Cai tänker…',
+        content: pendingCaiText,
         createdAt: new Date(submittedAt + 1).toISOString(),
-        parts: [{ type: 'text', text: 'Cai tänker…' }],
+        parts: [{ type: 'text', text: pendingCaiText }],
         pending: true
       };
 
       setDraft('');
       setError(null);
       setIsSending(true);
+      setAbortRunId(idempotencyKey);
       setMessages((current) => [...current, userMessage, thinkingMessage]);
 
       try {
@@ -241,6 +265,7 @@ export function GlobalCaiChat() {
             agentName: 'Cai',
             sessionKey: dashboardCaiSessionKey,
             message: `${contextPrefix(pathname)} ${content}`,
+            idempotencyKey,
             pageContext: {
               pathname,
               label
@@ -251,12 +276,17 @@ export function GlobalCaiChat() {
 
         const payload = await response.json();
         const assistant = extractAssistantMessage(payload);
+        const runId = isRecord(payload) ? stringFrom(payload.runId, stringFrom(payload.id)) : '';
+        if (runId) setAbortRunId(runId);
         setMessages((current) => {
           const updated = assistant
             ? current.filter((item) => item.id !== thinkingMessage.id)
             : current;
           return assistant ? mergeGlobalMessages(updated, assistant) : updated;
         });
+        window.setTimeout(() => {
+          refreshHistory().catch(() => undefined);
+        }, 1500);
       } catch (sendError) {
         setMessages((current) =>
           current
@@ -268,10 +298,34 @@ export function GlobalCaiChat() {
         setIsSending(false);
       }
     },
-    [draft, isSending, label, pathname]
+    [draft, hasPendingCai, isSending, label, pathname, refreshHistory]
   );
 
-  const canSend = draft.trim().length > 0 && !isSending;
+  const handleAbort = useCallback(async () => {
+    if (!abortRunId) return;
+    setError(null);
+    try {
+      await fetch('/api/chat/abort', {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          agent: 'cai',
+          sessionKey: dashboardCaiSessionKey,
+          runId: abortRunId
+        })
+      });
+      setMessages((current) =>
+        current.filter((item) => !(item.pending && item.content === pendingCaiText))
+      );
+      setAbortRunId(null);
+      setIsSending(false);
+    } catch (abortError) {
+      setError(abortError instanceof Error ? abortError.message : 'Could not stop Cai.');
+    }
+  }, [abortRunId]);
+
+  const canSend = draft.trim().length > 0 && !isSending && !hasPendingCai;
+  const canAbort = hasPendingCai && Boolean(abortRunId);
 
   return (
     <>
@@ -343,17 +397,14 @@ export function GlobalCaiChat() {
                 disabled={isSending}
               />
               <Button
-                type='submit'
+                type={canAbort ? 'button' : 'submit'}
                 size='icon'
                 className='size-10 shrink-0 rounded-full'
-                disabled={!canSend}
+                disabled={canAbort ? false : !canSend}
+                onClick={canAbort ? handleAbort : undefined}
               >
-                {isSending ? (
-                  <Icons.spinner className='size-4 animate-spin' />
-                ) : (
-                  <Icons.send className='size-4' />
-                )}
-                <span className='sr-only'>Send to Cai</span>
+                {canAbort ? <Icons.close className='size-4' /> : <Icons.send className='size-4' />}
+                <span className='sr-only'>{canAbort ? 'Stop Cai' : 'Send to Cai'}</span>
               </Button>
             </div>
           </form>
