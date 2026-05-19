@@ -229,10 +229,12 @@ export function GlobalCaiChat() {
       <Button
         type='button'
         onClick={() => setOpen(true)}
-        className='fixed right-4 bottom-4 z-40 h-12 rounded-full px-4 shadow-lg md:right-6 md:bottom-6'
+        variant='outline'
+        className='group fixed right-4 bottom-4 z-40 size-12 rounded-full border-border bg-background/90 p-0 shadow-lg backdrop-blur transition hover:bg-primary hover:text-primary-foreground md:right-6 md:bottom-6 lg:w-auto lg:px-4'
+        aria-label={`Ask Cai about ${label}`}
       >
-        <Icons.sparkles className='mr-2 size-4' />
-        Ask Cai
+        <Icons.sparkles className='size-4 lg:mr-2' />
+        <span className='hidden lg:inline'>Ask Cai</span>
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -242,7 +244,10 @@ export function GlobalCaiChat() {
               <SheetTitle>Chatta med Cai</SheetTitle>
               <Badge variant='outline'>{label}</Badge>
             </div>
-            <SheetDescription>Cai får med sig vilken sida du är på som kontext.</SheetDescription>
+            <SheetDescription>
+              Cai får med sig sidkontext från <span className='font-medium'>{label}</span> och kan
+              svara mer relevant för just den här vyn.
+            </SheetDescription>
           </SheetHeader>
 
           <div ref={scrollRef} className='min-h-0 flex-1 overflow-y-auto px-4 py-4'>
@@ -256,6 +261,9 @@ export function GlobalCaiChat() {
                 <div className='text-muted-foreground rounded-2xl border bg-muted/30 p-4 text-sm leading-6'>
                   Fråga Cai om den här sidan, nästa steg, varför något ser konstigt ut, eller be mig
                   skapa/fixa något utifrån aktuell vy.
+                  <div className='mt-3 rounded-xl border bg-background/60 px-3 py-2 font-mono text-[11px]'>
+                    context · {pathname}
+                  </div>
                 </div>
               ) : null}
               {messages.map((message) => (
