@@ -127,6 +127,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Architecture',
+        url: '/dashboard/architecture',
+        icon: 'code',
+        shortcut: ['a', 'r'],
+        items: []
+      },
+      {
         title: 'Settings',
         url: '/dashboard/settings',
         icon: 'settings',

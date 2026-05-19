@@ -3,7 +3,21 @@ import { getCalendarSignals, getGitHubSignals, getGmailSignals } from '@/db/exte
 import { getSupabaseSnapshot } from '@/db/supabase';
 import { getVercelSnapshot } from '@/db/vercel';
 import { getActionCenterSnapshot } from '@/lib/action-center';
+import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { getRunwaySnapshot } from '@/lib/runway';
+
+export type RadarSignalState = {
+  id: string;
+  status: string;
+  snoozedUntil: string | null;
+  updatedAt: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+type RadarSignalStateSnapshot = {
+  states: RadarSignalState[];
+  source: string;
+};
 
 export type RadarSignal = {
   id: string;
@@ -28,6 +42,34 @@ function safeMessage(error: unknown) {
   return error instanceof Error ? error.message : 'unknown error';
 }
 
+async function getRadarSignalStates() {
+  if (!hasBridge()) {
+    return {
+      states: [] as RadarSignalState[],
+      source: 'bridge:not-configured',
+      error: null as string | null
+    };
+  }
+
+  try {
+    const snapshot = await bridgeRequest<RadarSignalStateSnapshot>('/radar/state');
+    return { states: snapshot.states, source: snapshot.source, error: null as string | null };
+  } catch (error) {
+    return { states: [] as RadarSignalState[], source: 'bridge:error', error: safeMessage(error) };
+  }
+}
+
+function isSignalHidden(signal: RadarSignal, states: Map<string, RadarSignalState>) {
+  const state = states.get(signal.id);
+  if (!state) return false;
+  if (state.status === 'handled' || state.status === 'dismissed') return true;
+  if (state.snoozedUntil) {
+    const snoozedUntil = new Date(state.snoozedUntil).getTime();
+    return Number.isFinite(snoozedUntil) && snoozedUntil > Date.now();
+  }
+  return false;
+}
+
 export async function getRadarSnapshot() {
   const [
     actionCenterResult,
@@ -36,7 +78,8 @@ export async function getRadarSnapshot() {
     vercelResult,
     gmailResult,
     calendarResult,
-    githubResult
+    githubResult,
+    radarStateResult
   ] = await Promise.allSettled([
     getActionCenterSnapshot(),
     getNotifications(),
@@ -44,7 +87,8 @@ export async function getRadarSnapshot() {
     getVercelSnapshot(),
     getGmailSignals(),
     getCalendarSignals(),
-    getGitHubSignals()
+    getGitHubSignals(),
+    getRadarSignalStates()
   ]);
   const runway = getRunwaySnapshot();
   const signals: RadarSignal[] = [];
@@ -255,13 +299,26 @@ export async function getRadarSnapshot() {
     });
   }
 
+  const radarState =
+    radarStateResult.status === 'fulfilled'
+      ? radarStateResult.value
+      : {
+          states: [] as RadarSignalState[],
+          source: 'bridge:error',
+          error: safeMessage(radarStateResult.reason)
+        };
+  if (radarState.error) sourceErrors.push(`Radar state: ${radarState.error}`);
+
+  const activeSignalStates = new Map(radarState.states.map((state) => [state.id, state]));
   const deduped = Array.from(new Map(signals.map((signal) => [signal.id, signal])).values())
+    .filter((signal) => !isSignalHidden(signal, activeSignalStates))
     .toSorted((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority])
     .slice(0, 32);
 
   return {
     generatedAt: new Date().toISOString(),
     source: 'agent-os:radar-v1',
+    stateSource: radarState.source,
     counts: {
       total: deduped.length,
       high: deduped.filter((signal) => signal.priority === 'high').length,

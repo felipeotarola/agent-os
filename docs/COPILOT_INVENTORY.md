@@ -84,6 +84,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 - Runway picture documented in `docs/RUNWAY_PICTURE.md`; V1 is a safe Life OS summary at `/dashboard/runway`, with no raw banking/secrets.
 - Inbox Radar documented in `docs/INBOX_RADAR.md`; V1 aggregates tasks, knowledge, notifications, observability and runway into `/dashboard/radar`.
 - External signals documented in `docs/EXTERNAL_SIGNALS.md`; Gmail, Calendar and GitHub read-only connectors feed Inbox Radar while Linear is intentionally skipped.
+- System architecture documented in `docs/SYSTEM_ARCHITECTURE.md` and visualized at `/dashboard/architecture` with Mermaid diagrams.
 - Safe write actions from cockpit to OpenClaw/DB with permission checks.
 - Import/export endpoints for knowledge vault and affiliate data need verification.
 - Health endpoint now exposes version, DB status, OpenClaw status, subagent visibility source and explicit last sync/null fields.

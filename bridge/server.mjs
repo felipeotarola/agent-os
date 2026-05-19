@@ -819,6 +819,87 @@ function mapTask(row) {
   };
 }
 
+
+async function ensureRadarSignalStateTable() {
+  await sql`
+    create table if not exists radar_signal_state (
+      id text primary key,
+      status text not null default 'active',
+      snoozed_until timestamptz,
+      updated_at timestamptz not null default now(),
+      metadata jsonb not null default '{}'::jsonb
+    )
+  `;
+}
+
+function mapRadarSignalState(row) {
+  return {
+    id: row.id,
+    status: row.status,
+    snoozedUntil: row.snoozedUntil ? new Date(row.snoozedUntil).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+    metadata: row.metadata ?? {}
+  };
+}
+
+async function radarSignalStateSnapshot() {
+  await ensureRadarSignalStateTable();
+  const rows = await sql`
+    select id, status, snoozed_until as "snoozedUntil", updated_at as "updatedAt", metadata
+    from radar_signal_state
+    order by updated_at desc
+  `;
+  return {
+    states: rows.map(mapRadarSignalState),
+    source: 'bridge:postgres:radar_signal_state'
+  };
+}
+
+async function transitionRadarSignal(input) {
+  await ensureRadarSignalStateTable();
+  const id = String(input.id ?? '').trim();
+  const action = String(input.action ?? '').trim();
+  if (!id || !['handled', 'dismissed', 'snooze', 'reset'].includes(action)) {
+    const error = new Error('id and supported action are required');
+    error.status = 400;
+    throw error;
+  }
+
+  if (action === 'reset') {
+    await sql`delete from radar_signal_state where id = ${id}`;
+    return { ok: true, id, action, state: null };
+  }
+
+  const status = action === 'snooze' ? 'snoozed' : action;
+  let snoozedUntil = null;
+  if (action === 'snooze') {
+    const requested = input.snoozedUntil ? new Date(String(input.snoozedUntil)) : null;
+    snoozedUntil = requested && Number.isFinite(requested.getTime())
+      ? requested
+      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+  }
+
+  const metadata = {
+    ...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
+    transitionedFrom: 'radar',
+    transitionedAt: new Date().toISOString(),
+    action
+  };
+
+  const rows = await sql`
+    insert into radar_signal_state (id, status, snoozed_until, updated_at, metadata)
+    values (${id}, ${status}, ${snoozedUntil}, now(), ${sql.json(metadata)})
+    on conflict (id) do update set
+      status = excluded.status,
+      snoozed_until = excluded.snoozed_until,
+      updated_at = excluded.updated_at,
+      metadata = radar_signal_state.metadata || excluded.metadata
+    returning id, status, snoozed_until as "snoozedUntil", updated_at as "updatedAt", metadata
+  `;
+
+  return { ok: true, id, action, state: mapRadarSignalState(rows[0]) };
+}
+
 async function tasksSnapshot() {
   await ensureTaskBoardColumns();
   const rows = await sql`
@@ -3082,6 +3163,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks') {
       return send(res, 200, await tasksSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/radar/state') {
+      return send(res, 200, await radarSignalStateSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/radar/signals/transition') {
+      return send(res, 200, await transitionRadarSignal(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {

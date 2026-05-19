@@ -25,8 +25,12 @@ function sourceLabel(source: RadarSignal['source']) {
   }[source];
 }
 
-export default async function RadarPage() {
-  const snapshot = await getRadarSnapshot();
+export default async function RadarPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string; radar?: string; reason?: string; task?: string }>;
+}) {
+  const [snapshot, params] = await Promise.all([getRadarSnapshot(), searchParams]);
   const recommendation = snapshot.recommendation;
 
   return (
@@ -40,8 +44,8 @@ export default async function RadarPage() {
             <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Inbox Radar</h1>
             <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
               En prioriterad vy över vad Felipe faktiskt behöver bry sig om: tasks, knowledge,
-              Gmail, Calendar, GitHub, notifications, observability och runway. V1 är read-only och
-              fail-soft.
+              Gmail, Calendar, GitHub, notifications, observability och runway. V1 kan markera
+              signaler som hanterade eller snooza dem server-side.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>
@@ -49,6 +53,9 @@ export default async function RadarPage() {
             <div className='font-mono'>{snapshot.source}</div>
             <div className='text-muted-foreground mt-2 text-xs'>
               {new Date(snapshot.generatedAt).toLocaleString('sv-SE')}
+            </div>
+            <div className='text-muted-foreground mt-1 font-mono text-[11px]'>
+              State: {snapshot.stateSource}
             </div>
           </div>
         </div>
@@ -98,10 +105,27 @@ export default async function RadarPage() {
         <div className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
           <Card className='xl:col-span-2'>
             <CardHeader>
-              <CardTitle>Signals</CardTitle>
-              <CardDescription>
-                Sorterade efter vad som mest förtjänar uppmärksamhet.
-              </CardDescription>
+              <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+                <div>
+                  <CardTitle>Signals</CardTitle>
+                  <CardDescription>
+                    Sorterade efter vad som mest förtjänar uppmärksamhet.
+                  </CardDescription>
+                </div>
+                <div className='flex flex-wrap gap-2'>
+                  {params.task && (
+                    <Badge variant={params.task === 'error' ? 'destructive' : 'secondary'}>
+                      {params.task === 'created' && 'Task created'}
+                      {params.task === 'duplicate' && 'Task already exists'}
+                      {params.task === 'error' && 'Task not created'}
+                    </Badge>
+                  )}
+                  {params.radar && <Badge variant='secondary'>Radar state saved</Badge>}
+                  {params.error?.startsWith('radar-state') && (
+                    <Badge variant='destructive'>Radar state not saved</Badge>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className='space-y-3'>
               {snapshot.signals.length === 0 ? (
@@ -124,11 +148,37 @@ export default async function RadarPage() {
                           </div>
                         )}
                       </div>
-                      <div className='flex shrink-0 items-center gap-2'>
+                      <div className='flex shrink-0 flex-wrap items-center gap-2'>
                         <Badge variant={priorityVariant(signal.priority)}>{signal.priority}</Badge>
+                        <form action='/api/radar/signals/create-task' method='post'>
+                          <input type='hidden' name='id' value={signal.id} />
+                          <input type='hidden' name='title' value={signal.title} />
+                          <input type='hidden' name='detail' value={signal.detail} />
+                          <input type='hidden' name='source' value={signal.source} />
+                          <input type='hidden' name='priority' value={signal.priority} />
+                          <input type='hidden' name='href' value={signal.href} />
+                          {signal.meta && <input type='hidden' name='meta' value={signal.meta} />}
+                          <Button type='submit' variant='secondary' size='sm'>
+                            Create task
+                          </Button>
+                        </form>
                         <Button asChild variant='outline' size='sm'>
                           <Link href={signal.href}>{signal.actionLabel}</Link>
                         </Button>
+                        <form action='/api/radar/signals/transition' method='post'>
+                          <input type='hidden' name='id' value={signal.id} />
+                          <input type='hidden' name='action' value='handled' />
+                          <Button type='submit' variant='secondary' size='sm'>
+                            Mark handled
+                          </Button>
+                        </form>
+                        <form action='/api/radar/signals/transition' method='post'>
+                          <input type='hidden' name='id' value={signal.id} />
+                          <input type='hidden' name='action' value='snooze' />
+                          <Button type='submit' variant='ghost' size='sm'>
+                            Snooze 24h
+                          </Button>
+                        </form>
                       </div>
                     </div>
                   </div>
@@ -150,7 +200,7 @@ export default async function RadarPage() {
                   'Prioritize across sources instead of making Felipe check every page.',
                   'Keep actions narrow: open, review, inspect — not destructive automation.',
                   'Degraded connectors are signals, not failures, until credentials are configured.',
-                  'Next V2 should add persistent snooze/hide and guarded follow-up actions.'
+                  'Handled and snoozed state is persisted in Postgres via the bridge.'
                 ].map((item) => (
                   <div key={item} className='rounded-xl border bg-background/40 p-3'>
                     {item}
