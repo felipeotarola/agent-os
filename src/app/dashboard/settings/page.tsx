@@ -62,6 +62,12 @@ export default async function SettingsPage() {
       configured: Boolean(process.env.AGENT_OS_BRIDGE_URL && process.env.AGENT_OS_BRIDGE_TOKEN)
     },
     {
+      name: 'Vercel observability',
+      status: 'bridge-ready',
+      detail: 'Read-only snapshot contract at /vercel/snapshot; credentials stay server-side.',
+      configured: Boolean(process.env.AGENT_OS_BRIDGE_URL && process.env.AGENT_OS_BRIDGE_TOKEN)
+    },
+    {
       name: 'Subagent runs',
       status: status.subagents?.ok ? 'ok' : 'missing',
       detail: status.subagents?.ok

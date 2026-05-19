@@ -8,6 +8,7 @@ import {
   IconBox,
   IconBrandGithub,
   IconBrandTwitter,
+  IconBrandVercel,
   IconBrightness,
   IconCalendar,
   IconCheck,
@@ -143,6 +144,7 @@ export const Icons = {
   // Brand
   github: IconBrandGithub,
   twitter: IconBrandTwitter,
+  vercel: IconBrandVercel,
   logo: IconCommand,
 
   // Communication

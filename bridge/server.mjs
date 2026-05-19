@@ -1380,6 +1380,169 @@ async function supabaseSnapshot() {
   }
 }
 
+async function vercelFetch(path, token) {
+  const response = await fetch(`https://api.vercel.com${path}`, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(3500)
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Vercel API ${response.status}: ${text.slice(0, 240)}`);
+  return JSON.parse(text || '{}');
+}
+
+async function vercelSnapshot() {
+  const token = String(process.env.VERCEL_ACCESS_TOKEN ?? process.env.AGENT_OS_VERCEL_ACCESS_TOKEN ?? '').trim();
+  const teamId = String(process.env.VERCEL_TEAM_ID ?? process.env.AGENT_OS_VERCEL_TEAM_ID ?? '').trim();
+  const projectId = String(process.env.VERCEL_PROJECT_ID ?? process.env.AGENT_OS_VERCEL_PROJECT_ID ?? '').trim();
+  const projectName = String(process.env.VERCEL_PROJECT_NAME ?? process.env.AGENT_OS_VERCEL_PROJECT_NAME ?? '').trim();
+  const generatedAt = new Date().toISOString();
+  const configured = Boolean(token);
+  const teamQuery = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
+  const checks = [
+    {
+      id: 'access-token',
+      label: 'Read-only access token configured',
+      ok: Boolean(token),
+      detail: token ? 'configured in bridge env' : 'VERCEL_ACCESS_TOKEN missing'
+    },
+    {
+      id: 'team-scope',
+      label: 'Team scope',
+      ok: true,
+      detail: teamId ? 'VERCEL_TEAM_ID configured' : 'personal/default scope'
+    },
+    {
+      id: 'project-filter',
+      label: 'Project filter',
+      ok: true,
+      detail: projectId || projectName ? 'project filter configured' : 'all visible projects'
+    }
+  ];
+
+  if (!configured) {
+    return {
+      contract: 'agent-os.vercel-observability.v1',
+      source: 'bridge:vercel-env',
+      generatedAt,
+      configured: false,
+      connected: false,
+      account: null,
+      projects: [],
+      deployments: [],
+      checks,
+      metrics: [],
+      alerts: [],
+      nextSteps: [
+        'Set a scoped read-only VERCEL_ACCESS_TOKEN in the bridge environment.',
+        'Optionally set VERCEL_TEAM_ID and VERCEL_PROJECT_ID or VERCEL_PROJECT_NAME to narrow the snapshot.',
+        'Keep credentials server-side only; never expose Vercel tokens to the browser.',
+        'Add Vercel Drains ingestion only after signature verification and retention/redaction are in place.'
+      ]
+    };
+  }
+
+  try {
+    const [accountResult, projectsResult] = await Promise.allSettled([
+      vercelFetch('/v2/user', token),
+      vercelFetch(`/v9/projects${teamQuery}`, token)
+    ]);
+    if (accountResult.status === 'rejected') throw accountResult.reason;
+    if (projectsResult.status === 'rejected') throw projectsResult.reason;
+
+    const rawProjects = Array.isArray(projectsResult.value.projects) ? projectsResult.value.projects : [];
+    const visibleProjects = rawProjects
+      .filter((project) => !projectId || project.id === projectId)
+      .filter((project) => !projectName || project.name === projectName)
+      .slice(0, 8)
+      .map((project) => ({
+        id: project.id,
+        name: project.name,
+        framework: project.framework ?? null,
+        targets: Array.isArray(project.targets) ? project.targets : [],
+        updatedAt: project.updatedAt ? new Date(project.updatedAt).toISOString() : null
+      }));
+
+    const deploymentsResult = await vercelFetch(
+      `/v6/deployments${teamId ? `?teamId=${encodeURIComponent(teamId)}&limit=8` : '?limit=8'}`,
+      token
+    );
+    const deployments = (Array.isArray(deploymentsResult.deployments) ? deploymentsResult.deployments : [])
+      .filter((deployment) => !projectId || deployment.projectId === projectId)
+      .filter((deployment) => !projectName || deployment.name === projectName)
+      .slice(0, 8)
+      .map((deployment) => ({
+        uid: deployment.uid,
+        name: deployment.name,
+        url: deployment.url ? `https://${deployment.url}` : null,
+        state: deployment.state ?? 'unknown',
+        target: deployment.target ?? null,
+        createdAt: deployment.createdAt ? new Date(deployment.createdAt).toISOString() : null
+      }));
+
+    const failedDeployments = deployments.filter((deployment) =>
+      ['ERROR', 'CANCELED'].includes(String(deployment.state).toUpperCase())
+    );
+
+    return {
+      contract: 'agent-os.vercel-observability.v1',
+      source: 'vercel-api:projects-deployments',
+      generatedAt,
+      configured: true,
+      connected: true,
+      account: {
+        username: accountResult.value.user?.username ?? accountResult.value.user?.name ?? 'unknown',
+        emailVisible: Boolean(accountResult.value.user?.email)
+      },
+      projects: visibleProjects,
+      deployments,
+      checks: [
+        ...checks,
+        { id: 'account-fetch', label: 'Account metadata fetch', ok: true, detail: 'Vercel API returned user metadata' },
+        { id: 'projects-fetch', label: 'Projects fetch', ok: true, detail: `${visibleProjects.length} projects in snapshot` },
+        { id: 'deployments-fetch', label: 'Deployments fetch', ok: true, detail: `${deployments.length} deployments in snapshot` }
+      ],
+      metrics: [
+        { label: 'Projects', value: String(visibleProjects.length), detail: 'Filtered visible projects' },
+        { label: 'Recent deployments', value: String(deployments.length), detail: 'Most recent visible deployments' },
+        { label: 'Failed deployments', value: String(failedDeployments.length), detail: 'Recent ERROR/CANCELED states' }
+      ],
+      alerts: failedDeployments.map((deployment) => ({
+        severity: 'warning',
+        title: `Deployment ${deployment.state}`,
+        detail: `${deployment.name} · ${deployment.target ?? 'unknown target'}`
+      })),
+      nextSteps: [
+        'Add analytics reads for traffic/conversion/product signals once the Vercel scope is confirmed.',
+        'Add Vercel Drains endpoint with signature verification before ingesting logs.',
+        'Normalize build/runtime events with retention and redaction before Notification hooks.',
+        'Expose guarded Command Center refresh once snapshot caching/audit logging is added.'
+      ]
+    };
+  } catch (error) {
+    return {
+      contract: 'agent-os.vercel-observability.v1',
+      source: 'vercel-api:error',
+      generatedAt,
+      configured: true,
+      connected: false,
+      account: null,
+      projects: [],
+      deployments: [],
+      checks: [
+        ...checks,
+        { id: 'vercel-fetch', label: 'Vercel API fetch', ok: false, detail: error.message ?? 'request failed' }
+      ],
+      metrics: [],
+      alerts: [{ severity: 'warning', title: 'Vercel connector failed', detail: error.message ?? 'request failed' }],
+      nextSteps: [
+        'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in the bridge environment.',
+        'Confirm token scope permits read-only user, project and deployment reads.',
+        'Keep the connector degraded until metadata reads succeed.'
+      ]
+    };
+  }
+}
+
 async function createTask(input) {
   await ensureTaskBoardColumns();
   const title = String(input.title ?? '').trim();
@@ -2698,6 +2861,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/supabase/snapshot') {
       return send(res, 200, await supabaseSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/vercel/snapshot') {
+      return send(res, 200, await vercelSnapshot());
     }
 
     if (req.method === 'POST' && url.pathname === '/affiliate/accounts') {

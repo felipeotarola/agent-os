@@ -73,6 +73,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Vercel',
+        url: '/dashboard/vercel',
+        icon: 'vercel',
+        shortcut: ['v', 'v'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/wiki',
         icon: 'page',
