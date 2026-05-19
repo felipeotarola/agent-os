@@ -82,6 +82,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 - Supabase observability connector documented in `docs/SUPABASE_OBSERVABILITY.md`; V1 is read-only, env-only, empty-safe and exposed at `/dashboard/supabase`.
 - Vercel observability connector documented in `docs/VERCEL_OBSERVABILITY.md`; V1 is read-only, env-only, empty-safe and exposed at `/dashboard/vercel`.
 - Runway picture documented in `docs/RUNWAY_PICTURE.md`; V1 is a safe Life OS summary at `/dashboard/runway`, with no raw banking/secrets.
+- Inbox Radar documented in `docs/INBOX_RADAR.md`; V1 aggregates tasks, knowledge, notifications, observability and runway into `/dashboard/radar`.
 - Safe write actions from cockpit to OpenClaw/DB with permission checks.
 - Import/export endpoints for knowledge vault and affiliate data need verification.
 - Health endpoint now exposes version, DB status, OpenClaw status, subagent visibility source and explicit last sync/null fields.

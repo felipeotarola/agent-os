@@ -12,6 +12,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Inbox Radar',
+        url: '/dashboard/radar',
+        icon: 'notification',
+        shortcut: ['i', 'r'],
+        items: []
+      },
+      {
         title: 'Tasks',
         url: '/dashboard/kanban',
         icon: 'kanban',
