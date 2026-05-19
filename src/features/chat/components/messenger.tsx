@@ -176,6 +176,7 @@ export function Messenger() {
       if (!content || isSending) return;
 
       const agentId = selectedAgentId;
+      const agentName = agentById[agentId].name;
       const submittedAt = Date.now();
       const optimisticId = 'user-' + submittedAt;
       const pendingRunId = 'run-pending-' + submittedAt;
@@ -202,7 +203,7 @@ export function Messenger() {
           },
           body: JSON.stringify({
             agent: agentId,
-            agentName: agentById[agentId].name,
+            agentName,
             message: content
           })
         });
@@ -218,14 +219,14 @@ export function Messenger() {
           assistantMessage ?? {
             id: pendingRunId,
             role: 'system',
-            content: 'Run started. Waiting for Cai’s answer…',
+            content: `Run started. Waiting for ${agentName}’s answer…`,
             createdAt: new Date().toISOString(),
             parts: [
               {
                 type: 'run-status',
                 title: 'Run started',
                 status: 'running',
-                detail: 'Waiting for Cai’s answer…',
+                detail: `Waiting for ${agentName}’s answer…`,
                 runId: isRecord(payload) ? stringFrom(payload.runId) : undefined
               }
             ],

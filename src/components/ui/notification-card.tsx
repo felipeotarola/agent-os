@@ -3,6 +3,7 @@
 import type { FC } from 'react';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export type NotificationStatus = 'unread' | 'read' | 'archived';
 export type ActionType = 'redirect' | 'api_call' | 'workflow' | 'modal';
@@ -14,6 +15,7 @@ export interface NotificationAction {
   type: ActionType;
   style?: ActionStyle;
   executed?: boolean;
+  href?: string;
 }
 
 export interface NotificationCardProps {
@@ -62,6 +64,16 @@ const getActionIcon = (actionType: ActionType) => {
     default:
       return null;
   }
+};
+
+const defaultActionHref = (actionId: string) => {
+  const routes: Record<string, string> = {
+    'open-tasks': '/dashboard/kanban',
+    'open-knowledge': '/dashboard/knowledge',
+    'open-command': '/dashboard/command',
+    'open-overview': '/dashboard/overview'
+  };
+  return routes[actionId];
 };
 
 export const NotificationCard: FC<NotificationCardProps> = ({
@@ -138,6 +150,37 @@ export const NotificationCard: FC<NotificationCardProps> = ({
                 const isLoading = loadingActionId === action.id;
                 const isExecuted = action.executed || false;
                 const showLoading = isLoading && action.type !== 'modal';
+                const href = action.href ?? defaultActionHref(action.id);
+                const className = cn(
+                  'flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-normal transition',
+                  action.style === 'primary'
+                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                    : action.style === 'danger'
+                      ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                      : 'bg-accent text-muted-foreground hover:bg-accent hover:text-foreground',
+                  showLoading && 'opacity-50',
+                  isExecuted && 'cursor-not-allowed opacity-60'
+                );
+                const content = showLoading ? (
+                  <Icons.spinner size={12} className='animate-spin' />
+                ) : (
+                  <>
+                    <span>{action.label}</span>
+                    {isExecuted ? (
+                      <Icons.check size={12} strokeWidth={2.5} />
+                    ) : (
+                      getActionIcon(action.type)
+                    )}
+                  </>
+                );
+
+                if (!onAction && href && !isLoading && !isExecuted) {
+                  return (
+                    <Link key={action.id} href={href} className={className}>
+                      {content}
+                    </Link>
+                  );
+                }
 
                 return (
                   <button
@@ -145,29 +188,9 @@ export const NotificationCard: FC<NotificationCardProps> = ({
                     type='button'
                     disabled={isLoading || isExecuted}
                     onClick={() => onAction?.(id, action.id, action.type)}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-normal transition',
-                      action.style === 'primary'
-                        ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                        : action.style === 'danger'
-                          ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
-                          : 'bg-accent text-muted-foreground hover:bg-accent hover:text-foreground',
-                      showLoading && 'opacity-50',
-                      isExecuted && 'cursor-not-allowed opacity-60'
-                    )}
+                    className={className}
                   >
-                    {showLoading ? (
-                      <Icons.spinner size={12} className='animate-spin' />
-                    ) : (
-                      <>
-                        <span>{action.label}</span>
-                        {isExecuted ? (
-                          <Icons.check size={12} strokeWidth={2.5} />
-                        ) : (
-                          getActionIcon(action.type)
-                        )}
-                      </>
-                    )}
+                    {content}
                   </button>
                 );
               })}
