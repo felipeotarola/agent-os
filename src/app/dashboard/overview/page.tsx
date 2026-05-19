@@ -306,6 +306,7 @@ export default async function OverviewPage() {
           title: item.title,
           source: item.source,
           url: item.url,
+          imageUrl: item.imageUrl,
           tag: newsTag(item)
         }))
       : [];
@@ -550,6 +551,25 @@ export default async function OverviewPage() {
                           rel='noreferrer'
                           className='group flex items-center gap-3 py-3 first:pt-0 last:pb-0'
                         >
+                          <div className='relative size-14 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/60'>
+                            {item.imageUrl ? (
+                              <div
+                                aria-hidden='true'
+                                className='size-full bg-cover bg-center transition duration-300 group-hover:scale-105'
+                                style={{ backgroundImage: `url(${item.imageUrl})` }}
+                              />
+                            ) : (
+                              <div className='flex size-full items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-background text-lg'>
+                                {item.tag === 'Bitcoin'
+                                  ? '₿'
+                                  : item.tag === 'AI'
+                                    ? '✦'
+                                    : item.tag === 'Sverige'
+                                      ? '◎'
+                                      : '▣'}
+                              </div>
+                            )}
+                          </div>
                           <div className='min-w-0 flex-1'>
                             <div className='line-clamp-2 text-sm font-medium text-card-foreground transition group-hover:text-primary'>
                               {item.title}

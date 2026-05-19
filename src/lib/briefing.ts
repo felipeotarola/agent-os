@@ -40,6 +40,7 @@ type NewsItem = {
   url: string;
   source: string;
   publishedAt?: string | null;
+  imageUrl?: string | null;
 };
 
 type NewsSnapshot = {
@@ -153,6 +154,22 @@ function tagValue(item: string, tag: string) {
   return decodeXml(match[1].replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, ''));
 }
 
+function attrValue(fragment: string, attr: string) {
+  const match = fragment.match(new RegExp(`${attr}=["']([^"']+)["']`, 'i'));
+  return match ? decodeXml(match[1]) : null;
+}
+
+function firstImageUrl(item: string) {
+  const media = item.match(/<(media:content|media:thumbnail|enclosure)\b[^>]*>/i)?.[0];
+  const mediaUrl = media ? attrValue(media, 'url') : null;
+  if (mediaUrl && /\.(avif|gif|jpe?g|png|webp)(\?|#|$)/i.test(mediaUrl)) return mediaUrl;
+
+  const description = tagValue(item, 'description') ?? tagValue(item, 'content:encoded') ?? '';
+  const img = description.match(/<img\b[^>]*>/i)?.[0];
+  const src = img ? attrValue(img, 'src') : null;
+  return src && /^https?:\/\//i.test(src) ? src : null;
+}
+
 async function getRssItems(url: string, source: string, limit = 4): Promise<NewsItem[]> {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${source} RSS ${response.status}`);
@@ -164,7 +181,8 @@ async function getRssItems(url: string, source: string, limit = 4): Promise<News
         title: tagValue(item, 'title') ?? '',
         url: tagValue(item, 'link') ?? '',
         source,
-        publishedAt: tagValue(item, 'pubDate') ?? null
+        publishedAt: tagValue(item, 'pubDate') ?? null,
+        imageUrl: firstImageUrl(item)
       };
     })
     .filter((item) => item.title && item.url)
