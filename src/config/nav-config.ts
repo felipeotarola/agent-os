@@ -26,31 +26,10 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: 'Action Center',
-        url: '/dashboard/action-center',
-        icon: 'checks',
-        shortcut: ['a', 'c'],
-        items: []
-      },
-      {
-        title: 'Runway',
-        url: '/dashboard/runway',
-        icon: 'cash',
-        shortcut: ['r', 'w'],
-        items: []
-      },
-      {
-        title: 'Agents',
-        url: '/dashboard/agents',
-        icon: 'teams',
-        shortcut: ['a', 'a'],
-        items: []
-      },
-      {
-        title: 'Command',
-        url: '/dashboard/command',
-        icon: 'chat',
-        shortcut: ['c', 'c'],
+        title: 'Knowledge',
+        url: '/dashboard/knowledge',
+        icon: 'sparkles',
+        shortcut: ['k', 'i'],
         items: []
       },
       {
@@ -63,76 +42,8 @@ export const navGroups: NavGroup[] = [
     ]
   },
   {
-    label: 'Knowledge',
-    items: [
-      {
-        title: 'Knowledge Inbox',
-        url: '/dashboard/knowledge',
-        icon: 'sparkles',
-        shortcut: ['k', 'i'],
-        items: []
-      },
-      {
-        title: 'Mail Radar',
-        url: '/dashboard/mail-radar',
-        icon: 'notification',
-        shortcut: ['m', 'r'],
-        items: []
-      },
-      {
-        title: 'Supabase',
-        url: '/dashboard/supabase',
-        icon: 'database',
-        shortcut: ['s', 'b'],
-        items: []
-      },
-      {
-        title: 'Vercel',
-        url: '/dashboard/vercel',
-        icon: 'vercel',
-        shortcut: ['v', 'v'],
-        items: []
-      },
-      {
-        title: 'GitHub',
-        url: '/dashboard/github',
-        icon: 'github',
-        shortcut: ['g', 'h'],
-        items: []
-      },
-      {
-        title: 'Wiki',
-        url: '/dashboard/wiki',
-        icon: 'page',
-        shortcut: ['w', 'w'],
-        items: []
-      },
-      {
-        title: 'Memory',
-        url: '/dashboard/memory',
-        icon: 'sparkles',
-        shortcut: ['m', 'm'],
-        items: []
-      }
-    ]
-  },
-  {
     label: 'System',
     items: [
-      {
-        title: 'Permissions',
-        url: '/dashboard/notifications',
-        icon: 'lock',
-        shortcut: ['p', 'p'],
-        items: []
-      },
-      {
-        title: 'Architecture',
-        url: '/dashboard/architecture',
-        icon: 'code',
-        shortcut: ['a', 'r'],
-        items: []
-      },
       {
         title: 'Settings',
         url: '/dashboard/settings',

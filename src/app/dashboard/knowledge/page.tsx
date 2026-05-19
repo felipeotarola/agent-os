@@ -68,6 +68,13 @@ const archivedMeta = {
   tone: 'border-border bg-muted/40 text-card-foreground'
 };
 
+const knowledgeDrilldowns = [
+  { title: 'Mail Radar', href: '/dashboard/mail-radar', detail: 'Gmail candidates for review' },
+  { title: 'Wiki', href: '/dashboard/wiki', detail: 'Promoted markdown knowledge' },
+  { title: 'Memory', href: '/dashboard/memory', detail: 'Search and save memory signals' },
+  { title: 'Journal', href: '/dashboard/journal', detail: 'Raw notes and capture' }
+];
+
 const lifecycleOrder = lifecycleSteps.map((step) => step.id);
 
 function normalizeStatus(status: string): LifecycleStatus {
@@ -613,6 +620,26 @@ export default async function KnowledgePage({
 
           <div className='space-y-4 xl:col-span-4'>
             <SourceInspector source={nextSource} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Knowledge drill-downs</CardTitle>
+                <CardDescription>
+                  Related subviews without keeping them in the main sidebar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1'>
+                {knowledgeDrilldowns.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className='hover:bg-muted/50 rounded-xl border bg-background/40 p-3 transition-colors'
+                  >
+                    <div className='text-sm font-medium'>{item.title}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>{item.detail}</div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Agent session harvester</CardTitle>

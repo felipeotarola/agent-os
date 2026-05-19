@@ -3,6 +3,7 @@ import { AvatarSettingsCard } from '@/components/avatar-settings-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getSystemStatus } from '@/db/system';
+import Link from 'next/link';
 
 export const metadata = {
   title: 'Agent OS: Settings'
@@ -82,6 +83,16 @@ export default async function SettingsPage() {
     'Write actions should go through guarded API routes or bridge endpoints.',
     'External integrations stay read-only until permission checks exist.',
     'Secrets belong in environment/config, never in visible UI or markdown.'
+  ];
+
+  const systemDrilldowns = [
+    { title: 'Agents', href: '/dashboard/agents', detail: 'Bindings, status and visible agents' },
+    { title: 'Command', href: '/dashboard/command', detail: 'Guarded runbooks and operations' },
+    { title: 'Architecture', href: '/dashboard/architecture', detail: 'System map and docs' },
+    { title: 'Notifications', href: '/dashboard/notifications', detail: 'Permissions and alerts' },
+    { title: 'GitHub', href: '/dashboard/github', detail: 'Code signals and notifications' },
+    { title: 'Vercel', href: '/dashboard/vercel', detail: 'Deployment observability' },
+    { title: 'Supabase', href: '/dashboard/supabase', detail: 'Database observability' }
   ];
 
   return (
@@ -182,6 +193,27 @@ export default async function SettingsPage() {
 
           <div className='space-y-4 xl:col-span-2'>
             <AvatarSettingsCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>System drill-downs</CardTitle>
+                <CardDescription>
+                  Hidden admin pages kept available without sidebar noise.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1'>
+                {systemDrilldowns.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className='hover:bg-muted/50 rounded-xl border bg-background/40 p-3 transition-colors'
+                  >
+                    <div className='text-sm font-medium'>{item.title}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>{item.detail}</div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
