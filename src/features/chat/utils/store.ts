@@ -16,6 +16,7 @@ type ChatState = {
   setDraft: (text: string) => void;
   setHistory: (agentId: AgentId, messages: ChatMessage[]) => void;
   addMessage: (agentId: AgentId, message: ChatMessage) => void;
+  upsertMessage: (agentId: AgentId, message: ChatMessage) => void;
   replaceMessage: (agentId: AgentId, messageId: string, message: ChatMessage) => void;
   setIsLoadingHistory: (isLoadingHistory: boolean) => void;
   setIsSending: (isSending: boolean) => void;
@@ -63,6 +64,19 @@ export const useChatStore = create<ChatState>()((set) => ({
         [agentId]: [...state.messagesByAgent[agentId], message]
       }
     })),
+  upsertMessage: (agentId, message) =>
+    set((state) => {
+      const messages = state.messagesByAgent[agentId];
+      const existing = messages.some((item) => item.id === message.id);
+      return {
+        messagesByAgent: {
+          ...state.messagesByAgent,
+          [agentId]: existing
+            ? messages.map((item) => (item.id === message.id ? message : item))
+            : [...messages, message]
+        }
+      };
+    }),
   replaceMessage: (agentId, messageId, message) =>
     set((state) => ({
       messagesByAgent: {

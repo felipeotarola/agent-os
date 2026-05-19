@@ -2,8 +2,17 @@
 
 import { FormEvent, useCallback, useEffect } from 'react';
 import { chatAgents } from '../utils/data';
+import {
+  extractMessages,
+  isRecord,
+  messageFromEvent,
+  normalizeMessage,
+  partsFromRecord,
+  stringFrom,
+  textFromContent
+} from '../utils/event-parts';
 import { useChatStore } from '../utils/store';
-import type { AgentId, ChatMessage, ChatMessageRole } from '../utils/types';
+import type { AgentId, ChatMessage } from '../utils/types';
 import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 import { ConversationSelect } from './conversation-select';
@@ -14,75 +23,6 @@ const agentById = Object.fromEntries(chatAgents.map((agent) => [agent.id, agent]
 >;
 
 const historyPollDelaysMs = [900, 1800, 3200, 5200, 8000];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function stringFrom(value: unknown, fallback = '') {
-  return typeof value === 'string' ? value : fallback;
-}
-
-function textFromContent(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value
-      .map((part) => {
-        if (typeof part === 'string') return part;
-        if (isRecord(part)) return stringFrom(part.text, stringFrom(part.content));
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n\n');
-  }
-  if (isRecord(value)) return stringFrom(value.text, stringFrom(value.content));
-  return '';
-}
-
-function roleFrom(value: unknown): ChatMessageRole {
-  if (value === 'user' || value === 'assistant' || value === 'system') return value;
-  if (value === 'contact' || value === 'agent') return 'assistant';
-  return 'assistant';
-}
-
-function timestampFrom(value: Record<string, unknown>, fallback: string) {
-  const timestamp = stringFrom(value.createdAt, stringFrom(value.timestamp));
-  if (timestamp) return timestamp;
-
-  const numericTimestamp = value.ts;
-  if (typeof numericTimestamp === 'number' && Number.isFinite(numericTimestamp)) {
-    return new Date(numericTimestamp).toISOString();
-  }
-
-  return fallback;
-}
-
-function normalizeMessage(value: unknown, index: number): ChatMessage | null {
-  if (!isRecord(value)) return null;
-  const content =
-    textFromContent(value.content) || stringFrom(value.text, stringFrom(value.message));
-  if (!content.trim()) return null;
-
-  return {
-    id: stringFrom(value.id, 'history-message-' + index),
-    role: roleFrom(value.role ?? value.sender),
-    content,
-    createdAt: timestampFrom(value, '2026-01-01T00:00:00.000Z'),
-    parts: [{ type: 'text', text: content }]
-  };
-}
-
-function extractMessages(payload: unknown): ChatMessage[] {
-  const source = Array.isArray(payload)
-    ? payload
-    : isRecord(payload) && Array.isArray(payload.messages)
-      ? payload.messages
-      : [];
-
-  return source
-    .map((message, index) => normalizeMessage(message, index))
-    .filter((message): message is ChatMessage => message !== null);
-}
 
 function extractAssistantMessage(payload: unknown): ChatMessage | null {
   if (isRecord(payload)) {
@@ -100,7 +40,7 @@ function extractAssistantMessage(payload: unknown): ChatMessage | null {
         role: 'assistant',
         content,
         createdAt: new Date().toISOString(),
-        parts: [{ type: 'text', text: content }]
+        parts: partsFromRecord(payload, content)
       };
     }
   }
@@ -137,6 +77,7 @@ export function Messenger() {
     setDraft,
     setHistory,
     addMessage,
+    upsertMessage,
     replaceMessage,
     setIsLoadingHistory,
     setIsSending,
@@ -184,6 +125,45 @@ export function Messenger() {
       ignore = true;
     };
   }, [selectedAgentId, setError, setHistory, setIsLoadingHistory]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ agent: selectedAgentId });
+    const source = new EventSource('/api/chat/events?' + params.toString());
+
+    const handleHistory = (event: MessageEvent<string>) => {
+      try {
+        const payload: unknown = JSON.parse(event.data);
+        const history = extractMessages(payload);
+        if (history.length) setHistory(selectedAgentId, history);
+      } catch {
+        // Ignore malformed bridge events; the polling fallback still refreshes history.
+      }
+    };
+
+    const handleEvent = (eventName: string) => (event: MessageEvent<string>) => {
+      try {
+        const payload: unknown = JSON.parse(event.data);
+        const message = messageFromEvent(eventName, payload);
+        if (message) upsertMessage(selectedAgentId, message);
+      } catch {
+        // Ignore malformed bridge events; SSE is opportunistic, not the source of truth.
+      }
+    };
+
+    source.addEventListener('history', handleHistory);
+    [
+      'chat',
+      'session.message',
+      'session.tool',
+      'tool_call',
+      'tool_call_update',
+      'run',
+      'task',
+      'weather'
+    ].forEach((eventName) => source.addEventListener(eventName, handleEvent(eventName)));
+
+    return () => source.close();
+  }, [selectedAgentId, setHistory, upsertMessage]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {

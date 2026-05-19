@@ -15,12 +15,31 @@ export type TextMessagePart = {
   text: string;
 };
 
+export type PartStatus = 'queued' | 'running' | 'completed' | 'error';
+
 export type RunStatusMessagePart = {
   type: 'run-status';
   title: string;
-  status: 'queued' | 'running' | 'completed' | 'error';
+  status: PartStatus;
   detail?: string;
   runId?: string;
+};
+
+export type ToolCallMessagePart = {
+  type: 'tool-call';
+  name: string;
+  status: PartStatus;
+  title?: string;
+  detail?: string;
+  toolCallId?: string;
+};
+
+export type TaskMessagePart = {
+  type: 'task';
+  title: string;
+  status: PartStatus;
+  detail?: string;
+  taskId?: string;
 };
 
 export type WeatherMessagePart = {
@@ -32,7 +51,12 @@ export type WeatherMessagePart = {
   low?: string;
 };
 
-export type ChatMessagePart = TextMessagePart | RunStatusMessagePart | WeatherMessagePart;
+export type ChatMessagePart =
+  | TextMessagePart
+  | RunStatusMessagePart
+  | ToolCallMessagePart
+  | TaskMessagePart
+  | WeatherMessagePart;
 
 export type ChatMessage = {
   id: string;
