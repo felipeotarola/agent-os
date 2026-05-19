@@ -21,7 +21,8 @@ function sourceLabel(source: RadarSignal['source']) {
     knowledge: 'Knowledge',
     notifications: 'Notifications',
     observability: 'Observability',
-    runway: 'Runway'
+    runway: 'Runway',
+    github: 'GitHub'
   }[source];
 }
 
@@ -133,56 +134,66 @@ export default async function RadarPage({
                   Inget akut i radarn just nu.
                 </div>
               ) : (
-                snapshot.signals.map((signal) => (
-                  <div key={signal.id} className='rounded-xl border bg-background/40 p-4'>
-                    <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-                      <div className='min-w-0'>
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <div className='font-medium'>{signal.title}</div>
-                          <Badge variant='outline'>{sourceLabel(signal.source)}</Badge>
-                        </div>
-                        <div className='text-muted-foreground mt-2 text-sm'>{signal.detail}</div>
-                        {signal.meta && (
-                          <div className='text-muted-foreground mt-2 font-mono text-[11px]'>
-                            {signal.meta}
+                snapshot.signals.map((signal) => {
+                  const canCreateTask = signal.source !== 'tasks';
+
+                  return (
+                    <div key={signal.id} className='rounded-xl border bg-background/40 p-4'>
+                      <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+                        <div className='min-w-0'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <div className='font-medium'>{signal.title}</div>
+                            <Badge variant='outline'>{sourceLabel(signal.source)}</Badge>
                           </div>
-                        )}
-                      </div>
-                      <div className='flex shrink-0 flex-wrap items-center gap-2'>
-                        <Badge variant={priorityVariant(signal.priority)}>{signal.priority}</Badge>
-                        <form action='/api/radar/signals/create-task' method='post'>
-                          <input type='hidden' name='id' value={signal.id} />
-                          <input type='hidden' name='title' value={signal.title} />
-                          <input type='hidden' name='detail' value={signal.detail} />
-                          <input type='hidden' name='source' value={signal.source} />
-                          <input type='hidden' name='priority' value={signal.priority} />
-                          <input type='hidden' name='href' value={signal.href} />
-                          {signal.meta && <input type='hidden' name='meta' value={signal.meta} />}
-                          <Button type='submit' variant='secondary' size='sm'>
-                            Create task
+                          <div className='text-muted-foreground mt-2 text-sm'>{signal.detail}</div>
+                          {signal.meta && (
+                            <div className='text-muted-foreground mt-2 font-mono text-[11px]'>
+                              {signal.meta}
+                            </div>
+                          )}
+                        </div>
+                        <div className='flex shrink-0 flex-wrap items-center gap-2'>
+                          <Badge variant={priorityVariant(signal.priority)}>
+                            {signal.priority}
+                          </Badge>
+                          {canCreateTask && (
+                            <form action='/api/radar/signals/create-task' method='post'>
+                              <input type='hidden' name='id' value={signal.id} />
+                              <input type='hidden' name='title' value={signal.title} />
+                              <input type='hidden' name='detail' value={signal.detail} />
+                              <input type='hidden' name='source' value={signal.source} />
+                              <input type='hidden' name='priority' value={signal.priority} />
+                              <input type='hidden' name='href' value={signal.href} />
+                              {signal.meta && (
+                                <input type='hidden' name='meta' value={signal.meta} />
+                              )}
+                              <Button type='submit' variant='secondary' size='sm'>
+                                Create task
+                              </Button>
+                            </form>
+                          )}
+                          <Button asChild variant='outline' size='sm'>
+                            <Link href={signal.href}>{signal.actionLabel}</Link>
                           </Button>
-                        </form>
-                        <Button asChild variant='outline' size='sm'>
-                          <Link href={signal.href}>{signal.actionLabel}</Link>
-                        </Button>
-                        <form action='/api/radar/signals/transition' method='post'>
-                          <input type='hidden' name='id' value={signal.id} />
-                          <input type='hidden' name='action' value='handled' />
-                          <Button type='submit' variant='secondary' size='sm'>
-                            Mark handled
-                          </Button>
-                        </form>
-                        <form action='/api/radar/signals/transition' method='post'>
-                          <input type='hidden' name='id' value={signal.id} />
-                          <input type='hidden' name='action' value='snooze' />
-                          <Button type='submit' variant='ghost' size='sm'>
-                            Snooze 24h
-                          </Button>
-                        </form>
+                          <form action='/api/radar/signals/transition' method='post'>
+                            <input type='hidden' name='id' value={signal.id} />
+                            <input type='hidden' name='action' value='handled' />
+                            <Button type='submit' variant='secondary' size='sm'>
+                              Mark handled
+                            </Button>
+                          </form>
+                          <form action='/api/radar/signals/transition' method='post'>
+                            <input type='hidden' name='id' value={signal.id} />
+                            <input type='hidden' name='action' value='snooze' />
+                            <Button type='submit' variant='ghost' size='sm'>
+                              Snooze 24h
+                            </Button>
+                          </form>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>

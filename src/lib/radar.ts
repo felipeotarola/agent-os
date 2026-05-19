@@ -23,7 +23,7 @@ export type RadarSignal = {
   id: string;
   title: string;
   detail: string;
-  source: 'tasks' | 'knowledge' | 'notifications' | 'observability' | 'runway';
+  source: 'tasks' | 'knowledge' | 'notifications' | 'observability' | 'runway' | 'github';
   priority: 'high' | 'medium' | 'low';
   href: string;
   actionLabel: string;
@@ -212,7 +212,7 @@ export async function getRadarSnapshot() {
         id: `github:pr:${pull.id}`,
         title: pull.title,
         detail: `#${pull.number} by ${pull.author} · updated ${pull.updatedAt ? new Date(pull.updatedAt).toLocaleDateString('sv-SE') : 'unknown'}`,
-        source: 'tasks',
+        source: 'github',
         priority: 'medium',
         href: '/dashboard/github',
         actionLabel: 'Open GitHub',
@@ -326,7 +326,8 @@ export async function getRadarSnapshot() {
       knowledge: deduped.filter((signal) => signal.source === 'knowledge').length,
       notifications: deduped.filter((signal) => signal.source === 'notifications').length,
       observability: deduped.filter((signal) => signal.source === 'observability').length,
-      runway: deduped.filter((signal) => signal.source === 'runway').length
+      runway: deduped.filter((signal) => signal.source === 'runway').length,
+      github: deduped.filter((signal) => signal.source === 'github').length
     },
     signals: deduped,
     sourceErrors,

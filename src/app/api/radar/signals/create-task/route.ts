@@ -1,7 +1,7 @@
 import { bridgeRequest } from '@/lib/bridge';
 import { NextRequest, NextResponse } from 'next/server';
 
-type RadarSource = 'tasks' | 'knowledge' | 'notifications' | 'observability' | 'runway';
+type RadarSource = 'knowledge' | 'notifications' | 'observability' | 'runway' | 'github';
 type RadarPriority = 'high' | 'medium' | 'low';
 
 type TaskBoard = {
@@ -9,11 +9,11 @@ type TaskBoard = {
 };
 
 const ALLOWED_SOURCES = new Set<RadarSource>([
-  'tasks',
   'knowledge',
   'notifications',
   'observability',
-  'runway'
+  'runway',
+  'github'
 ]);
 const ALLOWED_PRIORITIES = new Set<RadarPriority>(['high', 'medium', 'low']);
 
