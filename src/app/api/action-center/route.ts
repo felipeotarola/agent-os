@@ -17,6 +17,13 @@ function tomorrowIso() {
   return date.toISOString();
 }
 
+function json(payload: Record<string, unknown>, status = 200) {
+  return NextResponse.json(payload, {
+    status,
+    headers: { 'cache-control': 'no-store' }
+  });
+}
+
 function parseItemId(itemId: unknown) {
   const value = String(itemId ?? '').trim();
   const [kind, ...rest] = value.split(':');
@@ -34,10 +41,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'dismiss') {
-    return NextResponse.json(
-      { ok: true, itemId: parsed.itemId, action },
-      { headers: { 'cache-control': 'no-store' } }
-    );
+    return json({ ok: true, itemId: parsed.itemId, action, persistence: 'local' });
   }
 
   if (parsed.kind === 'task') {
@@ -46,21 +50,23 @@ export async function POST(request: NextRequest) {
         method: 'PATCH',
         body: JSON.stringify({ id: parsed.id, status: 'done' })
       });
-      return NextResponse.json(
-        { ok: true, itemId: parsed.itemId, action, task },
-        { headers: { 'cache-control': 'no-store' } }
-      );
+      return json({ ok: true, itemId: parsed.itemId, action, persistence: 'task-status', task });
     }
 
     if (action === 'snooze') {
+      const hiddenUntil = tomorrowIso();
       const task = await bridgeRequest('/tasks', {
         method: 'PATCH',
-        body: JSON.stringify({ id: parsed.id, status: 'waiting', dueDate: tomorrowIso() })
+        body: JSON.stringify({ id: parsed.id, status: 'waiting', dueDate: hiddenUntil })
       });
-      return NextResponse.json(
-        { ok: true, itemId: parsed.itemId, action, hiddenUntil: tomorrowIso(), task },
-        { headers: { 'cache-control': 'no-store' } }
-      );
+      return json({
+        ok: true,
+        itemId: parsed.itemId,
+        action,
+        hiddenUntil,
+        persistence: 'task-status-due-date',
+        task
+      });
     }
   }
 
@@ -70,10 +76,13 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         body: JSON.stringify({ id: parsed.id, status: 'archived' })
       });
-      return NextResponse.json(
-        { ok: true, itemId: parsed.itemId, action, source },
-        { headers: { 'cache-control': 'no-store' } }
-      );
+      return json({
+        ok: true,
+        itemId: parsed.itemId,
+        action,
+        persistence: 'knowledge-status',
+        source
+      });
     }
 
     if (action === 'advance') {
@@ -86,12 +95,15 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         body: JSON.stringify({ id: parsed.id, ...next.body })
       });
-      return NextResponse.json(
-        { ok: true, itemId: parsed.itemId, action, source },
-        { headers: { 'cache-control': 'no-store' } }
-      );
+      return json({
+        ok: true,
+        itemId: parsed.itemId,
+        action,
+        persistence: 'knowledge-status',
+        source
+      });
     }
   }
 
-  return NextResponse.json({ error: 'unsupported action for item' }, { status: 400 });
+  return json({ error: 'unsupported action for item' }, 400);
 }

@@ -10,6 +10,7 @@ type DispatchTask = {
   priority: string;
   assignee?: string | null;
   projectName?: string | null;
+  dueDate?: string | null;
 };
 
 type DispatchGroup = {

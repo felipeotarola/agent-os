@@ -749,7 +749,12 @@ async function taskDispatchSummary() {
   const agentsById = new Map(configuredAgents().map((agent) => [agent.id, agent]));
   const tasks = rows
     .map(mapTask)
-    .filter((task) => actionableStatuses.includes(task.status));
+    .filter((task) => {
+      if (!actionableStatuses.includes(task.status)) return false;
+      if (task.status !== 'waiting' || !task.dueDate) return true;
+      const dueAt = new Date(task.dueDate).getTime();
+      return !Number.isFinite(dueAt) || dueAt <= Date.now();
+    });
   const grouped = new Map();
 
   for (const task of tasks) {

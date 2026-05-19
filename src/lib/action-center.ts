@@ -25,12 +25,19 @@ function knowledgePriority(status: string): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
+function isSnoozedTask(task: { status: string; dueDate?: string | null }) {
+  if (task.status !== 'waiting' || !task.dueDate) return false;
+  const dueAt = new Date(task.dueDate).getTime();
+  return Number.isFinite(dueAt) && dueAt > Date.now();
+}
+
 export async function getActionCenterSnapshot() {
   const [briefing, knowledge] = await Promise.all([getCaiBriefing(), getKnowledgeSnapshot()]);
   const items: ActionCenterItem[] = [];
 
   for (const group of briefing.dispatch.byAgent) {
     for (const task of group.tasks.slice(0, 3)) {
+      if (isSnoozedTask(task)) continue;
       items.push({
         id: `task:${task.id}`,
         title: task.title,

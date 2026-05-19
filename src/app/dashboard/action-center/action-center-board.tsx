@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LiveActivitySurface } from '@/components/live-activity-surface';
 import type { ActionCenterItem, ActionCenterSnapshot } from '@/lib/action-center';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 type FilterKey = 'all' | 'high' | 'task' | 'knowledge' | 'agent' | 'system';
 type ActionKind = 'advance' | 'archive' | 'complete' | 'snooze' | 'dismiss';
@@ -310,6 +311,7 @@ function NowCard({
 }
 
 export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [hiddenActions, setHiddenActions] = useState<Record<string, HiddenAction>>({});
   const [pendingById, setPendingById] = useState<Record<string, ActionKind>>({});
@@ -375,13 +377,14 @@ export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot
       hideItem(item, action, typeof payload.hiddenUntil === 'string' ? payload.hiddenUntil : null);
       setNotice(
         action === 'snooze'
-          ? 'Snoozed until tomorrow morning.'
+          ? 'Snoozed in task state until tomorrow morning.'
           : action === 'complete'
-            ? 'Marked done.'
+            ? 'Task marked done.'
             : action === 'archive'
-              ? 'Archived.'
-              : 'Advanced.'
+              ? 'Knowledge archived.'
+              : 'Knowledge advanced.'
       );
+      router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Action failed.');
     } finally {
