@@ -94,6 +94,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'GitHub',
+        url: '/dashboard/github',
+        icon: 'github',
+        shortcut: ['g', 'h'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/wiki',
         icon: 'page',

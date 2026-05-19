@@ -7,6 +7,7 @@ Agent OS external signals are read-only connectors that feed Inbox Radar.
 - Gmail: existing `GET /mail/radar` bridge endpoint via `gog gmail` readonly search/thread reads.
 - Calendar: `GET /calendar/snapshot` via `gog calendar events` readonly event reads.
 - GitHub: `GET /github/snapshot` via GitHub REST API readonly user/notifications and optional open PR reads.
+- GitHub UI: `/dashboard/github` for connector checks, notifications and open PRs.
 
 Linear is intentionally skipped for now.
 

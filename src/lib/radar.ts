@@ -146,7 +146,7 @@ export async function getRadarSnapshot() {
         detail: github.alerts[0]?.detail ?? 'GitHub token is missing or read failed.',
         source: 'notifications',
         priority: github.configured ? 'medium' : 'low',
-        href: '/dashboard/radar',
+        href: '/dashboard/github',
         actionLabel: 'Review connector',
         meta: github.source
       });
@@ -158,7 +158,7 @@ export async function getRadarSnapshot() {
         detail: `${notification.repository} · ${notification.reason}`,
         source: 'notifications',
         priority: notification.reason === 'mention' ? 'high' : 'medium',
-        href: '/dashboard/radar',
+        href: '/dashboard/github',
         actionLabel: 'Open GitHub',
         meta: `GitHub · ${notification.type}`
       });
@@ -170,7 +170,7 @@ export async function getRadarSnapshot() {
         detail: `#${pull.number} by ${pull.author} · updated ${pull.updatedAt ? new Date(pull.updatedAt).toLocaleDateString('sv-SE') : 'unknown'}`,
         source: 'tasks',
         priority: 'medium',
-        href: '/dashboard/radar',
+        href: '/dashboard/github',
         actionLabel: 'Open GitHub',
         meta: 'GitHub PR'
       });
