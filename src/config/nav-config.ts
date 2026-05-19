@@ -45,13 +45,6 @@ export const navGroups: NavGroup[] = [
         icon: 'send',
         shortcut: ['c', 'h'],
         items: []
-      },
-      {
-        title: 'Affiliate',
-        url: '/dashboard/affiliate',
-        icon: 'trendingUp',
-        shortcut: ['a', 'f'],
-        items: []
       }
     ]
   },

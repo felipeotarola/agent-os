@@ -51,20 +51,19 @@ Date: 2026-05-18
   - Exists, read-only, bridge/API/export-first.
   - Removed from main nav for now because it is not core Copilot cockpit.
 
-### Disabled / removed from surface
+### Removed / stripped from runtime
 
 - Product table + `/api/products/*` fake store.
 - Users table + `/api/users/*` fake store.
-- React Query Pokemon demo.
-- Form demo pages.
-- Chat demo page.
-- Billing, exclusive and workspace template pages.
-- Icons/settings demo page.
+- React Query Pokemon demo route.
+- Form demo pages and form/product showcase feature code.
+- Billing, exclusive, workspace and template icon routes.
 - Template GitHub/star CTA and starter links.
 - README links to the upstream dashboard starter.
 - Faker-backed `src/constants/mock-api*.ts` files.
+- Organization switcher links to removed workspace setup.
 
-Disabled routes now return 404 or 410 instead of silently showing fake data.
+These are now deleted rather than merely hidden. If a capability returns, it should come back as a real Agent OS surface backed by OpenClaw/DB data.
 
 ## What is missing
 
@@ -85,6 +84,7 @@ Disabled routes now return 404 or 410 instead of silently showing fake data.
 
 ### UI/product
 
+- Decide whether Affiliate belongs in this cockpit at all; it is real/read-only but not core Agent OS, so it is no longer in primary navigation.
 - Expand Settings with editable-but-guarded configuration once bridge write guardrails exist.
 - Expand Journal with filters, tags, project links and “promote to wiki/task” actions.
 - Make empty states explicit: no fake data, tell the user what source is missing.

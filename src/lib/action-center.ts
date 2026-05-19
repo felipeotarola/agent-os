@@ -93,6 +93,7 @@ export async function getActionCenterSnapshot() {
       tasks: sorted.filter((item) => item.kind === 'task').length
     },
     items: sorted.slice(0, 24),
+    liveActivity: briefing.cockpit.subagents,
     sources: {
       dispatch: 'bridge:dispatch-summary',
       knowledge: knowledge.dbOnline ? 'bridge/postgres:knowledge_sources' : 'fallback'

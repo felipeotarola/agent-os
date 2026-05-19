@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LiveActivitySurface } from '@/components/live-activity-surface';
 import type { ActionCenterItem, ActionCenterSnapshot } from '@/lib/action-center';
 import Link from 'next/link';
 
@@ -427,11 +428,16 @@ export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot
         </motion.div>
       ) : null}
 
-      <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
+      <div className='grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5'>
         <StatTile label='Total' value={counts.total} detail='in queue' />
         <StatTile label='High priority' value={counts.high} detail='decide first' />
         <StatTile label='Knowledge' value={counts.knowledge} detail='reviewable' />
         <StatTile label='Tasks' value={counts.tasks} detail='work queue' />
+        <StatTile
+          label='Live work'
+          value={snapshot.liveActivity?.runningCount ?? 0}
+          detail={`${snapshot.liveActivity?.activeTaskRunCount ?? 0} tasks · ${snapshot.liveActivity?.activeSessionCount ?? 0} sessions`}
+        />
       </div>
 
       <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]'>
@@ -491,28 +497,32 @@ export function ActionCenterBoard({ snapshot }: { snapshot: ActionCenterSnapshot
           </AnimatePresence>
         </div>
 
-        <Card className='h-fit overflow-hidden'>
-          <CardHeader>
-            <CardTitle>Operating policy</CardTitle>
-            <CardDescription>Vad Action Center ska vara.</CardDescription>
-          </CardHeader>
-          <CardContent className='text-muted-foreground space-y-4 text-sm leading-6'>
-            <p>Prioritering först. Dashboard sen. Det här ska kännas som kontrollrummet.</p>
-            <div className='rounded-2xl border bg-muted/30 p-3'>
-              <div className='text-foreground text-sm font-medium'>Rules</div>
-              <ul className='mt-2 list-disc space-y-1 pl-4'>
-                <li>High priority kräver beslut, review eller cleanup.</li>
-                <li>Knowledge blir inte trusted context utan review/promote.</li>
-                <li>Inget externt/destruktivt körs automatiskt här.</li>
-              </ul>
-            </div>
-            <div className='h-px bg-border' />
-            <div className='space-y-1 font-mono text-xs'>
-              <div>dispatch: {snapshot.sources.dispatch}</div>
-              <div>knowledge: {snapshot.sources.knowledge}</div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className='space-y-4'>
+          <LiveActivitySurface subagents={snapshot.liveActivity} compact />
+
+          <Card className='h-fit overflow-hidden'>
+            <CardHeader>
+              <CardTitle>Operating policy</CardTitle>
+              <CardDescription>Vad Action Center ska vara.</CardDescription>
+            </CardHeader>
+            <CardContent className='text-muted-foreground space-y-4 text-sm leading-6'>
+              <p>Prioritering först. Dashboard sen. Det här ska kännas som kontrollrummet.</p>
+              <div className='rounded-2xl border bg-muted/30 p-3'>
+                <div className='text-foreground text-sm font-medium'>Rules</div>
+                <ul className='mt-2 list-disc space-y-1 pl-4'>
+                  <li>High priority kräver beslut, review eller cleanup.</li>
+                  <li>Knowledge blir inte trusted context utan review/promote.</li>
+                  <li>Inget externt/destruktivt körs automatiskt här.</li>
+                </ul>
+              </div>
+              <div className='h-px bg-border' />
+              <div className='space-y-1 font-mono text-xs'>
+                <div>dispatch: {snapshot.sources.dispatch}</div>
+                <div>knowledge: {snapshot.sources.knowledge}</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

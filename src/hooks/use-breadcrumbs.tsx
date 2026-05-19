@@ -8,18 +8,21 @@ type BreadcrumbItem = {
   link: string;
 };
 
-// This allows to add custom title as well
+// Keep breadcrumbs focused on Agent OS surfaces, not removed dashboard-template routes.
 const routeMapping: Record<string, BreadcrumbItem[]> = {
   '/dashboard': [{ title: 'Dashboard', link: '/dashboard' }],
-  '/dashboard/employee': [
+  '/dashboard/overview': [
     { title: 'Dashboard', link: '/dashboard' },
-    { title: 'Employee', link: '/dashboard/employee' }
+    { title: 'Cockpit', link: '/dashboard/overview' }
   ],
-  '/dashboard/product': [
+  '/dashboard/action-center': [
     { title: 'Dashboard', link: '/dashboard' },
-    { title: 'Product', link: '/dashboard/product' }
+    { title: 'Action Center', link: '/dashboard/action-center' }
+  ],
+  '/dashboard/kanban': [
+    { title: 'Dashboard', link: '/dashboard' },
+    { title: 'Tasks', link: '/dashboard/kanban' }
   ]
-  // Add more custom mappings as needed
 };
 
 export function useBreadcrumbs() {

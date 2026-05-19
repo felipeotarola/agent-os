@@ -2,7 +2,9 @@ import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LiveActivitySurface } from '@/components/live-activity-surface';
 import { Progress } from '@/components/ui/progress';
+import { getActionCenterSnapshot, type ActionCenterItem } from '@/lib/action-center';
 import { getCaiBriefing } from '@/lib/briefing';
 import Link from 'next/link';
 
@@ -189,6 +191,106 @@ function taskRawData(task: {
     .join(' · ');
 }
 
+function actionPriorityTone(priority: ActionCenterItem['priority']) {
+  if (priority === 'high') return 'border-primary/40 bg-primary/10 text-primary';
+  if (priority === 'medium') return 'border-border bg-muted/50 text-muted-foreground';
+  return 'border-border bg-background text-muted-foreground';
+}
+
+function actionKindLabel(kind: ActionCenterItem['kind']) {
+  if (kind === 'task') return 'Task';
+  if (kind === 'knowledge') return 'Knowledge';
+  if (kind === 'agent') return 'Agent';
+  return 'System';
+}
+
+function ActionCenterPriorityCard({
+  item,
+  counts
+}: {
+  item?: ActionCenterItem;
+  counts: { total: number; high: number; tasks: number; knowledge: number };
+}) {
+  return (
+    <section className='mobile-feed-section rounded-3xl border bg-card p-4 text-card-foreground shadow-sm md:p-5'>
+      <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+        <div className='min-w-0 space-y-3'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge className='rounded-full'>Next best action</Badge>
+            {item ? (
+              <>
+                <Badge variant='outline' className={actionPriorityTone(item.priority)}>
+                  {item.priority}
+                </Badge>
+                <Badge variant='outline' className='border-border bg-muted/50 text-card-foreground'>
+                  {actionKindLabel(item.kind)}
+                </Badge>
+              </>
+            ) : (
+              <Badge variant='outline' className='border-border bg-muted/50 text-card-foreground'>
+                Clear
+              </Badge>
+            )}
+          </div>
+
+          {item ? (
+            <div className='space-y-1'>
+              <h2 className='line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
+                {item.title}
+              </h2>
+              <p className='text-muted-foreground line-clamp-2 text-sm leading-6 md:max-w-3xl'>
+                {item.detail}
+              </p>
+              {item.meta ? <p className='text-muted-foreground text-xs'>{item.meta}</p> : null}
+            </div>
+          ) : (
+            <div className='space-y-1'>
+              <h2 className='text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
+                Decision queue is clear
+              </h2>
+              <p className='text-muted-foreground text-sm leading-6'>
+                No Action Center item needs attention right now.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className='grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[360px]'>
+          <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+            <div className='text-lg font-semibold'>{counts.total}</div>
+            <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>Queued</div>
+          </div>
+          <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+            <div className='text-lg font-semibold'>{counts.high}</div>
+            <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>High</div>
+          </div>
+          <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+            <div className='text-lg font-semibold'>{counts.tasks}</div>
+            <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>Tasks</div>
+          </div>
+          <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+            <div className='text-lg font-semibold'>{counts.knowledge}</div>
+            <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+              Knowledge
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
+        <Button asChild className='rounded-full'>
+          <Link href='/dashboard/action-center'>Open Action Center →</Link>
+        </Button>
+        {item ? (
+          <Button asChild variant='outline' className='rounded-full'>
+            <Link href={item.href}>{item.primaryLabel}</Link>
+          </Button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function MiniSpark({ color = 'cyan' }: { color?: string }) {
   const stroke =
     color === 'violet'
@@ -265,7 +367,7 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 }
 
 export default async function OverviewPage() {
-  const briefing = await getCaiBriefing();
+  const [briefing, actionCenter] = await Promise.all([getCaiBriefing(), getActionCenterSnapshot()]);
   const snapshot = briefing.cockpit;
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
   const knowledgeCounts = knowledge as Record<string, number>;
@@ -279,10 +381,6 @@ export default async function OverviewPage() {
     ['queued', 'running', 'active'].includes(run.status)
   );
   const activeRunCount = subagents?.runningCount ?? runningRuns.length;
-  const activeTaskRunCount =
-    subagents?.activeTaskRunCount ?? runningRuns.filter((run) => run.runtime !== 'session').length;
-  const activeSessionCount =
-    subagents?.activeSessionCount ?? runningRuns.filter((run) => run.runtime === 'session').length;
   const activeRunLabel = activeRunCount
     ? `${activeRunCount} active ${activeRunCount === 1 ? 'run/session' : 'runs/sessions'}`
     : 'No active runs';
@@ -348,6 +446,8 @@ export default async function OverviewPage() {
   const latestCaiRun = briefing.latestMessage.latest;
   const latestCaiMessage = briefPreview(latestCaiRun?.summary);
   const latestCaiTime = timeLabelFromMs(latestCaiRun?.runAtMs) ?? 'ingen cron-run hittad';
+  const nextAction =
+    actionCenter.items.find((item) => item.priority === 'high') ?? actionCenter.items[0];
 
   return (
     <PageContainer>
@@ -459,6 +559,8 @@ export default async function OverviewPage() {
                 </div>
               </div>
             </div>
+
+            <ActionCenterPriorityCard item={nextAction} counts={actionCenter.counts} />
 
             <div className='mobile-feed-section rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
@@ -768,51 +870,11 @@ export default async function OverviewPage() {
           })}
         </section>
 
-        <section className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm md:p-5'>
-          <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] xl:items-center'>
-            <div className='space-y-2'>
-              <div className='flex flex-wrap items-center gap-2'>
-                <div className='flex size-9 items-center justify-center rounded-xl border border-border bg-muted/40 text-card-foreground'>
-                  ≋
-                </div>
-                <div className='font-medium text-card-foreground'>Live operations</div>
-                <Badge variant={activeRunCount ? 'default' : 'outline'}>
-                  {activeRunCount ? 'KÖR' : 'IDLE'}
-                </Badge>
-              </div>
-              <p className='text-sm text-muted-foreground'>
-                {subagents?.ok
-                  ? activeRunCount
-                    ? `${runningRuns[0]?.title ?? 'OpenClaw activity'} · ${activeTaskRunCount} task runs, ${activeSessionCount} active sessions.`
-                    : recentRuns.length > 0
-                      ? 'Inga aktiva task runs/sessions just nu, men OpenClaw har recent task-spår.'
-                      : 'Inga aktiva eller recent OpenClaw task runs/sessions just nu.'
-                  : `Subagent source unavailable: ${subagents?.error ?? 'bridge did not return a source'}.`}
-              </p>
-            </div>
-            <div className='grid gap-2 sm:grid-cols-3'>
-              <div className='mobile-feed-row rounded-xl border border-border bg-muted/40 p-3'>
-                <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
-                  Source
-                </div>
-                <div className='mt-1 truncate font-mono text-xs text-card-foreground'>
-                  {subagents?.source ?? 'missing'}
-                </div>
-              </div>
-              <div className='mobile-feed-row rounded-xl border border-border bg-muted/40 p-3'>
-                <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
-                  Heartbeat
-                </div>
-                <div className='mt-1 font-mono text-xs text-card-foreground'>
-                  {timeLabel(subagents?.checkedAt) ?? 'none'}
-                </div>
-              </div>
-              <Button asChild className='h-full min-h-14'>
-                <Link href='/dashboard/kanban'>Öppna Tasks →</Link>
-              </Button>
-            </div>
-          </div>
-        </section>
+        <LiveActivitySurface
+          subagents={subagents}
+          href='/dashboard/kanban'
+          className='rounded-3xl'
+        />
 
         <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
           <Card className='mobile-feed-card 2xl:col-span-5'>

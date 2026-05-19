@@ -4,7 +4,6 @@ import { dark } from '@clerk/themes';
 import { useTheme } from 'next-themes';
 import React from 'react';
 import { ActiveThemeProvider } from '../themes/active-theme';
-import QueryProvider from './query-provider';
 
 export default function Providers({
   activeThemeValue,
@@ -15,8 +14,6 @@ export default function Providers({
 }) {
   const { resolvedTheme } = useTheme();
   const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-  const app = <QueryProvider>{children}</QueryProvider>;
 
   return (
     <ActiveThemeProvider initialTheme={activeThemeValue}>
@@ -40,10 +37,10 @@ export default function Providers({
             }
           }}
         >
-          {app}
+          {children}
         </ClerkProvider>
       ) : (
-        app
+        children
       )}
     </ActiveThemeProvider>
   );
