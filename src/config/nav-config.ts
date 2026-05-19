@@ -33,6 +33,34 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Mail Radar',
+        url: '/dashboard/mail-radar',
+        icon: 'notification',
+        shortcut: ['m', 'r'],
+        items: []
+      },
+      {
+        title: 'Wiki',
+        url: '/dashboard/wiki',
+        icon: 'page',
+        shortcut: ['w', 'w'],
+        items: []
+      },
+      {
+        title: 'Memory',
+        url: '/dashboard/memory',
+        icon: 'sparkles',
+        shortcut: ['m', 'm'],
+        items: []
+      },
+      {
+        title: 'Journal',
+        url: '/dashboard/journal',
+        icon: 'page',
+        shortcut: ['j', 'j'],
+        items: []
+      },
+      {
         title: 'Chat',
         url: '/dashboard/chat',
         icon: 'send',
