@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
+import { chatAgentSessionKeys, type ChatAgentId } from '@/lib/chat-session-keys';
 
-export const chatAgentSessionKeys = {
-  cai: 'main',
-  charles: 'agent:charles:main',
-  sladdis: 'agent:sladdis:main'
-} as const;
-
-export type ChatAgentId = keyof typeof chatAgentSessionKeys;
+export { chatAgentSessionKeys, type ChatAgentId };
 
 const MAX_MESSAGE_CHARS = 12_000;
 const MAX_ATTACHMENT_COUNT = 5;

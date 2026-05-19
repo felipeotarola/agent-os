@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { usePathname } from 'next/navigation';
+import { agentOsCaiSessionKey } from '@/lib/chat-session-keys';
+import { displayableChatMessage, displayableMessages } from '../utils/display';
 import {
   extractMessages,
   isRecord,
@@ -22,7 +24,8 @@ import {
   stringFrom,
   textFromContent
 } from '../utils/event-parts';
-import type { ChatMessage, ChatMessagePart } from '../utils/types';
+import { useChatStore } from '../utils/store';
+import type { ChatMessage } from '../utils/types';
 import { MessageBubble } from './message-bubble';
 
 const routeLabels: Array<[RegExp, string]> = [
@@ -37,8 +40,7 @@ const routeLabels: Array<[RegExp, string]> = [
   [/^\/dashboard\/agents/, 'Agents']
 ];
 
-const dashboardCaiSessionKey = 'session:dashboard-cai-copilot';
-const injectedPageContextPattern = /^[\s\S]*?Page context:[\s\S]*?\n\nFelipe says:\s*/i;
+const dashboardCaiSessionKey = agentOsCaiSessionKey;
 const pendingCaiText = 'Cai tänker…';
 
 function pageLabel(pathname: string) {
@@ -47,59 +49,6 @@ function pageLabel(pathname: string) {
 
 function contextPrefix(pathname: string) {
   return `You are Cai in the dashboard copilot drawer. Keep answers short, practical, and page-aware. Page context: Felipe is currently on ${pageLabel(pathname)} (${pathname}). Use this page context to answer with relevant next steps or navigation-aware help.\n\nFelipe says:`;
-}
-
-function stripInjectedPageContext(text: string) {
-  return text.replace(injectedPageContextPattern, '').trim();
-}
-
-function displayableGlobalMessage(message: ChatMessage): ChatMessage | null {
-  if (message.role === 'system') return null;
-
-  const content =
-    message.role === 'user' ? stripInjectedPageContext(message.content) : message.content;
-  const parts = (message.parts ?? [])
-    .map((part) => {
-      if (part.type !== 'text') return null;
-      const text = message.role === 'user' ? stripInjectedPageContext(part.text) : part.text;
-      return text ? { ...part, text } : null;
-    })
-    .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => Boolean(part));
-
-  if (!content.trim() && !parts.length) return null;
-  return {
-    ...message,
-    content,
-    parts: parts.length ? parts : content ? [{ type: 'text', text: content }] : []
-  };
-}
-
-function mergeGlobalMessages(current: ChatMessage[], incoming: ChatMessage) {
-  const visible = displayableGlobalMessage(incoming);
-  if (!visible) return current;
-
-  const existingById = current.findIndex((item) => item.id === visible.id);
-  if (existingById >= 0) {
-    return current.map((item, index) => (index === existingById ? visible : item));
-  }
-
-  const existingByContent = current.findIndex(
-    (item) =>
-      item.role === visible.role &&
-      item.content.trim() === visible.content.trim() &&
-      visible.content
-  );
-  if (existingByContent >= 0) {
-    return current.map((item, index) =>
-      index === existingByContent ? { ...item, ...visible, id: item.id, pending: false } : item
-    );
-  }
-
-  return [...current.filter((item) => !(item.pending && visible.role === 'assistant')), visible];
-}
-
-function mergeHistoryWithLocal(history: ChatMessage[], local: ChatMessage[]) {
-  return local.reduce((merged, message) => mergeGlobalMessages(merged, message), history);
 }
 
 function extractAssistantMessage(payload: unknown): ChatMessage | null {
@@ -135,7 +84,10 @@ function sessionIdFromPayload(payload: unknown) {
 }
 
 async function fetchCaiHistory() {
-  const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
+  const params = new URLSearchParams({
+    agent: 'cai',
+    sessionKey: dashboardCaiSessionKey
+  });
   const response = await fetch(`/api/chat/history?${params}`, {
     headers: { accept: 'application/json' }
   });
@@ -144,16 +96,12 @@ async function fetchCaiHistory() {
   return {
     sessionId: sessionIdFromPayload(payload),
     messages: extractMessages(payload)
-      .map(displayableGlobalMessage)
-      .filter((message): message is ChatMessage => message !== null)
-      .slice(-12)
   };
 }
 
 export function GlobalCaiChat() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -161,26 +109,33 @@ export function GlobalCaiChat() {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sessionIdRef = useRef<string>('');
+  const historyLoadedRef = useRef(false);
   const label = useMemo(() => pageLabel(pathname), [pathname]);
+  const { messagesByAgent, setHistory, addMessage, upsertMessage, replaceMessage, removeMessage } =
+    useChatStore();
+  const messages = useMemo(
+    () => displayableMessages(messagesByAgent.cai, { hideSystem: true }).slice(-12),
+    [messagesByAgent.cai]
+  );
   const hasPendingCai = messages.some(
     (message) => message.pending && message.content === pendingCaiText
   );
 
   useEffect(() => {
-    if (!open || messages.length) return;
+    if (!open || historyLoadedRef.current) return;
     let ignore = false;
+    historyLoadedRef.current = true;
     setIsLoading(true);
     fetchCaiHistory()
       .then(({ messages: history, sessionId }) => {
         if (!ignore) {
           if (sessionId) sessionIdRef.current = sessionId;
-          setMessages((current) =>
-            current.length ? mergeHistoryWithLocal(history, current) : history
-          );
+          setHistory('cai', history);
         }
       })
       .catch(() => {
         if (!ignore) setError('Could not load Cai history. You can still send a message.');
+        historyLoadedRef.current = false;
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
@@ -188,27 +143,26 @@ export function GlobalCaiChat() {
     return () => {
       ignore = true;
     };
-  }, [messages.length, open]);
+  }, [open, setHistory]);
 
   const refreshHistory = useCallback(async () => {
     const { messages: history, sessionId } = await fetchCaiHistory();
     if (sessionId) sessionIdRef.current = sessionId;
-    setMessages((current) => mergeHistoryWithLocal(history, current));
-  }, []);
+    setHistory('cai', history);
+  }, [setHistory]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ agent: 'cai', sessionKey: dashboardCaiSessionKey });
+    const params = new URLSearchParams({
+      agent: 'cai',
+      sessionKey: dashboardCaiSessionKey
+    });
     const source = new EventSource(`/api/chat/events?${params}`);
     const handleHistory = (event: MessageEvent<string>) => {
       try {
         const payload = JSON.parse(event.data);
         const sessionId = sessionIdFromPayload(payload);
         if (sessionId) sessionIdRef.current = sessionId;
-        const history = extractMessages(payload)
-          .map(displayableGlobalMessage)
-          .filter((message): message is ChatMessage => message !== null)
-          .slice(-12);
-        setMessages((current) => mergeHistoryWithLocal(history, current));
+        setHistory('cai', extractMessages(payload));
       } catch {
         // History snapshots are best-effort only.
       }
@@ -216,9 +170,7 @@ export function GlobalCaiChat() {
     const handleEvent = (eventName: string) => (event: MessageEvent<string>) => {
       try {
         const message = messageFromEvent(eventName, JSON.parse(event.data));
-        if (message) {
-          setMessages((current) => mergeGlobalMessages(current, message));
-        }
+        if (message) upsertMessage('cai', message);
       } catch {
         // SSE is opportunistic; send response/history remains the fallback.
       }
@@ -229,7 +181,7 @@ export function GlobalCaiChat() {
       source.addEventListener(eventName, handleEvent(eventName))
     );
     return () => source.close();
-  }, []);
+  }, [setHistory, upsertMessage]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -245,12 +197,13 @@ export function GlobalCaiChat() {
 
       const submittedAt = Date.now();
       const idempotencyKey = `dashboard-cai-${submittedAt}`;
+      const canonicalContent = `${contextPrefix(pathname)} ${content}`;
       const userMessage: ChatMessage = {
         id: `global-cai-user-${submittedAt}`,
         role: 'user',
-        content,
+        content: canonicalContent,
         createdAt: new Date(submittedAt).toISOString(),
-        parts: [{ type: 'text', text: content }]
+        parts: [{ type: 'text', text: canonicalContent }]
       };
       const thinkingMessage: ChatMessage = {
         id: `global-cai-thinking-${submittedAt}`,
@@ -265,7 +218,8 @@ export function GlobalCaiChat() {
       setError(null);
       setIsSending(true);
       setAbortRunId(idempotencyKey);
-      setMessages((current) => [...current, userMessage, thinkingMessage]);
+      addMessage('cai', userMessage);
+      addMessage('cai', thinkingMessage);
 
       try {
         const response = await fetch('/api/chat/send', {
@@ -279,7 +233,7 @@ export function GlobalCaiChat() {
             agentName: 'Cai',
             sessionKey: dashboardCaiSessionKey,
             sessionId: sessionIdRef.current || undefined,
-            message: `${contextPrefix(pathname)} ${content}`,
+            message: canonicalContent,
             idempotencyKey,
             pageContext: {
               pathname,
@@ -293,27 +247,33 @@ export function GlobalCaiChat() {
         const assistant = extractAssistantMessage(payload);
         const runId = isRecord(payload) ? stringFrom(payload.runId, stringFrom(payload.id)) : '';
         if (runId) setAbortRunId(runId);
-        setMessages((current) => {
-          const updated = assistant
-            ? current.filter((item) => item.id !== thinkingMessage.id)
-            : current;
-          return assistant ? mergeGlobalMessages(updated, assistant) : updated;
-        });
+        if (assistant) replaceMessage('cai', thinkingMessage.id, assistant);
         window.setTimeout(() => {
           refreshHistory().catch(() => undefined);
         }, 1500);
       } catch (sendError) {
-        setMessages((current) =>
-          current
-            .filter((item) => item.id !== thinkingMessage.id)
-            .map((item) => (item.id === userMessage.id ? { ...item, error: true } : item))
-        );
+        removeMessage('cai', thinkingMessage.id);
+        replaceMessage('cai', userMessage.id, {
+          ...userMessage,
+          pending: false,
+          error: true
+        });
         setError(sendError instanceof Error ? sendError.message : 'Could not send message.');
       } finally {
         setIsSending(false);
       }
     },
-    [draft, hasPendingCai, isSending, label, pathname, refreshHistory]
+    [
+      addMessage,
+      draft,
+      hasPendingCai,
+      isSending,
+      label,
+      pathname,
+      refreshHistory,
+      removeMessage,
+      replaceMessage
+    ]
   );
 
   const handleAbort = useCallback(async () => {
@@ -322,22 +282,30 @@ export function GlobalCaiChat() {
     try {
       await fetch('/api/chat/abort', {
         method: 'POST',
-        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json'
+        },
         body: JSON.stringify({
           agent: 'cai',
           sessionKey: dashboardCaiSessionKey,
           runId: abortRunId
         })
       });
-      setMessages((current) =>
-        current.filter((item) => !(item.pending && item.content === pendingCaiText))
-      );
+      for (const message of messagesByAgent.cai) {
+        if (
+          message.pending &&
+          displayableChatMessage(message, { hideSystem: true })?.content === pendingCaiText
+        ) {
+          removeMessage('cai', message.id);
+        }
+      }
       setAbortRunId(null);
       setIsSending(false);
     } catch (abortError) {
       setError(abortError instanceof Error ? abortError.message : 'Could not stop Cai.');
     }
-  }, [abortRunId]);
+  }, [abortRunId, messagesByAgent.cai, removeMessage]);
 
   const canSend = draft.trim().length > 0 && !isSending && !hasPendingCai;
   const canAbort = hasPendingCai && Boolean(abortRunId);

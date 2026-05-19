@@ -18,6 +18,7 @@ type ChatState = {
   addMessage: (agentId: AgentId, message: ChatMessage) => void;
   upsertMessage: (agentId: AgentId, message: ChatMessage) => void;
   replaceMessage: (agentId: AgentId, messageId: string, message: ChatMessage) => void;
+  removeMessage: (agentId: AgentId, messageId: string) => void;
   setIsLoadingHistory: (isLoadingHistory: boolean) => void;
   setIsSending: (isSending: boolean) => void;
   setError: (error: string | null) => void;
@@ -168,6 +169,13 @@ export const useChatStore = create<ChatState>()((set) => ({
         [agentId]: sortMessages(
           state.messagesByAgent[agentId].map((item) => (item.id === messageId ? message : item))
         )
+      }
+    })),
+  removeMessage: (agentId, messageId) =>
+    set((state) => ({
+      messagesByAgent: {
+        ...state.messagesByAgent,
+        [agentId]: state.messagesByAgent[agentId].filter((item) => item.id !== messageId)
       }
     })),
   setIsLoadingHistory: (isLoadingHistory) => set({ isLoadingHistory }),

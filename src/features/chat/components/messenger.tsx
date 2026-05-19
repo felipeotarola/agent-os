@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect } from 'react';
 import { chatAgents } from '../utils/data';
+import { displayableMessages, displayableMessagesByAgent } from '../utils/display';
 import {
   extractMessages,
   isRecord,
@@ -89,7 +90,8 @@ export function Messenger() {
   } = useChatStore();
 
   const selectedAgent = agentById[selectedAgentId];
-  const messages = messagesByAgent[selectedAgentId];
+  const displayMessagesByAgent = displayableMessagesByAgent(messagesByAgent);
+  const messages = displayableMessages(messagesByAgent[selectedAgentId]);
 
   const loadHistory = useCallback(
     async (agentId: AgentId) => {
@@ -213,7 +215,10 @@ export function Messenger() {
         const payload: unknown = await response.json();
         const assistantMessage = extractAssistantMessage(payload);
 
-        replaceMessage(agentId, optimisticId, { ...optimisticMessage, pending: false });
+        replaceMessage(agentId, optimisticId, {
+          ...optimisticMessage,
+          pending: false
+        });
         addMessage(
           agentId,
           assistantMessage ?? {
@@ -272,7 +277,7 @@ export function Messenger() {
       <ConversationList
         agents={chatAgents}
         selectedId={selectedAgentId}
-        messagesByAgent={messagesByAgent}
+        messagesByAgent={displayMessagesByAgent}
         onSelect={selectAgent}
       />
       <div className='flex min-w-0 flex-1 flex-col'>
