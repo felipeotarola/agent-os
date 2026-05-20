@@ -1,4 +1,5 @@
 api.felipeotarola.com {
+  bind 204.168.175.29
   encode zstd gzip
 
   header {

@@ -2,9 +2,14 @@ import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  BuildActivityIndicator,
+  type BuildActivitySnapshot
+} from '@/components/build-activity-indicator';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
 import { Progress } from '@/components/ui/progress';
 import { getCalendarSignals, type CalendarSignalSnapshot } from '@/db/external-signals';
+import { getVercelSnapshot, type VercelDeployment, type VercelSnapshot } from '@/db/vercel';
 import { getActionCenterSnapshot, type ActionCenterItem } from '@/lib/action-center';
 import { getCaiBriefing } from '@/lib/briefing';
 import Link from 'next/link';
@@ -337,6 +342,36 @@ function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }
   );
 }
 
+const activeVercelBuildStates = new Set(['BUILDING', 'QUEUED', 'INITIALIZING', 'DEPLOYING']);
+
+function isActiveVercelBuild(deployment: VercelDeployment) {
+  return activeVercelBuildStates.has(String(deployment.state).toUpperCase());
+}
+
+function buildActivitySnapshot(
+  vercel: VercelSnapshot,
+  localBuildCount: number
+): BuildActivitySnapshot {
+  const activeDeployments = vercel.deployments.filter(isActiveVercelBuild);
+  const latest = activeDeployments[0] ?? vercel.deployments[0] ?? null;
+  return {
+    generatedAt: vercel.generatedAt,
+    connected: vercel.connected,
+    activeCount: activeDeployments.length + localBuildCount,
+    activeVercelCount: activeDeployments.length,
+    localBuildCount,
+    source: vercel.source,
+    latest: latest
+      ? {
+          name: latest.name,
+          state: latest.state,
+          target: latest.target,
+          createdAt: latest.createdAt
+        }
+      : null
+  };
+}
+
 function taskRawData(task: {
   id?: string;
   owner?: string | null;
@@ -531,10 +566,11 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 }
 
 export default async function OverviewPage() {
-  const [briefing, actionCenter, calendar] = await Promise.all([
+  const [briefing, actionCenter, calendar, vercel] = await Promise.all([
     getCaiBriefing(),
     getActionCenterSnapshot(),
-    getCalendarSignals()
+    getCalendarSignals(),
+    getVercelSnapshot()
   ]);
   const snapshot = briefing.cockpit;
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
@@ -548,6 +584,9 @@ export default async function OverviewPage() {
   const runningRuns = recentRuns.filter((run) =>
     ['queued', 'running', 'active'].includes(run.status)
   );
+  const localBuildRunCount = runningRuns.filter((run) =>
+    /\b(build|deploy|typecheck|lint|verify)\b/i.test(`${run.title} ${run.label}`)
+  ).length;
   const activeRunCount = subagents?.runningCount ?? runningRuns.length;
   const activeRunLabel = activeRunCount
     ? `${activeRunCount} active ${activeRunCount === 1 ? 'run/session' : 'runs/sessions'}`
@@ -1045,6 +1084,8 @@ export default async function OverviewPage() {
           href='/dashboard/kanban'
           className='rounded-3xl'
         />
+
+        <BuildActivityIndicator initial={buildActivitySnapshot(vercel, localBuildRunCount)} />
 
         <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
           <Card className='mobile-feed-card 2xl:col-span-5'>
