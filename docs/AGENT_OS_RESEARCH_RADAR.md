@@ -146,4 +146,4 @@ Continue Inbox Radar V2 rather than adding `/dashboard/review`.
 
 Highest-leverage next step: wire producers into the new bridge-backed `inbox_items` endpoint so proactive loops and subagents can create approval/review items directly instead of only surfacing derived signals.
 
-Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`) and Inbox Radar now reads active persisted items alongside derived signals.
+Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`) and Inbox Radar now reads active persisted items alongside derived signals. Producers now have a local bridge CLI helper at `scripts/create-inbox-item.mjs` for idempotently creating review/approval/task items without adding new dashboard surfaces.
