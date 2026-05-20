@@ -1,21 +1,41 @@
 import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import type { NotificationAction, NotificationStatus } from '@/components/ui/notification-card';
+import { z } from 'zod';
 
-export type CockpitNotification = {
-  id: string;
-  title: string;
-  body: string;
+const notificationStatusSchema = z.enum(['unread', 'read', 'archived']);
+const notificationActionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(['redirect', 'api_call', 'workflow', 'modal']),
+  style: z.enum(['primary', 'danger', 'default']).optional(),
+  executed: z.boolean().optional(),
+  href: z.string().optional()
+});
+
+const cockpitNotificationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string(),
+  status: notificationStatusSchema,
+  kind: z.string(),
+  createdAt: z.string(),
+  actions: z.array(notificationActionSchema).optional()
+});
+
+const notificationSnapshotSchema = z.object({
+  notifications: z.array(cockpitNotificationSchema),
+  unreadCount: z.number(),
+  generatedAt: z.string(),
+  source: z.string()
+});
+
+export type CockpitNotification = z.infer<typeof cockpitNotificationSchema> & {
   status: NotificationStatus;
-  kind: string;
-  createdAt: string;
   actions?: Array<NotificationAction & { href?: string }>;
 };
 
-export type NotificationSnapshot = {
+export type NotificationSnapshot = z.infer<typeof notificationSnapshotSchema> & {
   notifications: CockpitNotification[];
-  unreadCount: number;
-  generatedAt: string;
-  source: string;
 };
 
 const emptySnapshot: NotificationSnapshot = {
@@ -28,7 +48,7 @@ const emptySnapshot: NotificationSnapshot = {
 export async function getNotifications(): Promise<NotificationSnapshot> {
   if (!hasBridge()) return emptySnapshot;
   try {
-    return await bridgeRequest<NotificationSnapshot>('/notifications');
+    return notificationSnapshotSchema.parse(await bridgeRequest('/notifications'));
   } catch (error) {
     console.error('Notifications bridge request failed', error);
     return emptySnapshot;
