@@ -24,7 +24,9 @@
     "db:seed": "tsx scripts/db-seed.ts",
     "db:studio": "drizzle-kit studio",
     "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs",
-    "prebuild": "npm run check:runtime-mocks"
+    "prebuild": "npm run check:runtime-mocks",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run check:runtime-mocks && npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.1",

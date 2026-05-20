@@ -182,13 +182,15 @@ bun run build
 # Start production server
 bun run start
 
-# Linting
-bun run lint         # Run ESLint
-bun run lint:fix     # Fix ESLint issues and format
+# Linting / verification
+bun run lint         # Run oxlint
+bun run lint:fix     # Fix lint issues and format
 bun run lint:strict  # Zero warnings tolerance
+bun run typecheck    # Run TypeScript without emitting files
+bun run verify       # Runtime mock/theme checks + lint + typecheck
 
 # Formatting
-bun run format       # Format with Prettier
+bun run format       # Format with oxfmt
 bun run format:check # Check formatting
 
 # Git hooks
