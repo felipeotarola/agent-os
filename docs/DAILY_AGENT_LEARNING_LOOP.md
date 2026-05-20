@@ -34,7 +34,7 @@ Write back only high-signal items:
 
 ## Cadence
 
-Live cron: `cai-daily-agent-learning-loop` (`2d2afd11-a269-48b8-a622-690046a01d02`) runs daily at 11:30 Europe/Stockholm.
+Live cron: `cai-daily-agent-learning-loop` (`2d2afd11-a269-48b8-a622-690046a01d02`) runs daily at 23:30 Europe/Stockholm.
 
 It is intentionally low-noise: no all-clear messages, only a Telegram update if it changed something meaningful or needs a real decision.
 
