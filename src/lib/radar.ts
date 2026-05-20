@@ -5,31 +5,59 @@ import { getVercelSnapshot } from '@/db/vercel';
 import { getActionCenterSnapshot } from '@/lib/action-center';
 import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { getRunwaySnapshot } from '@/lib/runway';
+import { z } from 'zod';
 
-export type RadarSignalState = {
-  id: string;
-  status: string;
-  snoozedUntil: string | null;
-  updatedAt: string | null;
-  metadata?: Record<string, unknown>;
-};
+const radarSignalStateSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  snoozedUntil: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+});
 
-type RadarSignalStateSnapshot = {
-  states: RadarSignalState[];
-  source: string;
-};
+const radarSignalStateSnapshotSchema = z.object({
+  states: z.array(radarSignalStateSchema),
+  source: z.string()
+});
 
-export type RadarSignal = {
-  id: string;
-  title: string;
-  detail: string;
-  source: 'tasks' | 'knowledge' | 'notifications' | 'observability' | 'runway' | 'github';
-  kind: 'signal' | 'review' | 'approval' | 'draft' | 'handoff' | 'task';
-  priority: 'high' | 'medium' | 'low';
-  href: string;
-  actionLabel: string;
-  meta?: string;
-};
+const radarSignalSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  detail: z.string(),
+  source: z.enum(['tasks', 'knowledge', 'notifications', 'observability', 'runway', 'github']),
+  kind: z.enum(['signal', 'review', 'approval', 'draft', 'handoff', 'task']),
+  priority: z.enum(['high', 'medium', 'low']),
+  href: z.string(),
+  actionLabel: z.string(),
+  meta: z.string().optional()
+});
+
+const radarSnapshotSchema = z.object({
+  generatedAt: z.string(),
+  source: z.string(),
+  stateSource: z.string(),
+  counts: z.object({
+    total: z.number(),
+    high: z.number(),
+    tasks: z.number(),
+    knowledge: z.number(),
+    notifications: z.number(),
+    observability: z.number(),
+    runway: z.number(),
+    github: z.number(),
+    review: z.number(),
+    approvals: z.number(),
+    tasksKind: z.number(),
+    signalsKind: z.number()
+  }),
+  signals: z.array(radarSignalSchema),
+  sourceErrors: z.array(z.string()),
+  recommendation: radarSignalSchema
+});
+
+export type RadarSignalState = z.infer<typeof radarSignalStateSchema>;
+export type RadarSignal = z.infer<typeof radarSignalSchema>;
+export type RadarSnapshot = z.infer<typeof radarSnapshotSchema>;
 
 const priorityWeight = { high: 0, medium: 1, low: 2 } as const;
 
@@ -53,7 +81,7 @@ async function getRadarSignalStates() {
   }
 
   try {
-    const snapshot = await bridgeRequest<RadarSignalStateSnapshot>('/radar/state');
+    const snapshot = radarSignalStateSnapshotSchema.parse(await bridgeRequest('/radar/state'));
     return { states: snapshot.states, source: snapshot.source, error: null as string | null };
   } catch (error) {
     return { states: [] as RadarSignalState[], source: 'bridge:error', error: safeMessage(error) };
@@ -71,7 +99,7 @@ function isSignalHidden(signal: RadarSignal, states: Map<string, RadarSignalStat
   return false;
 }
 
-export async function getRadarSnapshot() {
+export async function getRadarSnapshot(): Promise<RadarSnapshot> {
   const [
     actionCenterResult,
     notificationsResult,
@@ -329,7 +357,7 @@ export async function getRadarSnapshot() {
     .toSorted((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority])
     .slice(0, 32);
 
-  return {
+  return radarSnapshotSchema.parse({
     generatedAt: new Date().toISOString(),
     source: 'agent-os:radar-v1',
     stateSource: radarState.source,
@@ -361,7 +389,5 @@ export async function getRadarSnapshot() {
         href: '/dashboard/overview',
         actionLabel: 'Open cockpit'
       }
-  };
+  });
 }
-
-export type RadarSnapshot = Awaited<ReturnType<typeof getRadarSnapshot>>;
