@@ -138,10 +138,6 @@ function stockholmTime(value: Date) {
   }).format(value);
 }
 
-function addHours(value: Date, hours: number) {
-  return new Date(value.getTime() + hours * 60 * 60 * 1000);
-}
-
 type WeatherSnapshot = {
   location: string;
   condition: string;
@@ -527,7 +523,6 @@ export default async function OverviewPage() {
     : 'No active runs';
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
-  const displayAt = addHours(liveAt, 2);
   const resumeItems = [
     {
       icon: '↗',
@@ -621,7 +616,7 @@ export default async function OverviewPage() {
                       Good evening Felipe
                     </h1>
                     <p className='mt-2 text-sm text-muted-foreground md:text-base'>
-                      {stockholmDate(displayAt)} · Uppsala +2h {stockholmTime(displayAt)}
+                      {stockholmDate(liveAt)} · Uppsala time {stockholmTime(liveAt)}
                     </p>
                   </div>
 
