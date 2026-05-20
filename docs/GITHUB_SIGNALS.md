@@ -23,7 +23,9 @@ Environment variables win if both env and Agent OS secrets are present. The UI o
 
 - If token is missing, return a degraded snapshot with setup next steps.
 - If token is present from env or Agent OS secrets, fetch read-only viewer, notification and optional repo PR metadata.
-- If notification scope is missing, keep the connector partially useful and surface the failure as a check.
+- Fine-grained personal access tokens currently cannot read the global notifications endpoint; treat that 403 as an expected limitation, not a broken connector.
+- If notification scope is missing, keep the connector partially useful and surface the limitation as a check.
+- Use repo PR signals with `GITHUB_OWNER`/`GITHUB_REPO`, or use a classic PAT only if global notifications are worth the broader token scope.
 - No comments, issue edits, merges, workflow dispatches or repo writes.
 
 ## Next Safe Expansion

@@ -1797,6 +1797,12 @@ async function githubFetch(path, token) {
   return JSON.parse(text || '{}');
 }
 
+function isGitHubNotificationsScopeGap(result) {
+  if (result.status !== 'rejected') return false;
+  const message = String(result.reason?.message ?? '');
+  return message.includes('GitHub API 403') && message.includes('Resource not accessible by personal access token');
+}
+
 async function githubSnapshot() {
   const tokenSecret = await readFirstManagedSecret(['GITHUB_TOKEN', 'GH_TOKEN', 'AGENT_OS_GITHUB_TOKEN']);
   const ownerSecret = await readFirstManagedSecret(['GITHUB_OWNER', 'AGENT_OS_GITHUB_OWNER']);
@@ -1829,6 +1835,7 @@ async function githubSnapshot() {
       owner && repo ? githubFetch(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=10`, token) : Promise.resolve([])
     ]);
     if (viewerResult.status === 'rejected') throw viewerResult.reason;
+    const notificationsScopeGap = isGitHubNotificationsScopeGap(notificationsResult);
     const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : [];
     const pulls = pullsResult.status === 'fulfilled' ? pullsResult.value : [];
     const mappedNotifications = (Array.isArray(notifications) ? notifications : []).slice(0, 12).map((item) => ({
@@ -1869,6 +1876,8 @@ async function githubSnapshot() {
           ok: notificationsResult.status === 'fulfilled',
           detail: notificationsResult.status === 'fulfilled'
             ? `${mappedNotifications.length} notifications`
+            : notificationsScopeGap
+              ? 'unavailable for fine-grained personal access tokens; GitHub does not expose this permission there'
             : `unavailable: ${notificationsResult.reason?.message ?? 'request failed'}`
         },
         {
@@ -1881,12 +1890,17 @@ async function githubSnapshot() {
         }
       ],
       alerts: [
-        ...(notificationsResult.status === 'rejected'
+        ...(notificationsResult.status === 'rejected' && !notificationsScopeGap
           ? [{ severity: 'warning', title: 'GitHub notifications unavailable', detail: notificationsResult.reason?.message ?? 'request failed' }]
           : []),
         ...mappedNotifications.filter((item) => item.unread).slice(0, 5).map((item) => ({ severity: 'info', title: item.title, detail: `${item.repository} · ${item.reason}` }))
       ],
-      nextSteps: ['Add issue/PR review guarded actions only after repo allowlist and audit logging exist.', 'Feed unread notifications and stale PRs into Radar.']
+      nextSteps: [
+        notificationsScopeGap
+          ? 'Fine-grained GitHub tokens cannot read the global notifications endpoint; use repo PR signals or a classic PAT if notifications are required.'
+          : 'Feed unread notifications and stale PRs into Radar.',
+        'Add issue/PR review guarded actions only after repo allowlist and audit logging exist.'
+      ]
     };
   } catch (error) {
     return {
