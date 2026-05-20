@@ -151,7 +151,7 @@ type WeatherSnapshot = {
 
 async function getUppsalaWeather(): Promise<WeatherSnapshot> {
   try {
-    const response = await fetch('https://wttr.in/Uppsala?format=%l|%c|%t|%f|%w|%h|%p', {
+    const response = await fetch('https://wttr.in/Uppsala?m&format=%l|%c|%t|%f|%w|%h|%p', {
       cache: 'no-store',
       signal: AbortSignal.timeout(3500)
     });
