@@ -18,6 +18,7 @@ Each day, review recent sessions, tasks, memory signals, logs and shipped commit
 Write back only high-signal items:
 
 - daily memory: raw facts and session learnings
+- `LESSONS.md`: do-not-repeat mistakes, corrections and workflow lessons
 - `MEMORY.md`: durable preferences, decisions and lessons
 - `PROACTIVE.md` / `SELF_IMPROVEMENT.md`: operating rule changes
 - Agent OS docs: workflow/runbook changes
@@ -29,6 +30,7 @@ Write back only high-signal items:
 - Do not save secrets, raw tokens, BankID details, raw bank/account data or private message dumps.
 - Prefer distilled lessons over transcript copying.
 - Prefer one small improvement over broad rewrites.
+- Use `LESSONS.md` for corrections/mistakes before promoting them to long-term rules.
 - Do not add UI surfaces unless they improve agent stability or recovery.
 - Ask before external messages, paid APIs, model/provider defaults, broad gateway permissions or OpenClaw self-update.
 
