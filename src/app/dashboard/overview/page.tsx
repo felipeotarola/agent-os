@@ -138,6 +138,57 @@ function stockholmTime(value: Date) {
   }).format(value);
 }
 
+function addHours(value: Date, hours: number) {
+  return new Date(value.getTime() + hours * 60 * 60 * 1000);
+}
+
+type WeatherSnapshot = {
+  location: string;
+  condition: string;
+  temperature: string;
+  feelsLike: string;
+  wind: string;
+  humidity: string;
+  precipitation: string;
+  ok: boolean;
+};
+
+async function getUppsalaWeather(): Promise<WeatherSnapshot> {
+  try {
+    const response = await fetch('https://wttr.in/Uppsala?format=%l|%c|%t|%f|%w|%h|%p', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3500)
+    });
+    if (!response.ok) throw new Error(`wttr ${response.status}`);
+    const [location, condition, temperature, feelsLike, wind, humidity, precipitation] = (
+      await response.text()
+    )
+      .trim()
+      .split('|');
+    return {
+      location: location || 'Uppsala',
+      condition: condition || '—',
+      temperature: temperature || '—',
+      feelsLike: feelsLike || '—',
+      wind: wind || '—',
+      humidity: humidity || '—',
+      precipitation: precipitation || '—',
+      ok: true
+    };
+  } catch {
+    return {
+      location: 'Uppsala',
+      condition: '—',
+      temperature: '—',
+      feelsLike: '—',
+      wind: '—',
+      humidity: '—',
+      precipitation: '—',
+      ok: false
+    };
+  }
+}
+
 function compactNumber(value: number | null, currency?: string) {
   if (value === null) return '—';
   return new Intl.NumberFormat('sv-SE', {
@@ -447,11 +498,12 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
 }
 
 export default async function OverviewPage() {
-  const [briefing, actionCenter, calendar, vercel] = await Promise.all([
+  const [briefing, actionCenter, calendar, vercel, weather] = await Promise.all([
     getCaiBriefing(),
     getActionCenterSnapshot(),
     getCalendarSignals(),
-    getVercelSnapshot()
+    getVercelSnapshot(),
+    getUppsalaWeather()
   ]);
   const snapshot = briefing.cockpit;
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
@@ -475,6 +527,7 @@ export default async function OverviewPage() {
     : 'No active runs';
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
+  const displayAt = addHours(liveAt, 2);
   const resumeItems = [
     {
       icon: '↗',
@@ -568,7 +621,7 @@ export default async function OverviewPage() {
                       Good evening Felipe
                     </h1>
                     <p className='mt-2 text-sm text-muted-foreground md:text-base'>
-                      {stockholmDate(liveAt)} · Stockholm time {stockholmTime(liveAt)}
+                      {stockholmDate(displayAt)} · Uppsala +2h {stockholmTime(displayAt)}
                     </p>
                   </div>
 
@@ -785,6 +838,37 @@ export default async function OverviewPage() {
             </div>
 
             <CalendarOverviewCard calendar={calendar} />
+
+            <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
+              <div className='mb-3 flex items-center justify-between gap-3'>
+                <div>
+                  <div className='font-semibold text-foreground'>Uppsala weather</div>
+                  <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
+                </div>
+                <Badge variant='outline' className='border-border bg-muted/40'>
+                  {weather.ok ? 'live' : 'degraded'}
+                </Badge>
+              </div>
+              <div className='rounded-2xl border bg-background/45 p-4'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <div className='text-muted-foreground text-xs'>{weather.location}</div>
+                    <div className='mt-1 text-3xl font-semibold'>{weather.temperature}</div>
+                  </div>
+                  <div className='text-3xl'>{weather.condition}</div>
+                </div>
+                <div className='mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
+                  <div className='rounded-xl border bg-muted/30 p-2'>Feels {weather.feelsLike}</div>
+                  <div className='rounded-xl border bg-muted/30 p-2'>Wind {weather.wind}</div>
+                  <div className='rounded-xl border bg-muted/30 p-2'>
+                    Humidity {weather.humidity}
+                  </div>
+                  <div className='rounded-xl border bg-muted/30 p-2'>
+                    Rain {weather.precipitation}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-3 flex items-center justify-between gap-3'>
