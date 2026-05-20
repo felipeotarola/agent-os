@@ -365,7 +365,7 @@ function SourceInspector({ source }: { source?: KnowledgeSource }) {
   const meta = statusMeta(source.status);
 
   return (
-    <Card className='xl:sticky xl:top-4'>
+    <Card>
       <CardHeader>
         <div className='flex items-center justify-between gap-3'>
           <CardTitle>Nästa i kön</CardTitle>
