@@ -587,13 +587,23 @@ export default async function OverviewPage() {
   const localBuildRunCount = runningRuns.filter((run) =>
     /\b(build|deploy|typecheck|lint|verify)\b/i.test(`${run.title} ${run.label}`)
   ).length;
+  const buildActivity = buildActivitySnapshot(vercel, localBuildRunCount);
   const activeRunCount = subagents?.runningCount ?? runningRuns.length;
   const activeRunLabel = activeRunCount
     ? `${activeRunCount} active ${activeRunCount === 1 ? 'run/session' : 'runs/sessions'}`
     : 'No active runs';
   const generatedAt = snapshot.generatedAt ? timeLabel(snapshot.generatedAt) : 'no timestamp';
   const liveAt = snapshot.generatedAt ? new Date(snapshot.generatedAt) : new Date();
+  const buildResumeItem = buildActivity.activeCount
+    ? {
+        icon: '▲',
+        label: 'Vercel build live',
+        value: `${buildActivity.activeCount} running · ${buildActivity.latest?.name ?? 'build activity'}`,
+        href: '/dashboard/vercel'
+      }
+    : null;
   const resumeItems = [
+    ...(buildResumeItem ? [buildResumeItem] : []),
     {
       icon: '↗',
       label: 'Briefing priority',
@@ -1085,7 +1095,7 @@ export default async function OverviewPage() {
           className='rounded-3xl'
         />
 
-        <BuildActivityIndicator initial={buildActivitySnapshot(vercel, localBuildRunCount)} />
+        <BuildActivityIndicator initial={buildActivity} />
 
         <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
           <Card className='mobile-feed-card 2xl:col-span-5'>
