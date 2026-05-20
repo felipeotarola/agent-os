@@ -46,3 +46,21 @@ Purpose: make Agent OS better at improving Cai/Charles/Sladdis without Felipe ha
 ## Heartbeat behavior
 
 When no urgent work exists, Cai should use heartbeats to do one small step from this loop: inspect, document, scaffold, verify, or create an internal task. Avoid routine status spam.
+
+## Direction correction: less Agent OS bloat
+
+Felipe expects most work to happen through conversation with Cai, not by manually using many dashboard pages. Agent OS should not keep expanding into a surface for everything.
+
+Prioritize:
+
+- agent stability and recovery
+- memory quality and hygiene
+- session/subagent reliability
+- fewer, sharper control panels
+- health/readiness signals that help Cai act better
+
+Deprioritize:
+
+- new broad dashboard pages unless they directly improve agent stability or orchestration
+- more workspaces/agents unless isolation is clearly needed
+- UI surfaces Felipe will rarely use manually
