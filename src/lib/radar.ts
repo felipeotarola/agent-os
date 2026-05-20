@@ -81,7 +81,9 @@ async function getRadarSignalStates() {
   }
 
   try {
-    const snapshot = radarSignalStateSnapshotSchema.parse(await bridgeRequest('/radar/state'));
+    const snapshot = radarSignalStateSnapshotSchema.parse(
+      await bridgeRequest('/radar/state', { cacheMs: 5000, timeoutMs: 2000 })
+    );
     return { states: snapshot.states, source: snapshot.source, error: null as string | null };
   } catch (error) {
     return { states: [] as RadarSignalState[], source: 'bridge:error', error: safeMessage(error) };

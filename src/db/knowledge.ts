@@ -38,7 +38,10 @@ const fallbackSnapshot: KnowledgeSnapshot = {
 export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
   if (hasBridge()) {
     try {
-      return await bridgeRequest<KnowledgeSnapshot>('/knowledge/snapshot');
+      return await bridgeRequest<KnowledgeSnapshot>('/knowledge/snapshot', {
+        cacheMs: 8000,
+        timeoutMs: 2500
+      });
     } catch (error) {
       console.error('Knowledge bridge snapshot failed', error);
     }

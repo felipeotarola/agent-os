@@ -64,7 +64,10 @@ const fallback: SupabaseSnapshot = {
 export async function getSupabaseSnapshot(): Promise<SupabaseSnapshot> {
   if (!hasBridge()) return fallback;
   try {
-    return await bridgeRequest<SupabaseSnapshot>('/supabase/snapshot');
+    return await bridgeRequest<SupabaseSnapshot>('/supabase/snapshot', {
+      cacheMs: 30000,
+      timeoutMs: 4000
+    });
   } catch (error) {
     console.error('Supabase bridge request failed', error);
     return {

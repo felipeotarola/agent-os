@@ -76,7 +76,10 @@ const fallback: VercelSnapshot = {
 export async function getVercelSnapshot(): Promise<VercelSnapshot> {
   if (!hasBridge()) return fallback;
   try {
-    return await bridgeRequest<VercelSnapshot>('/vercel/snapshot');
+    return await bridgeRequest<VercelSnapshot>('/vercel/snapshot', {
+      cacheMs: 30000,
+      timeoutMs: 4000
+    });
   } catch (error) {
     console.error('Vercel bridge request failed', error);
     return {

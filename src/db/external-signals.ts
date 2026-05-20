@@ -119,7 +119,10 @@ const emptyGithub: GitHubSignalSnapshot = {
 export async function getGmailSignals(): Promise<GmailSignalSnapshot> {
   if (!hasBridge()) return emptyGmail;
   try {
-    return await bridgeRequest<GmailSignalSnapshot>('/mail/radar?max=10');
+    return await bridgeRequest<GmailSignalSnapshot>('/mail/radar?max=10', {
+      cacheMs: 15000,
+      timeoutMs: 4000
+    });
   } catch (error) {
     console.error('Gmail signals request failed', error);
     return emptyGmail;
@@ -129,7 +132,10 @@ export async function getGmailSignals(): Promise<GmailSignalSnapshot> {
 export async function getCalendarSignals(): Promise<CalendarSignalSnapshot> {
   if (!hasBridge()) return emptyCalendar;
   try {
-    return await bridgeRequest<CalendarSignalSnapshot>('/calendar/snapshot?days=7&max=12');
+    return await bridgeRequest<CalendarSignalSnapshot>('/calendar/snapshot?days=7&max=12', {
+      cacheMs: 30000,
+      timeoutMs: 4000
+    });
   } catch (error) {
     console.error('Calendar signals request failed', error);
     return {
@@ -150,7 +156,10 @@ export async function getCalendarSignals(): Promise<CalendarSignalSnapshot> {
 export async function getGitHubSignals(): Promise<GitHubSignalSnapshot> {
   if (!hasBridge()) return emptyGithub;
   try {
-    return await bridgeRequest<GitHubSignalSnapshot>('/github/snapshot');
+    return await bridgeRequest<GitHubSignalSnapshot>('/github/snapshot', {
+      cacheMs: 30000,
+      timeoutMs: 4000
+    });
   } catch (error) {
     console.error('GitHub signals request failed', error);
     return {

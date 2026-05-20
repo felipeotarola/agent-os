@@ -143,7 +143,9 @@ export async function getSystemStatus(): Promise<SystemStatus> {
   if (!hasBridge()) return fallbackSystemStatus();
 
   try {
-    return systemStatusSchema.parse(await bridgeRequest('/system/status'));
+    return systemStatusSchema.parse(
+      await bridgeRequest('/system/status', { cacheMs: 5000, timeoutMs: 2500 })
+    );
   } catch (error) {
     console.error('System status bridge request failed', error);
     return fallbackSystemStatus('Bridge status parse/request failed');

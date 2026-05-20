@@ -107,7 +107,8 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
   if (hasBridge()) {
     try {
       return await bridgeRequest<CockpitSnapshot>('/overview', {
-        signal: AbortSignal.timeout(1800)
+        cacheMs: 8000,
+        timeoutMs: 2500
       });
     } catch (error) {
       console.error('Overview bridge snapshot failed', error);
