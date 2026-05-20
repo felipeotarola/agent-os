@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, promises as fs, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -977,6 +977,129 @@ async function transitionRadarSignal(input) {
   `;
 
   return { ok: true, id, action, state: mapRadarSignalState(rows[0]) };
+}
+
+async function ensureInboxItemsTable() {
+  await sql`
+    create table if not exists inbox_items (
+      id text primary key,
+      source text not null,
+      source_id text not null default '',
+      kind text not null default 'signal',
+      status text not null default 'active',
+      priority integer not null default 50,
+      title text not null,
+      detail text not null default '',
+      href text not null default '/dashboard/radar',
+      action_label text not null default 'Open',
+      owner_agent_id text references agents(id),
+      metadata jsonb not null default '{}'::jsonb,
+      snoozed_until timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`create index if not exists inbox_items_status_priority_idx on inbox_items (status, priority desc, updated_at desc)`;
+  await sql`create index if not exists inbox_items_source_idx on inbox_items (source, source_id)`;
+}
+
+function normalizeInboxKind(kind) {
+  if (['signal', 'review', 'approval', 'draft', 'handoff', 'task'].includes(kind)) return kind;
+  return 'signal';
+}
+
+function normalizeInboxStatus(status) {
+  if (['active', 'handled', 'dismissed', 'snoozed'].includes(status)) return status;
+  return 'active';
+}
+
+function mapInboxItem(row) {
+  return {
+    id: row.id,
+    source: row.source,
+    sourceId: row.sourceId,
+    kind: row.kind,
+    status: row.status,
+    priority: Number(row.priority ?? 50),
+    title: row.title,
+    detail: row.detail ?? '',
+    href: row.href,
+    actionLabel: row.actionLabel,
+    ownerAgentId: row.ownerAgentId ?? null,
+    metadata: row.metadata ?? {},
+    snoozedUntil: row.snoozedUntil ? new Date(row.snoozedUntil).toISOString() : null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null
+  };
+}
+
+async function inboxItemsSnapshot() {
+  await ensureInboxItemsTable();
+  const rows = await sql`
+    select id, source, source_id as "sourceId", kind, status, priority, title, detail, href,
+      action_label as "actionLabel", owner_agent_id as "ownerAgentId", metadata,
+      snoozed_until as "snoozedUntil", created_at as "createdAt", updated_at as "updatedAt"
+    from inbox_items
+    where status = 'active'
+      or (status = 'snoozed' and (snoozed_until is null or snoozed_until <= now()))
+    order by priority desc, updated_at desc
+    limit 100
+  `;
+  return {
+    items: rows.map(mapInboxItem),
+    source: 'bridge:postgres:inbox_items'
+  };
+}
+
+async function upsertInboxItem(input) {
+  await ensureInboxItemsTable();
+  const source = String(input.source ?? '').trim();
+  const title = String(input.title ?? '').trim();
+  if (!source || !title) {
+    const error = new Error('source and title are required');
+    error.status = 400;
+    throw error;
+  }
+
+  const id = String(input.id ?? '').trim() || randomUUID();
+  const sourceId = String(input.sourceId ?? input.source_id ?? '').trim();
+  const kind = normalizeInboxKind(String(input.kind ?? 'signal'));
+  const status = normalizeInboxStatus(String(input.status ?? 'active'));
+  const priority = Number.isFinite(Number(input.priority)) ? Number(input.priority) : 50;
+  const detail = String(input.detail ?? '').trim();
+  const href = String(input.href ?? '/dashboard/radar').trim() || '/dashboard/radar';
+  const actionLabel = String(input.actionLabel ?? input.action_label ?? 'Open').trim() || 'Open';
+  const ownerAgentId = String(input.ownerAgentId ?? input.owner_agent_id ?? '').trim() || null;
+  const metadata = input.metadata && typeof input.metadata === 'object' ? input.metadata : {};
+  const snoozedUntil = input.snoozedUntil ? new Date(String(input.snoozedUntil)) : null;
+
+  const rows = await sql`
+    insert into inbox_items (
+      id, source, source_id, kind, status, priority, title, detail, href, action_label,
+      owner_agent_id, metadata, snoozed_until, updated_at
+    ) values (
+      ${id}, ${source}, ${sourceId}, ${kind}, ${status}, ${priority}, ${title}, ${detail}, ${href},
+      ${actionLabel}, ${ownerAgentId}, ${sql.json(metadata)}, ${snoozedUntil}, now()
+    )
+    on conflict (id) do update set
+      source = excluded.source,
+      source_id = excluded.source_id,
+      kind = excluded.kind,
+      status = excluded.status,
+      priority = excluded.priority,
+      title = excluded.title,
+      detail = excluded.detail,
+      href = excluded.href,
+      action_label = excluded.action_label,
+      owner_agent_id = excluded.owner_agent_id,
+      metadata = inbox_items.metadata || excluded.metadata,
+      snoozed_until = excluded.snoozed_until,
+      updated_at = excluded.updated_at
+    returning id, source, source_id as "sourceId", kind, status, priority, title, detail, href,
+      action_label as "actionLabel", owner_agent_id as "ownerAgentId", metadata,
+      snoozed_until as "snoozedUntil", created_at as "createdAt", updated_at as "updatedAt"
+  `;
+  return mapInboxItem(rows[0]);
 }
 
 async function tasksSnapshot() {
@@ -3428,6 +3551,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/radar/signals/transition') {
       return send(res, 200, await transitionRadarSignal(await readJson(req)));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/inbox/items') {
+      return send(res, 200, await inboxItemsSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/inbox/items') {
+      return send(res, 201, await upsertInboxItem(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {

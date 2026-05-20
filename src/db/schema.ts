@@ -49,6 +49,24 @@ export const taskEvents = pgTable('task_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const inboxItems = pgTable('inbox_items', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull(),
+  sourceId: text('source_id').notNull().default(''),
+  kind: text('kind').notNull().default('signal'),
+  status: text('status').notNull().default('active'),
+  priority: integer('priority').notNull().default(50),
+  title: text('title').notNull(),
+  detail: text('detail').notNull().default(''),
+  href: text('href').notNull().default('/dashboard/radar'),
+  actionLabel: text('action_label').notNull().default('Open'),
+  ownerAgentId: text('owner_agent_id').references(() => agents.id),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export const artifacts = pgTable('artifacts', {
   id: text('id').primaryKey(),
   projectId: text('project_id').references(() => projects.id),
@@ -124,6 +142,7 @@ export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type TaskEvent = typeof taskEvents.$inferSelect;
+export type InboxItem = typeof inboxItems.$inferSelect;
 export type Artifact = typeof artifacts.$inferSelect;
 export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;

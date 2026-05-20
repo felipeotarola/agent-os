@@ -20,6 +20,24 @@ const radarSignalStateSnapshotSchema = z.object({
   source: z.string()
 });
 
+const inboxItemSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  kind: z.enum(['signal', 'review', 'approval', 'draft', 'handoff', 'task']),
+  status: z.string(),
+  priority: z.number(),
+  title: z.string(),
+  detail: z.string(),
+  href: z.string(),
+  actionLabel: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+});
+
+const inboxItemSnapshotSchema = z.object({
+  items: z.array(inboxItemSchema),
+  source: z.string()
+});
+
 const radarSignalSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -90,6 +108,29 @@ async function getRadarSignalStates() {
   }
 }
 
+async function getPersistentInboxItems() {
+  if (!hasBridge()) {
+    return {
+      items: [] as z.infer<typeof inboxItemSchema>[],
+      source: 'bridge:not-configured',
+      error: null as string | null
+    };
+  }
+
+  try {
+    const snapshot = inboxItemSnapshotSchema.parse(
+      await bridgeRequest('/inbox/items', { cacheMs: 5000, timeoutMs: 2000 })
+    );
+    return { items: snapshot.items, source: snapshot.source, error: null as string | null };
+  } catch (error) {
+    return {
+      items: [] as z.infer<typeof inboxItemSchema>[],
+      source: 'bridge:error',
+      error: safeMessage(error)
+    };
+  }
+}
+
 function isSignalHidden(signal: RadarSignal, states: Map<string, RadarSignalState>) {
   const state = states.get(signal.id);
   if (!state) return false;
@@ -110,7 +151,8 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
     gmailResult,
     calendarResult,
     githubResult,
-    radarStateResult
+    radarStateResult,
+    persistentInboxResult
   ] = await Promise.allSettled([
     getActionCenterSnapshot(),
     getNotifications(),
@@ -119,7 +161,8 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
     getGmailSignals(),
     getCalendarSignals(),
     getGitHubSignals(),
-    getRadarSignalStates()
+    getRadarSignalStates(),
+    getPersistentInboxItems()
   ]);
   const runway = getRunwaySnapshot();
   const signals: RadarSignal[] = [];
@@ -260,6 +303,27 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
     }
   } else {
     sourceErrors.push(`GitHub: ${safeMessage(githubResult.reason)}`);
+  }
+
+  if (persistentInboxResult.status === 'fulfilled') {
+    if (persistentInboxResult.value.error) {
+      sourceErrors.push(`Inbox items: ${persistentInboxResult.value.error}`);
+    }
+    for (const item of persistentInboxResult.value.items.slice(0, 10)) {
+      signals.push({
+        id: `inbox:${item.id}`,
+        title: item.title,
+        detail: item.detail,
+        source: item.kind === 'task' ? 'tasks' : 'notifications',
+        kind: item.kind,
+        priority: item.priority >= 80 ? 'high' : item.priority >= 40 ? 'medium' : 'low',
+        href: item.href,
+        actionLabel: item.actionLabel,
+        meta: `Inbox item · ${item.source}`
+      });
+    }
+  } else {
+    sourceErrors.push(`Inbox items: ${safeMessage(persistentInboxResult.reason)}`);
   }
 
   if (supabaseResult.status === 'fulfilled') {

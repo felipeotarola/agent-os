@@ -144,4 +144,6 @@ Agent OS should provide the human cockpit layer:
 
 Continue Inbox Radar V2 rather than adding `/dashboard/review`.
 
-Highest-leverage next step: persist true `inbox_items`/review records in the bridge DB so proactive loops and subagents can create approval/review items directly instead of only surfacing derived signals.
+Highest-leverage next step: wire producers into the new bridge-backed `inbox_items` endpoint so proactive loops and subagents can create approval/review items directly instead of only surfacing derived signals.
+
+Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`) and Inbox Radar now reads active persisted items alongside derived signals.
