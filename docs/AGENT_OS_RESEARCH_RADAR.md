@@ -75,16 +75,21 @@ V1:
 
 ### 2. Standard subagent handoff format
 
+Status: V1 documented in `docs/AGENT_HANDOFF.md`.
+
 Why: reduces lost context and makes orchestration more reliable.
 
 V1 handoff fields:
 - goal
+- status
+- owner
+- finished at
 - summary
 - files changed
 - commands run
 - verification
-- blockers
 - decisions made
+- blockers / risks
 - recommended next step
 
 ### 3. Opportunity Radar inside Inbox Radar
