@@ -2,6 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
@@ -20,10 +21,14 @@ const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
 const GOG_CLI = process.env.GOG_CLI ?? 'gog';
 const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH ?? '/root/.openclaw/openclaw.json';
+const OPENCLAW_HOME = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
+const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.openclaw/workspace';
+const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
+const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
 const runtimeCache = new Map();
 
 async function cachedRuntimeValue(key, ttlMs, fetcher) {
@@ -702,6 +707,79 @@ async function memoryStatus(options = {}) {
   } catch (error) {
     return { status: null, source: 'openclaw-memory:qmd', error: error.message };
   }
+}
+
+function fileStatus(filePath) {
+  try {
+    const stat = statSync(filePath);
+    return { exists: true, bytes: stat.size, updatedAt: stat.mtime.toISOString() };
+  } catch {
+    return { exists: false, bytes: 0, updatedAt: null };
+  }
+}
+
+function directoryFileCount(dir, extension) {
+  try {
+    return readdirSync(dir).filter((entry) => !extension || entry.endsWith(extension)).length;
+  } catch {
+    return 0;
+  }
+}
+
+function isMeaningfulMarkdown(filePath) {
+  try {
+    const content = readFileSync(filePath, 'utf8');
+    return content
+      .split('\n')
+      .map((line) => line.trim())
+      .some((line) => line && !line.startsWith('#') && !line.startsWith('<!--'));
+  } catch {
+    return false;
+  }
+}
+
+function assistantWorkspaceFile(name, required) {
+  const filePath = path.join(OPENCLAW_WORKSPACE, name);
+  const status = fileStatus(filePath);
+  return {
+    name,
+    path: filePath,
+    required,
+    ...status,
+    meaningful: name === 'HEARTBEAT.md' ? isMeaningfulMarkdown(filePath) : status.exists && status.bytes > 0
+  };
+}
+
+function assistantSessionStatus(agentId) {
+  const sessionsDir = path.join(OPENCLAW_HOME, 'agents', agentId, 'sessions');
+  return {
+    agentId,
+    sessionsDir,
+    sessionFiles: directoryFileCount(sessionsDir, '.jsonl'),
+    metadata: fileStatus(path.join(sessionsDir, 'sessions.json')),
+    exists: existsSync(sessionsDir)
+  };
+}
+
+async function assistantReadinessFiles() {
+  const logPath = path.join(OPENCLAW_LOG_DIR, `openclaw-${new Date().toISOString().slice(0, 10)}.log`);
+  return {
+    source: 'bridge:assistant-readiness-files',
+    workspaceDir: OPENCLAW_WORKSPACE,
+    openClawHome: OPENCLAW_HOME,
+    logDir: OPENCLAW_LOG_DIR,
+    todayLog: { path: logPath, ...fileStatus(logPath) },
+    workspaceFiles: [
+      assistantWorkspaceFile('AGENTS.md', true),
+      assistantWorkspaceFile('SOUL.md', true),
+      assistantWorkspaceFile('USER.md', true),
+      assistantWorkspaceFile('TOOLS.md', true),
+      assistantWorkspaceFile('HEARTBEAT.md', true),
+      assistantWorkspaceFile('MEMORY.md', false),
+      assistantWorkspaceFile('DREAMS.md', false)
+    ],
+    sessions: ASSISTANT_READINESS_AGENTS.map(assistantSessionStatus)
+  };
 }
 
 async function systemStatus() {
@@ -3095,6 +3173,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/agents') {
       return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/assistant/readiness-files') {
+      return send(res, 200, await assistantReadinessFiles());
     }
 
     if (req.method === 'GET' && url.pathname === '/chat/sessions') {

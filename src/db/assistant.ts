@@ -1,82 +1,71 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import path from 'node:path';
 import { getMemoryStatus } from '@/db/memory';
 import { getSystemStatus } from '@/db/system';
+import { bridgeRequest, hasBridge } from '@/lib/bridge';
 
-const workspaceDir = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.openclaw/workspace';
-const openClawHome = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
-const logDir = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
-const agentIds = ['main', 'charles', 'sladdis'];
+type FileReadiness = {
+  name: string;
+  path: string;
+  required: boolean;
+  exists: boolean;
+  bytes: number;
+  updatedAt: string | null;
+  meaningful: boolean;
+};
 
-function todayLogPath() {
-  return path.join(logDir, `openclaw-${new Date().toISOString().slice(0, 10)}.log`);
-}
-
-function fileStatus(filePath: string) {
-  try {
-    const stat = statSync(filePath);
-    return {
-      exists: true,
-      bytes: stat.size,
-      updatedAt: stat.mtime.toISOString()
-    };
-  } catch {
-    return { exists: false, bytes: 0, updatedAt: null };
-  }
-}
-
-function isMeaningfulMarkdown(filePath: string) {
-  try {
-    const content = readdirSafe(path.dirname(filePath)) ? readFileSync(filePath, 'utf8') : '';
-    return content
-      .split('\n')
-      .map((line: string) => line.trim())
-      .some((line: string) => line && !line.startsWith('#') && !line.startsWith('<!--'));
-  } catch {
-    return false;
-  }
-}
-
-function readdirSafe(dir: string) {
-  try {
-    readdirSync(dir);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function directoryFileCount(dir: string, extension?: string) {
-  try {
-    return readdirSync(dir).filter((entry) => !extension || entry.endsWith(extension)).length;
-  } catch {
-    return 0;
-  }
-}
-
-function sessionStatus(agentId: string) {
-  const sessionsDir = path.join(openClawHome, 'agents', agentId, 'sessions');
-  const metadataPath = path.join(sessionsDir, 'sessions.json');
-  return {
-    agentId,
-    sessionsDir,
-    sessionFiles: directoryFileCount(sessionsDir, '.jsonl'),
-    metadata: fileStatus(metadataPath),
-    exists: existsSync(sessionsDir)
+type SessionReadiness = {
+  agentId: string;
+  sessionsDir: string;
+  sessionFiles: number;
+  metadata: {
+    exists: boolean;
+    bytes: number;
+    updatedAt: string | null;
   };
-}
+  exists: boolean;
+};
 
-function workspaceFile(name: string, required: boolean) {
-  const filePath = path.join(workspaceDir, name);
-  const status = fileStatus(filePath);
-  return {
-    name,
-    path: filePath,
-    required,
-    ...status,
-    meaningful:
-      name === 'HEARTBEAT.md' ? isMeaningfulMarkdown(filePath) : status.exists && status.bytes > 0
+type AssistantReadinessFiles = {
+  source: string;
+  workspaceDir: string;
+  openClawHome: string;
+  logDir: string;
+  todayLog: {
+    path: string;
+    exists: boolean;
+    bytes: number;
+    updatedAt: string | null;
   };
+  workspaceFiles: FileReadiness[];
+  sessions: SessionReadiness[];
+};
+
+const fallbackFiles: AssistantReadinessFiles = {
+  source: 'fallback:no-bridge',
+  workspaceDir: '/root/.openclaw/workspace',
+  openClawHome: '/root/.openclaw',
+  logDir: '/tmp/openclaw',
+  todayLog: {
+    path: `/tmp/openclaw/openclaw-${new Date().toISOString().slice(0, 10)}.log`,
+    exists: false,
+    bytes: 0,
+    updatedAt: null
+  },
+  workspaceFiles: [],
+  sessions: []
+};
+
+async function getAssistantReadinessFiles() {
+  if (!hasBridge()) return fallbackFiles;
+
+  try {
+    return await bridgeRequest<AssistantReadinessFiles>('/assistant/readiness-files', {
+      cacheMs: 15000,
+      timeoutMs: 3000
+    });
+  } catch (error) {
+    console.error('Assistant readiness files request failed', error);
+    return fallbackFiles;
+  }
 }
 
 function scoreChecks(checks: Array<{ ok: boolean }>) {
@@ -86,19 +75,11 @@ function scoreChecks(checks: Array<{ ok: boolean }>) {
 }
 
 export async function getAssistantReadiness() {
-  const [system, memory] = await Promise.all([getSystemStatus(), getMemoryStatus()]);
-  const workspaceFiles = [
-    workspaceFile('AGENTS.md', true),
-    workspaceFile('SOUL.md', true),
-    workspaceFile('USER.md', true),
-    workspaceFile('TOOLS.md', true),
-    workspaceFile('HEARTBEAT.md', true),
-    workspaceFile('MEMORY.md', false),
-    workspaceFile('DREAMS.md', false)
-  ];
-  const sessions = agentIds.map(sessionStatus);
-  const logPath = todayLogPath();
-  const logStatus = fileStatus(logPath);
+  const [system, memory, files] = await Promise.all([
+    getSystemStatus(),
+    getMemoryStatus(),
+    getAssistantReadinessFiles()
+  ]);
   const memoryIssues = memory.status.reduce(
     (sum, agent) =>
       sum +
@@ -124,13 +105,13 @@ export async function getAssistantReadiness() {
     {
       group: 'Workspace',
       label: 'Core workspace files exist',
-      ok: workspaceFiles.filter((file) => file.required).every((file) => file.exists),
-      detail: `${workspaceFiles.filter((file) => file.exists).length}/${workspaceFiles.length} files present`
+      ok: files.workspaceFiles.filter((file) => file.required).every((file) => file.exists),
+      detail: `${files.workspaceFiles.filter((file) => file.exists).length}/${files.workspaceFiles.length} files present`
     },
     {
       group: 'Workspace',
       label: 'Heartbeat has real instructions',
-      ok: Boolean(workspaceFiles.find((file) => file.name === 'HEARTBEAT.md')?.meaningful),
+      ok: Boolean(files.workspaceFiles.find((file) => file.name === 'HEARTBEAT.md')?.meaningful),
       detail: 'Prevents noisy autonomous heartbeats'
     },
     {
@@ -145,14 +126,14 @@ export async function getAssistantReadiness() {
     {
       group: 'Sessions',
       label: 'Session metadata present',
-      ok: sessions.some((session) => session.metadata.exists),
-      detail: `${sessions.reduce((sum, session) => sum + session.sessionFiles, 0)} session files`
+      ok: files.sessions.some((session) => session.metadata.exists),
+      detail: `${files.sessions.reduce((sum, session) => sum + session.sessionFiles, 0)} session files`
     },
     {
       group: 'Ops',
       label: 'Today log path readable',
-      ok: logStatus.exists,
-      detail: logPath
+      ok: files.todayLog.exists,
+      detail: files.todayLog.path
     },
     {
       group: 'Subagents',
@@ -164,14 +145,14 @@ export async function getAssistantReadiness() {
 
   return {
     generatedAt: new Date().toISOString(),
-    workspaceDir,
-    openClawHome,
-    logDir,
-    todayLog: { path: logPath, ...logStatus },
+    workspaceDir: files.workspaceDir,
+    openClawHome: files.openClawHome,
+    logDir: files.logDir,
+    todayLog: files.todayLog,
     system,
     memory,
-    workspaceFiles,
-    sessions,
+    workspaceFiles: files.workspaceFiles,
+    sessions: files.sessions,
     checks,
     score: scoreChecks(checks),
     docs: [
