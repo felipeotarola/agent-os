@@ -44,7 +44,7 @@ async function fetchBuildActivity() {
   return (await response.json()) as BuildActivitySnapshot;
 }
 
-export function BuildActivityIndicator({ initial }: BuildActivityIndicatorProps) {
+function useBuildActivity(initial: BuildActivitySnapshot) {
   const [snapshot, setSnapshot] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +70,40 @@ export function BuildActivityIndicator({ initial }: BuildActivityIndicatorProps)
       window.clearInterval(timer);
     };
   }, []);
+
+  return { snapshot, error };
+}
+
+export function BuildActivityResumeItem({ initial }: BuildActivityIndicatorProps) {
+  const { snapshot, error } = useBuildActivity(initial);
+  if (!snapshot.activeCount) return null;
+
+  return (
+    <Link
+      href='/dashboard/vercel'
+      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-primary/35 bg-primary/10 p-3 transition hover:border-primary/60 hover:bg-primary/15'
+    >
+      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/15 text-card-foreground min-[390px]:size-9'>
+        ▲
+      </span>
+      <span className='min-w-0 flex-1'>
+        <span className='text-muted-foreground block text-[10px] uppercase tracking-wide'>
+          Vercel build live
+        </span>
+        <span className='mt-0.5 block line-clamp-2 text-sm font-medium text-card-foreground min-[390px]:truncate'>
+          {snapshot.activeCount} running · {snapshot.latest?.name ?? 'build activity'}
+        </span>
+        {error ? <span className='text-muted-foreground text-[10px]'>refresh degraded</span> : null}
+      </span>
+      <span className='hidden text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary min-[390px]:inline'>
+        →
+      </span>
+    </Link>
+  );
+}
+
+export function BuildActivityIndicator({ initial }: BuildActivityIndicatorProps) {
+  const { snapshot, error } = useBuildActivity(initial);
 
   const activeCount = snapshot.activeCount;
   const connected = snapshot.connected && !error;
