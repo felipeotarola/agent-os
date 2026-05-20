@@ -11,18 +11,18 @@ Agent OS Supabase observability V1 is intentionally read-only and empty-safe.
 
 ## Environment
 
-Configure these on the bridge host, not in browser-visible UI:
+Configure these either in `/dashboard/settings` → **API keys & secrets** or in the bridge environment:
 
 - `SUPABASE_PROJECT_REF` or `AGENT_OS_SUPABASE_PROJECT_REF`
 - `SUPABASE_ACCESS_TOKEN` or `AGENT_OS_SUPABASE_ACCESS_TOKEN`
-- Optional: `SUPABASE_MANAGEMENT_API_URL` defaults to `https://api.supabase.com`
+- Optional env-only override: `SUPABASE_MANAGEMENT_API_URL` defaults to `https://api.supabase.com`
 
-The UI only shows readiness, project metadata, checks and alerts. It never renders token values.
+Environment variables win if both env and Agent OS secrets are present. The UI only shows readiness, project metadata, checks and alerts. It never renders token values.
 
 ## V1 Behavior
 
-- If env is missing, return a degraded snapshot with setup next steps.
-- If env is present, fetch project metadata from the Supabase Management API.
+- If token/project ref is missing, return a degraded snapshot with setup next steps.
+- If token/project ref is present from env or Agent OS secrets, fetch project metadata from the Supabase Management API.
 - If the fetch fails, return a degraded snapshot with a warning alert.
 - No write actions.
 - No OAuth/browser automation.

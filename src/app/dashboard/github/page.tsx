@@ -45,7 +45,9 @@ export default async function GitHubPage() {
               <CardDescription>Configured</CardDescription>
               <CardTitle className='text-3xl'>{snapshot.configured ? 'yes' : 'no'}</CardTitle>
             </CardHeader>
-            <CardContent className='text-muted-foreground text-sm'>Bridge env only</CardContent>
+            <CardContent className='text-muted-foreground text-sm'>
+              Env or Agent OS secrets
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className='pb-2'>
@@ -186,6 +188,7 @@ export default async function GitHubPage() {
                 'Read-only metadata, notifications and PRs.',
                 'No comments, issue edits, merges or workflow actions.',
                 'No token values in UI or docs.',
+                'Token can come from Settings → API keys & secrets or bridge env.',
                 'Repo allowlist/filter before future write actions.',
                 'Radar consumes warnings instead of hiding partial failures.'
               ].map((rule) => (

@@ -1418,12 +1418,10 @@ async function upsertAffiliateAccount(input) {
 }
 
 async function supabaseSnapshot() {
-  const projectRef = String(
-    process.env.SUPABASE_PROJECT_REF ?? process.env.AGENT_OS_SUPABASE_PROJECT_REF ?? ''
-  ).trim();
-  const accessToken = String(
-    process.env.SUPABASE_ACCESS_TOKEN ?? process.env.AGENT_OS_SUPABASE_ACCESS_TOKEN ?? ''
-  ).trim();
+  const projectRefSecret = await readFirstManagedSecret(['SUPABASE_PROJECT_REF', 'AGENT_OS_SUPABASE_PROJECT_REF']);
+  const accessTokenSecret = await readFirstManagedSecret(['SUPABASE_ACCESS_TOKEN', 'AGENT_OS_SUPABASE_ACCESS_TOKEN']);
+  const projectRef = projectRefSecret.value;
+  const accessToken = accessTokenSecret.value;
   const apiBase = String(
     process.env.SUPABASE_MANAGEMENT_API_URL ?? 'https://api.supabase.com'
   ).replace(/\/$/, '');
@@ -1434,13 +1432,13 @@ async function supabaseSnapshot() {
       id: 'project-ref',
       label: 'Project ref configured',
       ok: Boolean(projectRef),
-      detail: projectRef ? 'configured' : 'SUPABASE_PROJECT_REF missing'
+      detail: projectRef ? `configured via ${projectRefSecret.source}` : 'SUPABASE_PROJECT_REF missing'
     },
     {
       id: 'access-token',
       label: 'Read-only access token configured',
       ok: Boolean(accessToken),
-      detail: accessToken ? 'configured in bridge env' : 'SUPABASE_ACCESS_TOKEN missing'
+      detail: accessToken ? `configured via ${accessTokenSecret.source}` : 'SUPABASE_ACCESS_TOKEN missing'
     },
     { id: 'api-base', label: 'Management API base', ok: Boolean(apiBase), detail: apiBase }
   ];
@@ -1457,7 +1455,7 @@ async function supabaseSnapshot() {
       metrics: [],
       alerts: [],
       nextSteps: [
-        'Set SUPABASE_PROJECT_REF and a scoped read-only SUPABASE_ACCESS_TOKEN in the bridge environment.',
+        'Add SUPABASE_PROJECT_REF and a scoped read-only SUPABASE_ACCESS_TOKEN in Settings → API keys & secrets, or set them in the bridge environment.',
         'Keep credentials server-side only; never expose Supabase tokens to the browser.',
         'After config is present, fetch project metadata and add logs/usage endpoints behind this snapshot contract.'
       ]
@@ -1532,7 +1530,7 @@ async function supabaseSnapshot() {
         { severity: 'warning', title: 'Supabase connector failed', detail: error.message ?? 'request failed' }
       ],
       nextSteps: [
-        'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in the bridge environment.',
+        'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in Settings → API keys & secrets or the bridge environment.',
         'Confirm token scope permits read-only Management API project metadata access.',
         'Keep the connector degraded until metadata reads succeed.'
       ]
@@ -1800,9 +1798,12 @@ async function githubFetch(path, token) {
 }
 
 async function githubSnapshot() {
-  const token = String(process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.AGENT_OS_GITHUB_TOKEN ?? '').trim();
-  const owner = String(process.env.GITHUB_OWNER ?? process.env.AGENT_OS_GITHUB_OWNER ?? '').trim();
-  const repo = String(process.env.GITHUB_REPO ?? process.env.AGENT_OS_GITHUB_REPO ?? '').trim();
+  const tokenSecret = await readFirstManagedSecret(['GITHUB_TOKEN', 'GH_TOKEN', 'AGENT_OS_GITHUB_TOKEN']);
+  const ownerSecret = await readFirstManagedSecret(['GITHUB_OWNER', 'AGENT_OS_GITHUB_OWNER']);
+  const repoSecret = await readFirstManagedSecret(['GITHUB_REPO', 'AGENT_OS_GITHUB_REPO']);
+  const token = tokenSecret.value;
+  const owner = ownerSecret.value;
+  const repo = repoSecret.value;
   const generatedAt = new Date().toISOString();
 
   if (!token) {
@@ -1817,7 +1818,7 @@ async function githubSnapshot() {
       pullRequests: [],
       checks: [{ id: 'token', label: 'Read-only token configured', ok: false, detail: 'GITHUB_TOKEN/GH_TOKEN missing' }],
       alerts: [],
-      nextSteps: ['Set a scoped read-only GITHUB_TOKEN or GH_TOKEN in the bridge environment.', 'Optionally set GITHUB_OWNER and GITHUB_REPO to prioritize one repo.']
+      nextSteps: ['Add a scoped read-only GITHUB_TOKEN or GH_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.', 'Optionally add GITHUB_OWNER and GITHUB_REPO in API keys & secrets to prioritize one repo.']
     };
   }
 
@@ -1861,7 +1862,7 @@ async function githubSnapshot() {
       notifications: mappedNotifications,
       pullRequests: mappedPulls,
       checks: [
-        { id: 'token', label: 'Read-only token configured', ok: true, detail: 'configured in bridge env' },
+        { id: 'token', label: 'Read-only token configured', ok: true, detail: `configured via ${tokenSecret.source}` },
         {
           id: 'notifications',
           label: 'Notifications fetch',
@@ -1899,7 +1900,7 @@ async function githubSnapshot() {
       pullRequests: [],
       checks: [{ id: 'github-fetch', label: 'GitHub API fetch', ok: false, detail: error.message ?? 'request failed' }],
       alerts: [{ severity: 'warning', title: 'GitHub connector failed', detail: error.message ?? 'request failed' }],
-      nextSteps: ['Verify GITHUB_TOKEN/GH_TOKEN in the bridge environment.', 'Confirm token has read-only notification and repo metadata scopes.']
+      nextSteps: ['Verify GITHUB_TOKEN/GH_TOKEN in Settings → API keys & secrets or the bridge environment.', 'Confirm token has read-only notification and repo metadata scopes.']
     };
   }
 }
