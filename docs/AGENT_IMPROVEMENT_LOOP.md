@@ -64,3 +64,7 @@ Deprioritize:
 - new broad dashboard pages unless they directly improve agent stability or orchestration
 - more workspaces/agents unless isolation is clearly needed
 - UI surfaces Felipe will rarely use manually
+
+## Daily learning loop
+
+Add a low-noise daily review loop inspired by OpenClaw self-learning workflows: review what worked, failed, got corrected, broke, and what should be saved. Write back only high-signal lessons into memory, operating notes, docs, tasks, or small commits. See `docs/DAILY_AGENT_LEARNING_LOOP.md`.
