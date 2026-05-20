@@ -130,6 +130,13 @@ export const navGroups: NavGroup[] = [
     label: 'System',
     items: [
       {
+        title: 'Assistant',
+        url: '/dashboard/assistant',
+        icon: 'sparkles',
+        shortcut: ['a', 's'],
+        items: []
+      },
+      {
         title: 'Agents',
         url: '/dashboard/agents',
         icon: 'teams',
