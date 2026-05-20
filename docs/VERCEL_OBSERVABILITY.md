@@ -11,19 +11,19 @@ Agent OS Vercel observability V1 is read-only and empty-safe.
 
 ## Environment
 
-Configure these on the bridge host, not in browser-visible UI:
+Configure these either in `/dashboard/settings` → **API keys & secrets** or in the bridge environment:
 
 - `VERCEL_ACCESS_TOKEN` or `AGENT_OS_VERCEL_ACCESS_TOKEN`
 - Optional: `VERCEL_TEAM_ID` or `AGENT_OS_VERCEL_TEAM_ID`
 - Optional: `VERCEL_PROJECT_ID` or `AGENT_OS_VERCEL_PROJECT_ID`
 - Optional: `VERCEL_PROJECT_NAME` or `AGENT_OS_VERCEL_PROJECT_NAME`
 
-The UI only shows readiness, project metadata, deployment metadata, checks and alerts. It never renders token values.
+Environment variables win if both env and Agent OS secrets are present. The UI only shows readiness, project metadata, deployment metadata, checks and alerts. It never renders token values.
 
 ## V1 Behavior
 
-- If env is missing, return a degraded snapshot with setup next steps.
-- If env is present, fetch read-only user, project and deployment metadata from Vercel API.
+- If token is missing, return a degraded snapshot with setup next steps.
+- If token is present from env or Agent OS secrets, fetch read-only user, project and deployment metadata from Vercel API.
 - If the fetch fails, return a degraded snapshot with a warning alert.
 - No write actions.
 - No manual OAuth/browser automation.

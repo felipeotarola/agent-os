@@ -1551,10 +1551,14 @@ async function vercelFetch(path, token) {
 }
 
 async function vercelSnapshot() {
-  const token = String(process.env.VERCEL_ACCESS_TOKEN ?? process.env.AGENT_OS_VERCEL_ACCESS_TOKEN ?? '').trim();
-  const teamId = String(process.env.VERCEL_TEAM_ID ?? process.env.AGENT_OS_VERCEL_TEAM_ID ?? '').trim();
-  const projectId = String(process.env.VERCEL_PROJECT_ID ?? process.env.AGENT_OS_VERCEL_PROJECT_ID ?? '').trim();
-  const projectName = String(process.env.VERCEL_PROJECT_NAME ?? process.env.AGENT_OS_VERCEL_PROJECT_NAME ?? '').trim();
+  const tokenSecret = await readFirstManagedSecret(['VERCEL_ACCESS_TOKEN', 'AGENT_OS_VERCEL_ACCESS_TOKEN']);
+  const teamSecret = await readFirstManagedSecret(['VERCEL_TEAM_ID', 'AGENT_OS_VERCEL_TEAM_ID']);
+  const projectIdSecret = await readFirstManagedSecret(['VERCEL_PROJECT_ID', 'AGENT_OS_VERCEL_PROJECT_ID']);
+  const projectNameSecret = await readFirstManagedSecret(['VERCEL_PROJECT_NAME', 'AGENT_OS_VERCEL_PROJECT_NAME']);
+  const token = tokenSecret.value;
+  const teamId = teamSecret.value;
+  const projectId = projectIdSecret.value;
+  const projectName = projectNameSecret.value;
   const generatedAt = new Date().toISOString();
   const configured = Boolean(token);
   const teamQuery = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
@@ -1563,19 +1567,19 @@ async function vercelSnapshot() {
       id: 'access-token',
       label: 'Read-only access token configured',
       ok: Boolean(token),
-      detail: token ? 'configured in bridge env' : 'VERCEL_ACCESS_TOKEN missing'
+      detail: token ? `configured via ${tokenSecret.source}` : 'VERCEL_ACCESS_TOKEN missing'
     },
     {
       id: 'team-scope',
       label: 'Team scope',
       ok: true,
-      detail: teamId ? 'VERCEL_TEAM_ID configured' : 'personal/default scope'
+      detail: teamId ? `VERCEL_TEAM_ID configured via ${teamSecret.source}` : 'personal/default scope'
     },
     {
       id: 'project-filter',
       label: 'Project filter',
       ok: true,
-      detail: projectId || projectName ? 'project filter configured' : 'all visible projects'
+      detail: projectId || projectName ? 'project filter configured via env/secrets' : 'all visible projects'
     }
   ];
 
@@ -1593,8 +1597,8 @@ async function vercelSnapshot() {
       metrics: [],
       alerts: [],
       nextSteps: [
-        'Set a scoped read-only VERCEL_ACCESS_TOKEN in the bridge environment.',
-        'Optionally set VERCEL_TEAM_ID and VERCEL_PROJECT_ID or VERCEL_PROJECT_NAME to narrow the snapshot.',
+        'Add VERCEL_ACCESS_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
+        'Optionally add VERCEL_TEAM_ID and VERCEL_PROJECT_ID or VERCEL_PROJECT_NAME in API keys & secrets to narrow the snapshot.',
         'Keep credentials server-side only; never expose Vercel tokens to the browser.',
         'Add Vercel Drains ingestion only after signature verification and retention/redaction are in place.'
       ]
@@ -1695,7 +1699,7 @@ async function vercelSnapshot() {
       metrics: [],
       alerts: [{ severity: 'warning', title: 'Vercel connector failed', detail: error.message ?? 'request failed' }],
       nextSteps: [
-        'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in the bridge environment.',
+        'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in Settings → API keys & secrets or the bridge environment.',
         'Confirm token scope permits read-only user, project and deployment reads.',
         'Keep the connector degraded until metadata reads succeed.'
       ]
@@ -2194,6 +2198,29 @@ async function readSecretMetadata(name) {
   } catch {
     return { name };
   }
+}
+
+async function readManagedSecret(rawName) {
+  const name = normalizeSecretName(rawName);
+  const envValue = String(process.env[name] ?? '').trim();
+  if (envValue) return { value: envValue, source: 'env' };
+
+  try {
+    const fileValue = (await fs.readFile(secretPath(name), 'utf8')).trim();
+    if (fileValue) return { value: fileValue, source: 'agent-os-secrets' };
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+
+  return { value: '', source: 'missing' };
+}
+
+async function readFirstManagedSecret(names) {
+  for (const name of names) {
+    const secret = await readManagedSecret(name);
+    if (secret.value) return { ...secret, name };
+  }
+  return { value: '', source: 'missing', name: names[0] };
 }
 
 async function listSecrets() {
