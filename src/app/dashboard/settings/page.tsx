@@ -1,5 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { AvatarSettingsCard } from '@/components/avatar-settings-card';
+import { SecretsSettingsCard } from '@/components/settings/secrets-settings-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getSystemStatus } from '@/db/system';
@@ -193,6 +194,8 @@ export default async function SettingsPage() {
 
           <div className='space-y-4 xl:col-span-2'>
             <AvatarSettingsCard />
+
+            <SecretsSettingsCard />
 
             <Card>
               <CardHeader>

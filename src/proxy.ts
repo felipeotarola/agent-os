@@ -18,11 +18,16 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isProtected = pathname === '/' || pathname.startsWith('/dashboard');
-  if (!isProtected) return NextResponse.next();
+  const isProtectedDashboard = pathname === '/' || pathname.startsWith('/dashboard');
+  const isProtectedApi = pathname.startsWith('/api/secrets');
+  if (!isProtectedDashboard && !isProtectedApi) return NextResponse.next();
 
   const session = await getSessionFromRequest(request);
   if (session) return NextResponse.next();
+
+  if (isProtectedApi) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const signInUrl = new URL('/auth/sign-in', request.url);
   signInUrl.searchParams.set('next', pathname);

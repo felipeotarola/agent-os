@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, promises as fs, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
@@ -22,6 +22,7 @@ const GOG_CLI = process.env.GOG_CLI ?? 'gog';
 const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH ?? '/root/.openclaw/openclaw.json';
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
+const AGENT_OS_SECRETS_DIR = process.env.AGENT_OS_SECRETS_DIR ?? path.join(OPENCLAW_HOME, 'secrets', 'agent-os');
 const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.openclaw/workspace';
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
@@ -2151,6 +2152,125 @@ function requireNonEmpty(value, field) {
   throw error;
 }
 
+const SECRET_NAME_PATTERN = /^[A-Z][A-Z0-9_]{1,79}$/;
+const MAX_SECRET_BYTES = 16_384;
+const MAX_SECRET_DESCRIPTION_LENGTH = 240;
+
+function normalizeSecretName(rawName) {
+  const name = String(rawName ?? '').trim().toUpperCase();
+  if (!SECRET_NAME_PATTERN.test(name)) {
+    const error = new Error('Secret names must look like ENV vars, e.g. OPENAI_API_KEY.');
+    error.status = 400;
+    throw error;
+  }
+  return name;
+}
+
+function secretPath(name) {
+  return path.join(AGENT_OS_SECRETS_DIR, normalizeSecretName(name));
+}
+
+function secretMetadataPath(name) {
+  return `${secretPath(name)}.meta.json`;
+}
+
+function secretFingerprint(value) {
+  return createHash('sha256').update(value).digest('hex').slice(0, 12);
+}
+
+function sanitizeSecretDescription(value) {
+  return String(value ?? '').trim().slice(0, MAX_SECRET_DESCRIPTION_LENGTH);
+}
+
+async function ensureSecretsDir() {
+  await fs.mkdir(AGENT_OS_SECRETS_DIR, { recursive: true, mode: 0o700 });
+}
+
+async function readSecretMetadata(name) {
+  try {
+    const raw = await fs.readFile(secretMetadataPath(name), 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed?.name === name ? parsed : { name };
+  } catch {
+    return { name };
+  }
+}
+
+async function listSecrets() {
+  await ensureSecretsDir();
+  const entries = await fs.readdir(AGENT_OS_SECRETS_DIR, { withFileTypes: true });
+  const names = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => SECRET_NAME_PATTERN.test(name))
+    .toSorted();
+
+  const secrets = await Promise.all(
+    names.map(async (name) => {
+      const [metadata, value] = await Promise.all([
+        readSecretMetadata(name),
+        fs.readFile(secretPath(name), 'utf8')
+      ]);
+      return {
+        name,
+        description: String(metadata.description ?? ''),
+        path: path.join(AGENT_OS_SECRETS_DIR, name),
+        exists: true,
+        bytes: Number(metadata.bytes ?? Buffer.byteLength(value, 'utf8')),
+        fingerprint: String(metadata.fingerprint ?? secretFingerprint(value)),
+        updatedAt: String(metadata.updatedAt ?? new Date(0).toISOString())
+      };
+    })
+  );
+
+  return { secrets };
+}
+
+async function upsertSecret(input) {
+  const name = normalizeSecretName(input.name);
+  const value = String(input.value ?? '').trim();
+  if (!value) {
+    const error = new Error('Secret value is required.');
+    error.status = 400;
+    throw error;
+  }
+
+  const bytes = Buffer.byteLength(value, 'utf8');
+  if (bytes > MAX_SECRET_BYTES) {
+    const error = new Error('Secret is too large.');
+    error.status = 400;
+    throw error;
+  }
+
+  await ensureSecretsDir();
+  const updatedAt = new Date().toISOString();
+  const metadata = {
+    name,
+    description: sanitizeSecretDescription(input.description),
+    fingerprint: secretFingerprint(value),
+    bytes,
+    updatedAt
+  };
+
+  const tmpSuffix = `${process.pid}.${Date.now()}.tmp`;
+  const tmpSecretPath = `${secretPath(name)}.${tmpSuffix}`;
+  const tmpMetadataPath = `${secretMetadataPath(name)}.${tmpSuffix}`;
+
+  await fs.writeFile(tmpSecretPath, `${value}\n`, { mode: 0o600 });
+  await fs.writeFile(tmpMetadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 });
+  await fs.rename(tmpSecretPath, secretPath(name));
+  await fs.rename(tmpMetadataPath, secretMetadataPath(name));
+
+  return { secret: { ...metadata, path: path.join(AGENT_OS_SECRETS_DIR, name), exists: true } };
+}
+
+async function deleteSecret(rawName) {
+  const name = normalizeSecretName(rawName);
+  await fs.rm(secretPath(name), { force: true });
+  await fs.rm(secretMetadataPath(name), { force: true });
+  return { name, deleted: true };
+}
+
 function chatSessionListParams(url) {
   const params = {
     limit: boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 })
@@ -3205,6 +3325,19 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/system/subagents') {
       return send(res, 200, await subagentRunsSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/secrets') {
+      return send(res, 200, await listSecrets());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/secrets') {
+      return send(res, 201, await upsertSecret(await readJson(req)));
+    }
+
+    if (req.method === 'DELETE' && url.pathname.startsWith('/secrets/')) {
+      const name = decodeURIComponent(url.pathname.slice('/secrets/'.length));
+      return send(res, 200, await deleteSecret(name));
     }
 
     if (req.method === 'GET' && url.pathname === '/overview') {
