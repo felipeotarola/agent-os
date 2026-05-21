@@ -224,7 +224,8 @@ function WeatherGlyph() {
 function CommandHero() {
   return (
     <section className='relative overflow-hidden rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm md:p-6'>
-      <div className='pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_54%_8%,hsl(var(--primary)/0.32),transparent_32%),linear-gradient(90deg,transparent,hsl(var(--primary)/0.12),transparent)]' />
+      <div className='pointer-events-none absolute inset-x-0 top-0 h-40 bg-primary/10' />
+      <div className='pointer-events-none absolute left-1/2 top-0 size-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl' />
       <div className='pointer-events-none absolute left-[52%] top-8 hidden size-20 -translate-x-1/2 items-center justify-center rounded-full border bg-background/55 text-sm font-semibold text-primary shadow-[0_0_48px_hsl(var(--primary)/0.45)] md:flex'>
         CA
       </div>
