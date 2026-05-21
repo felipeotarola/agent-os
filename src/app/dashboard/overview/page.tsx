@@ -882,7 +882,7 @@ export default async function OverviewPage() {
           <main className='min-w-0 space-y-4'>
             <section className='space-y-4'>
               <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
-                <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
+                <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,330px)] lg:items-start'>
                   <div className='min-w-0 space-y-4'>
                     <div className='flex flex-wrap items-center gap-2'>
                       <Badge className='rounded-full'>Today Command</Badge>
@@ -947,7 +947,7 @@ export default async function OverviewPage() {
                     </div>
                   </div>
 
-                  <div className='grid shrink-0 grid-cols-3 gap-2 lg:w-[330px]'>
+                  <div className='grid grid-cols-3 gap-2'>
                     <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
                       <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
                       <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>

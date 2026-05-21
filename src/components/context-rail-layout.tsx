@@ -70,22 +70,33 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
         )}
         aria-hidden={!open}
       >
+        <div className='mb-2 flex justify-end'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            className='h-8 rounded-full bg-background/80 px-3 text-xs shadow-sm backdrop-blur'
+            onClick={() => setPersistedOpen(false)}
+            aria-pressed={open}
+          >
+            Hide context
+          </Button>
+        </div>
         <div className='space-y-4'>{rail}</div>
       </aside>
 
-      <Button
-        type='button'
-        variant='outline'
-        size='sm'
-        className={cn(
-          'fixed right-3 top-24 z-30 hidden rounded-full border bg-background/90 px-3 shadow-sm backdrop-blur xl:inline-flex',
-          open && 'right-[calc(360px+0.75rem)] 2xl:right-[calc(380px+0.75rem)]'
-        )}
-        onClick={() => setPersistedOpen(!open)}
-        aria-pressed={open}
-      >
-        {open ? 'Hide context' : 'Context'}
-      </Button>
+      {!open ? (
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          className='fixed right-3 top-24 z-30 hidden rounded-full border bg-background/90 px-3 shadow-sm backdrop-blur xl:inline-flex'
+          onClick={() => setPersistedOpen(true)}
+          aria-pressed={open}
+        >
+          Context
+        </Button>
+      ) : null}
     </section>
   );
 }
