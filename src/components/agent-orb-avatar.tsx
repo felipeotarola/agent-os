@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type CSSProperties, type PointerEvent } from 'react';
+import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
+import { type CSSProperties, type PointerEvent } from 'react';
 
 import { Icons } from '@/components/icons';
 
@@ -21,35 +22,39 @@ type AgentOrbAvatarProps = {
 
 type OrbStyle = CSSProperties & {
   '--avatar-x': string;
-  '--look-x': string;
-  '--look-y': string;
 };
 
 export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps) {
   const IconComponent = avatarIcons[Icon];
-  const [look, setLook] = useState({ x: 0, y: 0 });
+  const lookX = useMotionValue(0);
+  const lookY = useMotionValue(0);
+  const springX = useSpring(lookX, { stiffness: 210, damping: 22, mass: 0.55 });
+  const springY = useSpring(lookY, { stiffness: 210, damping: 22, mass: 0.55 });
+  const rotateX = useTransform(springY, [-8, 8], [5, -5]);
+  const rotateY = useTransform(springX, [-8, 8], [-5, 5]);
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
     const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
-    setLook({
-      x: Math.max(-1, Math.min(1, x)),
-      y: Math.max(-1, Math.min(1, y))
-    });
+    lookX.set(Math.max(-1, Math.min(1, x)) * 7);
+    lookY.set(Math.max(-1, Math.min(1, y)) * 7);
+  }
+
+  function handlePointerLeave() {
+    lookX.set(0);
+    lookY.set(0);
   }
 
   const style: OrbStyle = {
-    '--avatar-x': column,
-    '--look-x': `${look.x * 5}px`,
-    '--look-y': `${look.y * 5}px`
+    '--avatar-x': column
   };
 
   return (
     <div
       className='group/orb agent-orb-idle relative size-16 shrink-0'
       onPointerMove={handlePointerMove}
-      onPointerLeave={() => setLook({ x: 0, y: 0 })}
+      onPointerLeave={handlePointerLeave}
     >
       <div className='absolute inset-0 animate-pulse rounded-full bg-primary/20 blur-md' />
       <div className='agent-orb-ring absolute inset-[-7px] rounded-full border border-primary/15 border-r-primary/45 border-t-primary/35' />
@@ -61,20 +66,25 @@ export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps
         aria-label={`${name} avatar`}
         className='relative size-16 overflow-hidden rounded-full border bg-card shadow-sm ring-2 ring-primary/20'
       >
-        <div
-          className='agent-orb-frame-stage absolute -inset-1 transition-transform duration-200 ease-out group-hover/orb:scale-105'
+        <motion.div
+          className='agent-orb-frame-stage absolute -inset-1 will-change-transform'
           style={{
             ...style,
-            transform: 'translate(var(--look-x), var(--look-y))'
+            x: springX,
+            y: springY,
+            rotateX,
+            rotateY
           }}
+          whileHover={{ scale: 1.06 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 24 }}
         >
           <div className='agent-orb-frame absolute inset-0 bg-[url("/assets/agent-avatars-sprite.png")]' />
-        </div>
-        <div
+        </motion.div>
+        <motion.div
           className='absolute left-1/2 top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/50 opacity-0 transition group-hover/orb:opacity-100'
           style={{
-            transform:
-              'translate(calc(-50% + var(--look-x)), calc(-50% + var(--look-y))) scale(0.9)'
+            x: springX,
+            y: springY
           }}
         />
         <div className='agent-orb-scan absolute inset-x-0 top-1/2 h-px bg-primary/70' />
