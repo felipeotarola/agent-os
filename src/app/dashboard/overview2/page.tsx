@@ -18,10 +18,7 @@ const {
   check: Check,
   circleDot: CircleDot,
   cloudSun: CloudSun,
-  cpu: Cpu,
-  gitBranch: GitBranch,
   play: Play,
-  search: Search,
   sparkles: Sparkles,
   sun: Sun
 } = Icons;
@@ -77,7 +74,7 @@ const agents = [
     status: 'Active',
     task: 'Coordinating Nordea integration steps',
     progress: 60,
-    icon: Sparkles,
+    avatarIcon: 'sparkles',
     avatarColumn: '0%'
   },
   {
@@ -86,7 +83,7 @@ const agents = [
     status: 'Active',
     task: 'Nordea docs and API patterns',
     progress: 70,
-    icon: Search,
+    avatarIcon: 'search',
     avatarColumn: '33.333%'
   },
   {
@@ -95,7 +92,7 @@ const agents = [
     status: 'Active',
     task: 'Spec and data mapping',
     progress: 50,
-    icon: GitBranch,
+    avatarIcon: 'gitBranch',
     avatarColumn: '66.666%'
   },
   {
@@ -104,10 +101,10 @@ const agents = [
     status: 'Active',
     task: 'Sync transactions job',
     progress: 75,
-    icon: Cpu,
+    avatarIcon: 'cpu',
     avatarColumn: '100%'
   }
-];
+] as const;
 
 const feed = [
   {
@@ -550,34 +547,34 @@ function AgentsPanel() {
       </CardHeader>
 
       <CardContent className='grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5'>
-        {agents.map((agent) => {
-          const Icon = agent.icon;
-
-          return (
-            <div
-              key={agent.name}
-              className='group relative overflow-hidden rounded-2xl border bg-background/55 p-4 transition hover:border-primary/40 hover:bg-primary/5'
-            >
-              <div className='pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary/10 opacity-0 transition group-hover:opacity-100' />
-              <div className='mb-4 flex items-start justify-between gap-3'>
-                <AgentOrbAvatar name={agent.name} icon={Icon} column={agent.avatarColumn} />
-                <Badge variant='outline' className='text-[10px]'>
-                  {agent.status}
-                </Badge>
-              </div>
-
-              <div className='relative font-semibold'>{agent.name}</div>
-              <div className='mt-1 text-xs text-muted-foreground'>{agent.role}</div>
-              <p className='mt-3 min-h-10 text-sm leading-5 text-muted-foreground'>{agent.task}</p>
-
-              <div className='mt-4 flex items-center justify-between text-xs text-muted-foreground'>
-                <span>Current task</span>
-                <span>{agent.progress}%</span>
-              </div>
-              <Progress value={agent.progress} className='mt-2 h-2' />
+        {agents.map((agent) => (
+          <div
+            key={agent.name}
+            className='group relative overflow-hidden rounded-2xl border bg-background/55 p-4 transition hover:border-primary/40 hover:bg-primary/5'
+          >
+            <div className='pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary/10 opacity-0 transition group-hover:opacity-100' />
+            <div className='mb-4 flex items-start justify-between gap-3'>
+              <AgentOrbAvatar
+                name={agent.name}
+                icon={agent.avatarIcon}
+                column={agent.avatarColumn}
+              />
+              <Badge variant='outline' className='text-[10px]'>
+                {agent.status}
+              </Badge>
             </div>
-          );
-        })}
+
+            <div className='relative font-semibold'>{agent.name}</div>
+            <div className='mt-1 text-xs text-muted-foreground'>{agent.role}</div>
+            <p className='mt-3 min-h-10 text-sm leading-5 text-muted-foreground'>{agent.task}</p>
+
+            <div className='mt-4 flex items-center justify-between text-xs text-muted-foreground'>
+              <span>Current task</span>
+              <span>{agent.progress}%</span>
+            </div>
+            <Progress value={agent.progress} className='mt-2 h-2' />
+          </div>
+        ))}
 
         <button className='flex min-h-[188px] flex-col items-center justify-center rounded-2xl border border-dashed bg-background/35 p-4 text-center text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-foreground'>
           <div className='mb-3 flex size-11 items-center justify-center rounded-full border bg-card'>

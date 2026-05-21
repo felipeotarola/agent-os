@@ -1,10 +1,21 @@
 'use client';
 
-import { useState, type ComponentType, type CSSProperties, type PointerEvent } from 'react';
+import { useState, type CSSProperties, type PointerEvent } from 'react';
+
+import { Icons } from '@/components/icons';
+
+const avatarIcons = {
+  cpu: Icons.cpu,
+  gitBranch: Icons.gitBranch,
+  search: Icons.search,
+  sparkles: Icons.sparkles
+};
+
+export type AgentAvatarIcon = keyof typeof avatarIcons;
 
 type AgentOrbAvatarProps = {
   name: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: AgentAvatarIcon;
   column: string;
 };
 
@@ -15,6 +26,7 @@ type OrbStyle = CSSProperties & {
 };
 
 export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps) {
+  const IconComponent = avatarIcons[Icon];
   const [look, setLook] = useState({ x: 0, y: 0 });
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -69,7 +81,7 @@ export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps
         <div className='absolute inset-y-0 -left-1/2 w-1/3 rotate-12 bg-primary/20 blur-sm transition-transform duration-700 group-hover/orb:translate-x-32' />
       </div>
       <div className='absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full border bg-background text-primary shadow-sm transition-transform duration-200 group-hover/orb:scale-110'>
-        <Icon className='size-3.5' />
+        <IconComponent className='size-3.5' />
       </div>
       <span className='absolute right-0 top-0 size-3 rounded-full border-2 border-background bg-primary shadow-sm' />
     </div>
