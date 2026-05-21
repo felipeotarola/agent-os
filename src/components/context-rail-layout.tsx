@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -35,10 +36,10 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
   return (
     <section
       className={cn(
-        'relative grid grid-cols-1 gap-4 transition-[grid-template-columns] duration-300 ease-out',
+        'relative grid grid-cols-1 gap-4 transition-[grid-template-columns] duration-300 ease-linear',
         open
           ? 'xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]'
-          : 'xl:grid-cols-[minmax(0,1fr)_0px]'
+          : 'xl:grid-cols-[minmax(0,1fr)_3rem]'
       )}
       data-context-rail={open ? 'open' : 'closed'}
     >
@@ -46,7 +47,8 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
         <Sheet>
           <SheetTrigger asChild>
             <Button variant='outline' size='sm' className='rounded-full'>
-              Context rail
+              <Icons.panelLeft className='mr-1.5 size-4 rotate-180' />
+              Context
             </Button>
           </SheetTrigger>
           <SheetContent side='right' className='w-[min(92vw,380px)] overflow-y-auto p-4'>
@@ -61,42 +63,70 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
 
       {children}
 
-      <aside
-        className={cn(
-          'hidden min-w-0 transition-all duration-300 ease-out xl:block xl:sticky xl:top-20 xl:self-start',
-          open
-            ? 'pointer-events-auto translate-x-0 opacity-100'
-            : 'pointer-events-none translate-x-3 overflow-hidden opacity-0'
-        )}
-        aria-hidden={!open}
-      >
-        <div className='mb-2 flex justify-end'>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            className='h-8 rounded-full bg-background/80 px-3 text-xs shadow-sm backdrop-blur'
-            onClick={() => setPersistedOpen(false)}
-            aria-pressed={open}
-          >
-            Hide context
-          </Button>
-        </div>
-        <div className='space-y-4'>{rail}</div>
-      </aside>
-
-      {!open ? (
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          className='fixed right-3 top-24 z-30 hidden rounded-full border bg-background/90 px-3 shadow-sm backdrop-blur xl:inline-flex'
-          onClick={() => setPersistedOpen(true)}
-          aria-pressed={open}
+      <aside className='hidden min-w-0 xl:sticky xl:top-20 xl:block xl:self-start'>
+        <div
+          className={cn(
+            'relative min-h-0 transition-all duration-300 ease-linear',
+            open ? 'w-full' : 'w-12'
+          )}
+          data-state={open ? 'expanded' : 'collapsed'}
+          data-side='right'
         >
-          Context
-        </Button>
-      ) : null}
+          <button
+            type='button'
+            aria-label={open ? 'Hide context rail' : 'Open context rail'}
+            title={open ? 'Hide context rail' : 'Open context rail'}
+            onClick={() => setPersistedOpen(!open)}
+            className={cn(
+              'hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] xl:flex',
+              open ? '-left-2 cursor-e-resize' : '-left-2 cursor-w-resize'
+            )}
+          />
+
+          {open ? (
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between gap-2 rounded-2xl border bg-sidebar px-3 py-2 text-sidebar-foreground shadow-sm'>
+                <div className='flex min-w-0 items-center gap-2 text-sm font-medium'>
+                  <Icons.panelLeft className='size-4 rotate-180' />
+                  <span>Context</span>
+                </div>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='size-7'
+                  onClick={() => setPersistedOpen(false)}
+                  aria-pressed={open}
+                >
+                  <Icons.chevronsRight className='size-4' />
+                  <span className='sr-only'>Hide context</span>
+                </Button>
+              </div>
+              <div className='space-y-4'>{rail}</div>
+            </div>
+          ) : (
+            <div className='flex min-h-[calc(100svh-6rem)] w-12 flex-col items-center gap-2 rounded-2xl border bg-sidebar p-2 text-sidebar-foreground shadow-sm'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-8'
+                onClick={() => setPersistedOpen(true)}
+                aria-pressed={open}
+              >
+                <Icons.panelLeft className='size-4 rotate-180' />
+                <span className='sr-only'>Open context</span>
+              </Button>
+              <div className='h-px w-6 bg-sidebar-border' />
+              <div className='mt-1 flex flex-1 items-start justify-center'>
+                <div className='rotate-90 whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.25em] text-sidebar-foreground/70'>
+                  Context
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
     </section>
   );
 }
