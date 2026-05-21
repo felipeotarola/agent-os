@@ -78,7 +78,7 @@ const agents = [
     task: 'Coordinating Nordea integration steps',
     progress: 60,
     icon: Sparkles,
-    avatarPosition: '0% 0%'
+    avatarColumn: '0%'
   },
   {
     name: 'Charles',
@@ -87,7 +87,7 @@ const agents = [
     task: 'Nordea docs and API patterns',
     progress: 70,
     icon: Search,
-    avatarPosition: '100% 0%'
+    avatarColumn: '33.333%'
   },
   {
     name: 'Sladdis',
@@ -96,7 +96,7 @@ const agents = [
     task: 'Spec and data mapping',
     progress: 50,
     icon: GitBranch,
-    avatarPosition: '0% 100%'
+    avatarColumn: '66.666%'
   },
   {
     name: 'Worker Pool',
@@ -105,7 +105,7 @@ const agents = [
     task: 'Sync transactions job',
     progress: 75,
     icon: Cpu,
-    avatarPosition: '100% 100%'
+    avatarColumn: '100%'
   }
 ];
 
@@ -560,7 +560,7 @@ function AgentsPanel() {
             >
               <div className='pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary/10 opacity-0 transition group-hover:opacity-100' />
               <div className='mb-4 flex items-start justify-between gap-3'>
-                <AgentOrbAvatar name={agent.name} icon={Icon} position={agent.avatarPosition} />
+                <AgentOrbAvatar name={agent.name} icon={Icon} column={agent.avatarColumn} />
                 <Badge variant='outline' className='text-[10px]'>
                   {agent.status}
                 </Badge>

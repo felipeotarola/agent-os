@@ -5,15 +5,16 @@ import { useState, type ComponentType, type CSSProperties, type PointerEvent } f
 type AgentOrbAvatarProps = {
   name: string;
   icon: ComponentType<{ className?: string }>;
-  position: string;
+  column: string;
 };
 
 type OrbStyle = CSSProperties & {
+  '--avatar-x': string;
   '--look-x': string;
   '--look-y': string;
 };
 
-export function AgentOrbAvatar({ name, icon: Icon, position }: AgentOrbAvatarProps) {
+export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps) {
   const [look, setLook] = useState({ x: 0, y: 0 });
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -27,7 +28,7 @@ export function AgentOrbAvatar({ name, icon: Icon, position }: AgentOrbAvatarPro
   }
 
   const style: OrbStyle = {
-    backgroundPosition: position,
+    '--avatar-x': column,
     '--look-x': `${look.x * 5}px`,
     '--look-y': `${look.y * 5}px`
   };
@@ -49,12 +50,14 @@ export function AgentOrbAvatar({ name, icon: Icon, position }: AgentOrbAvatarPro
         className='relative size-16 overflow-hidden rounded-full border bg-card shadow-sm ring-2 ring-primary/20'
       >
         <div
-          className='absolute -inset-1 bg-[url("/assets/agent-avatars-sprite.png")] bg-[length:200%_200%] transition-transform duration-200 ease-out group-hover/orb:scale-105'
+          className='agent-orb-frame-stage absolute -inset-1 transition-transform duration-200 ease-out group-hover/orb:scale-105'
           style={{
             ...style,
             transform: 'translate(var(--look-x), var(--look-y))'
           }}
-        />
+        >
+          <div className='agent-orb-frame absolute inset-0 bg-[url("/assets/agent-avatars-sprite.png")]' />
+        </div>
         <div
           className='absolute left-1/2 top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/50 opacity-0 transition group-hover/orb:opacity-100'
           style={{

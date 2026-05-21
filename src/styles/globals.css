@@ -99,6 +99,16 @@
     animation: agent-orb-ring 9s linear infinite;
   }
 
+  .agent-orb-frame {
+    background-position: var(--avatar-x) 0%;
+    background-size: 400% 400%;
+    transform: scale(1.04);
+  }
+
+  .agent-orb-idle:hover .agent-orb-frame {
+    animation: agent-avatar-frames 1.1s steps(1, end) infinite;
+  }
+
   .agent-orb-scan {
     animation: agent-orb-scan 3.4s ease-in-out infinite;
   }
@@ -158,6 +168,26 @@
 @keyframes agent-orb-ring {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes agent-avatar-frames {
+  0%,
+  100% {
+    background-position: var(--avatar-x) 0%;
+    transform: translate(0, 0) scale(1.05);
+  }
+  25% {
+    background-position: var(--avatar-x) 33.333%;
+    transform: translate(-2px, 1px) scale(1.08);
+  }
+  50% {
+    background-position: var(--avatar-x) 66.666%;
+    transform: translate(2px, -1px) scale(1.08);
+  }
+  75% {
+    background-position: var(--avatar-x) 100%;
+    transform: translate(0, -2px) scale(1.1);
   }
 }
 
