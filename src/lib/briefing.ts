@@ -1,6 +1,8 @@
 import { bridgeRequest, hasBridge } from '@/lib/bridge';
 import { getCockpitSnapshot } from '@/db/queries';
 import type { CockpitSnapshot } from '@/db/queries';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 type DispatchTask = {
   id: string;
@@ -43,6 +45,7 @@ type MarketAsset = {
   symbol: string;
   kind: 'crypto' | 'tracker' | 'fund';
   holding: boolean;
+  quantity?: string | null;
   priceSek: number | null;
   priceUsd: number | null;
   change24h: number | null;
@@ -133,6 +136,15 @@ const BRIDGE_CACHE_TTL_MS = 30 * 1000;
 const newsImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
 const briefingCache = new Map<string, { value: unknown; expiresAt: number }>();
 
+type PrivateHolding = {
+  id: string;
+  quantity?: string | null;
+};
+
+type PrivateHoldingsConfig = {
+  holdings?: PrivateHolding[];
+};
+
 async function cachedBriefingValue<T>(
   key: string,
   ttlMs: number,
@@ -163,6 +175,29 @@ function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 1500)
 function toNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+async function getPrivateHoldingsConfig(): Promise<PrivateHoldingsConfig> {
+  try {
+    const raw = await readFile(path.join(process.cwd(), 'data/private/holdings.json'), 'utf8');
+    return JSON.parse(raw) as PrivateHoldingsConfig;
+  } catch {
+    return {};
+  }
+}
+
+function applyPrivateHoldings(assets: MarketAsset[], config: PrivateHoldingsConfig) {
+  const holdings = new Map((config.holdings ?? []).map((holding) => [holding.id, holding]));
+  if (holdings.size === 0) return assets;
+  return assets.map((asset) => {
+    const holding = holdings.get(asset.id);
+    if (!holding) return asset;
+    return {
+      ...asset,
+      holding: true,
+      quantity: holding.quantity ?? asset.quantity ?? null
+    };
+  });
 }
 
 async function getDispatchSummary(): Promise<DispatchSummary> {
@@ -315,45 +350,49 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
     const ethereum = json.ethereum ?? {};
     const bitcoinChange = toNumber(bitcoin.sek_24h_change ?? bitcoin.usd_24h_change);
     const ethereumChange = toNumber(ethereum.sek_24h_change ?? ethereum.usd_24h_change);
-    const assets: MarketAsset[] = [
-      {
-        id: 'bitcoin',
-        label: 'Bitcoin',
-        symbol: 'BTC',
-        kind: 'crypto',
-        holding: true,
-        priceSek: toNumber(bitcoin.sek),
-        priceUsd: toNumber(bitcoin.usd),
-        change24h: bitcoinChange,
-        source: 'coingecko:simple-price'
-      },
-      {
-        id: 'ethereum',
-        label: 'Ethereum',
-        symbol: 'ETH',
-        kind: 'crypto',
-        holding: false,
-        priceSek: toNumber(ethereum.sek),
-        priceUsd: toNumber(ethereum.usd),
-        change24h: ethereumChange,
-        source: 'coingecko:simple-price'
-      },
-      ...manualMarketAssets.map((asset) => ({
-        ...asset,
-        change24h:
-          asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
-            ? bitcoinChange
-            : asset.id === 'ether-xbt'
-              ? ethereumChange
-              : asset.change24h,
-        source:
-          asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
-            ? 'coingecko:btc-proxy'
-            : asset.id === 'ether-xbt'
-              ? 'coingecko:eth-proxy'
-              : asset.source
-      }))
-    ];
+    const privateHoldings = await getPrivateHoldingsConfig();
+    const assets: MarketAsset[] = applyPrivateHoldings(
+      [
+        {
+          id: 'bitcoin',
+          label: 'Bitcoin',
+          symbol: 'BTC',
+          kind: 'crypto',
+          holding: true,
+          priceSek: toNumber(bitcoin.sek),
+          priceUsd: toNumber(bitcoin.usd),
+          change24h: bitcoinChange,
+          source: 'coingecko:simple-price'
+        },
+        {
+          id: 'ethereum',
+          label: 'Ethereum',
+          symbol: 'ETH',
+          kind: 'crypto',
+          holding: false,
+          priceSek: toNumber(ethereum.sek),
+          priceUsd: toNumber(ethereum.usd),
+          change24h: ethereumChange,
+          source: 'coingecko:simple-price'
+        },
+        ...manualMarketAssets.map((asset) => ({
+          ...asset,
+          change24h:
+            asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
+              ? bitcoinChange
+              : asset.id === 'ether-xbt'
+                ? ethereumChange
+                : asset.change24h,
+          source:
+            asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
+              ? 'coingecko:btc-proxy'
+              : asset.id === 'ether-xbt'
+                ? 'coingecko:eth-proxy'
+                : asset.source
+        }))
+      ],
+      privateHoldings
+    );
     const liveHoldingChanges = assets
       .filter((asset) => asset.holding && asset.change24h !== null)
       .map((asset) => asset.change24h as number);
@@ -366,7 +405,14 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
     };
   } catch (error) {
     console.error('Markets briefing fetch failed', error);
-    return fallbackMarkets;
+    const privateHoldings = await getPrivateHoldingsConfig();
+    const assets = applyPrivateHoldings(manualMarketAssets, privateHoldings);
+    return {
+      ok: false,
+      source: 'markets:fallback',
+      assets,
+      holdings: summarizeHoldings(assets)
+    };
   }
 }
 

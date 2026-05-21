@@ -740,6 +740,12 @@ export default async function OverviewPage() {
                             <span>{asset.symbol}</span>
                             <span>·</span>
                             <span>{asset.kind}</span>
+                            {asset.quantity ? (
+                              <>
+                                <span>·</span>
+                                <span>{asset.quantity}</span>
+                              </>
+                            ) : null}
                           </div>
                         </div>
                         <div className='shrink-0 text-right'>

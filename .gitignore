@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Local runtime backups
 backups/
+
+# Private local dashboard data. Never commit personal holdings/finance details.
+data/private/
