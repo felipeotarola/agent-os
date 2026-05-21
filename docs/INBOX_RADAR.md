@@ -18,10 +18,11 @@ Inbox Radar is the unified “what deserves Felipe's attention?” surface for A
 
 ## V1 Scope
 
-Radar V1 aggregates existing safe snapshots plus read-only external signal connectors and ranks signals by priority.
+Radar V1 aggregates persisted Inbox items, existing safe snapshots, and read-only external signal connectors, then ranks signals by priority.
 
 It highlights:
 
+- persisted review/approval/task items from bridge producers
 - high-priority tasks/review items
 - knowledge sources needing extract/wikify/review/promote
 - unread notifications
@@ -30,6 +31,24 @@ It highlights:
 - unread GitHub notifications and open PRs
 - degraded observability connectors or Vercel/Supabase alerts
 - urgent runway attention
+
+## Producer Contract
+
+Use `scripts/create-inbox-item.mjs` for safe local producers that need to create reviewable Radar items without adding new dashboard surfaces.
+
+```bash
+node scripts/create-inbox-item.mjs \
+  --id cai-learning-loop-review \
+  --source cai.proactive \
+  --source-id daily-learning \
+  --kind review \
+  --priority 70 \
+  --title "Review daily agent learning output" \
+  --detail "Daily learning loop created a reviewable result." \
+  --owner-agent-id cai
+```
+
+The helper requires `AGENT_OS_BRIDGE_URL` and `AGENT_OS_BRIDGE_TOKEN`, upserts by stable `--id`, and should be preferred over ad-hoc files for attention items Felipe may need to review.
 
 ## Guardrails
 
