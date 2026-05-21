@@ -100,7 +100,7 @@
   }
 
   .agent-orb-frame {
-    background-position: var(--avatar-x) 0%;
+    background-position: var(--avatar-x) var(--avatar-y);
     background-size: 400% 400%;
     transform: scale(1.04);
   }

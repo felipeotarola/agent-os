@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
-import { type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 
 import { Icons } from '@/components/icons';
 
@@ -22,16 +22,38 @@ type AgentOrbAvatarProps = {
 
 type OrbStyle = CSSProperties & {
   '--avatar-x': string;
+  '--avatar-y': string;
 };
 
 export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps) {
   const IconComponent = avatarIcons[Icon];
+  const [pose, setPose] = useState('0%');
+  const poseTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lookX = useMotionValue(0);
   const lookY = useMotionValue(0);
   const springX = useSpring(lookX, { stiffness: 210, damping: 22, mass: 0.55 });
   const springY = useSpring(lookY, { stiffness: 210, damping: 22, mass: 0.55 });
   const rotateX = useTransform(springY, [-8, 8], [5, -5]);
   const rotateY = useTransform(springX, [-8, 8], [-5, 5]);
+
+  function clearPoseTimers() {
+    poseTimers.current.forEach((timer) => clearTimeout(timer));
+    poseTimers.current = [];
+  }
+
+  function playHoverReaction() {
+    clearPoseTimers();
+    setPose('33.333%');
+    poseTimers.current = [
+      setTimeout(() => setPose('66.666%'), 120),
+      setTimeout(() => setPose('100%'), 280),
+      setTimeout(() => setPose('0%'), 560)
+    ];
+  }
+
+  useEffect(() => {
+    return clearPoseTimers;
+  }, []);
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -44,15 +66,19 @@ export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps
   function handlePointerLeave() {
     lookX.set(0);
     lookY.set(0);
+    clearPoseTimers();
+    poseTimers.current = [setTimeout(() => setPose('0%'), 120)];
   }
 
   const style: OrbStyle = {
-    '--avatar-x': column
+    '--avatar-x': column,
+    '--avatar-y': pose
   };
 
   return (
     <div
       className='group/orb agent-orb-idle relative size-16 shrink-0'
+      onPointerEnter={playHoverReaction}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
     >
@@ -75,7 +101,7 @@ export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps
             rotateX,
             rotateY
           }}
-          whileHover={{ scale: 1.06 }}
+          whileHover={{ scale: 1.07, filter: 'brightness(1.08)' }}
           transition={{ type: 'spring', stiffness: 260, damping: 24 }}
         >
           <div className='agent-orb-frame absolute inset-0 bg-[url("/assets/agent-avatars-sprite.png")]' />
