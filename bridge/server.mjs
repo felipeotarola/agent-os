@@ -1759,6 +1759,7 @@ async function vercelSnapshot() {
         uid: deployment.uid,
         name: deployment.name,
         url: deployment.url ? `https://${deployment.url}` : null,
+        inspectorUrl: deployment.inspectorUrl ?? null,
         state: deployment.state ?? 'unknown',
         target: deployment.target ?? null,
         createdAt: deployment.createdAt ? new Date(deployment.createdAt).toISOString() : null

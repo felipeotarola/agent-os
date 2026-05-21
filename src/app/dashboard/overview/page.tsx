@@ -461,7 +461,9 @@ function buildActivitySnapshot(
           name: latest.name,
           state: latest.state,
           target: latest.target,
-          createdAt: latest.createdAt
+          createdAt: latest.createdAt,
+          url: latest.url,
+          inspectorUrl: latest.inspectorUrl
         }
       : null
   };

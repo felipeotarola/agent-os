@@ -31,6 +31,7 @@ export type VercelDeployment = {
   uid: string;
   name: string;
   url: string | null;
+  inspectorUrl: string | null;
   state: string;
   target: string | null;
   createdAt: string | null;

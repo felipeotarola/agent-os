@@ -17,6 +17,8 @@ export type BuildActivitySnapshot = {
     state: string;
     target: string | null;
     createdAt: string | null;
+    url: string | null;
+    inspectorUrl: string | null;
   } | null;
 };
 
@@ -78,9 +80,14 @@ export function BuildActivityResumeItem({ initial }: BuildActivityIndicatorProps
   const { snapshot, error } = useBuildActivity(initial);
   if (!snapshot.activeCount) return null;
 
+  const href = snapshot.latest?.inspectorUrl ?? snapshot.latest?.url ?? '/dashboard/vercel';
+  const isExternal = href.startsWith('http');
+
   return (
     <Link
-      href='/dashboard/vercel'
+      href={href}
+      target={isExternal ? '_blank' : undefined}
+      rel={isExternal ? 'noreferrer' : undefined}
       className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-primary/35 bg-primary/10 p-3 transition hover:border-primary/60 hover:bg-primary/15'
     >
       <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/15 text-card-foreground min-[390px]:size-9'>
