@@ -37,6 +37,23 @@ type BitcoinSnapshot = {
   source: string;
 };
 
+type MarketAsset = {
+  id: string;
+  label: string;
+  symbol: string;
+  kind: 'crypto' | 'tracker' | 'fund';
+  priceSek: number | null;
+  priceUsd: number | null;
+  change24h: number | null;
+  source: string;
+};
+
+type MarketsSnapshot = {
+  ok: boolean;
+  source: string;
+  assets: MarketAsset[];
+};
+
 type NewsItem = {
   title: string;
   url: string;
@@ -104,6 +121,7 @@ const fallbackCockpit: CockpitSnapshot = {
 const NEWS_IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 const BITCOIN_CACHE_TTL_MS = 60 * 1000;
+const MARKETS_CACHE_TTL_MS = 60 * 1000;
 const BRIDGE_CACHE_TTL_MS = 30 * 1000;
 
 const newsImageCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
@@ -208,6 +226,119 @@ const fallbackBitcoin: BitcoinSnapshot = {
   priceUsd: null,
   change24h: null,
   source: 'bitcoin:fallback'
+};
+
+const manualMarketAssets: MarketAsset[] = [
+  {
+    id: 'bitcoin-xbt',
+    label: 'CoinShares Bitcoin XBT',
+    symbol: 'BITCOIN XBT',
+    kind: 'tracker',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'ether-xbt',
+    label: 'CoinShares Ether XBT',
+    symbol: 'ETHER XBT',
+    kind: 'tracker',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'valour-btc-zero-sek',
+    label: 'Valour Bitcoin Zero SEK',
+    symbol: 'BTC ZERO SEK',
+    kind: 'tracker',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'avanza-disruptive-ark',
+    label: 'Avanza Disruptive Innovation by ARK Invest',
+    symbol: 'ARK fund',
+    kind: 'fund',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'lf-global-index',
+    label: 'Länsförsäkringar Global Index',
+    symbol: 'Global index',
+    kind: 'fund',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'storebrand-usa-a-sek',
+    label: 'Storebrand USA A SEK',
+    symbol: 'USA fund',
+    kind: 'fund',
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  }
+];
+
+async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
+  try {
+    const response = await fetchWithTimeout(
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=sek,usd&include_24hr_change=true',
+      { cache: 'no-store' }
+    );
+    if (!response.ok) throw new Error(`CoinGecko ${response.status}`);
+    const json = await response.json();
+    const bitcoin = json.bitcoin ?? {};
+    const ethereum = json.ethereum ?? {};
+
+    return {
+      ok: true,
+      source: 'coingecko:simple-price+watchlist',
+      assets: [
+        {
+          id: 'bitcoin',
+          label: 'Bitcoin',
+          symbol: 'BTC',
+          kind: 'crypto',
+          priceSek: toNumber(bitcoin.sek),
+          priceUsd: toNumber(bitcoin.usd),
+          change24h: toNumber(bitcoin.sek_24h_change ?? bitcoin.usd_24h_change),
+          source: 'coingecko:simple-price'
+        },
+        {
+          id: 'ethereum',
+          label: 'Ethereum',
+          symbol: 'ETH',
+          kind: 'crypto',
+          priceSek: toNumber(ethereum.sek),
+          priceUsd: toNumber(ethereum.usd),
+          change24h: toNumber(ethereum.sek_24h_change ?? ethereum.usd_24h_change),
+          source: 'coingecko:simple-price'
+        },
+        ...manualMarketAssets
+      ]
+    };
+  } catch (error) {
+    console.error('Markets briefing fetch failed', error);
+    return fallbackMarkets;
+  }
+}
+
+const fallbackMarkets: MarketsSnapshot = {
+  ok: false,
+  source: 'markets:fallback',
+  assets: manualMarketAssets
 };
 
 function decodeXml(value: string) {
@@ -395,10 +526,11 @@ async function getLatestCaiBriefMessage(): Promise<CaiBriefMessageSnapshot> {
 }
 
 export async function getCaiBriefing() {
-  const [cockpit, dispatch, bitcoin, news, latestMessage] = await Promise.all([
+  const [cockpit, dispatch, bitcoin, markets, news, latestMessage] = await Promise.all([
     cachedBriefingValue('cockpit', 15_000, getCockpitSnapshot, fallbackCockpit),
     getDispatchSummary(),
     cachedBriefingValue('bitcoin', BITCOIN_CACHE_TTL_MS, getBitcoinSnapshot, fallbackBitcoin),
+    cachedBriefingValue('markets', MARKETS_CACHE_TTL_MS, getMarketsSnapshot, fallbackMarkets),
     cachedBriefingValue('news', NEWS_CACHE_TTL_MS, getNewsSnapshot, fallbackNews),
     getLatestCaiBriefMessage()
   ]);
@@ -416,6 +548,7 @@ export async function getCaiBriefing() {
     cockpit,
     dispatch,
     bitcoin,
+    markets,
     news,
     latestMessage,
     pulse: {

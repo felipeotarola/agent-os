@@ -219,6 +219,17 @@ function percent(value: number | null) {
   return `${sign}${value.toFixed(2)}%`;
 }
 
+function marketPrice(asset: { priceSek: number | null; priceUsd: number | null }) {
+  if (asset.priceSek !== null) return compactNumber(asset.priceSek, 'SEK');
+  if (asset.priceUsd !== null) return compactNumber(asset.priceUsd, 'USD');
+  return 'watch';
+}
+
+function marketTone(change24h: number | null) {
+  if (change24h === null) return 'text-muted-foreground';
+  return change24h >= 0 ? 'text-primary' : 'text-destructive';
+}
+
 function briefPreview(text?: string | null) {
   const value = String(text ?? '').trim();
   if (!value) return 'Ingen skickad Cai-brief hittad ännu.';
@@ -605,13 +616,7 @@ export default async function OverviewPage() {
     }
   ];
 
-  const bitcoinChange = briefing.bitcoin.change24h;
-  const bitcoinPriceDisplay =
-    briefing.bitcoin.priceSek !== null
-      ? compactNumber(briefing.bitcoin.priceSek, 'SEK')
-      : briefing.bitcoin.priceUsd !== null
-        ? compactNumber(briefing.bitcoin.priceUsd, 'USD')
-        : 'Ingen BTC-data';
+  const marketAssets = briefing.markets.assets.slice(0, 8);
   const latestCaiRun = briefing.latestMessage.latest;
   const latestCaiMessage = briefPreview(latestCaiRun?.summary);
   const latestCaiTime = timeLabelFromMs(latestCaiRun?.runAtMs) ?? 'ingen cron-run hittad';
@@ -680,31 +685,34 @@ export default async function OverviewPage() {
               <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
                 <div className='mb-3 flex items-center justify-between gap-3'>
                   <div>
-                    <div className='font-semibold text-foreground'>Bitcoin</div>
-                    <div className='text-xs text-muted-foreground'>24h movement.</div>
+                    <div className='font-semibold text-foreground'>Markets</div>
+                    <div className='text-xs text-muted-foreground'>Crypto, trackers, funds.</div>
                   </div>
                   <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    BTC
+                    {briefing.markets.ok ? 'live' : 'watch'}
                   </Badge>
                 </div>
-                <div className='flex items-end justify-between gap-3 rounded-2xl border bg-background/45 p-3'>
-                  <div>
-                    <div className='text-2xl font-semibold tracking-tight'>
-                      {bitcoinPriceDisplay}
+                <div className='max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+                  {marketAssets.map((asset) => (
+                    <div key={asset.id} className='rounded-2xl border bg-background/45 p-3 text-sm'>
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <div className='truncate font-medium text-foreground'>{asset.label}</div>
+                          <div className='mt-0.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
+                            <span>{asset.symbol}</span>
+                            <span>·</span>
+                            <span>{asset.kind}</span>
+                          </div>
+                        </div>
+                        <div className='shrink-0 text-right'>
+                          <div className='font-semibold text-foreground'>{marketPrice(asset)}</div>
+                          <div className={`text-xs ${marketTone(asset.change24h)}`}>
+                            {asset.change24h === null ? '—' : `${percent(asset.change24h)} 24h`}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div
-                      className={
-                        bitcoinChange === null
-                          ? 'mt-1 text-xs text-muted-foreground'
-                          : bitcoinChange >= 0
-                            ? 'mt-1 text-xs text-primary'
-                            : 'mt-1 text-xs text-destructive'
-                      }
-                    >
-                      {percent(bitcoinChange)} 24h
-                    </div>
-                  </div>
-                  <div className='text-3xl'>₿</div>
+                  ))}
                 </div>
               </div>
 
