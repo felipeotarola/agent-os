@@ -7,6 +7,7 @@ import {
   type BuildActivitySnapshot
 } from '@/components/build-activity-indicator';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
+import { MotionCard } from '@/components/motion-card';
 import { Progress } from '@/components/ui/progress';
 import { getCalendarSignals, type CalendarSignalSnapshot } from '@/db/external-signals';
 import { getVercelSnapshot, type VercelDeployment, type VercelSnapshot } from '@/db/vercel';
@@ -725,7 +726,7 @@ export default async function OverviewPage() {
           </section>
 
           <section className='columns-1 gap-4 xl:columns-2 2xl:columns-3 [&>*]:mb-4 [&>*]:break-inside-avoid'>
-            <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
+            <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
               <CardHeader>
                 <div className='flex items-start justify-between gap-3'>
                   <div>
@@ -765,9 +766,9 @@ export default async function OverviewPage() {
                   ))
                 )}
               </CardContent>
-            </Card>
+            </MotionCard>
 
-            <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
+            <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
               <CardHeader>
                 <div className='flex items-start justify-between gap-3'>
                   <div>
@@ -833,9 +834,9 @@ export default async function OverviewPage() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
+            </MotionCard>
 
-            <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
+            <MotionCard className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-4 flex items-start justify-between gap-3'>
                 <div className='min-w-0'>
                   <div className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>
@@ -873,11 +874,11 @@ export default async function OverviewPage() {
                   </Link>
                 ))}
               </div>
-            </div>
+            </MotionCard>
 
             <CalendarOverviewCard calendar={calendar} />
 
-            <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
+            <MotionCard className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-3 flex items-center justify-between gap-3'>
                 <div>
                   <div className='font-semibold text-foreground'>Uppsala weather</div>
@@ -906,9 +907,9 @@ export default async function OverviewPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </MotionCard>
 
-            <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
+            <MotionCard className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-3 flex items-center justify-between gap-3'>
                 <div>
                   <div className='font-semibold text-foreground'>System Health</div>
@@ -946,7 +947,7 @@ export default async function OverviewPage() {
                   Last snapshot {generatedAt}
                 </div>
               </div>
-            </div>
+            </MotionCard>
           </section>
         </section>
 
