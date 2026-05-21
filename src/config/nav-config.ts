@@ -31,6 +31,13 @@ export const navGroups: NavGroup[] = [
         icon: 'kanban',
         shortcut: ['t', 't'],
         items: []
+      },
+      {
+        title: 'Content Studio',
+        url: '/dashboard/content-studio',
+        icon: 'media',
+        shortcut: ['c', 's'],
+        items: []
       }
     ]
   },

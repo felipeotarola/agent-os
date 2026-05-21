@@ -138,6 +138,58 @@ export const events = pgTable('events', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const contentItems = pgTable('content_items', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  brief: text('brief').notNull().default(''),
+  status: text('status').notNull().default('draft'),
+  pillar: text('pillar').notNull().default(''),
+  campaign: text('campaign').notNull().default('sladdis'),
+  ownerAgentId: text('owner_agent_id').references(() => agents.id),
+  source: text('source').notNull().default('cockpit'),
+  scheduleAt: timestamp('schedule_at', { withTimezone: true }),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const contentVariants = pgTable('content_variants', {
+  id: text('id').primaryKey(),
+  contentItemId: text('content_item_id')
+    .notNull()
+    .references(() => contentItems.id),
+  platform: text('platform').notNull(),
+  status: text('status').notNull().default('draft'),
+  title: text('title').notNull().default(''),
+  caption: text('caption').notNull().default(''),
+  hashtags: jsonb('hashtags').$type<string[]>().notNull().default([]),
+  scheduleAt: timestamp('schedule_at', { withTimezone: true }),
+  externalUrl: text('external_url'),
+  failureReason: text('failure_reason'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const contentMediaAssets = pgTable('content_media_assets', {
+  id: text('id').primaryKey(),
+  contentItemId: text('content_item_id')
+    .notNull()
+    .references(() => contentItems.id),
+  variantId: text('variant_id').references(() => contentVariants.id),
+  kind: text('kind').notNull().default('source'),
+  status: text('status').notNull().default('prepared'),
+  blobKey: text('blob_key'),
+  blobUrl: text('blob_url'),
+  fileName: text('file_name'),
+  contentType: text('content_type'),
+  bytes: integer('bytes'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -149,3 +201,6 @@ export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Run = typeof runs.$inferSelect;
 export type Event = typeof events.$inferSelect;
+export type ContentItem = typeof contentItems.$inferSelect;
+export type ContentVariant = typeof contentVariants.$inferSelect;
+export type ContentMediaAsset = typeof contentMediaAssets.$inferSelect;

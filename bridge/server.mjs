@@ -27,6 +27,8 @@ const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.op
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
+const CONTENT_STATUSES = ['draft', 'ready', 'scheduled', 'posted', 'failed', 'archived'];
+const CONTENT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts', 'youtube_longform', 'x', 'facebook'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
@@ -897,6 +899,265 @@ function mapTask(row) {
     position: Number(row.position ?? 0),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined
   };
+}
+
+async function ensureContentTables() {
+  await sql`
+    create table if not exists content_items (
+      id text primary key,
+      title text not null,
+      brief text not null default '',
+      status text not null default 'draft',
+      pillar text not null default '',
+      campaign text not null default 'sladdis',
+      owner_agent_id text references agents(id),
+      source text not null default 'cockpit',
+      schedule_at timestamptz,
+      published_at timestamptz,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists content_variants (
+      id text primary key,
+      content_item_id text not null references content_items(id),
+      platform text not null,
+      status text not null default 'draft',
+      title text not null default '',
+      caption text not null default '',
+      hashtags jsonb not null default '[]'::jsonb,
+      schedule_at timestamptz,
+      external_url text,
+      failure_reason text,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists content_media_assets (
+      id text primary key,
+      content_item_id text not null references content_items(id),
+      variant_id text references content_variants(id),
+      kind text not null default 'source',
+      status text not null default 'prepared',
+      blob_key text,
+      blob_url text,
+      file_name text,
+      content_type text,
+      bytes integer,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+}
+
+function normalizeContentStatus(status) {
+  return CONTENT_STATUSES.includes(status) ? status : 'draft';
+}
+
+function normalizeContentPlatforms(platforms) {
+  const requested = Array.isArray(platforms) ? platforms : String(platforms ?? '').split(',');
+  const normalized = requested.map((platform) => String(platform).trim()).filter((platform) => CONTENT_PLATFORMS.includes(platform));
+  return normalized.length ? [...new Set(normalized)] : ['instagram', 'tiktok', 'youtube_shorts'];
+}
+
+function contentIsoOrNull(value) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function mapContentMediaAsset(row) {
+  return {
+    id: row.id,
+    contentItemId: row.contentItemId,
+    variantId: row.variantId ?? null,
+    kind: row.kind,
+    status: row.status,
+    blobKey: row.blobKey ?? null,
+    blobUrl: row.blobUrl ?? null,
+    fileName: row.fileName ?? null,
+    contentType: row.contentType ?? null,
+    bytes: row.bytes === null || row.bytes === undefined ? null : Number(row.bytes),
+    metadata: row.metadata ?? {},
+    createdAt: contentIsoOrNull(row.createdAt),
+    updatedAt: contentIsoOrNull(row.updatedAt)
+  };
+}
+
+function mapContentVariant(row) {
+  return {
+    id: row.id,
+    contentItemId: row.contentItemId,
+    platform: row.platform,
+    status: normalizeContentStatus(row.status),
+    title: row.title ?? '',
+    caption: row.caption ?? '',
+    hashtags: Array.isArray(row.hashtags) ? row.hashtags : [],
+    scheduleAt: contentIsoOrNull(row.scheduleAt),
+    externalUrl: row.externalUrl ?? null,
+    failureReason: row.failureReason ?? null,
+    metadata: row.metadata ?? {},
+    createdAt: contentIsoOrNull(row.createdAt),
+    updatedAt: contentIsoOrNull(row.updatedAt),
+    mediaAssets: []
+  };
+}
+
+function mapContentItem(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    brief: row.brief ?? '',
+    status: normalizeContentStatus(row.status),
+    pillar: row.pillar ?? '',
+    campaign: row.campaign ?? 'sladdis',
+    ownerAgentId: row.ownerAgentId ?? null,
+    source: row.source ?? 'cockpit',
+    scheduleAt: contentIsoOrNull(row.scheduleAt),
+    publishedAt: contentIsoOrNull(row.publishedAt),
+    metadata: row.metadata ?? {},
+    createdAt: contentIsoOrNull(row.createdAt),
+    updatedAt: contentIsoOrNull(row.updatedAt),
+    variants: [],
+    mediaAssets: []
+  };
+}
+
+async function contentItemsSnapshot() {
+  await ensureContentTables();
+  const itemRows = await sql`
+    select id, title, brief, status, pillar, campaign, owner_agent_id as "ownerAgentId", source,
+      schedule_at as "scheduleAt", published_at as "publishedAt", metadata, created_at as "createdAt", updated_at as "updatedAt"
+    from content_items
+    order by updated_at desc
+    limit 100
+  `;
+  const ids = itemRows.map((item) => item.id);
+  const variantRows = ids.length
+    ? await sql`
+      select id, content_item_id as "contentItemId", platform, status, title, caption, hashtags,
+        schedule_at as "scheduleAt", external_url as "externalUrl", failure_reason as "failureReason",
+        metadata, created_at as "createdAt", updated_at as "updatedAt"
+      from content_variants
+      where content_item_id = any(${ids})
+      order by created_at asc
+    `
+    : [];
+  const assetRows = ids.length
+    ? await sql`
+      select id, content_item_id as "contentItemId", variant_id as "variantId", kind, status,
+        blob_key as "blobKey", blob_url as "blobUrl", file_name as "fileName", content_type as "contentType",
+        bytes, metadata, created_at as "createdAt", updated_at as "updatedAt"
+      from content_media_assets
+      where content_item_id = any(${ids})
+      order by created_at asc
+    `
+    : [];
+
+  const items = itemRows.map(mapContentItem);
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+  const variantMap = new Map();
+  for (const row of variantRows) {
+    const variant = mapContentVariant(row);
+    variantMap.set(variant.id, variant);
+    itemMap.get(variant.contentItemId)?.variants.push(variant);
+  }
+  for (const row of assetRows) {
+    const asset = mapContentMediaAsset(row);
+    itemMap.get(asset.contentItemId)?.mediaAssets.push(asset);
+    if (asset.variantId) variantMap.get(asset.variantId)?.mediaAssets.push(asset);
+  }
+
+  const counts = Object.fromEntries(CONTENT_STATUSES.map((status) => [status, 0]));
+  for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
+  return { items, counts: { total: items.length, ...counts }, source: 'bridge:postgres:content_items' };
+}
+
+async function createContentItem(input) {
+  await ensureContentTables();
+  const title = String(input.title ?? '').trim();
+  if (!title) {
+    const error = new Error('title is required');
+    error.status = 400;
+    throw error;
+  }
+  const brief = String(input.brief ?? '').trim();
+  const pillar = String(input.pillar ?? '').trim();
+  const campaign = String(input.campaign ?? 'sladdis').trim() || 'sladdis';
+  const requestedOwnerAgentId = String(input.ownerAgentId ?? 'sladdis').trim() || 'sladdis';
+  const ownerRows = await sql`select id from agents where id = ${requestedOwnerAgentId} limit 1`;
+  const ownerAgentId = ownerRows.length ? requestedOwnerAgentId : null;
+  const platforms = normalizeContentPlatforms(input.platforms);
+  const id = randomUUID();
+
+  await sql.begin(async (tx) => {
+    await tx`
+      insert into content_items (id, title, brief, status, pillar, campaign, owner_agent_id, source, metadata, updated_at)
+      values (${id}, ${title}, ${brief}, 'draft', ${pillar}, ${campaign}, ${ownerAgentId}, 'cockpit', ${sql.json({ autopublish: false })}, now())
+    `;
+    for (const platform of platforms) {
+      await tx`
+        insert into content_variants (id, content_item_id, platform, status, title, caption, hashtags, metadata, updated_at)
+        values (${randomUUID()}, ${id}, ${platform}, 'draft', ${title}, '', ${sql.json([])}, ${sql.json({ autopublish: false })}, now())
+      `;
+    }
+  });
+
+  const snapshot = await contentItemsSnapshot();
+  return snapshot.items.find((item) => item.id === id);
+}
+
+async function updateContentItem(input) {
+  await ensureContentTables();
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+  const hasStatus = Object.prototype.hasOwnProperty.call(input, 'status');
+  const status = hasStatus ? normalizeContentStatus(String(input.status ?? 'draft')) : null;
+  const hasScheduleAt = Object.prototype.hasOwnProperty.call(input, 'scheduleAt');
+  const scheduleAt = hasScheduleAt && input.scheduleAt ? new Date(String(input.scheduleAt)).toISOString() : null;
+  const hasTitle = Object.prototype.hasOwnProperty.call(input, 'title');
+  const title = hasTitle ? String(input.title ?? '').trim() : null;
+  if (hasTitle && !title) {
+    const error = new Error('title is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const rows = await sql`
+    update content_items
+    set
+      title = case when ${hasTitle} then ${title} else title end,
+      status = case when ${hasStatus} then ${status} else status end,
+      schedule_at = case when ${hasScheduleAt} then ${scheduleAt}::timestamptz else schedule_at end,
+      metadata = metadata || ${sql.json({ lastCockpitAction: input.action ?? 'update', autopublish: false })}::jsonb,
+      updated_at = now()
+    where id = ${id}
+    returning id
+  `;
+  if (!rows.length) {
+    const error = new Error('content item not found');
+    error.status = 404;
+    throw error;
+  }
+  if (hasStatus || hasScheduleAt) {
+    await sql`
+      update content_variants
+      set status = case when ${hasStatus} then ${status} else status end,
+        schedule_at = case when ${hasScheduleAt} then ${scheduleAt}::timestamptz else schedule_at end,
+        metadata = metadata || ${sql.json({ lastCockpitAction: input.action ?? 'update', autopublish: false })}::jsonb,
+        updated_at = now()
+      where content_item_id = ${id} and status != 'posted'
+    `;
+  }
+  const snapshot = await contentItemsSnapshot();
+  return snapshot.items.find((item) => item.id === id);
 }
 
 
@@ -3545,6 +3806,18 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks') {
       return send(res, 200, await tasksSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/content/items') {
+      return send(res, 200, await contentItemsSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/content/items') {
+      return send(res, 201, await createContentItem(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/content/items') {
+      return send(res, 200, await updateContentItem(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/radar/state') {
