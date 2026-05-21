@@ -53,7 +53,7 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
         'relative grid grid-cols-1 gap-4 transition-[grid-template-columns] duration-300 ease-linear',
         open
           ? 'xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]'
-          : 'xl:grid-cols-[minmax(0,1fr)_3rem]'
+          : 'xl:grid-cols-[minmax(0,1fr)_3.5rem]'
       )}
       data-context-rail={open ? 'open' : 'closed'}
     >
@@ -99,23 +99,32 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
           {open ? (
             <div className='space-y-4'>{rail}</div>
           ) : (
-            <div className='flex min-h-[calc(100svh-6rem)] w-12 flex-col items-center gap-2 rounded-2xl border bg-sidebar p-2 text-sidebar-foreground shadow-sm'>
+            <div className='flex w-14 flex-col items-center gap-2 rounded-2xl border bg-card/80 p-2 text-card-foreground shadow-sm backdrop-blur'>
               <Button
                 type='button'
                 variant='ghost'
                 size='icon'
-                className='size-8'
+                className='size-9 rounded-xl border bg-background/60 text-primary shadow-sm hover:bg-primary/10'
                 onClick={() => setPersistedOpen(true)}
                 aria-pressed={open}
               >
                 <Icons.panelLeft className='size-4 rotate-180' />
                 <span className='sr-only'>Open context</span>
               </Button>
-              <div className='h-px w-6 bg-sidebar-border' />
-              <div className='mt-1 flex flex-1 items-start justify-center'>
-                <div className='rotate-90 whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.25em] text-sidebar-foreground/70'>
-                  Context
-                </div>
+              <div className='flex flex-col items-center gap-1 rounded-xl bg-background/45 px-1.5 py-2'>
+                {'CTX'.split('').map((letter) => (
+                  <span
+                    key={letter}
+                    className='text-[10px] font-semibold leading-none text-muted-foreground'
+                  >
+                    {letter}
+                  </span>
+                ))}
+              </div>
+              <div className='flex flex-col gap-1 py-1'>
+                <span className='size-1.5 rounded-full bg-primary' />
+                <span className='size-1.5 rounded-full bg-muted-foreground/40' />
+                <span className='size-1.5 rounded-full bg-muted-foreground/40' />
               </div>
             </div>
           )}

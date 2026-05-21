@@ -9,9 +9,12 @@ export const CONTEXT_RAIL_TOGGLE_EVENT = 'agent-os:context-rail-toggle';
 
 export function ContextRailHeaderTrigger() {
   const pathname = usePathname();
-  const isOverview = pathname === '/dashboard/overview' || pathname === '/dashboard';
+  const hasContextRail =
+    pathname === '/dashboard' ||
+    pathname === '/dashboard/overview' ||
+    pathname === '/dashboard/overview2';
 
-  if (!isOverview) return null;
+  if (!hasContextRail) return null;
 
   return (
     <Button

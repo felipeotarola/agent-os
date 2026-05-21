@@ -16,7 +16,7 @@ function extension(path) {
 function walk(dir, files = []) {
   for (const entry of readdirSync(dir)) {
     const fullPath = join(dir, entry);
-    const rel = relative(root, fullPath).replaceAll('\\\\', '/');
+    const rel = relative(root, fullPath).replaceAll('\\', '/');
     const stat = lstatSync(fullPath);
     if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
