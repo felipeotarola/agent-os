@@ -70,6 +70,16 @@ function parseMetadata(value) {
   return parsed;
 }
 
+function parsePriority(value) {
+  if (!value) return 50;
+
+  const priority = Number(value);
+  if (!Number.isFinite(priority) || priority < 0 || priority > 100) {
+    throw new Error('--priority must be a number from 0 to 100');
+  }
+  return priority;
+}
+
 function buildPayload(values) {
   const source = values.source?.trim();
   const title = values.title?.trim();
@@ -81,7 +91,7 @@ function buildPayload(values) {
     sourceId: values.sourceId?.trim() || '',
     kind: values.kind?.trim() || 'signal',
     status: values.status?.trim() || 'active',
-    priority: values.priority ? Number(values.priority) : 50,
+    priority: parsePriority(values.priority),
     title,
     detail: values.detail?.trim() || '',
     href: values.href?.trim() || '/dashboard/radar',
@@ -89,11 +99,6 @@ function buildPayload(values) {
     ownerAgentId: values.ownerAgentId?.trim() || undefined,
     metadata: parseMetadata(values.metadata)
   };
-}
-
-if (!bridgeUrl || !token) {
-  console.error('Agent OS bridge is not configured. Set AGENT_OS_BRIDGE_URL and AGENT_OS_BRIDGE_TOKEN.');
-  process.exit(2);
 }
 
 try {
@@ -104,6 +109,11 @@ try {
   }
 
   const payload = buildPayload(args);
+  if (!bridgeUrl || !token) {
+    console.error('Agent OS bridge is not configured. Set AGENT_OS_BRIDGE_URL and AGENT_OS_BRIDGE_TOKEN.');
+    process.exit(2);
+  }
+
   const response = await fetch(`${bridgeUrl}/inbox/items`, {
     method: 'POST',
     headers: {
