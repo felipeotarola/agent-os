@@ -6,6 +6,7 @@ import {
   BuildActivityResumeItem,
   type BuildActivitySnapshot
 } from '@/components/build-activity-indicator';
+import { ContextRailLayout } from '@/components/context-rail-layout';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
 import { MotionCard } from '@/components/motion-card';
 import { Progress } from '@/components/ui/progress';
@@ -620,7 +621,210 @@ export default async function OverviewPage() {
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-4 md:gap-5'>
-        <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]'>
+        <ContextRailLayout
+          rail={
+            <>
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-start justify-between gap-3'>
+                  <div>
+                    <div className='text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground'>
+                      Daily context
+                    </div>
+                    <div className='mt-1 text-sm text-muted-foreground'>Today, status, action.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    RAIL
+                  </Badge>
+                </div>
+                <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
+                  <div className='rounded-2xl border bg-background/45 p-3'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <span>Uppsala</span>
+                      <span className='text-lg'>{weatherMoodIcon(weather)}</span>
+                    </div>
+                    <div className='mt-1 text-2xl font-semibold text-foreground'>
+                      {weather.temperature}
+                    </div>
+                  </div>
+                  <div className='rounded-2xl border bg-background/45 p-3'>
+                    <div>Agenda</div>
+                    <div className='mt-1 text-2xl font-semibold text-foreground'>
+                      {calendar.counts.next24h}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>Cai Briefing</div>
+                    <div className='text-xs text-muted-foreground'>Digest first.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    {latestCaiRun?.label ?? 'brief'}
+                  </Badge>
+                </div>
+                <p className='line-clamp-6 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
+                  {latestCaiMessage}
+                </p>
+                <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
+                  {latestCaiRun
+                    ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                    : latestCaiTime}
+                </div>
+              </div>
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>Bitcoin</div>
+                    <div className='text-xs text-muted-foreground'>24h movement.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    BTC
+                  </Badge>
+                </div>
+                <div className='flex items-end justify-between gap-3 rounded-2xl border bg-background/45 p-3'>
+                  <div>
+                    <div className='text-2xl font-semibold tracking-tight'>
+                      {bitcoinPriceDisplay}
+                    </div>
+                    <div
+                      className={
+                        bitcoinChange === null
+                          ? 'mt-1 text-xs text-muted-foreground'
+                          : bitcoinChange >= 0
+                            ? 'mt-1 text-xs text-primary'
+                            : 'mt-1 text-xs text-destructive'
+                      }
+                    >
+                      {percent(bitcoinChange)} 24h
+                    </div>
+                  </div>
+                  <div className='text-3xl'>₿</div>
+                </div>
+              </div>
+
+              <CalendarOverviewCard calendar={calendar} />
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>Status</div>
+                    <div className='text-xs text-muted-foreground'>Signals, not logs.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40'>
+                    ops
+                  </Badge>
+                </div>
+                <div className='grid gap-2 text-sm text-muted-foreground'>
+                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                    <StatusDot ok={snapshot.dbOnline} />
+                    <span>db online</span>
+                  </div>
+                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                    <StatusDot ok={Boolean(subagents?.ok)} />
+                    <span>OpenClaw bridge connected</span>
+                  </div>
+                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                    <StatusDot ok />
+                    <span>Memory index healthy</span>
+                  </div>
+                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                    <StatusDot ok={buildActivity.activeCount > 0} />
+                    <span>
+                      {buildActivity.activeCount
+                        ? `${buildActivity.activeCount} build running`
+                        : 'Build idle'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>Action</div>
+                    <div className='text-xs text-muted-foreground'>Quick routes.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    LIVE
+                  </Badge>
+                </div>
+                <div className='space-y-2'>
+                  <BuildActivityResumeItem initial={buildActivity} />
+                  {resumeItems.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                    >
+                      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
+                        {item.icon}
+                      </span>
+                      <span className='min-w-0 flex-1'>
+                        <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
+                          {item.label}
+                        </span>
+                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
+                          {item.value}
+                        </span>
+                      </span>
+                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                        →
+                      </span>
+                    </Link>
+                  ))}
+                  <div className='grid grid-cols-2 gap-2 pt-1'>
+                    <Button asChild variant='outline' size='sm' className='rounded-full'>
+                      <Link href='/dashboard/kanban'>Add task</Link>
+                    </Button>
+                    <Button asChild variant='outline' size='sm' className='rounded-full'>
+                      <Link href='/dashboard/chat'>Ask Cai</Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-3xl border bg-card/70 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>Weather</div>
+                    <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-3xl leading-none'>{weatherMoodIcon(weather)}</span>
+                    <Badge variant='outline' className='border-border bg-muted/40'>
+                      {weather.ok ? 'live' : 'degraded'}
+                    </Badge>
+                  </div>
+                </div>
+                <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
+                  <div className='text-xs text-muted-foreground'>{weather.location}</div>
+                  <div className='mt-1 flex items-end justify-between gap-3'>
+                    <div className='text-3xl font-semibold tracking-tight text-foreground'>
+                      {weather.temperature}
+                    </div>
+                    <div className='text-sm text-muted-foreground'>{weather.condition}</div>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
+                  <div className='rounded-xl border bg-background/35 p-2'>
+                    Feels {weather.feelsLike}
+                  </div>
+                  <div className='rounded-xl border bg-background/35 p-2'>Wind {weather.wind}</div>
+                  <div className='rounded-xl border bg-background/35 p-2'>
+                    Humidity {weather.humidity}
+                  </div>
+                  <div className='rounded-xl border bg-background/35 p-2'>
+                    Rain {weather.precipitation}
+                  </div>
+                </div>
+              </div>
+            </>
+          }
+        >
           <main className='min-w-0 space-y-4'>
             <section className='space-y-4'>
               <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
@@ -1078,206 +1282,7 @@ export default async function OverviewPage() {
               </Card>
             </section>
           </main>
-
-          <aside className='space-y-4 xl:sticky xl:top-20 xl:self-start'>
-            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-start justify-between gap-3'>
-                <div>
-                  <div className='text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground'>
-                    Daily context
-                  </div>
-                  <div className='mt-1 text-sm text-muted-foreground'>Today, status, action.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                  RAIL
-                </Badge>
-              </div>
-              <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
-                <div className='rounded-2xl border bg-background/45 p-3'>
-                  <div className='flex items-center justify-between gap-2'>
-                    <span>Uppsala</span>
-                    <span className='text-lg'>{weatherMoodIcon(weather)}</span>
-                  </div>
-                  <div className='mt-1 text-2xl font-semibold text-foreground'>
-                    {weather.temperature}
-                  </div>
-                </div>
-                <div className='rounded-2xl border bg-background/45 p-3'>
-                  <div>Agenda</div>
-                  <div className='mt-1 text-2xl font-semibold text-foreground'>
-                    {calendar.counts.next24h}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <div className='font-semibold text-foreground'>Cai Briefing</div>
-                  <div className='text-xs text-muted-foreground'>Digest first.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                  {latestCaiRun?.label ?? 'brief'}
-                </Badge>
-              </div>
-              <p className='line-clamp-6 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
-                {latestCaiMessage}
-              </p>
-              <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
-                {latestCaiRun
-                  ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
-                  : latestCaiTime}
-              </div>
-            </div>
-
-            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <div className='font-semibold text-foreground'>Bitcoin</div>
-                  <div className='text-xs text-muted-foreground'>24h movement.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                  BTC
-                </Badge>
-              </div>
-              <div className='flex items-end justify-between gap-3 rounded-2xl border bg-background/45 p-3'>
-                <div>
-                  <div className='text-2xl font-semibold tracking-tight'>{bitcoinPriceDisplay}</div>
-                  <div
-                    className={
-                      bitcoinChange === null
-                        ? 'mt-1 text-xs text-muted-foreground'
-                        : bitcoinChange >= 0
-                          ? 'mt-1 text-xs text-primary'
-                          : 'mt-1 text-xs text-destructive'
-                    }
-                  >
-                    {percent(bitcoinChange)} 24h
-                  </div>
-                </div>
-                <div className='text-3xl'>₿</div>
-              </div>
-            </div>
-
-            <CalendarOverviewCard calendar={calendar} />
-
-            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <div className='font-semibold text-foreground'>Status</div>
-                  <div className='text-xs text-muted-foreground'>Signals, not logs.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-muted/40'>
-                  ops
-                </Badge>
-              </div>
-              <div className='grid gap-2 text-sm text-muted-foreground'>
-                <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                  <StatusDot ok={snapshot.dbOnline} />
-                  <span>db online</span>
-                </div>
-                <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                  <StatusDot ok={Boolean(subagents?.ok)} />
-                  <span>OpenClaw bridge connected</span>
-                </div>
-                <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                  <StatusDot ok />
-                  <span>Memory index healthy</span>
-                </div>
-                <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                  <StatusDot ok={buildActivity.activeCount > 0} />
-                  <span>
-                    {buildActivity.activeCount
-                      ? `${buildActivity.activeCount} build running`
-                      : 'Build idle'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <div className='font-semibold text-foreground'>Action</div>
-                  <div className='text-xs text-muted-foreground'>Quick routes.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                  LIVE
-                </Badge>
-              </div>
-              <div className='space-y-2'>
-                <BuildActivityResumeItem initial={buildActivity} />
-                {resumeItems.map((item) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                  >
-                    <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
-                      {item.icon}
-                    </span>
-                    <span className='min-w-0 flex-1'>
-                      <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
-                        {item.label}
-                      </span>
-                      <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
-                        {item.value}
-                      </span>
-                    </span>
-                    <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                      →
-                    </span>
-                  </Link>
-                ))}
-                <div className='grid grid-cols-2 gap-2 pt-1'>
-                  <Button asChild variant='outline' size='sm' className='rounded-full'>
-                    <Link href='/dashboard/kanban'>Add task</Link>
-                  </Button>
-                  <Button asChild variant='outline' size='sm' className='rounded-full'>
-                    <Link href='/dashboard/chat'>Ask Cai</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className='rounded-3xl border bg-card/70 p-4 text-card-foreground shadow-sm'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <div className='font-semibold text-foreground'>Weather</div>
-                  <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <span className='text-3xl leading-none'>{weatherMoodIcon(weather)}</span>
-                  <Badge variant='outline' className='border-border bg-muted/40'>
-                    {weather.ok ? 'live' : 'degraded'}
-                  </Badge>
-                </div>
-              </div>
-              <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
-                <div className='text-xs text-muted-foreground'>{weather.location}</div>
-                <div className='mt-1 flex items-end justify-between gap-3'>
-                  <div className='text-3xl font-semibold tracking-tight text-foreground'>
-                    {weather.temperature}
-                  </div>
-                  <div className='text-sm text-muted-foreground'>{weather.condition}</div>
-                </div>
-              </div>
-              <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
-                <div className='rounded-xl border bg-background/35 p-2'>
-                  Feels {weather.feelsLike}
-                </div>
-                <div className='rounded-xl border bg-background/35 p-2'>Wind {weather.wind}</div>
-                <div className='rounded-xl border bg-background/35 p-2'>
-                  Humidity {weather.humidity}
-                </div>
-                <div className='rounded-xl border bg-background/35 p-2'>
-                  Rain {weather.precipitation}
-                </div>
-              </div>
-            </div>
-          </aside>
-        </section>
+        </ContextRailLayout>
 
         <section className='mobile-status-strip mobile-feed-card flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
           <div className='flex flex-wrap items-center gap-3'>
