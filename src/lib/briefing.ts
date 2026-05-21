@@ -42,6 +42,7 @@ type MarketAsset = {
   label: string;
   symbol: string;
   kind: 'crypto' | 'tracker' | 'fund';
+  holding: boolean;
   priceSek: number | null;
   priceUsd: number | null;
   change24h: number | null;
@@ -52,6 +53,11 @@ type MarketsSnapshot = {
   ok: boolean;
   source: string;
   assets: MarketAsset[];
+  holdings: {
+    count: number;
+    liveCount: number;
+    averageChange24h: number | null;
+  };
 };
 
 type NewsItem = {
@@ -234,6 +240,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'CoinShares Bitcoin XBT',
     symbol: 'BITCOIN XBT',
     kind: 'tracker',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -244,6 +251,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'CoinShares Ether XBT',
     symbol: 'ETHER XBT',
     kind: 'tracker',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -254,6 +262,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'Valour Bitcoin Zero SEK',
     symbol: 'BTC ZERO SEK',
     kind: 'tracker',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -264,6 +273,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'Avanza Disruptive Innovation by ARK Invest',
     symbol: 'ARK fund',
     kind: 'fund',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -274,6 +284,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'Länsförsäkringar Global Index',
     symbol: 'Global index',
     kind: 'fund',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -284,6 +295,7 @@ const manualMarketAssets: MarketAsset[] = [
     label: 'Storebrand USA A SEK',
     symbol: 'USA fund',
     kind: 'fund',
+    holding: true,
     priceSek: null,
     priceUsd: null,
     change24h: null,
@@ -301,33 +313,56 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
     const json = await response.json();
     const bitcoin = json.bitcoin ?? {};
     const ethereum = json.ethereum ?? {};
+    const bitcoinChange = toNumber(bitcoin.sek_24h_change ?? bitcoin.usd_24h_change);
+    const ethereumChange = toNumber(ethereum.sek_24h_change ?? ethereum.usd_24h_change);
+    const assets: MarketAsset[] = [
+      {
+        id: 'bitcoin',
+        label: 'Bitcoin',
+        symbol: 'BTC',
+        kind: 'crypto',
+        holding: true,
+        priceSek: toNumber(bitcoin.sek),
+        priceUsd: toNumber(bitcoin.usd),
+        change24h: bitcoinChange,
+        source: 'coingecko:simple-price'
+      },
+      {
+        id: 'ethereum',
+        label: 'Ethereum',
+        symbol: 'ETH',
+        kind: 'crypto',
+        holding: false,
+        priceSek: toNumber(ethereum.sek),
+        priceUsd: toNumber(ethereum.usd),
+        change24h: ethereumChange,
+        source: 'coingecko:simple-price'
+      },
+      ...manualMarketAssets.map((asset) => ({
+        ...asset,
+        change24h:
+          asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
+            ? bitcoinChange
+            : asset.id === 'ether-xbt'
+              ? ethereumChange
+              : asset.change24h,
+        source:
+          asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
+            ? 'coingecko:btc-proxy'
+            : asset.id === 'ether-xbt'
+              ? 'coingecko:eth-proxy'
+              : asset.source
+      }))
+    ];
+    const liveHoldingChanges = assets
+      .filter((asset) => asset.holding && asset.change24h !== null)
+      .map((asset) => asset.change24h as number);
 
     return {
       ok: true,
       source: 'coingecko:simple-price+watchlist',
-      assets: [
-        {
-          id: 'bitcoin',
-          label: 'Bitcoin',
-          symbol: 'BTC',
-          kind: 'crypto',
-          priceSek: toNumber(bitcoin.sek),
-          priceUsd: toNumber(bitcoin.usd),
-          change24h: toNumber(bitcoin.sek_24h_change ?? bitcoin.usd_24h_change),
-          source: 'coingecko:simple-price'
-        },
-        {
-          id: 'ethereum',
-          label: 'Ethereum',
-          symbol: 'ETH',
-          kind: 'crypto',
-          priceSek: toNumber(ethereum.sek),
-          priceUsd: toNumber(ethereum.usd),
-          change24h: toNumber(ethereum.sek_24h_change ?? ethereum.usd_24h_change),
-          source: 'coingecko:simple-price'
-        },
-        ...manualMarketAssets
-      ]
+      assets,
+      holdings: summarizeHoldings(assets, liveHoldingChanges)
     };
   } catch (error) {
     console.error('Markets briefing fetch failed', error);
@@ -338,8 +373,24 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
 const fallbackMarkets: MarketsSnapshot = {
   ok: false,
   source: 'markets:fallback',
-  assets: manualMarketAssets
+  assets: manualMarketAssets,
+  holdings: summarizeHoldings(manualMarketAssets, [])
 };
+
+function summarizeHoldings(assets: MarketAsset[], liveChanges?: number[]) {
+  const holdingAssets = assets.filter((asset) => asset.holding);
+  const changes =
+    liveChanges ??
+    holdingAssets
+      .filter((asset) => asset.change24h !== null)
+      .map((asset) => asset.change24h as number);
+  return {
+    count: holdingAssets.length,
+    liveCount: changes.length,
+    averageChange24h:
+      changes.length > 0 ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null
+  };
+}
 
 function decodeXml(value: string) {
   return value

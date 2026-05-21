@@ -230,6 +230,13 @@ function marketTone(change24h: number | null) {
   return change24h >= 0 ? 'text-primary' : 'text-destructive';
 }
 
+function holdingDirection(change24h: number | null) {
+  if (change24h === null) return 'No live move yet';
+  if (change24h > 0) return 'Holdings up';
+  if (change24h < 0) return 'Holdings down';
+  return 'Flat today';
+}
+
 function briefPreview(text?: string | null) {
   const value = String(text ?? '').trim();
   if (!value) return 'Ingen skickad Cai-brief hittad ännu.';
@@ -617,6 +624,7 @@ export default async function OverviewPage() {
   ];
 
   const marketAssets = briefing.markets.assets.slice(0, 8);
+  const holdingChange24h = briefing.markets.holdings.averageChange24h;
   const latestCaiRun = briefing.latestMessage.latest;
   const latestCaiMessage = briefPreview(latestCaiRun?.summary);
   const latestCaiTime = timeLabelFromMs(latestCaiRun?.runAtMs) ?? 'ingen cron-run hittad';
@@ -686,18 +694,48 @@ export default async function OverviewPage() {
                 <div className='mb-3 flex items-center justify-between gap-3'>
                   <div>
                     <div className='font-semibold text-foreground'>Markets</div>
-                    <div className='text-xs text-muted-foreground'>Crypto, trackers, funds.</div>
+                    <div className='text-xs text-muted-foreground'>My holdings + watchlist.</div>
                   </div>
                   <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
                     {briefing.markets.ok ? 'live' : 'watch'}
                   </Badge>
+                </div>
+                <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div>
+                      <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+                        My holdings
+                      </div>
+                      <div className='mt-1 font-semibold text-foreground'>
+                        {holdingDirection(holdingChange24h)}
+                      </div>
+                      <div className='mt-0.5 text-xs text-muted-foreground'>
+                        {briefing.markets.holdings.liveCount}/{briefing.markets.holdings.count} live
+                        instruments
+                      </div>
+                    </div>
+                    <div
+                      className={`text-right text-lg font-semibold ${marketTone(holdingChange24h)}`}
+                    >
+                      {percent(holdingChange24h)}
+                    </div>
+                  </div>
                 </div>
                 <div className='max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
                   {marketAssets.map((asset) => (
                     <div key={asset.id} className='rounded-2xl border bg-background/45 p-3 text-sm'>
                       <div className='flex items-start justify-between gap-3'>
                         <div className='min-w-0'>
-                          <div className='truncate font-medium text-foreground'>{asset.label}</div>
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <div className='truncate font-medium text-foreground'>
+                              {asset.label}
+                            </div>
+                            {asset.holding ? (
+                              <Badge variant='secondary' className='shrink-0 text-[10px]'>
+                                holding
+                              </Badge>
+                            ) : null}
+                          </div>
                           <div className='mt-0.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
                             <span>{asset.symbol}</span>
                             <span>·</span>
