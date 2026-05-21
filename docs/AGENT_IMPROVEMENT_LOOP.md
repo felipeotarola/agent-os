@@ -5,7 +5,7 @@ Purpose: make Agent OS better at improving Cai/Charles/Sladdis without Felipe ha
 ## Current stance
 
 - Default-act on safe, reversible, observable improvements.
-- Stay away from Bank/Nordea work until Felipe explicitly reopens that track.
+- Bank/Nordea track is reopened only for the explicitly approved v0: read-only account overview, mock/sandbox-first, no transactions/payments/raw statements, no live credentials until Felipe approves.
 - Prefer agent/runtime leverage over cosmetic dashboard work.
 - Ask before secrets, paid APIs, OAuth/live external accounts, broad security changes, model/provider defaults, or external messages.
 

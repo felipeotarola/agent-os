@@ -50,13 +50,14 @@ The signature/digest handling is the main unknown and should be isolated in one 
 
 ## Product UX
 
-Add a new dashboard page:
+Avoid adding another top-level dashboard surface unless it proves necessary. V0 should live inside existing Agent OS surfaces:
 
-- Route: `/dashboard/bank-accounts`
-- Nav label: `Bank Accounts`
-- Badge: `read-only · Nordea`
+- Overview cockpit card: read-only Nordea account snapshot and connection state.
+- Settings/API keys: missing config and safe setup status.
+- Optional drill-down route only if the cockpit card becomes cramped; keep it hidden from primary nav by default.
+- Badge: `read-only · Nordea`.
 
-Page states:
+States:
 
 1. **Not configured** — missing client id/secret/signing config.
 2. **Not connected** — config exists, no valid user consent/token.
@@ -129,20 +130,21 @@ Add:
 - `src/app/api/nordea/callback/route.ts` — handles OAuth callback and token exchange.
 - `src/app/api/nordea/sync/route.ts` — manual sync.
 - `src/app/api/nordea/disconnect/route.ts` — revoke/delete connection.
-- `src/app/dashboard/bank-accounts/page.tsx` — read-only UI.
+- Existing overview/settings UI components for read-only connection state and account snapshot.
+- Optional `src/app/dashboard/bank-accounts/page.tsx` only if a hidden drill-down becomes necessary.
 - `docs/NORDEA_OPEN_BANKING_PLAN.md` — this plan.
 
 Update:
 
-- `src/config/nav-config.ts` — add Bank Accounts item, probably with `creditCard` icon.
+- Do not add a primary nav item for v0; link any optional drill-down from Overview/Settings only.
 
 ## Implementation phases
 
 ### Phase 1 — mock/skeleton, no bank credentials
 
 - Add types and normalized `BankAccountSnapshot` model.
-- Add UI page with mocked local fixture behind `NORDEA_MOCK=true`.
-- Add nav item.
+- Add overview/settings UI with mocked local fixture behind `NORDEA_MOCK=true`.
+- Do not add a primary nav item.
 - Add safe empty/error states.
 - Verification: `bun run lint` and page renders.
 
@@ -187,8 +189,8 @@ Update:
 
 ## Recommended next build ticket split
 
-1. `Nordea v0 UI skeleton with mock accounts`
+1. `Nordea v0 overview/settings skeleton with mock accounts`
 2. `Nordea client config + redacted request wrapper`
 3. `Nordea signing/digest implementation`
 4. `Nordea OAuth connect/callback/disconnect routes`
-5. `Nordea assets normalization and dashboard sync`
+5. `Nordea assets normalization and manual dashboard sync`
