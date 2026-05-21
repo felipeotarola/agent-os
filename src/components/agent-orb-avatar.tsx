@@ -52,15 +52,15 @@ export function AgentOrbAvatar({ name, icon: Icon, column }: AgentOrbAvatarProps
 
   return (
     <div
-      className='group/orb relative size-16 shrink-0'
+      className='group/orb agent-orb-idle relative size-16 shrink-0'
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
     >
-      <div className='absolute inset-0 rounded-full bg-primary/15 blur-md transition-opacity duration-300 group-hover/orb:opacity-80' />
-      <div className='absolute inset-[-7px] rounded-full border border-primary/20 border-r-primary/45 border-t-primary/35' />
+      <div className='absolute inset-0 animate-pulse rounded-full bg-primary/20 blur-md transition-opacity duration-300 group-hover/orb:opacity-80' />
+      <div className='agent-orb-ring absolute inset-[-7px] rounded-full border border-primary/20 border-r-primary/45 border-t-primary/35' />
       <div className='absolute inset-[-3px] rounded-full border border-primary/25 border-r-transparent border-t-transparent transition-transform duration-500 group-hover/orb:rotate-12' />
-      <span className='absolute -right-1 top-2 size-1.5 rounded-full bg-primary shadow-sm' />
-      <span className='absolute bottom-2 left-0 size-1 rounded-full bg-primary/70 shadow-sm' />
+      <span className='agent-orb-particle-a absolute -right-1 top-2 size-1.5 rounded-full bg-primary shadow-sm' />
+      <span className='agent-orb-particle-b absolute bottom-2 left-0 size-1 rounded-full bg-primary/70 shadow-sm' />
       <div
         role='img'
         aria-label={`${name} avatar`}
