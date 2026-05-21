@@ -144,10 +144,11 @@ function createGatewayRpcClient() {
   const pending = new Map();
 
   const reset = (error) => {
+    const currentWs = ws;
     connected = false;
     connectPromise = null;
-    if (ws && ws.readyState <= 1) ws.close();
     ws = null;
+    if (currentWs && currentWs.readyState <= 1) currentWs.close();
     for (const { reject, timer } of pending.values()) {
       clearTimeout(timer);
       reject(error ?? new Error('Gateway WebSocket closed'));
