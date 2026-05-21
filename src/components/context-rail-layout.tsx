@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { CONTEXT_RAIL_TOGGLE_EVENT } from '@/components/context-rail-header-trigger';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,7 @@ type ContextRailLayoutProps = {
 
 export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
   const [open, setOpen] = React.useState(true);
+  const [mobileSheetOpen, setMobileSheetOpen] = React.useState(false);
 
   React.useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -33,6 +35,18 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
     window.localStorage.setItem(STORAGE_KEY, String(next));
   }, []);
 
+  React.useEffect(() => {
+    const toggle = () => {
+      if (window.matchMedia('(min-width: 1280px)').matches) {
+        setPersistedOpen(!open);
+      } else {
+        setMobileSheetOpen(true);
+      }
+    };
+    window.addEventListener(CONTEXT_RAIL_TOGGLE_EVENT, toggle);
+    return () => window.removeEventListener(CONTEXT_RAIL_TOGGLE_EVENT, toggle);
+  }, [open, setPersistedOpen]);
+
   return (
     <section
       className={cn(
@@ -43,11 +57,10 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
       )}
       data-context-rail={open ? 'open' : 'closed'}
     >
-      <div className='mb-1 flex justify-end xl:hidden'>
-        <Sheet>
+      <div className='sr-only xl:hidden'>
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
           <SheetTrigger asChild>
-            <Button variant='outline' size='sm' className='rounded-full'>
-              <Icons.panelLeft className='mr-1.5 size-4 rotate-180' />
+            <Button variant='outline' size='sm'>
               Context
             </Button>
           </SheetTrigger>
@@ -84,26 +97,7 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
           />
 
           {open ? (
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between gap-2 rounded-2xl border bg-sidebar px-3 py-2 text-sidebar-foreground shadow-sm'>
-                <div className='flex min-w-0 items-center gap-2 text-sm font-medium'>
-                  <Icons.panelLeft className='size-4 rotate-180' />
-                  <span>Context</span>
-                </div>
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='icon'
-                  className='size-7'
-                  onClick={() => setPersistedOpen(false)}
-                  aria-pressed={open}
-                >
-                  <Icons.chevronsRight className='size-4' />
-                  <span className='sr-only'>Hide context</span>
-                </Button>
-              </div>
-              <div className='space-y-4'>{rail}</div>
-            </div>
+            <div className='space-y-4'>{rail}</div>
           ) : (
             <div className='flex min-h-[calc(100svh-6rem)] w-12 flex-col items-center gap-2 rounded-2xl border bg-sidebar p-2 text-sidebar-foreground shadow-sm'>
               <Button
