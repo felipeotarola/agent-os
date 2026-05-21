@@ -1,11 +1,11 @@
 import PageContainer from '@/components/layout/page-container';
+import { AgentOrbAvatar } from '@/components/agent-orb-avatar';
 import { ContextRailLayout } from '@/components/context-rail-layout';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import type { ComponentType } from 'react';
 
 export const metadata = {
   title: 'Agent OS: Mission Control'
@@ -537,32 +537,6 @@ function AgentHealth() {
   );
 }
 
-function AgentAvatar({
-  name,
-  icon: Icon,
-  position
-}: {
-  name: string;
-  icon: ComponentType<{ className?: string }>;
-  position: string;
-}) {
-  return (
-    <div className='relative size-16 shrink-0'>
-      <div className='absolute inset-0 animate-pulse rounded-full bg-primary/20 blur-md' />
-      <div
-        role='img'
-        aria-label={`${name} avatar`}
-        className='relative size-16 rounded-full border bg-card bg-[url("/assets/agent-avatars-sprite.png")] bg-[length:200%_200%] shadow-sm ring-2 ring-primary/20'
-        style={{ backgroundPosition: position }}
-      />
-      <div className='absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full border bg-background text-primary shadow-sm'>
-        <Icon className='size-3.5' />
-      </div>
-      <span className='absolute right-0 top-0 size-3 rounded-full border-2 border-background bg-primary' />
-    </div>
-  );
-}
-
 function AgentsPanel() {
   return (
     <Card className='bg-card/80 shadow-sm'>
@@ -586,7 +560,7 @@ function AgentsPanel() {
             >
               <div className='pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary/10 opacity-0 transition group-hover:opacity-100' />
               <div className='mb-4 flex items-start justify-between gap-3'>
-                <AgentAvatar name={agent.name} icon={Icon} position={agent.avatarPosition} />
+                <AgentOrbAvatar name={agent.name} icon={Icon} position={agent.avatarPosition} />
                 <Badge variant='outline' className='text-[10px]'>
                   {agent.status}
                 </Badge>
