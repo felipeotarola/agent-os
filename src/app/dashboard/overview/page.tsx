@@ -671,6 +671,51 @@ export default async function OverviewPage() {
               <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
                 <div className='mb-3 flex items-center justify-between gap-3'>
                   <div>
+                    <div className='font-semibold text-foreground'>Action</div>
+                    <div className='text-xs text-muted-foreground'>Quick routes.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    LIVE
+                  </Badge>
+                </div>
+                <div className='space-y-2'>
+                  <BuildActivityResumeItem initial={buildActivity} />
+                  {resumeItems.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                    >
+                      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
+                        {item.icon}
+                      </span>
+                      <span className='min-w-0 flex-1'>
+                        <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
+                          {item.label}
+                        </span>
+                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
+                          {item.value}
+                        </span>
+                      </span>
+                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                        →
+                      </span>
+                    </Link>
+                  ))}
+                  <div className='grid grid-cols-2 gap-2 pt-1'>
+                    <Button asChild variant='outline' size='sm' className='rounded-full'>
+                      <Link href='/dashboard/kanban'>Add task</Link>
+                    </Button>
+                    <Button asChild variant='outline' size='sm' className='rounded-full'>
+                      <Link href='/dashboard/chat'>Ask Cai</Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
                     <div className='font-semibold text-foreground'>Cai Briefing</div>
                     <div className='text-xs text-muted-foreground'>Digest first.</div>
                   </div>
@@ -792,51 +837,6 @@ export default async function OverviewPage() {
                         ? `${buildActivity.activeCount} build running`
                         : 'Build idle'}
                     </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Action</div>
-                    <div className='text-xs text-muted-foreground'>Quick routes.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    LIVE
-                  </Badge>
-                </div>
-                <div className='space-y-2'>
-                  <BuildActivityResumeItem initial={buildActivity} />
-                  {resumeItems.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                    >
-                      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
-                        {item.icon}
-                      </span>
-                      <span className='min-w-0 flex-1'>
-                        <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
-                          {item.label}
-                        </span>
-                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
-                          {item.value}
-                        </span>
-                      </span>
-                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                        →
-                      </span>
-                    </Link>
-                  ))}
-                  <div className='grid grid-cols-2 gap-2 pt-1'>
-                    <Button asChild variant='outline' size='sm' className='rounded-full'>
-                      <Link href='/dashboard/kanban'>Add task</Link>
-                    </Button>
-                    <Button asChild variant='outline' size='sm' className='rounded-full'>
-                      <Link href='/dashboard/chat'>Ask Cai</Link>
-                    </Button>
                   </div>
                 </div>
               </div>
