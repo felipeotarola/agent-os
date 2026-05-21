@@ -1,0 +1,18 @@
+[     158ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[     209ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[     383ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[     384ms] [LOG] [Fast Refresh] done in 104ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  112023ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  112164ms] [LOG] [Fast Refresh] done in 222ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  131276ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  131342ms] [LOG] [Fast Refresh] done in 139ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  151708ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  151835ms] [LOG] [Fast Refresh] done in 204ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  319745ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  319853ms] [LOG] [Fast Refresh] done in 211ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  801538ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  801600ms] [LOG] [Fast Refresh] done in 169ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  810042ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  810105ms] [LOG] [Fast Refresh] done in 163ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  822478ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
+[  822655ms] [LOG] [Fast Refresh] done in 261ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_038ce8_._.js:1073
