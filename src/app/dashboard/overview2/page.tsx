@@ -67,6 +67,15 @@ const missionSignals = [
   'Mapping spec v0.3 approved'
 ];
 
+const progressHistory = [
+  { label: '09:00', value: 8 },
+  { label: '11:00', value: 16 },
+  { label: '13:00', value: 25 },
+  { label: '15:00', value: 31 },
+  { label: '17:00', value: 38 },
+  { label: 'Now', value: 42 }
+];
+
 const agents = [
   {
     name: 'Conductor',
@@ -418,21 +427,7 @@ function ActiveMission() {
               ))}
             </div>
 
-            <div className='rounded-xl border bg-card/60 p-3'>
-              <div className='text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
-                Progress over time
-              </div>
-              <div className='mt-3 flex h-24 items-end gap-2 border-b border-l px-1'>
-                {[8, 18, 26, 34, 42, 48, 58, 62, 72, 84].map((height, index) => (
-                  <div key={`${height}-${index}`} className='flex flex-1 items-end'>
-                    <div
-                      className='w-full rounded-t bg-primary/70'
-                      style={{ height: `${height}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ProgressOverTimeChart />
           </div>
         </div>
 
@@ -450,6 +445,70 @@ function ActiveMission() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ProgressOverTimeChart() {
+  const points = progressHistory
+    .map((point, index) => {
+      const x = 12 + index * 34;
+      const y = 98 - point.value;
+      return `${x},${y}`;
+    })
+    .join(' ');
+  const areaPoints = `12,106 ${points} 182,106`;
+  const latest = progressHistory.at(-1);
+
+  return (
+    <div className='rounded-xl border bg-card/60 p-3'>
+      <div className='flex items-center justify-between gap-3'>
+        <div className='text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
+          Progress over time
+        </div>
+        <div className='text-xs font-semibold text-primary'>{latest?.value}%</div>
+      </div>
+      <svg
+        role='img'
+        aria-label='Mission progress over time'
+        viewBox='0 0 194 118'
+        className='mt-2 h-28 w-full overflow-visible'
+      >
+        <g className='text-border' stroke='currentColor' strokeWidth='1'>
+          <line x1='12' x2='182' y1='26' y2='26' opacity='0.45' />
+          <line x1='12' x2='182' y1='66' y2='66' opacity='0.45' />
+          <line x1='12' x2='182' y1='106' y2='106' />
+          <line x1='12' x2='12' y1='18' y2='106' />
+        </g>
+        <polygon points={areaPoints} className='fill-primary opacity-15' />
+        <polyline
+          points={points}
+          fill='none'
+          className='stroke-primary'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+          strokeWidth='3'
+        />
+        {progressHistory.map((point, index) => {
+          const x = 12 + index * 34;
+          const y = 98 - point.value;
+
+          return (
+            <g key={point.label}>
+              <circle
+                cx={x}
+                cy={y}
+                r='4'
+                className='fill-background stroke-primary'
+                strokeWidth='2'
+              />
+              <text x={x} y='116' textAnchor='middle' className='fill-muted-foreground text-[9px]'>
+                {point.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
