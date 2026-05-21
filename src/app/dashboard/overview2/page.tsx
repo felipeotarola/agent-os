@@ -1,160 +1,133 @@
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 
 export const metadata = {
   title: 'Agent OS: Overview 2 Concept'
 };
 
-const commandActions = [
-  {
-    label: 'Start mission',
-    detail: 'Turn a goal into a scoped agent run',
-    icon: '↗',
-    primary: true
-  },
-  { label: 'Approve plan', detail: 'Review the proposed steps before execution', icon: '✓' },
-  { label: 'Delegate', detail: 'Assign work to Cai, Charles, or a worker', icon: '→' },
-  { label: 'Ask Cai', detail: 'Interrupt the loop with a direct question', icon: '⚛' }
+const navItems = [
+  'Mission Control',
+  'Inbox Radar',
+  'Action Center',
+  'Tasks',
+  'Knowledge Inbox',
+  'Wiki',
+  'Memory',
+  'Journal',
+  'Chat',
+  'Mail Radar',
+  'Notifications',
+  'Runway',
+  'GitLab',
+  'Vercel',
+  'Supabase',
+  'Assistant',
+  'Agents',
+  'Topology',
+  'Architecture',
+  'Settings'
 ];
 
-const missionFacts = [
-  { label: 'Owner', value: 'Felipe', meta: 'human decision-maker' },
-  { label: 'Mode', value: 'Mocked', meta: 'safe concept route' },
-  { label: 'ETA', value: 'Today', meta: 'prototype pass' },
-  { label: 'Risk', value: 'Low', meta: 'no real actions' }
-];
+const quickActions = [
+  { label: 'Start mission', icon: '↗', variant: 'default' },
+  { label: 'Approve plan', icon: '✓', variant: 'secondary' },
+  { label: 'Delegate', icon: '→', variant: 'secondary' },
+  { label: 'Ask Cai', icon: '⚛', variant: 'outline' }
+] as const;
 
-const missionSteps = [
-  { label: 'Understand screenshot', state: 'done', detail: 'Extract layout + information model' },
+const planSteps = [
   {
-    label: 'Match full surface',
-    state: 'active',
-    detail: 'Header, actions, agents, mission, feed'
+    title: 'Build integration shell',
+    detail: 'Nordea auth, consent, callback route',
+    state: 'ready'
   },
   {
-    label: 'Reverse-engineer later',
-    state: 'queued',
-    detail: 'Replace mock arrays with real Agent OS data'
+    title: 'Add transaction sync',
+    detail: 'Normalize account + transaction payloads',
+    state: 'next'
   },
   {
-    label: 'Promote if useful',
-    state: 'queued',
-    detail: 'Move best parts into production overview'
+    title: 'Extend onboarding copy',
+    detail: 'Explain bank connection and consent scope',
+    state: 'copy'
+  },
+  {
+    title: 'QA, docs, rollout',
+    detail: 'Smoke tests, edge cases, deployment notes',
+    state: 'queued'
   }
+];
+
+const evidence = [
+  { label: 'Expected speedup', value: '~45%', detail: 'agent-ready plan' },
+  { label: 'Confidence', value: '85%', detail: 'enough context' },
+  { label: 'ETA', value: 'Today', detail: 'first working pass' }
 ];
 
 const agents = [
-  {
-    name: 'Cai',
-    role: 'Cockpit operator',
-    emoji: '⚛️',
-    status: 'online',
-    task: 'Coordinating mission surface',
-    load: 'low'
-  },
-  {
-    name: 'Charles',
-    role: 'Product/research',
-    emoji: '🧭',
-    status: 'ready',
-    task: 'Can review product intent',
-    load: 'low'
-  },
-  {
-    name: 'Coding worker',
-    role: 'Implementation',
-    emoji: '🛠️',
-    status: 'standby',
-    task: 'Ready for scoped code tasks',
-    load: 'idle'
-  },
-  {
-    name: 'Radar',
-    role: 'Signal intake',
-    emoji: '📡',
-    status: 'watching',
-    task: 'Monitoring useful signals',
-    load: 'med'
-  }
+  { name: 'Conductor', role: 'Mission orchestration', status: 'Online', load: '42%', icon: '⚛️' },
+  { name: 'Charles', role: 'Product + research', status: 'Ready', load: '18%', icon: '🧭' },
+  { name: 'Sladdis', role: 'Local ops assistant', status: 'Idle', load: '8%', icon: '🧰' },
+  { name: 'Worker Pool', role: 'Coding execution', status: 'Standby', load: '31%', icon: '🛠️' }
 ];
 
 const feed = [
+  { actor: 'Cai', text: 'Drafted mission plan for Open Banking integration.', time: '2m ago' },
   {
-    agent: 'Felipe',
-    event: 'Updated goal: match the whole reference, all data.',
-    time: 'now',
-    type: 'goal'
+    actor: 'Worker Pool',
+    text: 'Found existing onboarding surface and API boundaries.',
+    time: '8m ago'
   },
-  {
-    agent: 'Cai',
-    event: 'Building overview2 as a full mocked mission-control concept.',
-    time: '1m',
-    type: 'design'
-  },
-  {
-    agent: 'Worker',
-    event: 'Ready to wire mission data to real backend once direction lands.',
-    time: 'later',
-    type: 'code'
-  },
-  {
-    agent: 'System',
-    event: 'Production overview remains untouched while concept evolves.',
-    time: 'safe',
-    type: 'guardrail'
-  }
+  { actor: 'Charles', text: 'Flagged consent-copy as the highest trust risk.', time: '13m ago' },
+  { actor: 'System', text: 'No production action will run without Felipe approval.', time: 'safe' }
 ];
 
-const approvals = [
-  {
-    title: 'Approve mission plan',
-    detail: 'Let agents execute the proposed steps.',
-    priority: 'high'
-  },
-  {
-    title: 'Create new agent',
-    detail: 'Add specialist via guided creation flow.',
-    priority: 'mock'
-  },
-  {
-    title: 'Promote design',
-    detail: 'Move chosen panels into /dashboard/overview.',
-    priority: 'later'
-  }
+const memoryItems = [
+  'Felipe prefers direct, concise execution notes.',
+  'Use mocked UI here; keep production overview untouched.',
+  'Nordea banking work needs clear consent language.'
 ];
 
-const signals = [
-  { label: 'Active agents', value: '4', meta: 'mock roster' },
-  { label: 'Pending approvals', value: '3', meta: 'needs human call' },
-  { label: 'Live feed', value: '4', meta: 'recent events' },
-  { label: 'Mission progress', value: '42%', meta: 'concept stage' }
+const contextBlocks = [
+  { title: 'Weather', value: '+16°C', detail: 'Upplands Väsby · light cloud' },
+  { title: 'Calendar', value: '2 events', detail: 'Next: focus block at 14:00' },
+  { title: 'Briefing', value: '3 notes', detail: 'Banking, agents, dashboard polish' },
+  { title: 'Markets', value: 'Calm', detail: 'No urgent signal detected' },
+  { title: 'News signals', value: '5', detail: 'Open banking + AI infra' },
+  { title: 'Status checks', value: 'Healthy', detail: 'GitLab, Vercel, Supabase online' }
 ];
 
-const artifacts = [
-  { label: 'Mission brief', href: '/dashboard/overview2' },
-  { label: 'Current overview', href: '/dashboard/overview' },
-  { label: 'Agent roster', href: '/dashboard/agents' },
-  { label: 'Chat with Cai', href: '/dashboard/chat' }
-];
-
-function StatusPill({ state }: { state: string }) {
-  const active = ['online', 'ready', 'watching', 'active', 'done'].includes(state);
+function Dot({ active = false }: { active?: boolean }) {
   return (
-    <span className='inline-flex items-center gap-1.5 rounded-full border bg-background/45 px-2 py-1 text-[11px] text-muted-foreground'>
-      <span className={`size-1.5 rounded-full ${active ? 'bg-primary' : 'bg-muted-foreground'}`} />
-      {state}
-    </span>
+    <span className={`size-2 rounded-full ${active ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
   );
 }
 
-function MiniPanel({ label, value, meta }: { label: string; value: string; meta: string }) {
+function SmallMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className='rounded-2xl border bg-background/45 p-3'>
-      <div className='text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>{label}</div>
-      <div className='mt-1 text-xl font-semibold'>{value}</div>
-      <div className='mt-1 text-xs text-muted-foreground'>{meta}</div>
+    <div className='rounded-2xl border bg-background/55 p-3'>
+      <div className='text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+        {label}
+      </div>
+      <div className='mt-1 text-2xl font-semibold tracking-tight'>{value}</div>
+      <div className='mt-1 text-xs text-muted-foreground'>{detail}</div>
+    </div>
+  );
+}
+
+function PanelTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
+  return (
+    <div>
+      {eyebrow ? (
+        <div className='text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground'>
+          {eyebrow}
+        </div>
+      ) : null}
+      <h2 className='mt-1 text-lg font-semibold tracking-tight'>{title}</h2>
     </div>
   );
 }
@@ -162,267 +135,329 @@ function MiniPanel({ label, value, meta }: { label: string; value: string; meta:
 export default function Overview2Page() {
   return (
     <PageContainer>
-      <div className='relative min-h-[calc(100vh-6rem)] overflow-hidden rounded-[2rem] border bg-background p-3 text-foreground shadow-sm md:p-5'>
-        <div className='pointer-events-none absolute inset-0'>
-          <div className='absolute -left-24 top-0 h-80 w-80 rounded-full bg-primary/20 blur-3xl' />
-          <div className='absolute right-[-10%] top-12 h-96 w-96 rounded-full bg-primary/25 blur-3xl' />
-          <div className='absolute bottom-[-15%] left-1/3 h-96 w-96 rounded-full bg-primary/10 blur-3xl' />
-          <div className='absolute inset-0 bg-primary/5' />
-        </div>
+      <div className='relative min-h-[calc(100vh-6rem)] overflow-x-hidden overflow-y-visible rounded-[2rem] border bg-background text-foreground shadow-sm [touch-action:pan-y]'>
+        <div className='pointer-events-none absolute inset-0 bg-primary/[0.03]' />
+        <div className='pointer-events-none absolute -left-40 top-0 size-96 rounded-full bg-primary/15 blur-3xl' />
+        <div className='pointer-events-none absolute right-0 top-10 size-96 rounded-full bg-primary/10 blur-3xl' />
 
-        <div className='relative grid gap-3 2xl:grid-cols-[260px_minmax(0,1fr)_360px]'>
-          <aside className='hidden space-y-3 2xl:block'>
-            <Card className='border-primary/15 bg-card/70 shadow-sm backdrop-blur'>
-              <CardHeader>
-                <CardTitle className='text-lg'>Mission OS</CardTitle>
-                <CardDescription>Mocked navigation</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-2 text-sm'>
-                {['Mission', 'Agents', 'Approvals', 'Live feed', 'Artifacts'].map((item, index) => (
-                  <div
+        <div className='relative grid gap-0 xl:grid-cols-[236px_minmax(0,1fr)_322px]'>
+          <aside className='hidden border-r bg-card/55 p-4 xl:block'>
+            <div className='mb-6 flex items-center gap-3 rounded-2xl border bg-background/55 p-3'>
+              <div className='flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground'>
+                ⚛
+              </div>
+              <div>
+                <div className='text-sm font-semibold'>Cai OS</div>
+                <div className='text-xs text-muted-foreground'>Agent cockpit</div>
+              </div>
+            </div>
+
+            <nav className='space-y-1.5'>
+              {navItems.map((item) => {
+                const active = item === 'Mission Control';
+                return (
+                  <Link
                     key={item}
-                    className={`rounded-2xl border p-3 ${
-                      index === 0
-                        ? 'border-primary/35 bg-primary/10 text-primary'
-                        : 'bg-background/45'
+                    href='/dashboard/overview2'
+                    className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition ${
+                      active
+                        ? 'border-primary/35 bg-primary/12 text-primary shadow-sm'
+                        : 'border-transparent text-muted-foreground hover:border-border hover:bg-background/45 hover:text-foreground'
                     }`}
                   >
-                    {item}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className='border-primary/15 bg-card/70 shadow-sm backdrop-blur'>
-              <CardHeader>
-                <CardTitle className='text-lg'>Artifacts</CardTitle>
-              </CardHeader>
-              <CardContent className='space-y-2'>
-                {artifacts.map((artifact) => (
-                  <Link
-                    key={artifact.label}
-                    href={artifact.href}
-                    className='flex items-center justify-between rounded-2xl border bg-background/45 p-3 text-sm transition hover:border-primary/40 hover:bg-primary/10'
-                  >
-                    {artifact.label}
-                    <span className='text-muted-foreground'>→</span>
+                    <span>{item}</span>
+                    {active ? <Dot active /> : null}
                   </Link>
-                ))}
-              </CardContent>
-            </Card>
+                );
+              })}
+            </nav>
           </aside>
 
-          <main className='space-y-3'>
-            <section className='relative overflow-hidden rounded-[1.75rem] border bg-card/75 p-4 shadow-sm backdrop-blur md:p-6'>
-              <div className='pointer-events-none absolute inset-x-0 top-0 h-52 bg-primary/10 blur-2xl' />
-              <div className='relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]'>
-                <div className='space-y-5'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <Badge
-                      variant='outline'
-                      className='border-primary/40 bg-primary/10 text-primary'
-                    >
-                      Active mission
-                    </Badge>
-                    <Badge variant='outline' className='border-border bg-background/45'>
-                      full mock · no real execution
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <h1 className='max-w-4xl text-3xl font-semibold tracking-tight md:text-5xl'>
-                      Match the reference cockpit with all mission data.
-                    </h1>
-                    <p className='mt-3 max-w-3xl text-sm leading-6 text-muted-foreground md:text-base'>
-                      This page is the playground for the complete agent-control surface: mission
-                      intent, why it matters, action buttons, approvals, roster, live feed,
-                      artifacts, and compact operational signals.
-                    </p>
-                  </div>
-
-                  <div className='grid gap-2 sm:grid-cols-2 xl:grid-cols-4'>
-                    {commandActions.map((action) => (
-                      <button
-                        key={action.label}
-                        className={`group rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/45 hover:bg-primary/10 ${
-                          action.primary ? 'border-primary/35 bg-primary/15' : 'bg-background/45'
-                        }`}
-                      >
-                        <div className='flex items-center justify-between gap-3'>
-                          <span className='text-sm font-semibold'>{action.label}</span>
-                          <span className='flex size-7 items-center justify-center rounded-xl border bg-card/60 text-primary transition group-hover:scale-105'>
-                            {action.icon}
-                          </span>
-                        </div>
-                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                          {action.detail}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+          <main className='space-y-4 p-4 lg:p-5'>
+            <header className='flex flex-col gap-3 rounded-3xl border bg-card/70 p-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between'>
+              <div>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge variant='outline' className='border-primary/35 bg-primary/10 text-primary'>
+                    Live
+                  </Badge>
+                  <span className='text-xs text-muted-foreground'>
+                    Felipe, Cai is running your mission.
+                  </span>
                 </div>
-
-                <div className='flex flex-col justify-between rounded-3xl border bg-background/45 p-4'>
-                  <div>
-                    <div className='text-xs uppercase tracking-[0.2em] text-muted-foreground'>
-                      Why it matters
-                    </div>
-                    <h2 className='mt-2 text-xl font-semibold'>
-                      It turns the dashboard into a command loop.
-                    </h2>
-                    <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-                      The old overview shows status. This concept should answer: what are we trying
-                      to do, who is working, what needs approval, and what happened most recently?
-                    </p>
-                  </div>
-                  <div className='mt-5 grid grid-cols-2 gap-2'>
-                    {missionFacts.map((fact) => (
-                      <MiniPanel key={fact.label} {...fact} />
-                    ))}
-                  </div>
-                </div>
+                <h1 className='mt-2 text-3xl font-semibold tracking-tight md:text-4xl'>
+                  Cai Command Center
+                </h1>
               </div>
-            </section>
+              <div className='flex items-center gap-2 rounded-2xl border bg-background/55 p-2 text-sm text-muted-foreground'>
+                <span className='hidden md:inline'>Search missions, agents, memory</span>
+                <span className='rounded-xl border bg-card px-3 py-1'>⌘K</span>
+              </div>
+            </header>
 
-            <section className='grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]'>
-              <Card className='relative overflow-hidden border-primary/20 bg-card/75 shadow-sm backdrop-blur'>
-                <div className='pointer-events-none absolute inset-x-0 top-0 h-40 bg-primary/10 blur-2xl' />
-                <CardHeader className='relative'>
-                  <div className='flex items-start justify-between gap-3'>
+            <section className='grid gap-4 2xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]'>
+              <Card className='overflow-hidden border-primary/20 bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader className='pb-3'>
+                  <div className='flex flex-wrap items-start justify-between gap-3'>
                     <div>
-                      <CardTitle className='text-2xl'>Current mission plan</CardTitle>
-                      <CardDescription>
-                        Mocked planner block matching the reference density.
+                      <Badge
+                        variant='outline'
+                        className='mb-3 border-primary/35 bg-primary/10 text-primary'
+                      >
+                        Recommended next mission
+                      </Badge>
+                      <CardTitle className='max-w-2xl text-2xl md:text-3xl'>
+                        Build minimal Nordea Open Banking integration
+                      </CardTitle>
+                      <CardDescription className='mt-2 max-w-2xl text-sm leading-6'>
+                        Cai found a compact path: authenticate, sync transactions, explain consent,
+                        then ship a guarded first pass with mocked fallbacks.
                       </CardDescription>
                     </div>
-                    <Badge className='bg-primary text-primary-foreground'>active</Badge>
+                    <Badge className='bg-primary text-primary-foreground'>85% confidence</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className='relative space-y-4'>
-                  <div className='rounded-3xl border bg-background/45 p-4'>
-                    <div className='text-xs uppercase tracking-[0.2em] text-muted-foreground'>
-                      Goal
-                    </div>
-                    <h2 className='mt-2 text-2xl font-semibold'>
-                      Make Overview 2 feel like the screenshot.
-                    </h2>
+                <CardContent className='space-y-4'>
+                  <div className='grid gap-2 sm:grid-cols-2 xl:grid-cols-4'>
+                    {quickActions.map((action) => (
+                      <Button
+                        key={action.label}
+                        variant={action.variant}
+                        className='h-auto justify-between rounded-2xl px-4 py-3 text-left'
+                      >
+                        <span>{action.label}</span>
+                        <span>{action.icon}</span>
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className='grid gap-3 md:grid-cols-3'>
+                    {evidence.map((item) => (
+                      <SmallMetric key={item.label} {...item} />
+                    ))}
+                  </div>
+
+                  <div className='rounded-3xl border bg-background/55 p-4'>
+                    <PanelTitle
+                      eyebrow='Why it matters'
+                      title='This converts the dashboard into a command loop.'
+                    />
                     <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-                      Use mocked data now: mission actions, approvals, active agents, live feed, and
-                      side context. Later we reverse-engineer it into real Agent OS mission state.
+                      The cockpit should show the best next move, the plan Cai proposes, who can do
+                      the work, and what Felipe must approve before anything real happens.
                     </p>
-                  </div>
-
-                  <div className='grid gap-3 md:grid-cols-4'>
-                    {missionSteps.map((step, index) => (
-                      <div key={step.label} className='rounded-2xl border bg-background/45 p-3'>
-                        <div className='mb-3 flex items-center justify-between gap-2'>
-                          <span className='flex size-7 items-center justify-center rounded-xl border bg-muted/40 text-xs font-semibold'>
-                            {index + 1}
-                          </span>
-                          <StatusPill state={step.state} />
-                        </div>
-                        <div className='text-sm font-medium'>{step.label}</div>
-                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                          {step.detail}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className='grid gap-2 md:grid-cols-3'>
-                    {approvals.map((approval) => (
-                      <div key={approval.title} className='rounded-2xl border bg-background/45 p-3'>
-                        <div className='flex items-center justify-between gap-2'>
-                          <div className='line-clamp-1 text-sm font-medium'>{approval.title}</div>
-                          <Badge variant='outline' className='text-[10px]'>
-                            {approval.priority}
-                          </Badge>
-                        </div>
-                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                          {approval.detail}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className='border-primary/15 bg-card/75 shadow-sm backdrop-blur'>
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
                 <CardHeader>
-                  <CardTitle>Agent roster</CardTitle>
-                  <CardDescription>Mocked availability and current assignments.</CardDescription>
+                  <PanelTitle eyebrow='Cai’s plan' title='Minimal path to a shippable pass' />
                 </CardHeader>
                 <CardContent className='space-y-3'>
-                  {agents.map((agent) => (
+                  {planSteps.map((step, index) => (
                     <div
-                      key={agent.name}
-                      className='flex items-center gap-3 rounded-2xl border bg-background/45 p-3'
+                      key={step.title}
+                      className='flex gap-3 rounded-2xl border bg-background/55 p-3'
                     >
-                      <div className='flex size-11 shrink-0 items-center justify-center rounded-2xl border bg-primary/10 text-xl'>
-                        {agent.emoji}
+                      <div className='flex size-8 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-xs font-semibold'>
+                        {index + 1}
                       </div>
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center justify-between gap-2'>
-                          <div className='truncate font-medium'>{agent.name}</div>
-                          <StatusPill state={agent.status} />
+                          <div className='truncate text-sm font-medium'>{step.title}</div>
+                          <Badge variant='outline' className='text-[10px]'>
+                            {step.state}
+                          </Badge>
                         </div>
-                        <div className='mt-1 text-xs text-muted-foreground'>
-                          {agent.role} · load {agent.load}
-                        </div>
-                        <div className='mt-1 line-clamp-1 text-xs text-muted-foreground'>
-                          {agent.task}
-                        </div>
+                        <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                          {step.detail}
+                        </p>
                       </div>
                     </div>
                   ))}
-                  <button className='flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/10 p-4 text-sm font-medium text-primary transition hover:bg-primary/15'>
-                    <span className='text-lg'>+</span> Add agent
-                  </button>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className='grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(330px,0.75fr)]'>
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <div className='flex items-start justify-between gap-3'>
+                    <PanelTitle eyebrow='Active mission' title='Nordea integration sprint' />
+                    <Badge
+                      variant='outline'
+                      className='border-primary/35 bg-primary/10 text-primary'
+                    >
+                      42%
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Progress, evidence, and the signals behind Cai’s recommendation.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <Progress value={42} className='h-3' />
+                  <div className='grid gap-3 md:grid-cols-[1fr_220px]'>
+                    <div className='space-y-2 rounded-3xl border bg-background/55 p-4'>
+                      {[
+                        'OAuth path identified',
+                        'Transaction schema mapped',
+                        'Consent copy needs approval'
+                      ].map((item, index) => (
+                        <div key={item} className='flex items-center gap-2 text-sm'>
+                          <Dot active={index < 2} />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className='rounded-3xl border bg-background/55 p-4'>
+                      <div className='mb-3 text-xs uppercase tracking-[0.18em] text-muted-foreground'>
+                        Progress graph
+                      </div>
+                      <div className='flex h-24 items-end gap-2'>
+                        {[28, 42, 36, 58, 51, 72, 66].map((height, index) => (
+                          <div key={`${height}-${index}`} className='flex flex-1 items-end'>
+                            <div
+                              className='w-full rounded-t-lg bg-primary/30'
+                              style={{ height: `${height}%` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Live agent feed' title='Recent activity' />
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {feed.map((item) => (
+                    <div
+                      key={`${item.actor}-${item.time}`}
+                      className='rounded-2xl border bg-background/55 p-3'
+                    >
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='font-medium'>{item.actor}</div>
+                        <span className='text-[11px] text-muted-foreground'>{item.time}</span>
+                      </div>
+                      <p className='mt-1 text-sm leading-5 text-muted-foreground'>{item.text}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className='grid gap-4 2xl:grid-cols-[minmax(0,1fr)_280px]'>
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Your agents' title='Available operators' />
+                </CardHeader>
+                <CardContent className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                  {agents.map((agent) => (
+                    <div key={agent.name} className='rounded-3xl border bg-background/55 p-4'>
+                      <div className='mb-4 flex items-center justify-between gap-3'>
+                        <div className='flex size-11 items-center justify-center rounded-2xl border bg-primary/10 text-xl'>
+                          {agent.icon}
+                        </div>
+                        <Badge variant='outline' className='text-[10px]'>
+                          {agent.status}
+                        </Badge>
+                      </div>
+                      <div className='font-semibold'>{agent.name}</div>
+                      <div className='mt-1 text-xs text-muted-foreground'>{agent.role}</div>
+                      <div className='mt-3 flex items-center justify-between text-xs text-muted-foreground'>
+                        <span>Load</span>
+                        <span>{agent.load}</span>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Agent Health' title='98% healthy' />
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {['Gateway online', 'Workers reachable', 'Memory indexed'].map((item) => (
+                    <div
+                      key={item}
+                      className='flex items-center justify-between rounded-2xl border bg-background/55 p-3 text-sm'
+                    >
+                      <span>{item}</span>
+                      <Dot active />
+                    </div>
+                  ))}
+                  <Button variant='outline' className='w-full rounded-2xl border-dashed'>
+                    + Add agent
+                  </Button>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className='grid gap-4 2xl:grid-cols-2'>
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Memory & Knowledge' title='Relevant context Cai is using' />
+                </CardHeader>
+                <CardContent className='space-y-2'>
+                  {memoryItems.map((item) => (
+                    <div
+                      key={item}
+                      className='rounded-2xl border bg-background/55 p-3 text-sm text-muted-foreground'
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className='bg-card/75 shadow-sm backdrop-blur'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Runway' title='Execution budget' />
+                </CardHeader>
+                <CardContent className='grid gap-3 sm:grid-cols-2'>
+                  <SmallMetric label='Tasks completed' value='18/40' detail='current mission' />
+                  <SmallMetric label='Compute used' value='62%' detail='normal range' />
+                  <SmallMetric label='Budget burn' value='$18.40/$50' detail='mock cap' />
+                  <SmallMetric label='Resets in' value='2d 5h' detail='next allowance' />
                 </CardContent>
               </Card>
             </section>
           </main>
 
-          <aside className='space-y-3'>
-            <Card className='border-primary/15 bg-card/75 shadow-sm backdrop-blur'>
-              <CardHeader>
-                <CardTitle>Live agent feed</CardTitle>
-                <CardDescription>Everything important that just happened.</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-3'>
-                {feed.map((item) => (
-                  <div
-                    key={`${item.agent}-${item.time}`}
-                    className='rounded-2xl border bg-background/45 p-3'
-                  >
-                    <div className='flex items-start justify-between gap-3'>
-                      <div>
-                        <div className='font-medium'>{item.agent}</div>
-                        <div className='mt-1 text-sm leading-5 text-muted-foreground'>
-                          {item.event}
+          <aside className='border-t bg-card/55 p-4 xl:border-l xl:border-t-0'>
+            <div className='sticky top-4 space-y-4'>
+              <Card className='bg-background/55 shadow-sm'>
+                <CardHeader>
+                  <PanelTitle eyebrow='Live Context' title='What Cai sees now' />
+                  <CardDescription>
+                    Mocked ambient context from the reference layout.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {contextBlocks.map((block) => (
+                    <div key={block.title} className='rounded-2xl border bg-card/60 p-3'>
+                      <div className='flex items-start justify-between gap-3'>
+                        <div>
+                          <div className='text-xs uppercase tracking-[0.16em] text-muted-foreground'>
+                            {block.title}
+                          </div>
+                          <div className='mt-1 font-semibold'>{block.value}</div>
                         </div>
+                        <Dot active={block.value !== 'Calm'} />
                       </div>
-                      <Badge variant='outline' className='shrink-0 text-[10px]'>
-                        {item.type}
-                      </Badge>
+                      <div className='mt-2 text-xs leading-5 text-muted-foreground'>
+                        {block.detail}
+                      </div>
                     </div>
-                    <div className='mt-2 text-[11px] text-muted-foreground'>{item.time}</div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className='border-primary/15 bg-card/75 shadow-sm backdrop-blur'>
-              <CardHeader>
-                <CardTitle>Signals</CardTitle>
-                <CardDescription>Compact mission telemetry.</CardDescription>
-              </CardHeader>
-              <CardContent className='grid grid-cols-2 gap-2'>
-                {signals.map((signal) => (
-                  <MiniPanel key={signal.label} {...signal} />
-                ))}
-              </CardContent>
-            </Card>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </aside>
         </div>
       </div>
