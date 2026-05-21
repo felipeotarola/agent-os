@@ -76,7 +76,7 @@ export function ContextRailLayout({ children, rail }: ContextRailLayoutProps) {
 
       {children}
 
-      <aside className='hidden min-w-0 xl:sticky xl:top-20 xl:block xl:self-start'>
+      <aside className='hidden min-w-0 xl:sticky xl:top-16 xl:block xl:self-start'>
         <div
           className={cn(
             'relative min-h-0 transition-all duration-300 ease-linear',
