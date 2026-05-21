@@ -1,7 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   BuildActivityResumeItem,
@@ -256,6 +255,29 @@ function stockholmDayKey(value: Date) {
   }).format(value);
 }
 
+function calendarMonthLabel(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    month: 'long',
+    year: 'numeric'
+  }).format(value);
+}
+
+function buildCalendarMonth(value: Date) {
+  const year = value.getFullYear();
+  const month = value.getMonth();
+  const first = new Date(year, month, 1, 12);
+  const daysInMonth = new Date(year, month + 1, 0, 12).getDate();
+  const leadingDays = (first.getDay() + 6) % 7;
+  const totalCells = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
+
+  return Array.from({ length: totalCells }, (_, index) => {
+    const day = index - leadingDays + 1;
+    if (day < 1 || day > daysInMonth) return null;
+    return new Date(year, month, day, 12);
+  });
+}
+
 function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }) {
   const now = new Date();
   const upcoming = calendar.events
@@ -267,121 +289,148 @@ function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }
   const todayEvents = calendar.events.filter((event) =>
     sameStockholmDay(new Date(event.start), now)
   );
-  const eventDates = Array.from(
-    new Map(
-      calendar.events
-        .map((event) => new Date(event.start))
-        .filter((date) => Number.isFinite(date.getTime()))
-        .map((date) => [stockholmDayKey(date), date])
-    ).values()
-  );
+  const eventsByDay = calendar.events.reduce<Record<string, number>>((days, event) => {
+    const date = new Date(event.start);
+    if (!Number.isFinite(date.getTime())) return days;
+    const key = stockholmDayKey(date);
+    days[key] = (days[key] ?? 0) + 1;
+    return days;
+  }, {});
+  const monthDays = buildCalendarMonth(now);
+  const todayKey = stockholmDayKey(now);
 
   return (
     <section className='mobile-feed-card overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-sm'>
-      <div className='grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]'>
-        <div className='relative border-b bg-muted/25 p-5 lg:border-r lg:border-b-0 md:p-6'>
-          <div className='flex items-start justify-between gap-3'>
-            <div>
-              <div className='text-muted-foreground text-xs uppercase tracking-[0.22em]'>
-                Calendar
-              </div>
-              <h2 className='mt-2 text-2xl font-semibold tracking-tight'>
-                {calendar.connected ? 'Regular calendar' : 'Calendar needs attention'}
-              </h2>
+      <div className='space-y-5 p-4 md:p-5'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='min-w-0'>
+            <div className='text-xs uppercase tracking-[0.22em] text-muted-foreground'>
+              Calendar
             </div>
-            <Badge variant={calendar.connected ? 'default' : 'outline'}>
-              {calendar.connected ? `${calendar.counts.next24h} next 24h` : 'degraded'}
-            </Badge>
+            <h2 className='mt-1 text-2xl font-semibold leading-tight tracking-tight'>
+              {calendarMonthLabel(now)}
+            </h2>
+            <div className='mt-1 text-sm text-muted-foreground'>
+              {calendar.connected ? 'Month overview · Stockholm time' : 'Calendar needs attention'}
+            </div>
+          </div>
+          <Badge variant={calendar.connected ? 'default' : 'outline'} className='shrink-0'>
+            {calendar.connected ? `${calendar.counts.next24h} next 24h` : 'degraded'}
+          </Badge>
+        </div>
+
+        <div className='rounded-3xl border bg-background/55 p-3 shadow-inner'>
+          <div className='mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>
+            {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map((day) => (
+              <div key={day} className='py-1'>
+                {day}
+              </div>
+            ))}
           </div>
 
-          <div className='mt-5 rounded-3xl border bg-background/55 p-2 shadow-inner'>
-            <Calendar
-              mode='single'
-              selected={now}
-              defaultMonth={now}
-              weekStartsOn={1}
-              modifiers={{ hasEvent: eventDates }}
-              modifiersClassNames={{
-                hasEvent:
-                  'after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary'
-              }}
-              className='w-full'
-              classNames={{
-                months: 'w-full',
-                month: 'w-full gap-4',
-                month_grid: 'w-full border-collapse',
-                weekdays: 'grid grid-cols-7',
-                weekday:
-                  'w-full text-center text-muted-foreground rounded-md font-normal text-[0.75rem]',
-                week: 'grid grid-cols-7 w-full mt-2',
-                day: 'relative flex justify-center p-0 text-center text-sm',
-                day_button: 'relative size-9 p-0 font-normal aria-selected:opacity-100'
-              }}
-            />
-          </div>
+          <div className='grid grid-cols-7 gap-1.5'>
+            {monthDays.map((date, index) => {
+              if (!date) {
+                return <div key={`empty-${index}`} className='min-h-11 rounded-2xl' />;
+              }
 
-          <div className='mt-5 rounded-2xl border bg-background/45 p-4'>
-            <div className='text-muted-foreground text-[10px] uppercase tracking-[0.18em]'>
+              const key = stockholmDayKey(date);
+              const eventCount = eventsByDay[key] ?? 0;
+              const isToday = key === todayKey;
+
+              return (
+                <div
+                  key={key}
+                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-2xl border text-sm transition ${
+                    isToday
+                      ? 'border-primary/60 bg-primary text-primary-foreground shadow-sm shadow-primary/20'
+                      : eventCount > 0
+                        ? 'border-primary/25 bg-primary/10 text-foreground'
+                        : 'border-border/70 bg-muted/20 text-muted-foreground'
+                  }`}
+                >
+                  <span className='font-semibold'>{date.getDate()}</span>
+                  <span className='mt-1 flex h-1.5 items-center justify-center gap-0.5'>
+                    {eventCount > 0
+                      ? Array.from({ length: Math.min(eventCount, 3) }, (_, dot) => (
+                          <span
+                            key={dot}
+                            className={`size-1.5 rounded-full ${
+                              isToday ? 'bg-primary-foreground' : 'bg-primary'
+                            }`}
+                          />
+                        ))
+                      : null}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-1'>
+          <div className='rounded-2xl border bg-background/45 p-4'>
+            <div className='text-[10px] uppercase tracking-[0.18em] text-muted-foreground'>
               Today
             </div>
             {todayEvents.length > 0 ? (
               <>
-                <div className='mt-2 text-lg font-semibold'>
-                  {todayEvents.length} calendar event{todayEvents.length === 1 ? '' : 's'}
+                <div className='mt-2 text-xl font-semibold'>
+                  {todayEvents.length} event{todayEvents.length === 1 ? '' : 's'} today
                 </div>
-                <div className='text-muted-foreground mt-1 text-sm'>
+                <div className='mt-1 line-clamp-2 text-sm text-muted-foreground'>
                   Next: {todayEvents[0]?.title} · {eventTimeLabel(todayEvents[0]?.start)}
                 </div>
               </>
             ) : (
-              <div className='text-muted-foreground mt-2 text-sm'>No events left today.</div>
+              <div className='mt-2 text-sm text-muted-foreground'>No events left today.</div>
             )}
           </div>
-        </div>
 
-        <div className='p-4 md:p-5'>
-          <div className='mb-4 flex items-center justify-between gap-3'>
-            <div className='font-semibold'>Today / next up</div>
-            <Badge variant='outline' className='border-border bg-muted/30'>
-              {calendar.source}
-            </Badge>
+          <div className='rounded-2xl border bg-background/45 p-4'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div className='font-semibold'>Next up</div>
+              <Badge variant='outline' className='border-border bg-muted/30 text-[10px]'>
+                {calendar.source}
+              </Badge>
+            </div>
+            {upcoming.length === 0 ? (
+              <div className='text-sm text-muted-foreground'>
+                {calendar.connected
+                  ? 'No calendar events coming up.'
+                  : (calendar.alerts[0]?.detail ?? 'Calendar connector is degraded.')}
+              </div>
+            ) : (
+              <div className='space-y-2'>
+                {upcoming.slice(0, 3).map((event) => (
+                  <a
+                    key={event.id}
+                    href={event.htmlLink ?? 'https://calendar.google.com/calendar/u/0/r'}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='group flex gap-3 rounded-2xl border bg-muted/20 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                  >
+                    <div className='flex w-16 shrink-0 flex-col items-center justify-center rounded-xl border bg-background/60 px-2 py-2 text-center'>
+                      <span className='text-lg font-semibold'>{eventTimeLabel(event.start)}</span>
+                      <span className='text-[10px] text-muted-foreground'>STHLM</span>
+                    </div>
+                    <div className='min-w-0 flex-1'>
+                      <div className='line-clamp-1 font-medium group-hover:text-primary'>
+                        {event.title}
+                      </div>
+                      <div className='mt-1 text-xs leading-5 text-muted-foreground'>
+                        {event.status} · {event.attendees} attendees
+                        {event.hangoutLink ? ' · Meet ready' : ''}
+                      </div>
+                    </div>
+                    <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                      →
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
-          {upcoming.length === 0 ? (
-            <div className='text-muted-foreground rounded-2xl border border-dashed p-5 text-sm'>
-              {calendar.connected
-                ? 'No calendar events coming up.'
-                : (calendar.alerts[0]?.detail ?? 'Calendar connector is degraded.')}
-            </div>
-          ) : (
-            <div className='space-y-2'>
-              {upcoming.map((event) => (
-                <a
-                  key={event.id}
-                  href={event.htmlLink ?? 'https://calendar.google.com/calendar/u/0/r'}
-                  target='_blank'
-                  rel='noreferrer'
-                  className='mobile-feed-row group flex gap-3 rounded-2xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                >
-                  <div className='flex w-16 shrink-0 flex-col items-center justify-center rounded-xl border bg-muted/40 px-2 py-2 text-center'>
-                    <span className='text-lg font-semibold'>{eventTimeLabel(event.start)}</span>
-                    <span className='text-muted-foreground text-[10px]'>STHLM</span>
-                  </div>
-                  <div className='min-w-0 flex-1'>
-                    <div className='line-clamp-1 font-medium group-hover:text-primary'>
-                      {event.title}
-                    </div>
-                    <div className='text-muted-foreground mt-1 text-xs'>
-                      {event.status} · {event.attendees} attendees
-                      {event.hangoutLink ? ' · Meet ready' : ''}
-                    </div>
-                  </div>
-                  <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                    →
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </section>
