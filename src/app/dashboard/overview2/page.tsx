@@ -81,7 +81,7 @@ const agents = [
     name: 'Cai',
     role: 'Mission lead',
     status: 'Active',
-    task: 'Coordinating Agents and running the mission',
+    task: 'Coordinating agents and running the mission',
     progress: 60,
     avatarIcon: 'sparkles',
     avatarColumn: '0%'
