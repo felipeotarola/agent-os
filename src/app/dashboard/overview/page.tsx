@@ -665,9 +665,11 @@ export default async function OverviewPage() {
                     {latestCaiRun?.label ?? 'brief'}
                   </Badge>
                 </div>
-                <p className='line-clamp-6 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
-                  {latestCaiMessage}
-                </p>
+                <div className='max-h-44 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+                  <p className='whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
+                    {latestCaiMessage}
+                  </p>
+                </div>
                 <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
                   {latestCaiRun
                     ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
