@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import type { ComponentType } from 'react';
 
 export const metadata = {
   title: 'Agent OS: Mission Control'
@@ -76,7 +77,8 @@ const agents = [
     status: 'Active',
     task: 'Coordinating Nordea integration steps',
     progress: 60,
-    icon: Sparkles
+    icon: Sparkles,
+    avatarPosition: '0% 0%'
   },
   {
     name: 'Charles',
@@ -84,7 +86,8 @@ const agents = [
     status: 'Active',
     task: 'Nordea docs and API patterns',
     progress: 70,
-    icon: Search
+    icon: Search,
+    avatarPosition: '100% 0%'
   },
   {
     name: 'Sladdis',
@@ -92,7 +95,8 @@ const agents = [
     status: 'Active',
     task: 'Spec and data mapping',
     progress: 50,
-    icon: GitBranch
+    icon: GitBranch,
+    avatarPosition: '0% 100%'
   },
   {
     name: 'Worker Pool',
@@ -100,7 +104,8 @@ const agents = [
     status: 'Active',
     task: 'Sync transactions job',
     progress: 75,
-    icon: Cpu
+    icon: Cpu,
+    avatarPosition: '100% 100%'
   }
 ];
 
@@ -532,6 +537,32 @@ function AgentHealth() {
   );
 }
 
+function AgentAvatar({
+  name,
+  icon: Icon,
+  position
+}: {
+  name: string;
+  icon: ComponentType<{ className?: string }>;
+  position: string;
+}) {
+  return (
+    <div className='relative size-16 shrink-0'>
+      <div className='absolute inset-0 animate-pulse rounded-full bg-primary/20 blur-md' />
+      <div
+        role='img'
+        aria-label={`${name} avatar`}
+        className='relative size-16 rounded-full border bg-card bg-[url("/assets/agent-avatars-sprite.png")] bg-[length:200%_200%] shadow-sm ring-2 ring-primary/20'
+        style={{ backgroundPosition: position }}
+      />
+      <div className='absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full border bg-background text-primary shadow-sm'>
+        <Icon className='size-3.5' />
+      </div>
+      <span className='absolute right-0 top-0 size-3 rounded-full border-2 border-background bg-primary' />
+    </div>
+  );
+}
+
 function AgentsPanel() {
   return (
     <Card className='bg-card/80 shadow-sm'>
@@ -549,17 +580,19 @@ function AgentsPanel() {
           const Icon = agent.icon;
 
           return (
-            <div key={agent.name} className='rounded-2xl border bg-background/55 p-4'>
+            <div
+              key={agent.name}
+              className='group relative overflow-hidden rounded-2xl border bg-background/55 p-4 transition hover:border-primary/40 hover:bg-primary/5'
+            >
+              <div className='pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary/10 opacity-0 transition group-hover:opacity-100' />
               <div className='mb-4 flex items-start justify-between gap-3'>
-                <div className='flex size-11 items-center justify-center rounded-full border bg-primary/10 text-primary'>
-                  <Icon className='size-5' />
-                </div>
+                <AgentAvatar name={agent.name} icon={Icon} position={agent.avatarPosition} />
                 <Badge variant='outline' className='text-[10px]'>
                   {agent.status}
                 </Badge>
               </div>
 
-              <div className='font-semibold'>{agent.name}</div>
+              <div className='relative font-semibold'>{agent.name}</div>
               <div className='mt-1 text-xs text-muted-foreground'>{agent.role}</div>
               <p className='mt-3 min-h-10 text-sm leading-5 text-muted-foreground'>{agent.task}</p>
 
