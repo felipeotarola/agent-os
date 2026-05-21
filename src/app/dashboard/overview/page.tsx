@@ -244,6 +244,11 @@ function briefPreview(text?: string | null) {
   return value.length > 1250 ? `${value.slice(0, 1250).trim()}…` : value;
 }
 
+function isOpenTaskStatus(status?: string | null) {
+  const normalized = String(status ?? '').toLowerCase();
+  return normalized !== 'done' && normalized !== 'cancelled' && normalized !== 'canceled';
+}
+
 function taskProgress(status: string) {
   if (status === 'done') return 100;
   if (status === 'review') return 82;
@@ -371,7 +376,8 @@ export default async function OverviewPage() {
   const knowledge = snapshot.knowledge ?? { raw: 0, queued: 0, wikified: 0, progress: 0 };
   const knowledgeCounts = knowledge as Record<string, number>;
   const taskStatus = snapshot.taskStatus ?? {};
-  const taskEntries = Object.entries(taskStatus);
+  const overviewTasks = snapshot.tasks.filter((task) => isOpenTaskStatus(task.status));
+  const taskEntries = Object.entries(taskStatus).filter(([status]) => isOpenTaskStatus(status));
   const events = snapshot.events ?? [];
   const visibleEvents = events.filter((event) => !event.kind.startsWith('cai_brief_cron_'));
   const subagents = snapshot.subagents;
@@ -395,7 +401,7 @@ export default async function OverviewPage() {
       label: 'Briefing priority',
       value:
         briefing.dispatch.byAgent[0]?.tasks[0]?.title ??
-        snapshot.tasks[0]?.title ??
+        overviewTasks[0]?.title ??
         'No priority task selected',
       href: '/dashboard/kanban'
     },
@@ -717,11 +723,11 @@ export default async function OverviewPage() {
                         ) : null}
                       </div>
                       <h2 className='mt-3 line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
-                        {nextAction?.title ?? snapshot.tasks[0]?.title ?? 'Decision queue is clear'}
+                        {nextAction?.title ?? overviewTasks[0]?.title ?? 'Decision queue is clear'}
                       </h2>
                       <p className='mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground'>
                         {nextAction?.detail ??
-                          snapshot.tasks[0]?.detail ??
+                          overviewTasks[0]?.detail ??
                           'No high-signal cockpit item needs attention right now.'}
                       </p>
                       <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
@@ -779,12 +785,12 @@ export default async function OverviewPage() {
                     </div>
                   </CardHeader>
                   <CardContent className='space-y-2'>
-                    {snapshot.tasks.slice(0, 5).length === 0 ? (
+                    {overviewTasks.slice(0, 5).length === 0 ? (
                       <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
                         Inga prioriterade tasks hittades.
                       </div>
                     ) : (
-                      snapshot.tasks.slice(0, 5).map((task, index) => (
+                      overviewTasks.slice(0, 5).map((task, index) => (
                         <Link
                           key={`${task.title}-${task.status}-${index}`}
                           href='/dashboard/kanban'
@@ -868,12 +874,12 @@ export default async function OverviewPage() {
                   </div>
                 </CardHeader>
                 <CardContent className='space-y-2'>
-                  {snapshot.tasks.length === 0 ? (
+                  {overviewTasks.length === 0 ? (
                     <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
                       Inga prioriterade tasks hittades.
                     </div>
                   ) : (
-                    snapshot.tasks.slice(0, 5).map((task, index) => {
+                    overviewTasks.slice(0, 5).map((task, index) => {
                       const progress = taskProgress(task.status);
                       const rawData = taskRawData(task);
                       return (
