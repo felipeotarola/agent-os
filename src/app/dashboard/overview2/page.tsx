@@ -1,4 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
+import { ContextRailLayout } from '@/components/context-rail-layout';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -656,21 +657,30 @@ function MemoryAndRunway() {
   );
 }
 
-function ContextPanel() {
+function ContextRail() {
   return (
-    <section className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]'>
-      <Card className='bg-card/75 shadow-sm backdrop-blur'>
+    <>
+      <Card className='rounded-3xl bg-card/80 text-card-foreground shadow-sm'>
         <CardHeader>
-          <PanelTitle eyebrow='Live context' title='What Cai sees now' />
-          <CardDescription>Cai uses this ambient context when suggesting actions.</CardDescription>
+          <div className='flex items-start justify-between gap-3'>
+            <div>
+              <PanelTitle eyebrow='Live context' title='What Cai sees now' />
+              <CardDescription className='mt-1'>
+                Ambient signals Cai can use when suggesting actions.
+              </CardDescription>
+            </div>
+            <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+              RAIL
+            </Badge>
+          </div>
         </CardHeader>
 
-        <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+        <CardContent className='space-y-3'>
           {contextBlocks.map((block) => {
             const Icon = block.icon;
 
             return (
-              <div key={block.title} className='rounded-xl border bg-background/55 p-3'>
+              <div key={block.title} className='rounded-2xl border bg-background/45 p-3'>
                 <div className='flex items-start justify-between gap-3'>
                   <div>
                     <div className='text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
@@ -678,7 +688,7 @@ function ContextPanel() {
                     </div>
                     <div className='mt-1 text-lg font-semibold'>{block.value}</div>
                   </div>
-                  <div className='flex size-9 items-center justify-center rounded-xl border bg-card/70 text-primary'>
+                  <div className='flex size-9 items-center justify-center rounded-xl border bg-muted/40 text-primary'>
                     <Icon className='size-4' />
                   </div>
                 </div>
@@ -689,9 +699,17 @@ function ContextPanel() {
         </CardContent>
       </Card>
 
-      <Card className='bg-card/75 shadow-sm backdrop-blur'>
-        <CardHeader>
-          <PanelTitle eyebrow='Status' title='All systems operational' />
+      <Card className='rounded-3xl bg-card/80 text-card-foreground shadow-sm'>
+        <CardHeader className='pb-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <div>
+              <CardTitle>Status</CardTitle>
+              <CardDescription>Operational readiness.</CardDescription>
+            </div>
+            <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+              LIVE
+            </Badge>
+          </div>
         </CardHeader>
 
         <CardContent className='space-y-2'>
@@ -699,7 +717,7 @@ function ContextPanel() {
             (item) => (
               <div
                 key={item}
-                className='flex items-center justify-between rounded-xl border bg-background/55 p-3 text-sm'
+                className='flex items-center justify-between rounded-xl border bg-background/45 p-3 text-sm'
               >
                 <span>{item}</span>
                 <Dot active />
@@ -708,7 +726,31 @@ function ContextPanel() {
           )}
         </CardContent>
       </Card>
-    </section>
+
+      <Card className='rounded-3xl bg-card/80 text-card-foreground shadow-sm'>
+        <CardHeader className='pb-3'>
+          <PanelTitle eyebrow='Fast actions' title='Mission shortcuts' />
+        </CardHeader>
+
+        <CardContent className='grid grid-cols-2 gap-2'>
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <Button
+                key={action.label}
+                variant='outline'
+                size='sm'
+                className='justify-between rounded-full'
+              >
+                <span className='truncate'>{action.label}</span>
+                <Icon className='size-3.5 shrink-0' />
+              </Button>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -719,19 +761,20 @@ export default function Overview2Page() {
       pageDescription='Review Cai recommendations, agent status and operational context from the dashboard workspace.'
       pageHeaderAction={<PageActions />}
     >
-      <div className='space-y-4'>
-        <CommandHero />
+      <ContextRailLayout rail={<ContextRail />}>
+        <div className='space-y-4'>
+          <CommandHero />
 
-        <section className='grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(330px,0.75fr)_300px]'>
-          <ActiveMission />
-          <LiveAgentFeed />
-          <AgentHealth />
-        </section>
+          <section className='grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(330px,0.75fr)_300px]'>
+            <ActiveMission />
+            <LiveAgentFeed />
+            <AgentHealth />
+          </section>
 
-        <AgentsPanel />
-        <ContextPanel />
-        <MemoryAndRunway />
-      </div>
+          <AgentsPanel />
+          <MemoryAndRunway />
+        </div>
+      </ContextRailLayout>
     </PageContainer>
   );
 }
