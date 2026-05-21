@@ -1,6 +1,7 @@
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   BuildActivityResumeItem,
@@ -237,20 +238,6 @@ function eventTimeLabel(value?: string | null) {
   }).format(date);
 }
 
-function weekdayShort(value: Date) {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    weekday: 'short'
-  }).format(value);
-}
-
-function dayNumber(value: Date) {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    day: '2-digit'
-  }).format(value);
-}
-
 function sameStockholmDay(a: Date, b: Date) {
   return (
     new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short' }).format(
@@ -260,27 +247,38 @@ function sameStockholmDay(a: Date, b: Date) {
   );
 }
 
+function stockholmDayKey(value: Date) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(value);
+}
+
 function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }) {
   const now = new Date();
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(now);
-    date.setDate(now.getDate() + index);
-    const count = calendar.events.filter((event) =>
-      sameStockholmDay(new Date(event.start), date)
-    ).length;
-    return { date, count };
-  });
   const upcoming = calendar.events
     .filter((event) => {
       const start = new Date(event.start).getTime();
       return Number.isFinite(start) && start >= Date.now() - 60 * 60 * 1000;
     })
     .slice(0, 4);
-  const next = upcoming[0];
+  const todayEvents = calendar.events.filter((event) =>
+    sameStockholmDay(new Date(event.start), now)
+  );
+  const eventDates = Array.from(
+    new Map(
+      calendar.events
+        .map((event) => new Date(event.start))
+        .filter((date) => Number.isFinite(date.getTime()))
+        .map((date) => [stockholmDayKey(date), date])
+    ).values()
+  );
 
   return (
     <section className='mobile-feed-card overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-sm'>
-      <div className='grid gap-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]'>
+      <div className='grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]'>
         <div className='relative border-b bg-muted/25 p-5 lg:border-r lg:border-b-0 md:p-6'>
           <div className='flex items-start justify-between gap-3'>
             <div>
@@ -288,7 +286,7 @@ function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }
                 Calendar
               </div>
               <h2 className='mt-2 text-2xl font-semibold tracking-tight'>
-                {calendar.connected ? 'Upcoming schedule' : 'Calendar needs attention'}
+                {calendar.connected ? 'Regular calendar' : 'Calendar needs attention'}
               </h2>
             </div>
             <Badge variant={calendar.connected ? 'default' : 'outline'}>
@@ -296,46 +294,47 @@ function CalendarOverviewCard({ calendar }: { calendar: CalendarSignalSnapshot }
             </Badge>
           </div>
 
-          <div className='mt-5 grid grid-cols-7 gap-1.5'>
-            {days.map((day, index) => (
-              <div
-                key={day.date.toISOString()}
-                className={`rounded-2xl border px-2 py-3 text-center ${
-                  index === 0 ? 'border-primary/40 bg-primary/10' : 'bg-background/45'
-                }`}
-              >
-                <div className='text-muted-foreground text-[10px] uppercase'>
-                  {weekdayShort(day.date)}
-                </div>
-                <div className='mt-1 text-lg font-semibold'>{dayNumber(day.date)}</div>
-                <div className='mt-1 flex justify-center gap-0.5'>
-                  {Array.from({ length: Math.min(day.count, 3) }, (_, dot) => (
-                    <span key={dot} className='size-1 rounded-full bg-primary' />
-                  ))}
-                  {day.count === 0 && (
-                    <span className='size-1 rounded-full bg-muted-foreground/30' />
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className='mt-5 rounded-3xl border bg-background/55 p-2 shadow-inner'>
+            <Calendar
+              mode='single'
+              selected={now}
+              defaultMonth={now}
+              weekStartsOn={1}
+              modifiers={{ hasEvent: eventDates }}
+              modifiersClassNames={{
+                hasEvent:
+                  'after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary'
+              }}
+              className='w-full'
+              classNames={{
+                months: 'w-full',
+                month: 'w-full gap-4',
+                month_grid: 'w-full border-collapse',
+                weekdays: 'grid grid-cols-7',
+                weekday:
+                  'w-full text-center text-muted-foreground rounded-md font-normal text-[0.75rem]',
+                week: 'grid grid-cols-7 w-full mt-2',
+                day: 'relative flex justify-center p-0 text-center text-sm',
+                day_button: 'relative size-9 p-0 font-normal aria-selected:opacity-100'
+              }}
+            />
           </div>
 
           <div className='mt-5 rounded-2xl border bg-background/45 p-4'>
             <div className='text-muted-foreground text-[10px] uppercase tracking-[0.18em]'>
-              Next event
+              Today
             </div>
-            {next ? (
+            {todayEvents.length > 0 ? (
               <>
-                <div className='mt-2 line-clamp-2 text-lg font-semibold'>{next.title}</div>
+                <div className='mt-2 text-lg font-semibold'>
+                  {todayEvents.length} calendar event{todayEvents.length === 1 ? '' : 's'}
+                </div>
                 <div className='text-muted-foreground mt-1 text-sm'>
-                  {eventTimeLabel(next.start)}–{eventTimeLabel(next.end)} · {next.attendees}{' '}
-                  attendees
+                  Next: {todayEvents[0]?.title} · {eventTimeLabel(todayEvents[0]?.start)}
                 </div>
               </>
             ) : (
-              <div className='text-muted-foreground mt-2 text-sm'>
-                No upcoming events in this window.
-              </div>
+              <div className='text-muted-foreground mt-2 text-sm'>No events left today.</div>
             )}
           </div>
         </div>
