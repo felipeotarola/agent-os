@@ -635,211 +635,204 @@ export default async function OverviewPage() {
   return (
     <PageContainer>
       <div className='flex flex-1 flex-col gap-4 md:gap-5'>
-        <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]'>
-          <div className='space-y-4'>
-            <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
-              <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
-                <div className='min-w-0 space-y-4'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <Badge className='rounded-full'>Today Command</Badge>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
-                    >
-                      <StatusDot ok={snapshot.dbOnline} /> live cockpit
-                    </Badge>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
-                    >
-                      {actionCenter.counts.high} high · {actionCenter.counts.total} queued
-                    </Badge>
-                    {buildActivity.activeCount ? (
-                      <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
-                      Good evening Felipe
-                    </h1>
-                    <p className='mt-2 text-sm text-muted-foreground md:text-base'>
-                      {stockholmDate(liveAt)} · Uppsala time {stockholmTime(liveAt)}
-                    </p>
-                  </div>
-
-                  <div className='rounded-2xl border bg-background/45 p-4'>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <Badge variant='outline' className='border-border bg-muted/40'>
-                        Resume where we left off
-                      </Badge>
-                      {nextAction ? (
-                        <Badge
-                          variant='outline'
-                          className={actionPriorityTone(nextAction.priority)}
-                        >
-                          {nextAction.priority}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <h2 className='mt-3 line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
-                      {nextAction?.title ?? snapshot.tasks[0]?.title ?? 'Decision queue is clear'}
-                    </h2>
-                    <p className='mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground'>
-                      {nextAction?.detail ??
-                        snapshot.tasks[0]?.detail ??
-                        'No high-signal cockpit item needs attention right now.'}
-                    </p>
-                    <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
-                      <Button asChild className='rounded-full'>
-                        <Link href='/dashboard/action-center'>Open Action Center →</Link>
-                      </Button>
-                      {nextAction ? (
-                        <Button asChild variant='outline' className='rounded-full'>
-                          <Link href={nextAction.href}>{nextAction.primaryLabel}</Link>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
+        <section className='space-y-4'>
+          <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
+            <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
+              <div className='min-w-0 space-y-4'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge className='rounded-full'>Today Command</Badge>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-muted/40 text-card-foreground'
+                  >
+                    <StatusDot ok={snapshot.dbOnline} /> live cockpit
+                  </Badge>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-muted/40 text-card-foreground'
+                  >
+                    {actionCenter.counts.high} high · {actionCenter.counts.total} queued
+                  </Badge>
+                  {buildActivity.activeCount ? (
+                    <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
+                  ) : null}
                 </div>
 
-                <div className='grid shrink-0 grid-cols-3 gap-2 lg:w-[330px]'>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Queued
-                    </div>
+                <div>
+                  <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
+                    Good evening Felipe
+                  </h1>
+                  <p className='mt-2 text-sm text-muted-foreground md:text-base'>
+                    {stockholmDate(liveAt)} · Uppsala time {stockholmTime(liveAt)}
+                  </p>
+                </div>
+
+                <div className='rounded-2xl border bg-background/45 p-4'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Badge variant='outline' className='border-border bg-muted/40'>
+                      Resume where we left off
+                    </Badge>
+                    {nextAction ? (
+                      <Badge variant='outline' className={actionPriorityTone(nextAction.priority)}>
+                        {nextAction.priority}
+                      </Badge>
+                    ) : null}
                   </div>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{activeRunCount}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Runs
-                    </div>
-                  </div>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Builds
-                    </div>
+                  <h2 className='mt-3 line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
+                    {nextAction?.title ?? snapshot.tasks[0]?.title ?? 'Decision queue is clear'}
+                  </h2>
+                  <p className='mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground'>
+                    {nextAction?.detail ??
+                      snapshot.tasks[0]?.detail ??
+                      'No high-signal cockpit item needs attention right now.'}
+                  </p>
+                  <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
+                    <Button asChild className='rounded-full'>
+                      <Link href='/dashboard/action-center'>Open Action Center →</Link>
+                    </Button>
+                    {nextAction ? (
+                      <Button asChild variant='outline' className='rounded-full'>
+                        <Link href={nextAction.href}>{nextAction.primaryLabel}</Link>
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>
-            </section>
 
-            <section className='grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]'>
-              <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
-                <CardHeader>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Focus Queue</CardTitle>
-                      <CardDescription>Max fem saker. Det här är nästa arbetsyta.</CardDescription>
-                    </div>
-                    <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
-                      Tasks →
-                    </Link>
+              <div className='grid shrink-0 grid-cols-3 gap-2 lg:w-[330px]'>
+                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                  <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
+                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                    Queued
                   </div>
-                </CardHeader>
-                <CardContent className='space-y-2'>
-                  {snapshot.tasks.slice(0, 5).length === 0 ? (
-                    <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
-                      Inga prioriterade tasks hittades.
-                    </div>
-                  ) : (
-                    snapshot.tasks.slice(0, 5).map((task, index) => (
-                      <Link
-                        key={`${task.title}-${task.status}-${index}`}
-                        href='/dashboard/kanban'
-                        className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                      >
-                        <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
-                          {index + 1}
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                          <div className='flex flex-wrap items-start justify-between gap-2'>
-                            <div className='line-clamp-1 font-medium'>{task.title}</div>
-                            <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
-                          </div>
-                          <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                            {task.detail}
-                          </div>
-                        </div>
-                      </Link>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                  <div className='text-lg font-semibold'>{activeRunCount}</div>
+                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                    Runs
+                  </div>
+                </div>
+                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                  <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
+                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                    Builds
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-              <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
-                <CardHeader>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Cai Briefing</CardTitle>
-                      <CardDescription>
-                        Digest först. Rå briefing/detailjer under ytan.
-                      </CardDescription>
-                    </div>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
+          <section className='columns-1 gap-4 xl:columns-2 2xl:columns-3 [&>*]:mb-4 [&>*]:break-inside-avoid'>
+            <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
+              <CardHeader>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Focus Queue</CardTitle>
+                    <CardDescription>Max fem saker. Det här är nästa arbetsyta.</CardDescription>
+                  </div>
+                  <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
+                    Tasks →
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                {snapshot.tasks.slice(0, 5).length === 0 ? (
+                  <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+                    Inga prioriterade tasks hittades.
+                  </div>
+                ) : (
+                  snapshot.tasks.slice(0, 5).map((task, index) => (
+                    <Link
+                      key={`${task.title}-${task.status}-${index}`}
+                      href='/dashboard/kanban'
+                      className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
                     >
-                      {latestCaiRun?.label ?? 'brief'}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  <div className='rounded-2xl border bg-background/45 p-4'>
-                    <div className='mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                      Dagen kort
-                    </div>
-                    <p className='line-clamp-8 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
-                      {latestCaiMessage}
-                    </p>
-                    <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
-                      {latestCaiRun
-                        ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
-                        : latestCaiTime}
-                    </div>
-                  </div>
+                      <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
+                        {index + 1}
+                      </div>
+                      <div className='min-w-0 flex-1'>
+                        <div className='flex flex-wrap items-start justify-between gap-2'>
+                          <div className='line-clamp-1 font-medium'>{task.title}</div>
+                          <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
+                        </div>
+                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                          {task.detail}
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </CardContent>
+            </Card>
 
-                  <div className='grid grid-cols-1 gap-2 md:grid-cols-3'>
-                    <div className='rounded-2xl border bg-muted/35 p-3'>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Bitcoin
-                      </div>
-                      <div className='mt-1 text-lg font-semibold'>{bitcoinPriceDisplay}</div>
-                      <div
-                        className={
-                          bitcoinChange === null
-                            ? 'text-xs text-muted-foreground'
-                            : bitcoinChange >= 0
-                              ? 'text-xs text-primary'
-                              : 'text-xs text-destructive'
-                        }
-                      >
-                        {percent(bitcoinChange)} 24h
-                      </div>
+            <Card className='mobile-feed-card rounded-3xl border bg-card text-card-foreground shadow-sm'>
+              <CardHeader>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Cai Briefing</CardTitle>
+                    <CardDescription>
+                      Digest först. Rå briefing/detailjer under ytan.
+                    </CardDescription>
+                  </div>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-muted/40 text-card-foreground'
+                  >
+                    {latestCaiRun?.label ?? 'brief'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='rounded-2xl border bg-background/45 p-4'>
+                  <div className='mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                    Dagen kort
+                  </div>
+                  <p className='line-clamp-8 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
+                    {latestCaiMessage}
+                  </p>
+                  <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
+                    {latestCaiRun
+                      ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                      : latestCaiTime}
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-1 gap-2 md:grid-cols-3'>
+                  <div className='rounded-2xl border bg-muted/35 p-3'>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Bitcoin
                     </div>
-                    <div className='rounded-2xl border bg-muted/35 p-3'>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        News
-                      </div>
-                      <div className='mt-1 text-lg font-semibold'>{visibleNews.length}</div>
-                      <div className='text-xs text-muted-foreground'>top headlines</div>
-                    </div>
-                    <div className='rounded-2xl border bg-muted/35 p-3'>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Signals
-                      </div>
-                      <div className='mt-1 text-lg font-semibold'>{personalSignals.length}</div>
-                      <div className='text-xs text-muted-foreground'>personal/system</div>
+                    <div className='mt-1 text-lg font-semibold'>{bitcoinPriceDisplay}</div>
+                    <div
+                      className={
+                        bitcoinChange === null
+                          ? 'text-xs text-muted-foreground'
+                          : bitcoinChange >= 0
+                            ? 'text-xs text-primary'
+                            : 'text-xs text-destructive'
+                      }
+                    >
+                      {percent(bitcoinChange)} 24h
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </section>
-          </div>
+                  <div className='rounded-2xl border bg-muted/35 p-3'>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      News
+                    </div>
+                    <div className='mt-1 text-lg font-semibold'>{visibleNews.length}</div>
+                    <div className='text-xs text-muted-foreground'>top headlines</div>
+                  </div>
+                  <div className='rounded-2xl border bg-muted/35 p-3'>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Signals
+                    </div>
+                    <div className='mt-1 text-lg font-semibold'>{personalSignals.length}</div>
+                    <div className='text-xs text-muted-foreground'>personal/system</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-          <aside className='space-y-4'>
             <div className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
               <div className='mb-4 flex items-start justify-between gap-3'>
                 <div className='min-w-0'>
@@ -952,7 +945,7 @@ export default async function OverviewPage() {
                 </div>
               </div>
             </div>
-          </aside>
+          </section>
         </section>
 
         <section className='grid grid-cols-2 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 2xl:grid-cols-6'>
