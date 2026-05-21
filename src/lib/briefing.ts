@@ -304,6 +304,28 @@ const manualMarketAssets: MarketAsset[] = [
     source: 'watchlist:manual'
   },
   {
+    id: 'valour-avax-sek',
+    label: 'Valour Avalanche SEK',
+    symbol: 'AVAX SEK',
+    kind: 'tracker',
+    holding: true,
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
+    id: 'valour-sui-sek',
+    label: 'Valour SUI SEK',
+    symbol: 'SUI SEK',
+    kind: 'tracker',
+    holding: true,
+    priceSek: null,
+    priceUsd: null,
+    change24h: null,
+    source: 'watchlist:manual'
+  },
+  {
     id: 'avanza-disruptive-ark',
     label: 'Avanza Disruptive Innovation by ARK Invest',
     symbol: 'ARK fund',
@@ -341,15 +363,19 @@ const manualMarketAssets: MarketAsset[] = [
 async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
   try {
     const response = await fetchWithTimeout(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=sek,usd&include_24hr_change=true',
+      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,avalanche-2,sui&vs_currencies=sek,usd&include_24hr_change=true',
       { cache: 'no-store' }
     );
     if (!response.ok) throw new Error(`CoinGecko ${response.status}`);
     const json = await response.json();
     const bitcoin = json.bitcoin ?? {};
     const ethereum = json.ethereum ?? {};
+    const avalanche = json['avalanche-2'] ?? {};
+    const sui = json.sui ?? {};
     const bitcoinChange = toNumber(bitcoin.sek_24h_change ?? bitcoin.usd_24h_change);
     const ethereumChange = toNumber(ethereum.sek_24h_change ?? ethereum.usd_24h_change);
+    const avalancheChange = toNumber(avalanche.sek_24h_change ?? avalanche.usd_24h_change);
+    const suiChange = toNumber(sui.sek_24h_change ?? sui.usd_24h_change);
     const privateHoldings = await getPrivateHoldingsConfig();
     const assets: MarketAsset[] = applyPrivateHoldings(
       [
@@ -375,6 +401,28 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
           change24h: ethereumChange,
           source: 'coingecko:simple-price'
         },
+        {
+          id: 'avalanche',
+          label: 'Avalanche',
+          symbol: 'AVAX',
+          kind: 'crypto',
+          holding: false,
+          priceSek: toNumber(avalanche.sek),
+          priceUsd: toNumber(avalanche.usd),
+          change24h: avalancheChange,
+          source: 'coingecko:simple-price'
+        },
+        {
+          id: 'sui',
+          label: 'SUI',
+          symbol: 'SUI',
+          kind: 'crypto',
+          holding: false,
+          priceSek: toNumber(sui.sek),
+          priceUsd: toNumber(sui.usd),
+          change24h: suiChange,
+          source: 'coingecko:simple-price'
+        },
         ...manualMarketAssets.map((asset) => ({
           ...asset,
           change24h:
@@ -382,13 +430,21 @@ async function getMarketsSnapshot(): Promise<MarketsSnapshot> {
               ? bitcoinChange
               : asset.id === 'ether-xbt'
                 ? ethereumChange
-                : asset.change24h,
+                : asset.id === 'valour-avax-sek'
+                  ? avalancheChange
+                  : asset.id === 'valour-sui-sek'
+                    ? suiChange
+                    : asset.change24h,
           source:
             asset.id === 'bitcoin-xbt' || asset.id === 'valour-btc-zero-sek'
               ? 'coingecko:btc-proxy'
               : asset.id === 'ether-xbt'
                 ? 'coingecko:eth-proxy'
-                : asset.source
+                : asset.id === 'valour-avax-sek'
+                  ? 'coingecko:avax-proxy'
+                  : asset.id === 'valour-sui-sek'
+                    ? 'coingecko:sui-proxy'
+                    : asset.source
         }))
       ],
       privateHoldings
