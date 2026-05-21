@@ -186,6 +186,24 @@ async function getUppsalaWeather(): Promise<WeatherSnapshot> {
   }
 }
 
+function weatherMoodIcon(weather: WeatherSnapshot) {
+  const text = `${weather.condition} ${weather.precipitation}`.toLowerCase();
+  if (
+    text.includes('rain') ||
+    text.includes('drizzle') ||
+    text.includes('shower') ||
+    text.includes('☔') ||
+    text.includes('🌧')
+  )
+    return '🌧️';
+  if (text.includes('snow') || text.includes('sleet') || text.includes('❄')) return '❄️';
+  if (text.includes('storm') || text.includes('thunder') || text.includes('⛈')) return '⛈️';
+  if (text.includes('cloud') || text.includes('overcast') || text.includes('☁')) return '☁️';
+  if (text.includes('fog') || text.includes('mist')) return '🌫️';
+  if (text.includes('clear') || text.includes('sun') || text.includes('☀')) return '☀️';
+  return weather.condition && weather.condition !== '—' ? weather.condition : '🌤️';
+}
+
 function compactNumber(value: number | null, currency?: string) {
   if (value === null) return '—';
   return new Intl.NumberFormat('sv-SE', {
@@ -198,18 +216,6 @@ function percent(value: number | null) {
   if (value === null) return '—';
   const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
-}
-
-function newsTag(item: { title: string; source: string }) {
-  const haystack = `${item.title} ${item.source}`.toLowerCase();
-  if (haystack.includes('bitcoin') || haystack.includes('btc') || haystack.includes('crypto')) {
-    return 'Bitcoin';
-  }
-  if (haystack.includes('ai') || haystack.includes('openai') || haystack.includes('agent')) {
-    return 'AI';
-  }
-  if (item.source.toLowerCase().includes('svt')) return 'Sverige';
-  return 'Tech';
 }
 
 function briefPreview(text?: string | null) {
@@ -605,30 +611,6 @@ export default async function OverviewPage() {
       : briefing.bitcoin.priceUsd !== null
         ? compactNumber(briefing.bitcoin.priceUsd, 'USD')
         : 'Ingen BTC-data';
-  const briefingNews = briefing.news.items.map((item) => ({
-    title: item.title,
-    source: item.source,
-    url: item.url,
-    imageUrl: item.imageUrl,
-    tag: newsTag(item)
-  }));
-  const visibleNews = briefingNews.filter((item) => item.tag !== 'Bitcoin').slice(0, 4);
-
-  const personalSignals = [
-    ...briefing.dispatch.byAgent.slice(0, 3).map((group) => ({
-      title: group.agentName,
-      body: `${group.count} agentägda tasks väntar${group.highPriorityCount ? ` · ${group.highPriorityCount} high priority` : ''}. Först: ${group.tasks[0]?.title ?? 'öppna task-kön'}.`,
-      icon: group.emoji || '⚛',
-      status: group.highPriorityCount ? 'warn' : 'up'
-    })),
-    ...visibleEvents.slice(0, 2).map((event) => ({
-      title: event.kind,
-      body: event.message,
-      icon: '⟳',
-      status: 'up'
-    }))
-  ].slice(0, 4);
-
   const latestCaiRun = briefing.latestMessage.latest;
   const latestCaiMessage = briefPreview(latestCaiRun?.summary);
   const latestCaiTime = timeLabelFromMs(latestCaiRun?.runAtMs) ?? 'ingen cron-run hittad';
@@ -775,74 +757,6 @@ export default async function OverviewPage() {
                         </Link>
                       ))
                     )}
-                  </CardContent>
-                </MotionCard>
-
-                <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
-                  <CardHeader>
-                    <div className='flex items-start justify-between gap-3'>
-                      <div>
-                        <CardTitle>Cai Briefing</CardTitle>
-                        <CardDescription>
-                          Digest först. Rå briefing/detailjer under ytan.
-                        </CardDescription>
-                      </div>
-                      <Badge
-                        variant='outline'
-                        className='border-border bg-muted/40 text-card-foreground'
-                      >
-                        {latestCaiRun?.label ?? 'brief'}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className='space-y-4'>
-                    <div className='rounded-2xl border bg-background/45 p-4'>
-                      <div className='mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                        Dagen kort
-                      </div>
-                      <p className='line-clamp-8 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
-                        {latestCaiMessage}
-                      </p>
-                      <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
-                        {latestCaiRun
-                          ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
-                          : latestCaiTime}
-                      </div>
-                    </div>
-
-                    <div className='grid grid-cols-1 gap-2 md:grid-cols-3'>
-                      <div className='rounded-2xl border bg-muted/35 p-3'>
-                        <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                          Bitcoin
-                        </div>
-                        <div className='mt-1 text-lg font-semibold'>{bitcoinPriceDisplay}</div>
-                        <div
-                          className={
-                            bitcoinChange === null
-                              ? 'text-xs text-muted-foreground'
-                              : bitcoinChange >= 0
-                                ? 'text-xs text-primary'
-                                : 'text-xs text-destructive'
-                          }
-                        >
-                          {percent(bitcoinChange)} 24h
-                        </div>
-                      </div>
-                      <div className='rounded-2xl border bg-muted/35 p-3'>
-                        <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                          News
-                        </div>
-                        <div className='mt-1 text-lg font-semibold'>{visibleNews.length}</div>
-                        <div className='text-xs text-muted-foreground'>top headlines</div>
-                      </div>
-                      <div className='rounded-2xl border bg-muted/35 p-3'>
-                        <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                          Signals
-                        </div>
-                        <div className='mt-1 text-lg font-semibold'>{personalSignals.length}</div>
-                        <div className='text-xs text-muted-foreground'>personal/system</div>
-                      </div>
-                    </div>
                   </CardContent>
                 </MotionCard>
               </section>
@@ -1180,7 +1094,10 @@ export default async function OverviewPage() {
               </div>
               <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
                 <div className='rounded-2xl border bg-background/45 p-3'>
-                  <div>Uppsala</div>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span>Uppsala</span>
+                    <span className='text-lg'>{weatherMoodIcon(weather)}</span>
+                  </div>
                   <div className='mt-1 text-2xl font-semibold text-foreground'>
                     {weather.temperature}
                   </div>
@@ -1191,6 +1108,55 @@ export default async function OverviewPage() {
                     {calendar.counts.next24h}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+              <div className='mb-3 flex items-center justify-between gap-3'>
+                <div>
+                  <div className='font-semibold text-foreground'>Cai Briefing</div>
+                  <div className='text-xs text-muted-foreground'>Digest first.</div>
+                </div>
+                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                  {latestCaiRun?.label ?? 'brief'}
+                </Badge>
+              </div>
+              <p className='line-clamp-6 whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
+                {latestCaiMessage}
+              </p>
+              <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
+                {latestCaiRun
+                  ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                  : latestCaiTime}
+              </div>
+            </div>
+
+            <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+              <div className='mb-3 flex items-center justify-between gap-3'>
+                <div>
+                  <div className='font-semibold text-foreground'>Bitcoin</div>
+                  <div className='text-xs text-muted-foreground'>24h movement.</div>
+                </div>
+                <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                  BTC
+                </Badge>
+              </div>
+              <div className='flex items-end justify-between gap-3 rounded-2xl border bg-background/45 p-3'>
+                <div>
+                  <div className='text-2xl font-semibold tracking-tight'>{bitcoinPriceDisplay}</div>
+                  <div
+                    className={
+                      bitcoinChange === null
+                        ? 'mt-1 text-xs text-muted-foreground'
+                        : bitcoinChange >= 0
+                          ? 'mt-1 text-xs text-primary'
+                          : 'mt-1 text-xs text-destructive'
+                    }
+                  >
+                    {percent(bitcoinChange)} 24h
+                  </div>
+                </div>
+                <div className='text-3xl'>₿</div>
               </div>
             </div>
 
@@ -1281,9 +1247,21 @@ export default async function OverviewPage() {
                   <div className='font-semibold text-foreground'>Weather</div>
                   <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
                 </div>
-                <Badge variant='outline' className='border-border bg-muted/40'>
-                  {weather.ok ? 'live' : 'degraded'}
-                </Badge>
+                <div className='flex items-center gap-2'>
+                  <span className='text-3xl leading-none'>{weatherMoodIcon(weather)}</span>
+                  <Badge variant='outline' className='border-border bg-muted/40'>
+                    {weather.ok ? 'live' : 'degraded'}
+                  </Badge>
+                </div>
+              </div>
+              <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
+                <div className='text-xs text-muted-foreground'>{weather.location}</div>
+                <div className='mt-1 flex items-end justify-between gap-3'>
+                  <div className='text-3xl font-semibold tracking-tight text-foreground'>
+                    {weather.temperature}
+                  </div>
+                  <div className='text-sm text-muted-foreground'>{weather.condition}</div>
+                </div>
               </div>
               <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
                 <div className='rounded-xl border bg-background/35 p-2'>
