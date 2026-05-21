@@ -66,50 +66,90 @@ export default function Overview2Page() {
 
         <div className='relative grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <main className='space-y-4'>
-            <section className='rounded-[1.75rem] border bg-card/70 p-5 shadow-sm backdrop-blur md:p-6'>
-              <div className='flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between'>
-                <div className='max-w-3xl space-y-3'>
-                  <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
-                    Overview 2 concept
-                  </Badge>
+            <section className='relative overflow-hidden rounded-[1.75rem] border bg-card/70 p-5 shadow-sm backdrop-blur md:p-6'>
+              <div className='pointer-events-none absolute inset-x-0 top-0 h-48 bg-primary/10 blur-2xl' />
+              <div className='relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch'>
+                <div className='space-y-5'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Badge
+                      variant='outline'
+                      className='border-primary/40 bg-primary/10 text-primary'
+                    >
+                      Overview 2 concept
+                    </Badge>
+                    <Badge variant='outline' className='border-border bg-background/45'>
+                      mocked mission layer
+                    </Badge>
+                  </div>
                   <div>
-                    <h1 className='text-3xl font-semibold tracking-tight md:text-5xl'>
-                      Mission control for your agent network.
+                    <h1 className='max-w-4xl text-3xl font-semibold tracking-tight md:text-5xl'>
+                      Your agent network, organized around missions.
                     </h1>
-                    <p className='mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base'>
-                      A mocked Cai cockpit: start missions, approve plans, delegate work, and watch
-                      the live agent feed without turning the normal overview into a design fight.
+                    <p className='mt-3 max-w-3xl text-sm leading-6 text-muted-foreground md:text-base'>
+                      One place to start work, approve plans, delegate to agents, and understand why
+                      the current mission matters before anyone burns tokens or time.
                     </p>
                   </div>
+
+                  <div className='grid gap-2 sm:grid-cols-2 xl:grid-cols-4'>
+                    {commandActions.map((action, index) => (
+                      <button
+                        key={action.label}
+                        className={`group rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/45 hover:bg-primary/10 ${
+                          index === 0 ? 'border-primary/35 bg-primary/15' : 'bg-background/45'
+                        }`}
+                      >
+                        <div className='flex items-center justify-between gap-3'>
+                          <span className='text-sm font-semibold'>{action.label}</span>
+                          <span className='flex size-7 items-center justify-center rounded-xl border bg-card/60 text-primary transition group-hover:scale-105'>
+                            {index === 0 ? '↗' : index === 1 ? '✓' : index === 2 ? '→' : '⚛'}
+                          </span>
+                        </div>
+                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                          {action.detail}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className='flex flex-wrap gap-2'>
-                  <Button asChild variant='outline' className='rounded-full'>
-                    <Link href='/dashboard/overview'>Current overview</Link>
-                  </Button>
-                  <Button asChild className='rounded-full'>
-                    <Link href='/dashboard/chat'>Ask Cai</Link>
-                  </Button>
+
+                <div className='flex flex-col justify-between rounded-3xl border bg-background/45 p-4'>
+                  <div>
+                    <div className='text-xs uppercase tracking-[0.2em] text-muted-foreground'>
+                      Why it matters
+                    </div>
+                    <h2 className='mt-2 text-xl font-semibold'>
+                      Less dashboard, more command loop.
+                    </h2>
+                    <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                      The normal overview tells you what exists. This version should tell you what
+                      is happening, what needs approval, and which agent should move next.
+                    </p>
+                  </div>
+                  <div className='mt-5 grid grid-cols-3 gap-2 text-center text-xs'>
+                    <div className='rounded-2xl border bg-card/65 p-3'>
+                      <div className='text-lg font-semibold'>4</div>
+                      <div className='mt-1 text-muted-foreground'>agents</div>
+                    </div>
+                    <div className='rounded-2xl border bg-card/65 p-3'>
+                      <div className='text-lg font-semibold'>1</div>
+                      <div className='mt-1 text-muted-foreground'>mission</div>
+                    </div>
+                    <div className='rounded-2xl border bg-card/65 p-3'>
+                      <div className='text-lg font-semibold'>3</div>
+                      <div className='mt-1 text-muted-foreground'>signals</div>
+                    </div>
+                  </div>
+                  <div className='mt-4 flex flex-wrap gap-2'>
+                    <Button asChild size='sm' variant='outline' className='rounded-full'>
+                      <Link href='/dashboard/overview'>Current overview</Link>
+                    </Button>
+                    <Button asChild size='sm' className='rounded-full'>
+                      <Link href='/dashboard/chat'>Ask Cai</Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </section>
-
-            <section className='grid gap-3 md:grid-cols-4'>
-              {commandActions.map((action) => (
-                <Card
-                  key={action.label}
-                  className='group overflow-hidden border-primary/15 bg-card/70 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-lg hover:shadow-primary/10'
-                >
-                  <CardContent className='p-4'>
-                    <div className='mb-4 flex size-10 items-center justify-center rounded-2xl border bg-primary/10 text-primary transition group-hover:scale-105'>
-                      +
-                    </div>
-                    <div className='font-semibold'>{action.label}</div>
-                    <div className='mt-1 text-xs leading-5 text-muted-foreground'>
-                      {action.detail}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
             </section>
 
             <section className='grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]'>
