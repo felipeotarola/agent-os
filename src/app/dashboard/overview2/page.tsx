@@ -78,10 +78,10 @@ const progressHistory = [
 
 const agents = [
   {
-    name: 'Conductor',
+    name: 'Cai',
     role: 'Mission lead',
     status: 'Active',
-    task: 'Coordinating Nordea integration steps',
+    task: 'Coordinating Agents and running the mission',
     progress: 60,
     avatarIcon: 'sparkles',
     avatarColumn: '0%'
@@ -90,25 +90,25 @@ const agents = [
     name: 'Charles',
     role: 'Product researcher',
     status: 'Active',
-    task: 'Nordea docs and API patterns',
+    task: 'Research agent at Lysande.ai',
     progress: 70,
     avatarIcon: 'search',
     avatarColumn: '33.333%'
   },
   {
     name: 'Sladdis',
-    role: 'Integration engineer',
+    role: 'Affiliate agent',
     status: 'Active',
-    task: 'Spec and data mapping',
+    task: 'Running sladdis.store and marketing on social media',
     progress: 50,
     avatarIcon: 'gitBranch',
     avatarColumn: '66.666%'
   },
   {
-    name: 'Worker Pool',
-    role: 'Execution engine',
+    name: 'Felipe',
+    role: 'Human in the loop',
     status: 'Active',
-    task: 'Sync transactions job',
+    task: 'Reviewing implementation and providing feedback',
     progress: 75,
     avatarIcon: 'cpu',
     avatarColumn: '100%'
@@ -130,7 +130,7 @@ const feed = [
   },
   {
     time: '21:34',
-    actor: 'Worker pool',
+    actor: 'Felipe',
     text: 'Executed data mapping job.',
     status: 'Completed'
   },
@@ -142,7 +142,7 @@ const feed = [
   },
   {
     time: '21:28',
-    actor: 'Conductor',
+    actor: 'Cai',
     text: 'Started mission.',
     status: 'Started'
   }
