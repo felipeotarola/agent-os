@@ -626,20 +626,31 @@ export default async function OverviewPage() {
                         href={item.url}
                         target='_blank'
                         rel='noreferrer'
-                        className='group block rounded-2xl border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                        className='group block rounded-2xl border bg-background/45 p-2.5 transition hover:border-primary/40 hover:bg-primary/10'
                       >
-                        <div className='flex items-start justify-between gap-3'>
-                          <div className='min-w-0'>
+                        <div className='flex items-start gap-3'>
+                          {item.imageUrl ? (
+                            <div
+                              className='h-14 w-16 shrink-0 rounded-xl border bg-muted bg-cover bg-center shadow-inner'
+                              style={{ backgroundImage: `url(${item.imageUrl})` }}
+                              aria-hidden='true'
+                            />
+                          ) : (
+                            <div className='flex h-14 w-16 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-lg text-muted-foreground'>
+                              ◌
+                            </div>
+                          )}
+                          <div className='min-w-0 flex-1'>
                             <div className='line-clamp-2 text-sm font-medium leading-5 text-foreground group-hover:text-primary'>
                               {item.title}
                             </div>
-                            <div className='mt-1 text-[11px] uppercase tracking-wide text-muted-foreground'>
-                              {item.source}
+                            <div className='mt-1 flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
+                              <span className='truncate'>{item.source}</span>
+                              <span className='shrink-0 transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                                →
+                              </span>
                             </div>
                           </div>
-                          <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                            →
-                          </span>
                         </div>
                       </a>
                     ))}
