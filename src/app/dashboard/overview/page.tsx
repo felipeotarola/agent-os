@@ -702,23 +702,67 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className='grid shrink-0 grid-cols-3 gap-2 lg:w-[330px]'>
-                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                  <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
-                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                    Queued
+              <div className='shrink-0 space-y-3 lg:w-[380px]'>
+                <div className='grid grid-cols-3 gap-2'>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Queued
+                    </div>
+                  </div>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{activeRunCount}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Runs
+                    </div>
+                  </div>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Builds
+                    </div>
                   </div>
                 </div>
-                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                  <div className='text-lg font-semibold'>{activeRunCount}</div>
-                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                    Runs
+
+                <div className='rounded-2xl border bg-background/45 p-3'>
+                  <div className='mb-3 flex items-center justify-between gap-3'>
+                    <div>
+                      <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                        Live shortcuts
+                      </div>
+                    </div>
+                    <Badge
+                      variant='outline'
+                      className='border-border bg-muted/40 text-[10px] text-foreground'
+                    >
+                      LIVE
+                    </Badge>
                   </div>
-                </div>
-                <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                  <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
-                  <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                    Builds
+
+                  <div className='space-y-2'>
+                    <BuildActivityResumeItem initial={buildActivity} />
+                    {resumeItems.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-muted/35 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                      >
+                        <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background/45 text-card-foreground'>
+                          {item.icon}
+                        </span>
+                        <span className='min-w-0 flex-1'>
+                          <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
+                            {item.label}
+                          </span>
+                          <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
+                            {item.value}
+                          </span>
+                        </span>
+                        <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                          →
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -834,46 +878,6 @@ export default async function OverviewPage() {
                   </div>
                 </div>
               </CardContent>
-            </MotionCard>
-
-            <MotionCard className='mobile-feed-card rounded-3xl border bg-card p-4 text-card-foreground shadow-sm'>
-              <div className='mb-4 flex items-start justify-between gap-3'>
-                <div className='min-w-0'>
-                  <div className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>
-                    Resume
-                  </div>
-                  <div className='mt-1 text-sm text-card-foreground'>Live shortcuts.</div>
-                </div>
-                <Badge variant='outline' className='border-border bg-background/40 text-foreground'>
-                  LIVE
-                </Badge>
-              </div>
-
-              <div className='space-y-2'>
-                <BuildActivityResumeItem initial={buildActivity} />
-                {resumeItems.map((item) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                  >
-                    <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground min-[390px]:size-9'>
-                      {item.icon}
-                    </span>
-                    <span className='min-w-0 flex-1'>
-                      <span className='text-muted-foreground block text-[10px] uppercase tracking-wide'>
-                        {item.label}
-                      </span>
-                      <span className='mt-0.5 block line-clamp-2 text-sm font-medium text-card-foreground min-[390px]:truncate'>
-                        {item.value}
-                      </span>
-                    </span>
-                    <span className='hidden text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary min-[390px]:inline'>
-                      →
-                    </span>
-                  </Link>
-                ))}
-              </div>
             </MotionCard>
 
             <CalendarOverviewCard calendar={calendar} />
