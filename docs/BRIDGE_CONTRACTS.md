@@ -129,6 +129,75 @@ Contract: `agent-os.task-dispatch-summary.v1`. Used by Cai's morning/evening dis
 
 The helper `node scripts/agent-dispatcher-summary.mjs` reads `.env`, calls this endpoint, and prints the Swedish dispatcher prompt Cai should summarize to Felipe.
 
+## `GET /inbox/items`
+
+Contract: `agent-os.inbox-items.v1`. Returns active persistent Inbox Radar items from Postgres, plus snoozed items whose `snoozedUntil` is missing or elapsed. Items are sorted by priority descending, then latest update, and capped at 100.
+
+```json
+{
+  "items": [
+    {
+      "id": "cai-learning-loop-review",
+      "source": "cai.proactive",
+      "sourceId": "daily-learning",
+      "kind": "review",
+      "status": "active",
+      "priority": 70,
+      "title": "Review daily agent learning output",
+      "detail": "Daily learning loop created a reviewable result.",
+      "href": "/dashboard/radar",
+      "actionLabel": "Open",
+      "ownerAgentId": "cai",
+      "metadata": {},
+      "snoozedUntil": null,
+      "createdAt": "2026-05-21T10:00:00.000Z",
+      "updatedAt": "2026-05-21T10:00:00.000Z"
+    }
+  ],
+  "source": "bridge:postgres:inbox_items"
+}
+```
+
+## `POST /inbox/items`
+
+Upserts one persistent Inbox Radar item. `source` and `title` are required; `id` is optional but producers should provide a stable id for idempotent updates.
+
+Allowed `kind` values: `signal`, `review`, `approval`, `draft`, `handoff`, `task`. Unknown kinds normalize to `signal`.
+Allowed `status` values: `active`, `handled`, `dismissed`, `snoozed`. Unknown statuses normalize to `active`.
+
+```json
+{
+  "id": "cai-learning-loop-review",
+  "source": "cai.proactive",
+  "sourceId": "daily-learning",
+  "kind": "review",
+  "status": "active",
+  "priority": 70,
+  "title": "Review daily agent learning output",
+  "detail": "Daily learning loop created a reviewable result.",
+  "href": "/dashboard/radar",
+  "actionLabel": "Open",
+  "ownerAgentId": "cai",
+  "metadata": { "runId": "optional-safe-reference" }
+}
+```
+
+Response is the normalized item. On conflict, the bridge updates the item and merges `metadata` with existing metadata (`existing || incoming`).
+
+Producer helper:
+
+```bash
+node scripts/create-inbox-item.mjs \
+  --id cai-learning-loop-review \
+  --source cai.proactive \
+  --source-id daily-learning \
+  --kind review \
+  --priority 70 \
+  --title "Review daily agent learning output" \
+  --detail "Daily learning loop created a reviewable result." \
+  --owner-agent-id cai
+```
+
 ## `POST /knowledge/sources/delete`
 
 Deletes one real knowledge source from Postgres by `id`. The generated vault files (`rawPath`/`wikiPath`) disappear from the next `/knowledge/snapshot` because the vault is derived from `knowledge_sources`; root generated files (`agents.md`, `index.md`, `log.md`) are not individually deletable.
