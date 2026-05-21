@@ -420,6 +420,7 @@ export default async function OverviewPage() {
   ];
 
   const marketAssets = briefing.markets.assets.slice(0, 8);
+  const newsSignals = briefing.news.items.slice(0, 4);
   const holdingChange24h = briefing.markets.holdings.averageChange24h;
   const latestCaiRun = briefing.latestMessage.latest;
   const latestCaiMessage = briefPreview(latestCaiRun?.summary);
@@ -602,6 +603,49 @@ export default async function OverviewPage() {
               </div>
 
               <InteractiveCalendarOverviewCard calendar={calendar} />
+
+              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <div className='font-semibold text-foreground'>News signals</div>
+                    <div className='text-xs text-muted-foreground'>High-signal headlines.</div>
+                  </div>
+                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                    {briefing.news.ok ? 'live' : 'degraded'}
+                  </Badge>
+                </div>
+                {newsSignals.length === 0 ? (
+                  <div className='rounded-2xl border border-dashed bg-background/35 p-3 text-sm text-muted-foreground'>
+                    No news signals available.
+                  </div>
+                ) : (
+                  <div className='max-h-64 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+                    {newsSignals.map((item) => (
+                      <a
+                        key={`${item.source}-${item.url}`}
+                        href={item.url}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='group block rounded-2xl border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                      >
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0'>
+                            <div className='line-clamp-2 text-sm font-medium leading-5 text-foreground group-hover:text-primary'>
+                              {item.title}
+                            </div>
+                            <div className='mt-1 text-[11px] uppercase tracking-wide text-muted-foreground'>
+                              {item.source}
+                            </div>
+                          </div>
+                          <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                            →
+                          </span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
                 <div className='mb-3 flex items-center justify-between gap-3'>
