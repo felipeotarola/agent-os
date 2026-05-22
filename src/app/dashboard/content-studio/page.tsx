@@ -346,8 +346,8 @@ export default async function ContentStudioPage({
                   </label>
                   <Input id='media' name='media' type='file' accept='image/*' multiple />
                   <p className='text-muted-foreground text-xs'>
-                    Images are uploaded through the Sladdis Supabase Edge Function when configured.
-                    Videos and autopublish are still intentionally out of scope for V1.
+                    Images are uploaded to Vercel Blob through the scoped content ingest API. Videos
+                    and autopublish are still intentionally out of scope for V1.
                   </p>
                 </div>
                 <input type='hidden' name='ownerAgentId' value='sladdis' />
