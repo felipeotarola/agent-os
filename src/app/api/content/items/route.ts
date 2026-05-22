@@ -20,13 +20,7 @@ function edgeFunctionUrl() {
 }
 
 function edgeFunctionToken() {
-  return (
-    process.env.SLADDIS_CONTENT_EDGE_TOKEN ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    null
-  );
+  return process.env.SLADDIS_CONTENT_EDGE_TOKEN || process.env.SLADDIS_CONTENT_INGEST_TOKEN || null;
 }
 
 async function createContentItemWithEdge(formData: FormData) {

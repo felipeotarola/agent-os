@@ -40,8 +40,7 @@ POST `multipart/form-data` to the Edge Function:
 
 ```http
 POST /functions/v1/sladdis-content
-Authorization: Bearer <token>
-apikey: <token>
+Authorization: Bearer <SLADDIS_CONTENT_INGEST_TOKEN>
 Content-Type: multipart/form-data
 ```
 
@@ -61,8 +60,7 @@ Example with `curl`:
 
 ```bash
 curl -X POST "$SUPABASE_URL/functions/v1/sladdis-content" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SLADDIS_CONTENT_INGEST_TOKEN" \
   -F "title=3 myths about toddler sleep" \
   -F "brief=Hook: parents over-optimize bedtime. CTA: try Sladdis checklist." \
   -F "pillar=education" \
@@ -76,6 +74,7 @@ curl -X POST "$SUPABASE_URL/functions/v1/sladdis-content" \
 
 - Images go to Vercel Blob using `BLOB_READ_WRITE_TOKEN` / `VERCEL_BLOB_READ_WRITE_TOKEN`.
 - DB rows go to Supabase/Postgres using `SUPABASE_SERVICE_ROLE_KEY`.
+- Sladdis should only receive `SLADDIS_CONTENT_INGEST_TOKEN`, never the Supabase service-role key or Blob token.
 - Service-role and Blob tokens must never be sent to browsers or public chat.
 - V1 accepts images only, max 15 MB each.
 - V1 does not publish externally.
@@ -119,3 +118,25 @@ Use Content Studio actions to move it:
 Content Storage prepares content. It does not post to Instagram, TikTok, YouTube, X, or Facebook.
 
 Publishing should be a separate explicit human-approved launch flow.
+
+## Recommended Sladdis auth V1
+
+Use a restricted content-ingest token:
+
+- secret name/env: `SLADDIS_CONTENT_INGEST_TOKEN`
+- allowed operation: create Sladdis content drafts + upload source images
+- not allowed: dashboard login, secrets, tasks, mail, publishing, deleting, or general bridge/API access
+
+This is safer than giving Sladdis `AGENT_OS_BRIDGE_TOKEN`, a human cookie, `SUPABASE_SERVICE_ROLE_KEY`, or `BLOB_READ_WRITE_TOKEN`.
+
+## Future claim flow
+
+A nicer version can be added later:
+
+1. Sladdis requests a claim URL from Agent OS.
+2. Felipe opens the URL while logged in.
+3. Felipe approves scope + expiry, e.g. `content:create`, `content:read`, 30 days.
+4. Agent OS returns a restricted token to Sladdis once.
+5. Token can be revoked/rotated from Settings.
+
+Until that exists, manually provision `SLADDIS_CONTENT_INGEST_TOKEN` as a scoped secret.

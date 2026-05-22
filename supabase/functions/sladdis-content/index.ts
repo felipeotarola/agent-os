@@ -14,6 +14,12 @@ const DEFAULT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts'];
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const ALLOWED_MEDIA_PREFIXES = ['image/'];
 
+function bearerToken(request: Request) {
+  const authorization = request.headers.get('authorization') ?? '';
+  if (authorization.toLowerCase().startsWith('bearer ')) return authorization.slice(7).trim();
+  return request.headers.get('x-agent-os-token')?.trim() ?? '';
+}
+
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), {
     ...init,
@@ -59,8 +65,15 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const ingestToken = Deno.env.get('SLADDIS_CONTENT_INGEST_TOKEN');
   const blobToken =
     Deno.env.get('BLOB_READ_WRITE_TOKEN') || Deno.env.get('VERCEL_BLOB_READ_WRITE_TOKEN');
+  if (!ingestToken) {
+    return json({ error: 'Sladdis content ingest token is not configured' }, { status: 500 });
+  }
+  if (bearerToken(request) !== ingestToken) {
+    return json({ error: 'unauthorized' }, { status: 401 });
+  }
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: 'Supabase service environment is not configured' }, { status: 500 });
   }

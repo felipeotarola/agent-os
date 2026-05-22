@@ -45,15 +45,15 @@ Vercel Blob, and records source asset references in `content_media_assets`.
 Next route configuration:
 
 - `SLADDIS_CONTENT_EDGE_URL` — optional explicit function URL
-- `SLADDIS_CONTENT_EDGE_TOKEN` — optional explicit function token
+- `SLADDIS_CONTENT_EDGE_TOKEN` / `SLADDIS_CONTENT_INGEST_TOKEN` — restricted function caller token
 - fallback URL: `${SUPABASE_URL}/functions/v1/sladdis-content`
-- fallback token: `SUPABASE_SERVICE_ROLE_KEY`, then anon-key envs if no service role exists
 
 Edge Function secrets:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `BLOB_READ_WRITE_TOKEN` or `VERCEL_BLOB_READ_WRITE_TOKEN`
+- `SLADDIS_CONTENT_INGEST_TOKEN`
 
 ## Supported statuses
 
