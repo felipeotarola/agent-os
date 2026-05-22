@@ -1,0 +1,194 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const CONTENT_PLATFORMS = [
+  'instagram',
+  'tiktok',
+  'youtube_shorts',
+  'youtube_longform',
+  'x',
+  'facebook'
+] as const;
+
+const DEFAULT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts'];
+const BUCKET = 'sladdis-content';
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const ALLOWED_MEDIA_PREFIXES = ['image/'];
+
+function json(data: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(data), {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
+      'access-control-allow-methods': 'POST, OPTIONS',
+      ...init.headers
+    }
+  });
+}
+
+function normalizePlatforms(values: FormDataEntryValue[]) {
+  const requested = values.map((value) => String(value).trim());
+  const platforms = requested.filter((platform) =>
+    CONTENT_PLATFORMS.includes(platform as (typeof CONTENT_PLATFORMS)[number])
+  );
+  return platforms.length ? [...new Set(platforms)] : DEFAULT_PLATFORMS;
+}
+
+function safeFileName(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'upload'
+  );
+}
+
+function extensionFor(file: File) {
+  const fromName = safeFileName(file.name).split('.').pop();
+  if (fromName && fromName !== safeFileName(file.name)) return fromName;
+  if (file.type === 'image/png') return 'png';
+  if (file.type === 'image/webp') return 'webp';
+  if (file.type === 'image/gif') return 'gif';
+  return 'jpg';
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return json({ ok: true });
+  if (request.method !== 'POST') return json({ error: 'method not allowed' }, { status: 405 });
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) {
+    return json({ error: 'Supabase service environment is not configured' }, { status: 500 });
+  }
+
+  const contentType = request.headers.get('content-type') ?? '';
+  if (!contentType.includes('multipart/form-data')) {
+    return json({ error: 'multipart/form-data required' }, { status: 400 });
+  }
+
+  const formData = await request.formData();
+  const title = String(formData.get('title') ?? '').trim();
+  if (!title) return json({ error: 'title is required' }, { status: 400 });
+
+  const brief = String(formData.get('brief') ?? '').trim();
+  const pillar = String(formData.get('pillar') ?? '').trim();
+  const campaign = String(formData.get('campaign') ?? 'sladdis').trim() || 'sladdis';
+  const requestedOwnerAgentId =
+    String(formData.get('ownerAgentId') ?? 'sladdis').trim() || 'sladdis';
+  const platforms = normalizePlatforms(formData.getAll('platforms'));
+  const mediaFiles = formData
+    .getAll('media')
+    .filter((value): value is File => value instanceof File && value.size > 0);
+
+  for (const file of mediaFiles) {
+    if (file.size > MAX_FILE_BYTES) {
+      return json({ error: `file too large: ${file.name}` }, { status: 413 });
+    }
+    if (!ALLOWED_MEDIA_PREFIXES.some((prefix) => file.type.startsWith(prefix))) {
+      return json({ error: `unsupported media type: ${file.type || file.name}` }, { status: 415 });
+    }
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+
+  await supabase.storage.createBucket(BUCKET, { public: false }).then(({ error }) => {
+    if (error && !/already exists/i.test(error.message)) throw error;
+  });
+
+  const itemId = crypto.randomUUID();
+  const { data: owner } = await supabase
+    .from('agents')
+    .select('id')
+    .eq('id', requestedOwnerAgentId)
+    .maybeSingle();
+  const ownerAgentId = owner?.id ?? null;
+
+  const { error: itemError } = await supabase.from('content_items').insert({
+    id: itemId,
+    title,
+    brief,
+    status: 'draft',
+    pillar,
+    campaign,
+    owner_agent_id: ownerAgentId,
+    source: 'supabase-edge',
+    metadata: {
+      autopublish: false,
+      createdBy: 'sladdis-content-edge',
+      mediaCount: mediaFiles.length
+    }
+  });
+  if (itemError) return json({ error: itemError.message }, { status: 500 });
+
+  const variants = platforms.map((platform) => ({
+    id: crypto.randomUUID(),
+    content_item_id: itemId,
+    platform,
+    status: 'draft',
+    title,
+    caption: '',
+    hashtags: [],
+    metadata: { autopublish: false, createdBy: 'sladdis-content-edge' }
+  }));
+
+  const { error: variantError } = await supabase.from('content_variants').insert(variants);
+  if (variantError) return json({ error: variantError.message }, { status: 500 });
+
+  const assets = [];
+  for (const file of mediaFiles) {
+    const assetId = crypto.randomUUID();
+    const cleanName = safeFileName(file.name);
+    const blobKey = `${campaign}/${itemId}/${assetId}.${extensionFor(file)}`;
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(blobKey, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (uploadError) return json({ error: uploadError.message }, { status: 500 });
+
+    const row = {
+      id: assetId,
+      content_item_id: itemId,
+      variant_id: null,
+      kind: 'source',
+      status: 'uploaded',
+      blob_key: blobKey,
+      blob_url: `${supabaseUrl}/storage/v1/object/${BUCKET}/${blobKey}`,
+      file_name: cleanName,
+      content_type: file.type || null,
+      bytes: file.size,
+      metadata: { bucket: BUCKET, originalName: file.name, createdBy: 'sladdis-content-edge' }
+    };
+    assets.push(row);
+  }
+
+  if (assets.length) {
+    const { error: assetError } = await supabase.from('content_media_assets').insert(assets);
+    if (assetError) return json({ error: assetError.message }, { status: 500 });
+  }
+
+  return json({
+    ok: true,
+    item: {
+      id: itemId,
+      title,
+      brief,
+      status: 'draft',
+      pillar,
+      campaign,
+      ownerAgentId,
+      source: 'supabase-edge',
+      platforms,
+      mediaAssets: assets.map((asset) => ({
+        id: asset.id,
+        blobKey: asset.blob_key,
+        fileName: asset.file_name,
+        contentType: asset.content_type,
+        bytes: asset.bytes
+      }))
+    }
+  });
+});

@@ -200,8 +200,8 @@ export default async function ContentStudioPage({
                 </h1>
                 <p className='text-muted-foreground mt-2 max-w-3xl text-sm md:text-base'>
                   Draft, adapt and schedule Sladdis content across Instagram, TikTok and YouTube. V1
-                  stores metadata in Postgres and keeps media references ready for server-side
-                  Vercel Blob handling. No external autopublish runs here.
+                  stores metadata in Postgres and can upload source images through Supabase Edge
+                  Functions. No external autopublish runs here.
                 </p>
               </div>
             </div>
@@ -258,7 +258,12 @@ export default async function ContentStudioPage({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action='/api/content/items' method='post' className='space-y-4'>
+              <form
+                action='/api/content/items'
+                method='post'
+                encType='multipart/form-data'
+                className='space-y-4'
+              >
                 <div className='space-y-2'>
                   <label className='text-sm font-medium' htmlFor='title'>
                     Title
@@ -311,6 +316,16 @@ export default async function ContentStudioPage({
                       </label>
                     ))}
                   </div>
+                </div>
+                <div className='space-y-2'>
+                  <label className='text-sm font-medium' htmlFor='media'>
+                    Source images
+                  </label>
+                  <Input id='media' name='media' type='file' accept='image/*' multiple />
+                  <p className='text-muted-foreground text-xs'>
+                    Images are uploaded through the Sladdis Supabase Edge Function when configured.
+                    Videos and autopublish are still intentionally out of scope for V1.
+                  </p>
                 </div>
                 <input type='hidden' name='ownerAgentId' value='sladdis' />
                 <Button type='submit' className='w-full'>
