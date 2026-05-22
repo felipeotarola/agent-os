@@ -2,8 +2,10 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, promises as fs, readdirSync, readFileSync, statSync } from 'node:fs';
+import { Readable } from 'node:stream';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { put } from '@vercel/blob';
 import postgres from 'postgres';
 
 const port = Number(process.env.BRIDGE_PORT ?? 8787);
@@ -25,6 +27,9 @@ const OPENCLAW_HOME = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
 const AGENT_OS_SECRETS_DIR =
   process.env.AGENT_OS_SECRETS_DIR ?? path.join(OPENCLAW_HOME, 'secrets', 'agent-os');
 const sladdisContentIngestToken = readManagedSecretSync('SLADDIS_CONTENT_INGEST_TOKEN');
+const blobReadWriteToken =
+  readManagedSecretSync('BLOB_READ_WRITE_TOKEN') ??
+  readManagedSecretSync('VERCEL_BLOB_READ_WRITE_TOKEN');
 const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.openclaw/workspace';
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
@@ -38,6 +43,8 @@ const CONTENT_PLATFORMS = [
   'x',
   'facebook'
 ];
+const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
+const CONTENT_MEDIA_PREFIXES = ['image/'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
@@ -1152,6 +1159,81 @@ function contentIsoOrNull(value) {
   return value ? new Date(value).toISOString() : null;
 }
 
+function safeContentFileName(name) {
+  return (
+    String(name ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'upload'
+  );
+}
+
+function contentFileExtension(file) {
+  const safeName = safeContentFileName(file.name);
+  const parts = safeName.split('.');
+  const fromName = parts.length > 1 ? parts.at(-1) : '';
+  if (fromName) return fromName;
+  if (file.type === 'image/png') return 'png';
+  if (file.type === 'image/webp') return 'webp';
+  if (file.type === 'image/gif') return 'gif';
+  return 'jpg';
+}
+
+function validateContentMediaFiles(mediaFiles) {
+  for (const file of mediaFiles) {
+    if (file.size > MAX_CONTENT_MEDIA_BYTES) {
+      const error = new Error(`file too large: ${file.name}`);
+      error.status = 413;
+      throw error;
+    }
+    if (!CONTENT_MEDIA_PREFIXES.some((prefix) => String(file.type ?? '').startsWith(prefix))) {
+      const error = new Error(`unsupported media type: ${file.type || file.name}`);
+      error.status = 415;
+      throw error;
+    }
+  }
+}
+
+async function uploadContentMediaAssets({ contentItemId, campaign, mediaFiles }) {
+  if (!mediaFiles.length) return [];
+  if (!blobReadWriteToken) {
+    const error = new Error('Vercel Blob token is not configured');
+    error.status = 500;
+    throw error;
+  }
+
+  const assets = [];
+  for (const file of mediaFiles) {
+    const assetId = randomUUID();
+    const cleanName = safeContentFileName(file.name);
+    const blobKey = `${campaign}/${contentItemId}/${assetId}.${contentFileExtension(file)}`;
+    const blob = await put(blobKey, file, {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: file.type || 'application/octet-stream',
+      token: blobReadWriteToken
+    });
+    assets.push({
+      id: assetId,
+      contentItemId,
+      variantId: null,
+      kind: 'source',
+      status: 'uploaded',
+      blobKey,
+      blobUrl: blob.url,
+      fileName: cleanName,
+      contentType: file.type || null,
+      bytes: file.size,
+      metadata: {
+        storage: 'vercel-blob',
+        originalName: file.name,
+        createdBy: 'agent-os-bridge'
+      }
+    });
+  }
+  return assets;
+}
+
 function mapContentMediaAsset(row) {
   return {
     id: row.id,
@@ -1263,7 +1345,7 @@ async function contentItemsSnapshot() {
   };
 }
 
-async function createContentItem(input) {
+async function createContentItem(input, mediaFiles = []) {
   await ensureContentTables();
   const title = String(input.title ?? '').trim();
   if (!title) {
@@ -1278,17 +1360,25 @@ async function createContentItem(input) {
   const ownerRows = await sql`select id from agents where id = ${requestedOwnerAgentId} limit 1`;
   const ownerAgentId = ownerRows.length ? requestedOwnerAgentId : null;
   const platforms = normalizeContentPlatforms(input.platforms);
+  validateContentMediaFiles(mediaFiles);
   const id = randomUUID();
+  const mediaAssets = await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles });
 
   await sql.begin(async (tx) => {
     await tx`
       insert into content_items (id, title, brief, status, pillar, campaign, owner_agent_id, source, metadata, updated_at)
-      values (${id}, ${title}, ${brief}, 'draft', ${pillar}, ${campaign}, ${ownerAgentId}, 'cockpit', ${sql.json({ autopublish: false })}, now())
+      values (${id}, ${title}, ${brief}, 'draft', ${pillar}, ${campaign}, ${ownerAgentId}, 'cockpit', ${sql.json({ autopublish: false, mediaCount: mediaAssets.length })}, now())
     `;
     for (const platform of platforms) {
       await tx`
         insert into content_variants (id, content_item_id, platform, status, title, caption, hashtags, metadata, updated_at)
         values (${randomUUID()}, ${id}, ${platform}, 'draft', ${title}, '', ${sql.json([])}, ${sql.json({ autopublish: false })}, now())
+      `;
+    }
+    for (const asset of mediaAssets) {
+      await tx`
+        insert into content_media_assets (id, content_item_id, variant_id, kind, status, blob_key, blob_url, file_name, content_type, bytes, metadata, updated_at)
+        values (${asset.id}, ${asset.contentItemId}, ${asset.variantId}, ${asset.kind}, ${asset.status}, ${asset.blobKey}, ${asset.blobUrl}, ${asset.fileName}, ${asset.contentType}, ${asset.bytes}, ${sql.json(asset.metadata)}, now())
       `;
     }
   });
@@ -2994,6 +3084,48 @@ async function readJson(req) {
   return JSON.parse(body);
 }
 
+function isMultipartRequest(req) {
+  return String(req.headers['content-type'] ?? '').includes('multipart/form-data');
+}
+
+function requestHeaders(req) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item);
+    } else if (value !== undefined) {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+
+async function readFormData(req) {
+  const request = new Request('http://agent-os.local/content/items', {
+    method: req.method,
+    headers: requestHeaders(req),
+    body: Readable.toWeb(req),
+    duplex: 'half'
+  });
+  return request.formData();
+}
+
+function formDataToContentInput(formData) {
+  const platforms = formData.getAll('platforms').map((value) => String(value));
+  return {
+    title: String(formData.get('title') ?? ''),
+    brief: String(formData.get('brief') ?? ''),
+    pillar: String(formData.get('pillar') ?? ''),
+    campaign: String(formData.get('campaign') ?? 'sladdis'),
+    ownerAgentId: String(formData.get('ownerAgentId') ?? 'sladdis'),
+    platforms
+  };
+}
+
+function mediaFilesFromFormData(formData) {
+  return formData.getAll('media').filter((value) => value instanceof File && value.size > 0);
+}
+
 function boundedInt(value, fallback, { min = 1, max = 200 } = {}) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -4296,6 +4428,17 @@ const server = http.createServer(async (req, res) => {
     if (!checkAuth(req)) {
       if (isSladdisContentIngestRoute(req, url) && checkSladdisContentIngestAuth(req)) {
         if (req.method === 'GET') return send(res, 200, await contentItemsSnapshot());
+        if (isMultipartRequest(req)) {
+          const formData = await readFormData(req);
+          return send(
+            res,
+            201,
+            await createContentItem(
+              formDataToContentInput(formData),
+              mediaFilesFromFormData(formData)
+            )
+          );
+        }
         return send(res, 201, await createContentItem(await readJson(req)));
       }
       return unauthorized(res);
@@ -4399,6 +4542,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/content/items') {
+      if (isMultipartRequest(req)) {
+        const formData = await readFormData(req);
+        return send(
+          res,
+          201,
+          await createContentItem(
+            formDataToContentInput(formData),
+            mediaFilesFromFormData(formData)
+          )
+        );
+      }
       return send(res, 201, await createContentItem(await readJson(req)));
     }
 

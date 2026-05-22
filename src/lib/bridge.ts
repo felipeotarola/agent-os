@@ -78,11 +78,12 @@ export async function bridgeFetch(path: string, init: BridgeRequestInit = {}) {
   const { timeoutMs: _timeoutMs, cacheMs: _cacheMs, cacheKey: _cacheKey, ...fetchInit } = init;
 
   try {
+    const isFormDataBody = typeof FormData !== 'undefined' && fetchInit.body instanceof FormData;
     const response = await fetch(`${config.url}${path}`, {
       ...fetchInit,
       headers: {
         authorization: `Bearer ${config.token}`,
-        'content-type': 'application/json',
+        ...(isFormDataBody ? {} : { 'content-type': 'application/json' }),
         ...fetchInit.headers
       },
       cache: 'no-store',

@@ -149,6 +149,29 @@ function ContentCard({ item }: { item: ContentItem }) {
             <div className='text-lg font-semibold'>{item.title}</div>
             {item.brief && <div className='text-muted-foreground mt-1 text-sm'>{item.brief}</div>}
           </div>
+          {item.mediaAssets.length > 0 && (
+            <div className='flex flex-wrap gap-2'>
+              {item.mediaAssets.map((asset) =>
+                asset.blobUrl ? (
+                  <a
+                    key={asset.id}
+                    href={asset.blobUrl}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='group block overflow-hidden rounded-xl border bg-muted'
+                    title={asset.fileName ?? 'Source image'}
+                  >
+                    <span
+                      aria-label={asset.fileName ?? 'Source image'}
+                      className='block h-24 w-24 bg-cover bg-center transition group-hover:scale-105'
+                      role='img'
+                      style={{ backgroundImage: `url(${asset.blobUrl})` }}
+                    />
+                  </a>
+                ) : null
+              )}
+            </div>
+          )}
           <div className='flex flex-wrap gap-2'>
             {variantPlatforms.map((platform) => (
               <Badge key={platform} variant='outline'>

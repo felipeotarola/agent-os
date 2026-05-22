@@ -1,4 +1,4 @@
-import { bridgeRequest } from '@/lib/bridge';
+import { bridgeFetch, bridgeRequest } from '@/lib/bridge';
 import { NextRequest, NextResponse } from 'next/server';
 
 function selectedPlatforms(formData: FormData) {
@@ -45,6 +45,14 @@ async function createContentItemWithEdge(formData: FormData) {
   }
 }
 
+async function createContentItemWithBridgeUpload(formData: FormData) {
+  await bridgeFetch('/content/items', {
+    method: 'POST',
+    body: formData,
+    timeoutMs: 30_000
+  });
+}
+
 export async function GET() {
   const result = await bridgeRequest('/content/items');
   return NextResponse.json(result, { headers: { 'cache-control': 'no-store' } });
@@ -68,7 +76,11 @@ export async function POST(request: NextRequest) {
   const media = selectedMedia(formData);
   if (media.length || (edgeFunctionUrl() && edgeFunctionToken())) {
     try {
-      await createContentItemWithEdge(formData);
+      if (edgeFunctionUrl() && edgeFunctionToken()) {
+        await createContentItemWithEdge(formData);
+      } else {
+        await createContentItemWithBridgeUpload(formData);
+      }
       return NextResponse.redirect(
         new URL('/dashboard/content-studio?created=1', request.url),
         303
@@ -77,7 +89,7 @@ export async function POST(request: NextRequest) {
       if (!media.length && error instanceof Error && error.message === 'missing-edge-config') {
         // Text-only drafts can still use the existing bridge when Edge Functions are not wired yet.
       } else {
-        const message = error instanceof Error ? error.message : 'edge-upload-failed';
+        const message = error instanceof Error ? error.message : 'media-upload-failed';
         return NextResponse.redirect(
           new URL(`/dashboard/content-studio?error=${encodeURIComponent(message)}`, request.url),
           303

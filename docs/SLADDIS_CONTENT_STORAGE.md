@@ -36,10 +36,10 @@ Supabase Edge Functions are used for fast ingestion, but images do **not** live 
 
 ## Agent/API workflow
 
-POST `multipart/form-data` to the Edge Function:
+POST `multipart/form-data` to the scoped content ingest endpoint:
 
 ```http
-POST /functions/v1/sladdis-content
+POST /content/items
 Authorization: Bearer <SLADDIS_CONTENT_INGEST_TOKEN>
 Content-Type: multipart/form-data
 ```
@@ -59,7 +59,7 @@ Fields:
 Example with `curl`:
 
 ```bash
-curl -X POST "$SUPABASE_URL/functions/v1/sladdis-content" \
+curl -X POST "$SLADDIS_CONTENT_INGEST_URL" \
   -H "Authorization: Bearer $SLADDIS_CONTENT_INGEST_TOKEN" \
   -F "title=3 myths about toddler sleep" \
   -F "brief=Hook: parents over-optimize bedtime. CTA: try Sladdis checklist." \
@@ -72,9 +72,9 @@ curl -X POST "$SUPABASE_URL/functions/v1/sladdis-content" \
 
 ## Storage rules
 
-- Images go to Vercel Blob using `BLOB_READ_WRITE_TOKEN` / `VERCEL_BLOB_READ_WRITE_TOKEN`.
+- Images go to Vercel Blob using server-side `BLOB_READ_WRITE_TOKEN` / `VERCEL_BLOB_READ_WRITE_TOKEN`.
 - DB rows go to Supabase/Postgres using `SUPABASE_SERVICE_ROLE_KEY`.
-- Sladdis should only receive `SLADDIS_CONTENT_INGEST_TOKEN`, never the Supabase service-role key or Blob token.
+- Sladdis should only receive `SLADDIS_CONTENT_INGEST_URL` + `SLADDIS_CONTENT_INGEST_TOKEN`, never the Supabase service-role key or Blob token.
 - Service-role and Blob tokens must never be sent to browsers or public chat.
 - V1 accepts images only, max 15 MB each.
 - V1 does not publish externally.
