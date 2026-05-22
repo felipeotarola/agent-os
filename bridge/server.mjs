@@ -22,17 +22,36 @@ const GOG_CLI = process.env.GOG_CLI ?? 'gog';
 const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH ?? '/root/.openclaw/openclaw.json';
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
-const AGENT_OS_SECRETS_DIR = process.env.AGENT_OS_SECRETS_DIR ?? path.join(OPENCLAW_HOME, 'secrets', 'agent-os');
+const AGENT_OS_SECRETS_DIR =
+  process.env.AGENT_OS_SECRETS_DIR ?? path.join(OPENCLAW_HOME, 'secrets', 'agent-os');
+const sladdisContentIngestToken = readManagedSecretSync('SLADDIS_CONTENT_INGEST_TOKEN');
 const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.openclaw/workspace';
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
 const CONTENT_STATUSES = ['draft', 'ready', 'scheduled', 'posted', 'failed', 'archived'];
-const CONTENT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts', 'youtube_longform', 'x', 'facebook'];
+const CONTENT_PLATFORMS = [
+  'instagram',
+  'tiktok',
+  'youtube_shorts',
+  'youtube_longform',
+  'x',
+  'facebook'
+];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
 const runtimeCache = new Map();
+
+function readManagedSecretSync(name) {
+  const envValue = process.env[name]?.trim();
+  if (envValue) return envValue;
+  try {
+    return readFileSync(path.join(AGENT_OS_SECRETS_DIR, name), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 async function cachedRuntimeValue(key, ttlMs, fetcher) {
   const cached = runtimeCache.get(key);
@@ -70,21 +89,25 @@ async function openclawText(args, options = {}) {
 }
 
 async function gatewayJson(method, params = {}, options = {}) {
-  const { stdout } = await execFileAsync('node', [
-    OPENCLAW_CLI,
-    'gateway',
-    'call',
-    method,
-    '--json',
-    '--params',
-    JSON.stringify(params),
-    '--timeout',
-    String(options.timeout ?? 12000)
-  ], {
-    timeout: (options.timeout ?? 12000) + 2000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 6,
-    env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
-  });
+  const { stdout } = await execFileAsync(
+    'node',
+    [
+      OPENCLAW_CLI,
+      'gateway',
+      'call',
+      method,
+      '--json',
+      '--params',
+      JSON.stringify(params),
+      '--timeout',
+      String(options.timeout ?? 12000)
+    ],
+    {
+      timeout: (options.timeout ?? 12000) + 2000,
+      maxBuffer: options.maxBuffer ?? 1024 * 1024 * 6,
+      env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
+    }
+  );
   return JSON.parse(stdout || '{}');
 }
 
@@ -128,7 +151,8 @@ function gatewayFrameId(prefix = 'bridge') {
 function jsonMessage(data) {
   if (typeof data === 'string') return data;
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8');
+  if (ArrayBuffer.isView(data))
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8');
   return Buffer.from(data).toString('utf8');
 }
 
@@ -263,9 +287,14 @@ function createGatewayRpcClient() {
 
 async function gatewayRpcJson(method, params = {}, options = {}) {
   try {
-    return await getGatewayRpcClient().request(method, params, { timeout: options.timeout ?? 12000 });
+    return await getGatewayRpcClient().request(method, params, {
+      timeout: options.timeout ?? 12000
+    });
   } catch (error) {
-    console.warn(`Gateway WebSocket RPC failed for ${method}; falling back to CLI:`, error.message ?? error);
+    console.warn(
+      `Gateway WebSocket RPC failed for ${method}; falling back to CLI:`,
+      error.message ?? error
+    );
     return gatewayJson(method, params, options);
   }
 }
@@ -298,7 +327,6 @@ async function gogJson(args, options = {}) {
   return JSON.parse(stdout || '{}');
 }
 
-
 function isoOrNull(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -307,12 +335,17 @@ function isoOrNull(value) {
 
 function normalizeRunStatus(status) {
   const value = String(status ?? 'unknown');
-  if (['queued', 'running', 'succeeded', 'failed', 'timed_out', 'cancelled', 'lost'].includes(value)) return value;
+  if (
+    ['queued', 'running', 'succeeded', 'failed', 'timed_out', 'cancelled', 'lost'].includes(value)
+  )
+    return value;
   return 'unknown';
 }
 
 function compactTaskTitle(value) {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) return null;
   return text.length > 140 ? `${text.slice(0, 137)}…` : text;
 }
@@ -369,10 +402,17 @@ function sessionSignalScore(text) {
     'sladdis',
     'charles'
   ];
-  const keywordScore = keywords.reduce((sum, keyword) => sum + (value.includes(keyword) ? 1 : 0), 0);
+  const keywordScore = keywords.reduce(
+    (sum, keyword) => sum + (value.includes(keyword) ? 1 : 0),
+    0
+  );
   const userTurns = (text.match(/(^|\n)(User|Human|Felipe):/g) ?? []).length;
   const assistantTurns = (text.match(/(^|\n)Assistant:/g) ?? []).length;
-  return keywordScore * 10 + Math.min(40, userTurns + assistantTurns) + Math.min(40, Math.floor(text.length / 5000));
+  return (
+    keywordScore * 10 +
+    Math.min(40, userTurns + assistantTurns) +
+    Math.min(40, Math.floor(text.length / 5000))
+  );
 }
 
 function sessionTitle(agentId, path, text) {
@@ -381,7 +421,11 @@ function sessionTitle(agentId, path, text) {
     .map((line) => line.trim())
     .find((line) => /^(User|Human|Felipe):\s+/.test(line));
   const label = firstHumanLine?.replace(/^(User|Human|Felipe):\s+/, '').slice(0, 90);
-  const base = path.split('/').pop()?.replace(/\.(md|jsonl).*$/, '') ?? 'session';
+  const base =
+    path
+      .split('/')
+      .pop()
+      ?.replace(/\.(md|jsonl).*$/, '') ?? 'session';
   return `${agentId} session: ${label || base}`;
 }
 
@@ -391,7 +435,11 @@ function extractSessionSummary(agentId, path, text) {
     .map((line) => line.trim())
     .filter(Boolean);
   const signalLines = lines
-    .filter((line) => /remember|kom ihåg|beslut|decision|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|implemented|created|fixed|deployed/i.test(line))
+    .filter((line) =>
+      /remember|kom ihåg|beslut|decision|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|implemented|created|fixed|deployed/i.test(
+        line
+      )
+    )
     .slice(0, 8)
     .map((line) => line.replace(/\s+/g, ' ').slice(0, 220));
   return [
@@ -402,16 +450,24 @@ function extractSessionSummary(agentId, path, text) {
 }
 
 function hashText(value) {
-  return createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(String(value ?? ''))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function sessionSignalType(line) {
   if (/\b(todo|next step|nästa steg|ska göra|follow[- ]?up|open todo)\b/i.test(line)) return 'todo';
-  if (/\b(decision|beslut|decided|bestämdes|valde|ska vara|should be)\b/i.test(line)) return 'decision';
-  if (/\b(prefers?|preference|vill ha|style|tone|persona|rules?)\b/i.test(line)) return 'preference';
-  if (/\b(lysande|agent os|roadmap|prd|gtm|product|kund|customer)\b/i.test(line)) return 'product-context';
-  if (/\b(fixed|implemented|bug|lesson|learned|validation|build|lint|commit|push)\b/i.test(line)) return 'technical-lesson';
-  if (/\b(agent|cai|charles|sladdis|subagent|heartbeat|memory|operating model)\b/i.test(line)) return 'agent-note';
+  if (/\b(decision|beslut|decided|bestämdes|valde|ska vara|should be)\b/i.test(line))
+    return 'decision';
+  if (/\b(prefers?|preference|vill ha|style|tone|persona|rules?)\b/i.test(line))
+    return 'preference';
+  if (/\b(lysande|agent os|roadmap|prd|gtm|product|kund|customer)\b/i.test(line))
+    return 'product-context';
+  if (/\b(fixed|implemented|bug|lesson|learned|validation|build|lint|commit|push)\b/i.test(line))
+    return 'technical-lesson';
+  if (/\b(agent|cai|charles|sladdis|subagent|heartbeat|memory|operating model)\b/i.test(line))
+    return 'agent-note';
   return 'session-signal';
 }
 
@@ -422,7 +478,9 @@ function sessionSignalPriority(type) {
 }
 
 function isSensitiveSessionLine(line) {
-  return /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank login|otp|2fa|private key)\b/i.test(line);
+  return /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank login|otp|2fa|private key)\b/i.test(
+    line
+  );
 }
 
 function cleanSessionSignalLine(line) {
@@ -440,7 +498,9 @@ function extractSessionDecisionItems(agentId, path, text, limit = 8) {
     .filter((line) => line.length >= 24 && !isSensitiveSessionLine(line));
 
   const signalLines = lines.filter((line) =>
-    /remember|kom ihåg|beslut|decision|decided|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|should|prefers?|vill ha|implemented|created|fixed|pushed|validated|lesson|Agent OS|Lysande|Charles|Sladdis|Cai/i.test(line)
+    /remember|kom ihåg|beslut|decision|decided|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|should|prefers?|vill ha|implemented|created|fixed|pushed|validated|lesson|Agent OS|Lysande|Charles|Sladdis|Cai/i.test(
+      line
+    )
   );
 
   const seen = new Set();
@@ -519,14 +579,21 @@ async function harvestSessionKnowledge(input = {}) {
   const signalsPerSession = Math.min(Number(input.signalsPerSession ?? 8), 12);
   const dryRun = Boolean(input.dryRun);
   const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
-  const selected = inventory.candidates.filter((candidate) => !candidate.alreadyImported).slice(0, limit);
+  const selected = inventory.candidates
+    .filter((candidate) => !candidate.alreadyImported)
+    .slice(0, limit);
   const imported = [];
 
   if (!dryRun) {
     for (const candidate of selected) {
       const text = readTextSlice(candidate.path, 90000);
       const summary = extractSessionSummary(candidate.agentId, candidate.path, text);
-      const signals = extractSessionDecisionItems(candidate.agentId, candidate.path, text, signalsPerSession);
+      const signals = extractSessionDecisionItems(
+        candidate.agentId,
+        candidate.path,
+        text,
+        signalsPerSession
+      );
       const rawContent = [
         `# ${candidate.title}`,
         '',
@@ -568,14 +635,32 @@ async function harvestSessionKnowledge(input = {}) {
           insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
           values (${signal.id}, ${signal.title}, ${signal.type}, 'extracted', ${sourceUrl}, ${signal.rawContent}, ${signalRawPath}, ${signal.summary}, ${sql.json({ createdFrom: 'session-decision-extractor', parentSourceId: id, agentId: candidate.agentId, sessionPath: candidate.path, sessionSourceUrl: candidate.sourceUrl, signalHash: signal.hash, signalType: signal.type, priority: signal.priority, harvestedAt: new Date().toISOString() })})
         `;
-        importedSignals.push({ id: signal.id, title: signal.title, type: signal.type, priority: signal.priority, rawPath: signalRawPath });
+        importedSignals.push({
+          id: signal.id,
+          title: signal.title,
+          type: signal.type,
+          priority: signal.priority,
+          rawPath: signalRawPath
+        });
       }
 
-      imported.push({ id, title: candidate.title, agentId: candidate.agentId, score: candidate.score, rawPath, signals: importedSignals });
+      imported.push({
+        id,
+        title: candidate.title,
+        agentId: candidate.agentId,
+        score: candidate.score,
+        rawPath,
+        signals: importedSignals
+      });
     }
   }
 
-  await auditEvent('session_harvest', `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`, { dryRun, minScore, limit, signalsPerSession, imported }, 5);
+  await auditEvent(
+    'session_harvest',
+    `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`,
+    { dryRun, minScore, limit, signalsPerSession, imported },
+    5
+  );
   return {
     contract: 'agent-os.session-knowledge-harvest.v1',
     generatedAt: new Date().toISOString(),
@@ -609,9 +694,21 @@ async function auditEvent(kind, message, metadata = {}, throttleMinutes = 30) {
 async function openclawStatus() {
   try {
     const versionText = await openclawText(['--version'], { timeout: 5000 });
-    return { available: true, status: 'available', version: versionText || null, source: 'openclaw-cli:version', error: null };
+    return {
+      available: true,
+      status: 'available',
+      version: versionText || null,
+      source: 'openclaw-cli:version',
+      error: null
+    };
   } catch (error) {
-    return { available: false, status: 'unavailable', version: null, source: 'openclaw-cli:version', error: error.message };
+    return {
+      available: false,
+      status: 'unavailable',
+      version: null,
+      source: 'openclaw-cli:version',
+      error: error.message
+    };
   }
 }
 
@@ -621,7 +718,9 @@ async function subagentRunsSnapshot(options = {}) {
   try {
     const [taskPayload, sessionPayload] = await Promise.all([
       openclawJson(['tasks', 'list', '--json'], { timeout }),
-      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], { timeout })
+      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], {
+        timeout
+      })
     ]);
     const rows = Array.isArray(taskPayload.tasks) ? taskPayload.tasks : [];
     const runs = rows.slice(0, 12).map((task) => {
@@ -637,7 +736,13 @@ async function subagentRunsSnapshot(options = {}) {
         runtime: String(task.runtime ?? 'subagent'),
         ownerKey: task.ownerKey ? String(task.ownerKey) : null,
         startedAt: isoOrNull(task.startedAt ?? task.createdAt ?? task.enqueuedAt),
-        updatedAt: isoOrNull(task.updatedAt ?? task.lastHeartbeatAt ?? task.finishedAt ?? task.startedAt ?? task.createdAt),
+        updatedAt: isoOrNull(
+          task.updatedAt ??
+            task.lastHeartbeatAt ??
+            task.finishedAt ??
+            task.startedAt ??
+            task.createdAt
+        ),
         finishedAt: isoOrNull(task.finishedAt)
       };
     });
@@ -663,7 +768,11 @@ async function subagentRunsSnapshot(options = {}) {
         ageMs: Number(session.ageMs ?? 0),
         totalTokens: typeof session.totalTokens === 'number' ? session.totalTokens : null
       }));
-    const recent = [...activeTaskRuns, ...runs.filter((run) => !['queued', 'running'].includes(run.status)).slice(0, 8), ...activeSessions].slice(0, 16);
+    const recent = [
+      ...activeTaskRuns,
+      ...runs.filter((run) => !['queued', 'running'].includes(run.status)).slice(0, 8),
+      ...activeSessions
+    ].slice(0, 16);
     return {
       ok: true,
       source,
@@ -677,8 +786,24 @@ async function subagentRunsSnapshot(options = {}) {
       checkedAt: new Date().toISOString()
     };
   } catch (error) {
-    await auditEvent('subagent_snapshot_failed', 'Subagent/background run snapshot failed', { source, error: error.message }, 30);
-    return { ok: false, source, available: false, runningCount: 0, activeTaskRunCount: 0, activeSessionCount: 0, recent: [], activeSessions: [], error: error.message, checkedAt: new Date().toISOString() };
+    await auditEvent(
+      'subagent_snapshot_failed',
+      'Subagent/background run snapshot failed',
+      { source, error: error.message },
+      30
+    );
+    return {
+      ok: false,
+      source,
+      available: false,
+      runningCount: 0,
+      activeTaskRunCount: 0,
+      activeSessionCount: 0,
+      recent: [],
+      activeSessions: [],
+      error: error.message,
+      checkedAt: new Date().toISOString()
+    };
   }
 }
 
@@ -699,15 +824,28 @@ async function memorySearch(url) {
 
   if (!query) return { query, corpus, results: [], source: 'openclaw-memory:qmd' };
 
-  const payload = await openclawJson(['memory', 'search', query, '--json', '--max-results', String(maxResults)]);
+  const payload = await openclawJson([
+    'memory',
+    'search',
+    query,
+    '--json',
+    '--max-results',
+    String(maxResults)
+  ]);
   const rawResults = Array.isArray(payload.results) ? payload.results : [];
-  const results = corpus === 'all' ? rawResults : rawResults.filter((result) => result.source === corpus);
+  const results =
+    corpus === 'all' ? rawResults : rawResults.filter((result) => result.source === corpus);
   return { query, corpus, results, source: 'openclaw-memory:qmd' };
 }
 
 async function memoryStatus(options = {}) {
   try {
-    return { status: await openclawJson(['memory', 'status', '--json'], { timeout: options.timeout ?? 20000 }), source: 'openclaw-memory:qmd' };
+    return {
+      status: await openclawJson(['memory', 'status', '--json'], {
+        timeout: options.timeout ?? 20000
+      }),
+      source: 'openclaw-memory:qmd'
+    };
   } catch (error) {
     return { status: null, source: 'openclaw-memory:qmd', error: error.message };
   }
@@ -750,7 +888,8 @@ function assistantWorkspaceFile(name, required) {
     path: filePath,
     required,
     ...status,
-    meaningful: name === 'HEARTBEAT.md' ? isMeaningfulMarkdown(filePath) : status.exists && status.bytes > 0
+    meaningful:
+      name === 'HEARTBEAT.md' ? isMeaningfulMarkdown(filePath) : status.exists && status.bytes > 0
   };
 }
 
@@ -766,7 +905,10 @@ function assistantSessionStatus(agentId) {
 }
 
 async function assistantReadinessFiles() {
-  const logPath = path.join(OPENCLAW_LOG_DIR, `openclaw-${new Date().toISOString().slice(0, 10)}.log`);
+  const logPath = path.join(
+    OPENCLAW_LOG_DIR,
+    `openclaw-${new Date().toISOString().slice(0, 10)}.log`
+  );
   return {
     source: 'bridge:assistant-readiness-files',
     workspaceDir: OPENCLAW_WORKSPACE,
@@ -798,18 +940,52 @@ async function systemStatus() {
 
   const dbRows = dbResult.status === 'fulfilled' ? dbResult.value : [];
   const knowledgeRows = knowledgeResult.status === 'fulfilled' ? knowledgeResult.value : [];
-  const memoryValue = memory.status === 'fulfilled' ? memory.value : { status: null, source: 'openclaw-memory:qmd', error: memory.reason?.message ?? 'memory status failed' };
-  const openclawValue = openclaw.status === 'fulfilled' ? openclaw.value : { available: false, status: 'unavailable', version: null, source: 'openclaw-cli:version', error: openclaw.reason?.message ?? 'openclaw status failed' };
-  const subagentValue = subagents.status === 'fulfilled' ? subagents.value : { ok: false, source: 'openclaw-cli:tasks-list:subagent', available: false, runningCount: 0, recent: [], error: subagents.reason?.message ?? 'subagent snapshot failed', checkedAt };
+  const memoryValue =
+    memory.status === 'fulfilled'
+      ? memory.value
+      : {
+          status: null,
+          source: 'openclaw-memory:qmd',
+          error: memory.reason?.message ?? 'memory status failed'
+        };
+  const openclawValue =
+    openclaw.status === 'fulfilled'
+      ? openclaw.value
+      : {
+          available: false,
+          status: 'unavailable',
+          version: null,
+          source: 'openclaw-cli:version',
+          error: openclaw.reason?.message ?? 'openclaw status failed'
+        };
+  const subagentValue =
+    subagents.status === 'fulfilled'
+      ? subagents.value
+      : {
+          ok: false,
+          source: 'openclaw-cli:tasks-list:subagent',
+          available: false,
+          runningCount: 0,
+          recent: [],
+          error: subagents.reason?.message ?? 'subagent snapshot failed',
+          checkedAt
+        };
 
   if (dbResult.status === 'rejected') {
     console.error('System status DB check failed', dbResult.reason);
   }
   if (knowledgeResult.status === 'rejected') {
-    await auditEvent('bridge_health_failed', 'Bridge health knowledge count failed', { error: knowledgeResult.reason?.message }, 30);
+    await auditEvent(
+      'bridge_health_failed',
+      'Bridge health knowledge count failed',
+      { error: knowledgeResult.reason?.message },
+      30
+    );
   }
 
-  const knowledgeCounts = Object.fromEntries(knowledgeRows.map((row) => [row.status, Number(row.count)]));
+  const knowledgeCounts = Object.fromEntries(
+    knowledgeRows.map((row) => [row.status, Number(row.count)])
+  );
   const memoryAgents = Array.isArray(memoryValue.status) ? memoryValue.status : [];
   const dbOnline = dbRows[0]?.ok === 1;
   return {
@@ -821,7 +997,11 @@ async function systemStatus() {
       uptimeSeconds: Math.round(process.uptime()),
       now: dbRows[0]?.now ?? new Date().toISOString()
     },
-    db: { status: dbOnline ? 'online' : 'unknown', checkedAt, error: dbResult.status === 'rejected' ? dbResult.reason?.message : null },
+    db: {
+      status: dbOnline ? 'online' : 'unknown',
+      checkedAt,
+      error: dbResult.status === 'rejected' ? dbResult.reason?.message : null
+    },
     openclaw: openclawValue,
     agents: { count: configuredAgents().length, source: 'bridge:AGENT_OS_AGENTS_JSON' },
     knowledge: {
@@ -866,7 +1046,8 @@ async function ensureTaskBoardColumns() {
 function normalizeTaskStatus(status) {
   if (status === 'active') return 'in_progress';
   if (status === 'todo') return 'backlog';
-  if (['backlog', 'in_progress', 'review', 'waiting', 'done', 'cancelled'].includes(status)) return status;
+  if (['backlog', 'in_progress', 'review', 'waiting', 'done', 'cancelled'].includes(status))
+    return status;
   return 'backlog';
 }
 
@@ -961,7 +1142,9 @@ function normalizeContentStatus(status) {
 
 function normalizeContentPlatforms(platforms) {
   const requested = Array.isArray(platforms) ? platforms : String(platforms ?? '').split(',');
-  const normalized = requested.map((platform) => String(platform).trim()).filter((platform) => CONTENT_PLATFORMS.includes(platform));
+  const normalized = requested
+    .map((platform) => String(platform).trim())
+    .filter((platform) => CONTENT_PLATFORMS.includes(platform));
   return normalized.length ? [...new Set(normalized)] : ['instagram', 'tiktok', 'youtube_shorts'];
 }
 
@@ -1073,7 +1256,11 @@ async function contentItemsSnapshot() {
 
   const counts = Object.fromEntries(CONTENT_STATUSES.map((status) => [status, 0]));
   for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
-  return { items, counts: { total: items.length, ...counts }, source: 'bridge:postgres:content_items' };
+  return {
+    items,
+    counts: { total: items.length, ...counts },
+    source: 'bridge:postgres:content_items'
+  };
 }
 
 async function createContentItem(input) {
@@ -1121,7 +1308,8 @@ async function updateContentItem(input) {
   const hasStatus = Object.prototype.hasOwnProperty.call(input, 'status');
   const status = hasStatus ? normalizeContentStatus(String(input.status ?? 'draft')) : null;
   const hasScheduleAt = Object.prototype.hasOwnProperty.call(input, 'scheduleAt');
-  const scheduleAt = hasScheduleAt && input.scheduleAt ? new Date(String(input.scheduleAt)).toISOString() : null;
+  const scheduleAt =
+    hasScheduleAt && input.scheduleAt ? new Date(String(input.scheduleAt)).toISOString() : null;
   const hasTitle = Object.prototype.hasOwnProperty.call(input, 'title');
   const title = hasTitle ? String(input.title ?? '').trim() : null;
   if (hasTitle && !title) {
@@ -1159,7 +1347,6 @@ async function updateContentItem(input) {
   const snapshot = await contentItemsSnapshot();
   return snapshot.items.find((item) => item.id === id);
 }
-
 
 async function ensureRadarSignalStateTable() {
   await sql`
@@ -1215,9 +1402,10 @@ async function transitionRadarSignal(input) {
   let snoozedUntil = null;
   if (action === 'snooze') {
     const requested = input.snoozedUntil ? new Date(String(input.snoozedUntil)) : null;
-    snoozedUntil = requested && Number.isFinite(requested.getTime())
-      ? requested
-      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    snoozedUntil =
+      requested && Number.isFinite(requested.getTime())
+        ? requested
+        : new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 
   const metadata = {
@@ -1399,14 +1587,12 @@ async function taskDispatchSummary() {
     limit 50
   `;
   const agentsById = new Map(configuredAgents().map((agent) => [agent.id, agent]));
-  const tasks = rows
-    .map(mapTask)
-    .filter((task) => {
-      if (!actionableStatuses.includes(task.status)) return false;
-      if (task.status !== 'waiting' || !task.dueDate) return true;
-      const dueAt = new Date(task.dueDate).getTime();
-      return !Number.isFinite(dueAt) || dueAt <= Date.now();
-    });
+  const tasks = rows.map(mapTask).filter((task) => {
+    if (!actionableStatuses.includes(task.status)) return false;
+    if (task.status !== 'waiting' || !task.dueDate) return true;
+    const dueAt = new Date(task.dueDate).getTime();
+    return !Number.isFinite(dueAt) || dueAt <= Date.now();
+  });
   const grouped = new Map();
 
   for (const task of tasks) {
@@ -1427,7 +1613,8 @@ async function taskDispatchSummary() {
   }
 
   const byAgent = [...grouped.values()].toSorted((a, b) => {
-    if (b.highPriorityCount !== a.highPriorityCount) return b.highPriorityCount - a.highPriorityCount;
+    if (b.highPriorityCount !== a.highPriorityCount)
+      return b.highPriorityCount - a.highPriorityCount;
     return b.count - a.count;
   });
   const actionableCount = tasks.length;
@@ -1437,11 +1624,14 @@ async function taskDispatchSummary() {
   } else {
     lines.push(`Det finns ${actionableCount} agentkopplade tasks att ta ställning till:`);
     for (const group of byAgent) {
-      lines.push(`- ${group.emoji ? `${group.emoji} ` : ''}${group.agentName} (${group.agentId}): ${group.count} task${group.count === 1 ? '' : 's'}${group.highPriorityCount ? ` · ${group.highPriorityCount} high` : ''}`);
+      lines.push(
+        `- ${group.emoji ? `${group.emoji} ` : ''}${group.agentName} (${group.agentId}): ${group.count} task${group.count === 1 ? '' : 's'}${group.highPriorityCount ? ` · ${group.highPriorityCount} high` : ''}`
+      );
       for (const [index, task] of group.tasks.entries()) {
         lines.push(`  ${index + 1}. [${task.priority}/${task.status}] ${task.title} (${task.id})`);
       }
-      if (group.count > group.tasks.length) lines.push(`  … +${group.count - group.tasks.length} fler`);
+      if (group.count > group.tasks.length)
+        lines.push(`  … +${group.count - group.tasks.length} fler`);
     }
   }
 
@@ -1459,8 +1649,16 @@ async function taskDispatchSummary() {
 const CAI_BRIEF_JOB_IDS = [
   { id: '8a1af0f0-8ea8-40b3-97ba-c5658ed7c306', label: 'Morgonbrief', slot: 'morning' },
   { id: 'f907cdef-03ca-4710-aee2-e673c0c52363', label: 'Kvällsbrief', slot: 'evening' },
-  { id: '52e0ff6b-8753-4c92-a478-ff3c99f9ed43', label: 'Agent OS morgondispatch', slot: 'morning-dispatch' },
-  { id: '585c20ef-09b0-47b2-ab95-19e746fa526e', label: 'Agent OS kvällsdispatch', slot: 'evening-dispatch' }
+  {
+    id: '52e0ff6b-8753-4c92-a478-ff3c99f9ed43',
+    label: 'Agent OS morgondispatch',
+    slot: 'morning-dispatch'
+  },
+  {
+    id: '585c20ef-09b0-47b2-ab95-19e746fa526e',
+    label: 'Agent OS kvällsdispatch',
+    slot: 'evening-dispatch'
+  }
 ];
 
 async function cronRuns(jobId) {
@@ -1475,21 +1673,36 @@ async function cronRuns(jobId) {
         .toReversed()
         .slice(0, 3);
     } catch (error) {
-      await auditEvent('cai_brief_cron_file_read_failed', 'Failed to read Cai briefing cron JSONL', { jobId, error: error.message }, 60);
+      await auditEvent(
+        'cai_brief_cron_file_read_failed',
+        'Failed to read Cai briefing cron JSONL',
+        { jobId, error: error.message },
+        60
+      );
     }
   }
 
   try {
-    const result = await openclawJson(['cron', 'runs', '--id', jobId, '--limit', '3', '--timeout', '20000'], { timeout: 30000 });
+    const result = await openclawJson(
+      ['cron', 'runs', '--id', jobId, '--limit', '3', '--timeout', '20000'],
+      { timeout: 30000 }
+    );
     return Array.isArray(result.entries) ? result.entries : [];
   } catch (error) {
-    await auditEvent('cai_brief_cron_read_failed', 'Failed to read Cai briefing cron runs', { jobId, error: error.message }, 60);
+    await auditEvent(
+      'cai_brief_cron_read_failed',
+      'Failed to read Cai briefing cron runs',
+      { jobId, error: error.message },
+      60
+    );
     return [];
   }
 }
 
 async function latestCaiBriefMessage() {
-  const runGroups = await Promise.all(CAI_BRIEF_JOB_IDS.map(async (job) => ({ job, runs: await cronRuns(job.id) })));
+  const runGroups = await Promise.all(
+    CAI_BRIEF_JOB_IDS.map(async (job) => ({ job, runs: await cronRuns(job.id) }))
+  );
   const entries = runGroups
     .flatMap(({ job, runs }) =>
       runs.map((run) => ({
@@ -1519,29 +1732,32 @@ async function latestCaiBriefMessage() {
 
 async function overviewSnapshot() {
   await ensureTaskBoardColumns();
-  const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory, subagents] = await Promise.all([
-    sql`select id, name, role, detail, status from agents order by name`,
-    sql`select id, name, status, summary, priority from projects order by priority desc, name`,
-    sql`
+  const [agentRows, projectRows, taskRows, taskCounts, knowledgeCounts, events, memory, subagents] =
+    await Promise.all([
+      sql`select id, name, role, detail, status from agents order by name`,
+      sql`select id, name, status, summary, priority from projects order by priority desc, name`,
+      sql`
       select t.id, t.title, t.description, t.status, t.priority, t.owner_agent_id as "ownerAgentId", p.name as "projectName", t.updated_at as "updatedAt"
       from tasks t
       left join projects p on p.id = t.project_id
       order by t.position asc, t.priority desc, t.updated_at desc
       limit 8
     `,
-    sql`select status, count(*)::int as count from tasks group by status`,
-    sql`select status, count(*)::int as count from knowledge_sources group by status`,
-    sql`
+      sql`select status, count(*)::int as count from tasks group by status`,
+      sql`select status, count(*)::int as count from knowledge_sources group by status`,
+      sql`
       select kind, message, created_at as "createdAt"
       from task_events
       order by created_at desc
       limit 6
     `,
-    cachedRuntimeValue('overview:memory-status', 30_000, () => memoryStatus({ timeout: 650 })),
-    cachedRuntimeValue('overview:subagents', 15_000, () => subagentRunsSnapshot({ timeout: 650 }))
-  ]);
+      cachedRuntimeValue('overview:memory-status', 30_000, () => memoryStatus({ timeout: 650 })),
+      cachedRuntimeValue('overview:subagents', 15_000, () => subagentRunsSnapshot({ timeout: 650 }))
+    ]);
 
-  const taskByStatus = new Map(taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)]));
+  const taskByStatus = new Map(
+    taskCounts.map((row) => [normalizeTaskStatus(row.status), Number(row.count)])
+  );
   const knowledgeByStatus = new Map(knowledgeCounts.map((row) => [row.status, Number(row.count)]));
   const openTasks = [...taskByStatus.entries()]
     .filter(([status]) => !['done', 'cancelled'].includes(status))
@@ -1549,7 +1765,10 @@ async function overviewSnapshot() {
   const activeProjects = projectRows.filter((project) => project.status === 'active').length;
   const onlineAgents = agentRows.filter((agent) => agent.status === 'online').length;
   const memoryAgents = Array.isArray(memory.status) ? memory.status : [];
-  const memoryChunks = memoryAgents.reduce((sum, entry) => sum + Number(entry.status?.chunks ?? 0), 0);
+  const memoryChunks = memoryAgents.reduce(
+    (sum, entry) => sum + Number(entry.status?.chunks ?? 0),
+    0
+  );
   const raw = knowledgeByStatus.get('raw') ?? 0;
   const extracted = knowledgeByStatus.get('extracted') ?? knowledgeByStatus.get('queued') ?? 0;
   const wikified = knowledgeByStatus.get('wikified') ?? 0;
@@ -1558,17 +1777,49 @@ async function overviewSnapshot() {
   const archived = knowledgeByStatus.get('archived') ?? 0;
   const knowledgeTotal = raw + extracted + wikified + reviewed + promoted + archived;
   const processedKnowledge = wikified + reviewed + promoted + archived;
-  const knowledgeProgress = knowledgeTotal ? Math.round((processedKnowledge / knowledgeTotal) * 100) : 0;
+  const knowledgeProgress = knowledgeTotal
+    ? Math.round((processedKnowledge / knowledgeTotal) * 100)
+    : 0;
 
   return {
     dbOnline: true,
     generatedAt: new Date().toISOString(),
     stats: [
-      { label: 'Aktiva projekt', value: String(activeProjects), detail: projectRows.slice(0, 3).map((project) => project.name).join(', '), tone: 'Postgres' },
-      { label: 'Öppna tasks', value: String(openTasks), detail: `${taskByStatus.get('in_progress') ?? 0} in progress · ${taskByStatus.get('review') ?? 0} review · ${taskByStatus.get('waiting') ?? 0} waiting`, tone: 'Live board' },
-      { label: 'Agenter online', value: `${onlineAgents}/${agentRows.length}`, detail: agentRows.map((agent) => agent.name).join(', '), tone: 'OpenClaw' },
-      { label: 'Memory chunks', value: String(memoryChunks), detail: memory.error ? memory.error : `${memoryAgents.length} indexed agents`, tone: 'QMD' },
-      { label: 'Subagents', value: String(subagents.runningCount ?? 0), detail: subagents.ok ? `${subagents.recent.length} recent runs · ${subagents.source}` : `source unavailable: ${subagents.error}`, tone: 'OpenClaw tasks' }
+      {
+        label: 'Aktiva projekt',
+        value: String(activeProjects),
+        detail: projectRows
+          .slice(0, 3)
+          .map((project) => project.name)
+          .join(', '),
+        tone: 'Postgres'
+      },
+      {
+        label: 'Öppna tasks',
+        value: String(openTasks),
+        detail: `${taskByStatus.get('in_progress') ?? 0} in progress · ${taskByStatus.get('review') ?? 0} review · ${taskByStatus.get('waiting') ?? 0} waiting`,
+        tone: 'Live board'
+      },
+      {
+        label: 'Agenter online',
+        value: `${onlineAgents}/${agentRows.length}`,
+        detail: agentRows.map((agent) => agent.name).join(', '),
+        tone: 'OpenClaw'
+      },
+      {
+        label: 'Memory chunks',
+        value: String(memoryChunks),
+        detail: memory.error ? memory.error : `${memoryAgents.length} indexed agents`,
+        tone: 'QMD'
+      },
+      {
+        label: 'Subagents',
+        value: String(subagents.runningCount ?? 0),
+        detail: subagents.ok
+          ? `${subagents.recent.length} recent runs · ${subagents.source}`
+          : `source unavailable: ${subagents.error}`,
+        tone: 'OpenClaw tasks'
+      }
     ],
     tasks: taskRows.map((task) => ({
       id: task.id,
@@ -1580,7 +1831,12 @@ async function overviewSnapshot() {
       priority: taskPriorityLabel(task.priority),
       updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : null
     })),
-    agents: agentRows.map((agent) => ({ name: agent.name, role: agent.role, detail: agent.detail, status: agent.status })),
+    agents: agentRows.map((agent) => ({
+      name: agent.name,
+      role: agent.role,
+      detail: agent.detail,
+      status: agent.status
+    })),
     knowledge: {
       raw,
       queued: extracted,
@@ -1593,7 +1849,11 @@ async function overviewSnapshot() {
     },
     taskStatus: Object.fromEntries(taskByStatus),
     subagents,
-    events: events.map((event) => ({ kind: event.kind, message: event.message, createdAt: new Date(event.createdAt).toISOString() }))
+    events: events.map((event) => ({
+      kind: event.kind,
+      message: event.message,
+      createdAt: new Date(event.createdAt).toISOString()
+    }))
   };
 }
 
@@ -1662,7 +1922,9 @@ async function notificationsSnapshot() {
       status: 'unread',
       kind: 'memory',
       createdAt: new Date().toISOString(),
-      actions: [notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')]
+      actions: [
+        notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')
+      ]
     });
   }
 
@@ -1674,7 +1936,9 @@ async function notificationsSnapshot() {
       status: 'unread',
       kind: 'system',
       createdAt: new Date().toISOString(),
-      actions: [notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')]
+      actions: [
+        notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')
+      ]
     });
   }
 
@@ -1763,7 +2027,9 @@ async function affiliateSnapshot() {
     }),
     { clicks: 0, orderedItems: 0, shippedItems: 0, revenue: 0, commission: 0 }
   );
-  const conversionRate = totals.clicks ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2)) : 0;
+  const conversionRate = totals.clicks
+    ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2))
+    : 0;
 
   return {
     source: 'bridge:postgres',
@@ -1803,8 +2069,14 @@ async function upsertAffiliateAccount(input) {
 }
 
 async function supabaseSnapshot() {
-  const projectRefSecret = await readFirstManagedSecret(['SUPABASE_PROJECT_REF', 'AGENT_OS_SUPABASE_PROJECT_REF']);
-  const accessTokenSecret = await readFirstManagedSecret(['SUPABASE_ACCESS_TOKEN', 'AGENT_OS_SUPABASE_ACCESS_TOKEN']);
+  const projectRefSecret = await readFirstManagedSecret([
+    'SUPABASE_PROJECT_REF',
+    'AGENT_OS_SUPABASE_PROJECT_REF'
+  ]);
+  const accessTokenSecret = await readFirstManagedSecret([
+    'SUPABASE_ACCESS_TOKEN',
+    'AGENT_OS_SUPABASE_ACCESS_TOKEN'
+  ]);
   const projectRef = projectRefSecret.value;
   const accessToken = accessTokenSecret.value;
   const apiBase = String(
@@ -1817,13 +2089,17 @@ async function supabaseSnapshot() {
       id: 'project-ref',
       label: 'Project ref configured',
       ok: Boolean(projectRef),
-      detail: projectRef ? `configured via ${projectRefSecret.source}` : 'SUPABASE_PROJECT_REF missing'
+      detail: projectRef
+        ? `configured via ${projectRefSecret.source}`
+        : 'SUPABASE_PROJECT_REF missing'
     },
     {
       id: 'access-token',
       label: 'Read-only access token configured',
       ok: Boolean(accessToken),
-      detail: accessToken ? `configured via ${accessTokenSecret.source}` : 'SUPABASE_ACCESS_TOKEN missing'
+      detail: accessToken
+        ? `configured via ${accessTokenSecret.source}`
+        : 'SUPABASE_ACCESS_TOKEN missing'
     },
     { id: 'api-base', label: 'Management API base', ok: Boolean(apiBase), detail: apiBase }
   ];
@@ -1900,7 +2176,13 @@ async function supabaseSnapshot() {
       generatedAt,
       configured: true,
       connected: false,
-      project: { ref: projectRef, name: 'Supabase project', status: 'unknown', region: null, createdAt: null },
+      project: {
+        ref: projectRef,
+        name: 'Supabase project',
+        status: 'unknown',
+        region: null,
+        createdAt: null
+      },
       checks: [
         ...checks,
         {
@@ -1912,7 +2194,11 @@ async function supabaseSnapshot() {
       ],
       metrics: [],
       alerts: [
-        { severity: 'warning', title: 'Supabase connector failed', detail: error.message ?? 'request failed' }
+        {
+          severity: 'warning',
+          title: 'Supabase connector failed',
+          detail: error.message ?? 'request failed'
+        }
       ],
       nextSteps: [
         'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in Settings → API keys & secrets or the bridge environment.',
@@ -1934,10 +2220,19 @@ async function vercelFetch(path, token) {
 }
 
 async function vercelSnapshot() {
-  const tokenSecret = await readFirstManagedSecret(['VERCEL_ACCESS_TOKEN', 'AGENT_OS_VERCEL_ACCESS_TOKEN']);
+  const tokenSecret = await readFirstManagedSecret([
+    'VERCEL_ACCESS_TOKEN',
+    'AGENT_OS_VERCEL_ACCESS_TOKEN'
+  ]);
   const teamSecret = await readFirstManagedSecret(['VERCEL_TEAM_ID', 'AGENT_OS_VERCEL_TEAM_ID']);
-  const projectIdSecret = await readFirstManagedSecret(['VERCEL_PROJECT_ID', 'AGENT_OS_VERCEL_PROJECT_ID']);
-  const projectNameSecret = await readFirstManagedSecret(['VERCEL_PROJECT_NAME', 'AGENT_OS_VERCEL_PROJECT_NAME']);
+  const projectIdSecret = await readFirstManagedSecret([
+    'VERCEL_PROJECT_ID',
+    'AGENT_OS_VERCEL_PROJECT_ID'
+  ]);
+  const projectNameSecret = await readFirstManagedSecret([
+    'VERCEL_PROJECT_NAME',
+    'AGENT_OS_VERCEL_PROJECT_NAME'
+  ]);
   const token = tokenSecret.value;
   const teamId = teamSecret.value;
   const projectId = projectIdSecret.value;
@@ -1956,13 +2251,18 @@ async function vercelSnapshot() {
       id: 'team-scope',
       label: 'Team scope',
       ok: true,
-      detail: teamId ? `VERCEL_TEAM_ID configured via ${teamSecret.source}` : 'personal/default scope'
+      detail: teamId
+        ? `VERCEL_TEAM_ID configured via ${teamSecret.source}`
+        : 'personal/default scope'
     },
     {
       id: 'project-filter',
       label: 'Project filter',
       ok: true,
-      detail: projectId || projectName ? 'project filter configured via env/secrets' : 'all visible projects'
+      detail:
+        projectId || projectName
+          ? 'project filter configured via env/secrets'
+          : 'all visible projects'
     }
   ];
 
@@ -1996,7 +2296,9 @@ async function vercelSnapshot() {
     if (accountResult.status === 'rejected') throw accountResult.reason;
     if (projectsResult.status === 'rejected') throw projectsResult.reason;
 
-    const rawProjects = Array.isArray(projectsResult.value.projects) ? projectsResult.value.projects : [];
+    const rawProjects = Array.isArray(projectsResult.value.projects)
+      ? projectsResult.value.projects
+      : [];
     const visibleProjects = rawProjects
       .filter((project) => !projectId || project.id === projectId)
       .filter((project) => !projectName || project.name === projectName)
@@ -2013,7 +2315,9 @@ async function vercelSnapshot() {
       `/v6/deployments${teamId ? `?teamId=${encodeURIComponent(teamId)}&limit=8` : '?limit=8'}`,
       token
     );
-    const deployments = (Array.isArray(deploymentsResult.deployments) ? deploymentsResult.deployments : [])
+    const deployments = (
+      Array.isArray(deploymentsResult.deployments) ? deploymentsResult.deployments : []
+    )
       .filter((deployment) => !projectId || deployment.projectId === projectId)
       .filter((deployment) => !projectName || deployment.name === projectName)
       .slice(0, 8)
@@ -2045,14 +2349,41 @@ async function vercelSnapshot() {
       deployments,
       checks: [
         ...checks,
-        { id: 'account-fetch', label: 'Account metadata fetch', ok: true, detail: 'Vercel API returned user metadata' },
-        { id: 'projects-fetch', label: 'Projects fetch', ok: true, detail: `${visibleProjects.length} projects in snapshot` },
-        { id: 'deployments-fetch', label: 'Deployments fetch', ok: true, detail: `${deployments.length} deployments in snapshot` }
+        {
+          id: 'account-fetch',
+          label: 'Account metadata fetch',
+          ok: true,
+          detail: 'Vercel API returned user metadata'
+        },
+        {
+          id: 'projects-fetch',
+          label: 'Projects fetch',
+          ok: true,
+          detail: `${visibleProjects.length} projects in snapshot`
+        },
+        {
+          id: 'deployments-fetch',
+          label: 'Deployments fetch',
+          ok: true,
+          detail: `${deployments.length} deployments in snapshot`
+        }
       ],
       metrics: [
-        { label: 'Projects', value: String(visibleProjects.length), detail: 'Filtered visible projects' },
-        { label: 'Recent deployments', value: String(deployments.length), detail: 'Most recent visible deployments' },
-        { label: 'Failed deployments', value: String(failedDeployments.length), detail: 'Recent ERROR/CANCELED states' }
+        {
+          label: 'Projects',
+          value: String(visibleProjects.length),
+          detail: 'Filtered visible projects'
+        },
+        {
+          label: 'Recent deployments',
+          value: String(deployments.length),
+          detail: 'Most recent visible deployments'
+        },
+        {
+          label: 'Failed deployments',
+          value: String(failedDeployments.length),
+          detail: 'Recent ERROR/CANCELED states'
+        }
       ],
       alerts: failedDeployments.map((deployment) => ({
         severity: 'warning',
@@ -2078,10 +2409,21 @@ async function vercelSnapshot() {
       deployments: [],
       checks: [
         ...checks,
-        { id: 'vercel-fetch', label: 'Vercel API fetch', ok: false, detail: error.message ?? 'request failed' }
+        {
+          id: 'vercel-fetch',
+          label: 'Vercel API fetch',
+          ok: false,
+          detail: error.message ?? 'request failed'
+        }
       ],
       metrics: [],
-      alerts: [{ severity: 'warning', title: 'Vercel connector failed', detail: error.message ?? 'request failed' }],
+      alerts: [
+        {
+          severity: 'warning',
+          title: 'Vercel connector failed',
+          detail: error.message ?? 'request failed'
+        }
+      ],
       nextSteps: [
         'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in Settings → API keys & secrets or the bridge environment.',
         'Confirm token scope permits read-only user, project and deployment reads.',
@@ -2097,29 +2439,40 @@ function calendarWebUrl(calendarId, eventId) {
 }
 
 async function calendarSnapshot(url) {
-  const account = url.searchParams.get('account') || process.env.AGENT_OS_CALENDAR_ACCOUNT || GMAIL_ACCOUNT;
+  const account =
+    url.searchParams.get('account') || process.env.AGENT_OS_CALENDAR_ACCOUNT || GMAIL_ACCOUNT;
   const days = Math.min(Math.max(Number(url.searchParams.get('days') ?? 7), 1), 30);
   const max = Math.min(Number(url.searchParams.get('max') ?? 10), 25);
 
   try {
-    const result = await gogJson([
-      'calendar',
-      'events',
-      '--account',
-      account,
-      '--days',
-      String(days),
-      '--max',
-      String(max),
-      '--all',
-      '--sort',
-      'start'
-    ], { timeout: 45000 });
-    const rawEvents = Array.isArray(result.events) ? result.events : Array.isArray(result.items) ? result.items : [];
+    const result = await gogJson(
+      [
+        'calendar',
+        'events',
+        '--account',
+        account,
+        '--days',
+        String(days),
+        '--max',
+        String(max),
+        '--all',
+        '--sort',
+        'start'
+      ],
+      { timeout: 45000 }
+    );
+    const rawEvents = Array.isArray(result.events)
+      ? result.events
+      : Array.isArray(result.items)
+        ? result.items
+        : [];
     const events = rawEvents.slice(0, max).map((event) => {
-      const calendarId = String(event.calendarId ?? event.calendar_id ?? event.calendar ?? 'primary');
+      const calendarId = String(
+        event.calendarId ?? event.calendar_id ?? event.calendar ?? 'primary'
+      );
       const eventId = String(event.id ?? event.eventId ?? '');
-      const start = event.start?.dateTime ?? event.start?.date ?? event.start ?? event.startTime ?? null;
+      const start =
+        event.start?.dateTime ?? event.start?.date ?? event.start ?? event.startTime ?? null;
       const end = event.end?.dateTime ?? event.end?.date ?? event.end ?? event.endTime ?? null;
       return {
         id: eventId || `${calendarId}:${start}:${event.summary ?? event.title ?? 'event'}`,
@@ -2128,7 +2481,9 @@ async function calendarSnapshot(url) {
         start: isoOrNull(start) ?? String(start ?? ''),
         end: isoOrNull(end) ?? String(end ?? ''),
         status: String(event.status ?? 'confirmed'),
-        attendees: Array.isArray(event.attendees) ? event.attendees.length : Number(event.attendeeCount ?? 0),
+        attendees: Array.isArray(event.attendees)
+          ? event.attendees.length
+          : Number(event.attendeeCount ?? 0),
         hangoutLink: event.hangoutLink ?? event.conferenceData?.entryPoints?.[0]?.uri ?? null,
         htmlLink: event.htmlLink ?? calendarWebUrl(calendarId, eventId)
       };
@@ -2150,7 +2505,10 @@ async function calendarSnapshot(url) {
       counts: { total: events.length, next24h: next24h.length },
       events,
       alerts: [],
-      nextSteps: ['Feed imminent events into Radar and Cai briefings.', 'Add RSVP/meeting actions only behind explicit guarded confirms.']
+      nextSteps: [
+        'Feed imminent events into Radar and Cai briefings.',
+        'Add RSVP/meeting actions only behind explicit guarded confirms.'
+      ]
     };
   } catch (error) {
     return {
@@ -2163,8 +2521,17 @@ async function calendarSnapshot(url) {
       days,
       counts: { total: 0, next24h: 0 },
       events: [],
-      alerts: [{ severity: 'warning', title: 'Calendar connector failed', detail: error.message ?? 'request failed' }],
-      nextSteps: ['Grant read-only Google Calendar scope to gog or configure a separate calendar account.', 'Keep Calendar degraded until readonly event reads work.']
+      alerts: [
+        {
+          severity: 'warning',
+          title: 'Calendar connector failed',
+          detail: error.message ?? 'request failed'
+        }
+      ],
+      nextSteps: [
+        'Grant read-only Google Calendar scope to gog or configure a separate calendar account.',
+        'Keep Calendar degraded until readonly event reads work.'
+      ]
     };
   }
 }
@@ -2186,11 +2553,18 @@ async function githubFetch(path, token) {
 function isGitHubNotificationsScopeGap(result) {
   if (result.status !== 'rejected') return false;
   const message = String(result.reason?.message ?? '');
-  return message.includes('GitHub API 403') && message.includes('Resource not accessible by personal access token');
+  return (
+    message.includes('GitHub API 403') &&
+    message.includes('Resource not accessible by personal access token')
+  );
 }
 
 async function githubSnapshot() {
-  const tokenSecret = await readFirstManagedSecret(['GITHUB_TOKEN', 'GH_TOKEN', 'AGENT_OS_GITHUB_TOKEN']);
+  const tokenSecret = await readFirstManagedSecret([
+    'GITHUB_TOKEN',
+    'GH_TOKEN',
+    'AGENT_OS_GITHUB_TOKEN'
+  ]);
   const ownerSecret = await readFirstManagedSecret(['GITHUB_OWNER', 'AGENT_OS_GITHUB_OWNER']);
   const repoSecret = await readFirstManagedSecret(['GITHUB_REPO', 'AGENT_OS_GITHUB_REPO']);
   const token = tokenSecret.value;
@@ -2208,9 +2582,19 @@ async function githubSnapshot() {
       account: null,
       notifications: [],
       pullRequests: [],
-      checks: [{ id: 'token', label: 'Read-only token configured', ok: false, detail: 'GITHUB_TOKEN/GH_TOKEN missing' }],
+      checks: [
+        {
+          id: 'token',
+          label: 'Read-only token configured',
+          ok: false,
+          detail: 'GITHUB_TOKEN/GH_TOKEN missing'
+        }
+      ],
       alerts: [],
-      nextSteps: ['Add a scoped read-only GITHUB_TOKEN or GH_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.', 'Optionally add GITHUB_OWNER and GITHUB_REPO in API keys & secrets to prioritize one repo.']
+      nextSteps: [
+        'Add a scoped read-only GITHUB_TOKEN or GH_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
+        'Optionally add GITHUB_OWNER and GITHUB_REPO in API keys & secrets to prioritize one repo.'
+      ]
     };
   }
 
@@ -2218,22 +2602,30 @@ async function githubSnapshot() {
     const [viewerResult, notificationsResult, pullsResult] = await Promise.allSettled([
       githubFetch('/user', token),
       githubFetch('/notifications?participating=false&per_page=20', token),
-      owner && repo ? githubFetch(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=10`, token) : Promise.resolve([])
+      owner && repo
+        ? githubFetch(
+            `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=10`,
+            token
+          )
+        : Promise.resolve([])
     ]);
     if (viewerResult.status === 'rejected') throw viewerResult.reason;
     const notificationsScopeGap = isGitHubNotificationsScopeGap(notificationsResult);
-    const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : [];
+    const notifications =
+      notificationsResult.status === 'fulfilled' ? notificationsResult.value : [];
     const pulls = pullsResult.status === 'fulfilled' ? pullsResult.value : [];
-    const mappedNotifications = (Array.isArray(notifications) ? notifications : []).slice(0, 12).map((item) => ({
-      id: String(item.id),
-      reason: String(item.reason ?? 'notification'),
-      unread: Boolean(item.unread),
-      updatedAt: item.updated_at ?? null,
-      repository: item.repository?.full_name ?? 'unknown/repo',
-      title: String(item.subject?.title ?? '(no title)').slice(0, 180),
-      type: item.subject?.type ?? 'unknown',
-      url: item.repository?.html_url ?? null
-    }));
+    const mappedNotifications = (Array.isArray(notifications) ? notifications : [])
+      .slice(0, 12)
+      .map((item) => ({
+        id: String(item.id),
+        reason: String(item.reason ?? 'notification'),
+        unread: Boolean(item.unread),
+        updatedAt: item.updated_at ?? null,
+        repository: item.repository?.full_name ?? 'unknown/repo',
+        title: String(item.subject?.title ?? '(no title)').slice(0, 180),
+        type: item.subject?.type ?? 'unknown',
+        url: item.repository?.html_url ?? null
+      }));
     const mappedPulls = (Array.isArray(pulls) ? pulls : []).slice(0, 10).map((pull) => ({
       id: String(pull.id),
       number: pull.number,
@@ -2255,31 +2647,53 @@ async function githubSnapshot() {
       notifications: mappedNotifications,
       pullRequests: mappedPulls,
       checks: [
-        { id: 'token', label: 'Read-only token configured', ok: true, detail: `configured via ${tokenSecret.source}` },
+        {
+          id: 'token',
+          label: 'Read-only token configured',
+          ok: true,
+          detail: `configured via ${tokenSecret.source}`
+        },
         {
           id: 'notifications',
           label: 'Notifications fetch',
           ok: notificationsResult.status === 'fulfilled',
-          detail: notificationsResult.status === 'fulfilled'
-            ? `${mappedNotifications.length} notifications`
-            : notificationsScopeGap
-              ? 'unavailable for fine-grained personal access tokens; GitHub does not expose this permission there'
-            : `unavailable: ${notificationsResult.reason?.message ?? 'request failed'}`
+          detail:
+            notificationsResult.status === 'fulfilled'
+              ? `${mappedNotifications.length} notifications`
+              : notificationsScopeGap
+                ? 'unavailable for fine-grained personal access tokens; GitHub does not expose this permission there'
+                : `unavailable: ${notificationsResult.reason?.message ?? 'request failed'}`
         },
         {
           id: 'pulls',
           label: 'Pull request fetch',
           ok: pullsResult.status === 'fulfilled',
-          detail: pullsResult.status === 'fulfilled'
-            ? (owner && repo ? `${mappedPulls.length} open PRs for ${owner}/${repo}` : 'repo filter not configured')
-            : `unavailable: ${pullsResult.reason?.message ?? 'request failed'}`
+          detail:
+            pullsResult.status === 'fulfilled'
+              ? owner && repo
+                ? `${mappedPulls.length} open PRs for ${owner}/${repo}`
+                : 'repo filter not configured'
+              : `unavailable: ${pullsResult.reason?.message ?? 'request failed'}`
         }
       ],
       alerts: [
         ...(notificationsResult.status === 'rejected' && !notificationsScopeGap
-          ? [{ severity: 'warning', title: 'GitHub notifications unavailable', detail: notificationsResult.reason?.message ?? 'request failed' }]
+          ? [
+              {
+                severity: 'warning',
+                title: 'GitHub notifications unavailable',
+                detail: notificationsResult.reason?.message ?? 'request failed'
+              }
+            ]
           : []),
-        ...mappedNotifications.filter((item) => item.unread).slice(0, 5).map((item) => ({ severity: 'info', title: item.title, detail: `${item.repository} · ${item.reason}` }))
+        ...mappedNotifications
+          .filter((item) => item.unread)
+          .slice(0, 5)
+          .map((item) => ({
+            severity: 'info',
+            title: item.title,
+            detail: `${item.repository} · ${item.reason}`
+          }))
       ],
       nextSteps: [
         notificationsScopeGap
@@ -2298,9 +2712,25 @@ async function githubSnapshot() {
       account: null,
       notifications: [],
       pullRequests: [],
-      checks: [{ id: 'github-fetch', label: 'GitHub API fetch', ok: false, detail: error.message ?? 'request failed' }],
-      alerts: [{ severity: 'warning', title: 'GitHub connector failed', detail: error.message ?? 'request failed' }],
-      nextSteps: ['Verify GITHUB_TOKEN/GH_TOKEN in Settings → API keys & secrets or the bridge environment.', 'Confirm token has read-only notification and repo metadata scopes.']
+      checks: [
+        {
+          id: 'github-fetch',
+          label: 'GitHub API fetch',
+          ok: false,
+          detail: error.message ?? 'request failed'
+        }
+      ],
+      alerts: [
+        {
+          severity: 'warning',
+          title: 'GitHub connector failed',
+          detail: error.message ?? 'request failed'
+        }
+      ],
+      nextSteps: [
+        'Verify GITHUB_TOKEN/GH_TOKEN in Settings → API keys & secrets or the bridge environment.',
+        'Confirm token has read-only notification and repo metadata scopes.'
+      ]
     };
   }
 }
@@ -2335,7 +2765,6 @@ async function createTask(input) {
   `;
   return mapTask(rows[0]);
 }
-
 
 async function taskEventsSnapshot(input) {
   const taskId = String(input.id ?? '').trim();
@@ -2443,7 +2872,10 @@ async function updateTask(input) {
     error.status = 404;
     throw error;
   }
-  const eventKind = hasStatus && Object.keys(input).every((key) => ['id', 'status', 'position'].includes(key)) ? 'moved' : 'updated';
+  const eventKind =
+    hasStatus && Object.keys(input).every((key) => ['id', 'status', 'position'].includes(key))
+      ? 'moved'
+      : 'updated';
   await sql`
     insert into task_events (id, task_id, actor_agent_id, kind, message, metadata)
     values (${crypto.randomUUID()}, ${id}, 'cai', ${eventKind}, ${eventKind === 'moved' ? `Task moved to ${status}` : `Task updated: ${rows[0].title}`}, ${sql.json({ status, position, source: 'cockpit', fields: Object.keys(input).filter((key) => key !== 'id') })})
@@ -2486,13 +2918,28 @@ async function runCommand(url) {
   const startedAt = new Date().toISOString();
 
   if (command === 'bridge-health') {
-    return { command, startedAt, finishedAt: new Date().toISOString(), result: await systemStatus() };
+    return {
+      command,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      result: await systemStatus()
+    };
   }
   if (command === 'agents-list') {
-    return { command, startedAt, finishedAt: new Date().toISOString(), result: { agents: configuredAgents() } };
+    return {
+      command,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      result: { agents: configuredAgents() }
+    };
   }
   if (command === 'memory-status') {
-    return { command, startedAt, finishedAt: new Date().toISOString(), result: await memoryStatus() };
+    return {
+      command,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      result: await memoryStatus()
+    };
   }
   if (command === 'knowledge-snapshot') {
     const snapshot = await knowledgeSnapshot();
@@ -2531,6 +2978,15 @@ function checkAuth(req) {
   return auth === `Bearer ${token}`;
 }
 
+function checkSladdisContentIngestAuth(req) {
+  const auth = req.headers.authorization ?? '';
+  return Boolean(sladdisContentIngestToken) && auth === `Bearer ${sladdisContentIngestToken}`;
+}
+
+function isSladdisContentIngestRoute(req, url) {
+  return url.pathname === '/content/items' && ['GET', 'POST'].includes(req.method ?? '');
+}
+
 async function readJson(req) {
   let body = '';
   for await (const chunk of req) body += chunk;
@@ -2562,7 +3018,9 @@ const MAX_SECRET_BYTES = 16_384;
 const MAX_SECRET_DESCRIPTION_LENGTH = 240;
 
 function normalizeSecretName(rawName) {
-  const name = String(rawName ?? '').trim().toUpperCase();
+  const name = String(rawName ?? '')
+    .trim()
+    .toUpperCase();
   if (!SECRET_NAME_PATTERN.test(name)) {
     const error = new Error('Secret names must look like ENV vars, e.g. OPENAI_API_KEY.');
     error.status = 400;
@@ -2584,7 +3042,9 @@ function secretFingerprint(value) {
 }
 
 function sanitizeSecretDescription(value) {
-  return String(value ?? '').trim().slice(0, MAX_SECRET_DESCRIPTION_LENGTH);
+  return String(value ?? '')
+    .trim()
+    .slice(0, MAX_SECRET_DESCRIPTION_LENGTH);
 }
 
 async function ensureSecretsDir() {
@@ -2704,7 +3164,8 @@ function chatSessionListParams(url) {
     limit: boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 })
   };
   const activeMinutes = url.searchParams.get('activeMinutes');
-  if (activeMinutes != null && activeMinutes !== '') params.activeMinutes = boundedInt(activeMinutes, 0, { min: 0, max: 60 * 24 * 30 });
+  if (activeMinutes != null && activeMinutes !== '')
+    params.activeMinutes = boundedInt(activeMinutes, 0, { min: 0, max: 60 * 24 * 30 });
   for (const key of ['includeGlobal', 'includeUnknown', 'showArchived']) {
     const value = optionalBoolean(url.searchParams.get(key));
     if (value !== undefined) params[key] = value;
@@ -2716,7 +3177,10 @@ async function chatSessions(url) {
   return {
     contract: 'agent-os.chat.sessions.v1',
     source: 'openclaw-gateway:sessions.list',
-    ...(await gatewayRpcJson('sessions.list', chatSessionListParams(url), { timeout: 15000, maxBuffer: 1024 * 1024 * 8 }))
+    ...(await gatewayRpcJson('sessions.list', chatSessionListParams(url), {
+      timeout: 15000,
+      maxBuffer: 1024 * 1024 * 8
+    }))
   };
 }
 
@@ -2727,11 +3191,15 @@ async function chatHistory(url) {
     limit: boundedInt(url.searchParams.get('limit'), 100, { min: 1, max: 300 })
   };
   const maxChars = url.searchParams.get('maxChars');
-  if (maxChars != null && maxChars !== '') params.maxChars = boundedInt(maxChars, 12000, { min: 100, max: 100000 });
+  if (maxChars != null && maxChars !== '')
+    params.maxChars = boundedInt(maxChars, 12000, { min: 100, max: 100000 });
   return {
     contract: 'agent-os.chat.history.v1',
     source: 'openclaw-gateway:chat.history',
-    ...(await gatewayRpcJson('chat.history', params, { timeout: 20000, maxBuffer: 1024 * 1024 * 10 }))
+    ...(await gatewayRpcJson('chat.history', params, {
+      timeout: 20000,
+      maxBuffer: 1024 * 1024 * 10
+    }))
   };
 }
 
@@ -2751,9 +3219,13 @@ async function chatSend(input) {
     deliver: input.deliver === true,
     idempotencyKey
   };
-  if (typeof input.sessionId === 'string' && input.sessionId.trim()) params.sessionId = input.sessionId.trim();
+  if (typeof input.sessionId === 'string' && input.sessionId.trim())
+    params.sessionId = input.sessionId.trim();
   if (attachments) params.attachments = attachments;
-  const result = await gatewayRpcJson('chat.send', params, { timeout: 30000, maxBuffer: 1024 * 1024 * 4 });
+  const result = await gatewayRpcJson('chat.send', params, {
+    timeout: 30000,
+    maxBuffer: 1024 * 1024 * 4
+  });
   return {
     contract: 'agent-os.chat.send.v1',
     source: 'openclaw-gateway:chat.send',
@@ -2779,7 +3251,8 @@ function sendSse(res, event, data) {
 }
 
 function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose }) {
-  if (typeof WebSocket !== 'function') throw new Error('WebSocket is not available in this Node runtime');
+  if (typeof WebSocket !== 'function')
+    throw new Error('WebSocket is not available in this Node runtime');
 
   let ws = null;
   let closed = false;
@@ -2799,7 +3272,8 @@ function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose
   };
 
   const request = (method, params = {}, { timeout = 12000 } = {}) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('Gateway WebSocket is not open'));
+    if (!ws || ws.readyState !== WebSocket.OPEN)
+      return Promise.reject(new Error('Gateway WebSocket is not open'));
     const id = gatewayFrameId(method);
     const frame = { type: 'req', id, method, params };
 
@@ -2854,8 +3328,11 @@ function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose
             .then(async (payload) => {
               connected = true;
               helloOk = payload;
-              const subscription = await request('sessions.messages.subscribe', { key: sessionKey });
-              if (typeof subscription?.key === 'string' && subscription.key.trim()) acceptedSessionKeys.add(subscription.key.trim());
+              const subscription = await request('sessions.messages.subscribe', {
+                key: sessionKey
+              });
+              if (typeof subscription?.key === 'string' && subscription.key.trim())
+                acceptedSessionKeys.add(subscription.key.trim());
               await request('sessions.subscribe', {});
               onReady({ subscription, helloOk });
             })
@@ -2865,7 +3342,12 @@ function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose
 
         if (connected && (frame.event !== 'tick' || process.env.AGENT_OS_STREAM_TICKS === '1')) {
           if (!CHAT_GATEWAY_EVENTS.has(frame.event)) return;
-          if (frame.event === 'session.tool' && frame.payload?.sessionKey && !acceptedSessionKeys.has(frame.payload.sessionKey)) return;
+          if (
+            frame.event === 'session.tool' &&
+            frame.payload?.sessionKey &&
+            !acceptedSessionKeys.has(frame.payload.sessionKey)
+          )
+            return;
           onEvent(frame.event, frame.payload ?? {}, frame);
         }
         return;
@@ -2922,7 +3404,10 @@ async function chatEvents(req, res, url) {
     try {
       const historyUrl = new URL(url);
       historyUrl.searchParams.set('sessionKey', sessionKey);
-      historyUrl.searchParams.set('limit', String(boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 })));
+      historyUrl.searchParams.set(
+        'limit',
+        String(boundedInt(url.searchParams.get('limit'), 50, { min: 1, max: 200 }))
+      );
       sendSse(res, 'history', await chatHistory(historyUrl));
     } catch (error) {
       sendSse(res, 'error', { error: error.message ?? 'history_failed' });
@@ -2939,11 +3424,16 @@ async function chatEvents(req, res, url) {
           ...payload,
           gatewayEvent: event,
           gatewaySeq: typeof frame.seq === 'number' ? frame.seq : undefined,
-          gatewayStateVersion: typeof frame.stateVersion === 'number' ? frame.stateVersion : undefined
+          gatewayStateVersion:
+            typeof frame.stateVersion === 'number' ? frame.stateVersion : undefined
         });
       },
       onError: (error) => {
-        if (!closed) sendSse(res, 'gateway.error', { error: error.message ?? 'gateway_stream_failed', ts: Date.now() });
+        if (!closed)
+          sendSse(res, 'gateway.error', {
+            error: error.message ?? 'gateway_stream_failed',
+            ts: Date.now()
+          });
       },
       onClose: ({ connected }) => {
         if (!closed) sendSse(res, 'gateway.closed', { connected, ts: Date.now() });
@@ -2993,7 +3483,9 @@ function keyPoints(rawContent, sourceUrl) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const candidates = lines.length ? lines : rawContent.split(/(?<=[.!?])\s+/).map((line) => line.trim());
+  const candidates = lines.length
+    ? lines
+    : rawContent.split(/(?<=[.!?])\s+/).map((line) => line.trim());
   const points = candidates
     .filter((line) => line.length > 20)
     .slice(0, 6)
@@ -3009,7 +3501,11 @@ function safeYaml(value) {
 }
 
 function parseAssistantJson(text) {
-  const raw = String(text ?? '').trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  const raw = String(text ?? '')
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
   try {
     return JSON.parse(raw);
   } catch {
@@ -3022,14 +3518,24 @@ function parseAssistantJson(text) {
 
 function stringList(value, limit = 8) {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, limit);
+  return value
+    .map((item) =>
+      String(item ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
 function buildAiWikiMarkdown(source, ai, wikiPath) {
   const title = String(source.title ?? '').trim();
   const sourceUrl = String(source.sourceUrl ?? source.source_url ?? '').trim();
   const now = new Date().toISOString();
-  const summary = String(ai.summary ?? '').replace(/\s+/g, ' ').trim() || firstSentence(String(source.rawContent ?? source.raw_content ?? ''));
+  const summary =
+    String(ai.summary ?? '')
+      .replace(/\s+/g, ' ')
+      .trim() || firstSentence(String(source.rawContent ?? source.raw_content ?? ''));
   const keyInsights = stringList(ai.keyInsights, 10);
   const entities = stringList(ai.entities, 12);
   const decisions = stringList(ai.decisions, 8);
@@ -3038,8 +3544,12 @@ function buildAiWikiMarkdown(source, ai, wikiPath) {
     .map((link) => link.replace(/^\[\[|\]\]$/g, '').trim())
     .filter(Boolean);
   const openQuestions = stringList(ai.openQuestions, 8);
-  const sensitivity = String(ai.sensitivity ?? 'unknown').replace(/\s+/g, ' ').trim();
-  const confidence = String(ai.confidence ?? 'medium').replace(/\s+/g, ' ').trim();
+  const sensitivity = String(ai.sensitivity ?? 'unknown')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const confidence = String(ai.confidence ?? 'medium')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   const lines = [
     '---',
@@ -3064,11 +3574,15 @@ function buildAiWikiMarkdown(source, ai, wikiPath) {
     '',
     '## Key insights',
     '',
-    ...(keyInsights.length ? keyInsights.map((item) => `- ${item}`) : ['- No durable insights extracted yet.']),
+    ...(keyInsights.length
+      ? keyInsights.map((item) => `- ${item}`)
+      : ['- No durable insights extracted yet.']),
     '',
     '## Entities / links',
     '',
-    ...(wikiLinks.length ? wikiLinks.map((link) => `- [[${link}]]`) : entities.map((entity) => `- [[${entity}]]`)),
+    ...(wikiLinks.length
+      ? wikiLinks.map((link) => `- [[${link}]]`)
+      : entities.map((entity) => `- [[${entity}]]`)),
     ...(wikiLinks.length || entities.length ? [] : ['- No stable entities identified.']),
     '',
     '## Decisions / durable facts',
@@ -3081,7 +3595,9 @@ function buildAiWikiMarkdown(source, ai, wikiPath) {
     '',
     '## Open questions',
     '',
-    ...(openQuestions.length ? openQuestions.map((item) => `- ${item}`) : ['- What decision or project should this knowledge inform?']),
+    ...(openQuestions.length
+      ? openQuestions.map((item) => `- ${item}`)
+      : ['- What decision or project should this knowledge inform?']),
     '',
     '## Review notes',
     '',
@@ -3124,31 +3640,40 @@ async function aiSynthesizeWikiSource(source) {
   ].join('\n');
 
   const sessionId = `agent-os-wiki-synth-${crypto.randomUUID()}`;
-  const { stdout } = await execFileAsync('node', [
-    OPENCLAW_CLI,
-    'agent',
-    '--local',
-    '--session-id',
-    sessionId,
-    '--thinking',
-    'off',
-    '--json',
-    '--message',
-    prompt
-  ], {
-    timeout: 240000,
-    maxBuffer: 1024 * 1024 * 8,
-    env: { ...process.env, NO_COLOR: '1', PATH: `/usr/local/bin:/root/.openclaw/bin:/app/bridge/bin:${process.env.PATH ?? ''}` }
-  });
+  const { stdout } = await execFileAsync(
+    'node',
+    [
+      OPENCLAW_CLI,
+      'agent',
+      '--local',
+      '--session-id',
+      sessionId,
+      '--thinking',
+      'off',
+      '--json',
+      '--message',
+      prompt
+    ],
+    {
+      timeout: 240000,
+      maxBuffer: 1024 * 1024 * 8,
+      env: {
+        ...process.env,
+        NO_COLOR: '1',
+        PATH: `/usr/local/bin:/root/.openclaw/bin:/app/bridge/bin:${process.env.PATH ?? ''}`
+      }
+    }
+  );
 
   const envelope = JSON.parse(stdout || '{}');
-  const text = envelope.finalAssistantRawText
-    ?? envelope.finalAssistantVisibleText
-    ?? envelope.meta?.finalAssistantRawText
-    ?? envelope.meta?.finalAssistantVisibleText
-    ?? envelope.payloads?.[0]?.text
-    ?? envelope.text
-    ?? '';
+  const text =
+    envelope.finalAssistantRawText ??
+    envelope.finalAssistantVisibleText ??
+    envelope.meta?.finalAssistantRawText ??
+    envelope.meta?.finalAssistantVisibleText ??
+    envelope.payloads?.[0]?.text ??
+    envelope.text ??
+    '';
   const ai = parseAssistantJson(text);
   const built = buildAiWikiMarkdown(source, ai, wikiPath);
   return {
@@ -3157,8 +3682,16 @@ async function aiSynthesizeWikiSource(source) {
     wikiContent: built.wikiContent,
     aiSynthesis: {
       ok: true,
-      model: envelope.executionTrace?.winnerModel ?? envelope.meta?.executionTrace?.winnerModel ?? envelope.meta?.agentMeta?.model ?? null,
-      provider: envelope.executionTrace?.winnerProvider ?? envelope.meta?.executionTrace?.winnerProvider ?? envelope.meta?.agentMeta?.provider ?? null,
+      model:
+        envelope.executionTrace?.winnerModel ??
+        envelope.meta?.executionTrace?.winnerModel ??
+        envelope.meta?.agentMeta?.model ??
+        null,
+      provider:
+        envelope.executionTrace?.winnerProvider ??
+        envelope.meta?.executionTrace?.winnerProvider ??
+        envelope.meta?.agentMeta?.provider ??
+        null,
       confidence: ai.confidence ?? null,
       sensitivity: ai.sensitivity ?? null
     }
@@ -3171,7 +3704,9 @@ function wikifySourceFallback(source) {
   const rawContent = String(source.rawContent ?? source.raw_content ?? '').trim();
   const date = new Date().toISOString().slice(0, 10);
   const wikiPath = `knowledge/wiki/${date}-${slugify(title) || crypto.randomUUID()}.md`;
-  const summary = rawContent ? firstSentence(rawContent) : sourceUrl || 'Knowledge source captured.';
+  const summary = rawContent
+    ? firstSentence(rawContent)
+    : sourceUrl || 'Knowledge source captured.';
   const now = new Date().toISOString();
   const points = keyPoints(rawContent, sourceUrl);
   const wikiContent = [
@@ -3213,11 +3748,14 @@ async function wikifySource(source) {
     return await aiSynthesizeWikiSource(source);
   } catch (error) {
     const fallback = wikifySourceFallback(source);
-    fallback.aiSynthesis = { ok: false, fallback: true, error: error.message ?? 'ai_synthesis_failed' };
+    fallback.aiSynthesis = {
+      ok: false,
+      fallback: true,
+      error: error.message ?? 'ai_synthesis_failed'
+    };
     return fallback;
   }
 }
-
 
 function stripHtml(html) {
   return String(html ?? '')
@@ -3280,7 +3818,9 @@ function buildVaultSnapshot(sources) {
   };
   const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
   const activeSources = sources.filter((source) => source.status !== 'archived');
-  const wikified = activeSources.filter((source) => wikiStatuses.has(source.status) && source.wikiPath);
+  const wikified = activeSources.filter(
+    (source) => wikiStatuses.has(source.status) && source.wikiPath
+  );
   const raw = activeSources.filter((source) => !wikiStatuses.has(source.status));
   const agentsMd = [
     '# agents.md',
@@ -3303,11 +3843,15 @@ function buildVaultSnapshot(sources) {
     '',
     '## Wiki pages',
     '',
-    ...(wikified.length ? wikified.map((source) => `- [[${source.wikiPath}]] — ${source.title}`) : ['- No wiki pages yet.']),
+    ...(wikified.length
+      ? wikified.map((source) => `- [[${source.wikiPath}]] — ${source.title}`)
+      : ['- No wiki pages yet.']),
     '',
     '## Raw sources',
     '',
-    ...(raw.length ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`) : ['- No raw sources waiting.']),
+    ...(raw.length
+      ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
+      : ['- No raw sources waiting.']),
     '',
     '## Root files',
     '',
@@ -3351,7 +3895,9 @@ async function knowledgeSnapshot() {
 
   const lifecycle = ['raw', 'extracted', 'wikified', 'reviewed', 'promoted', 'archived'];
   const byStatus = new Map(counts.map((row) => [row.status, Number(row.count)]));
-  const lifecycleCounts = Object.fromEntries(lifecycle.map((status) => [status, byStatus.get(status) ?? 0]));
+  const lifecycleCounts = Object.fromEntries(
+    lifecycle.map((status) => [status, byStatus.get(status) ?? 0])
+  );
   const vault = buildVaultSnapshot(sources);
   return {
     dbOnline: true,
@@ -3360,8 +3906,16 @@ async function knowledgeSnapshot() {
     lifecycleCounts,
     stats: [
       { label: 'Raw', value: String(lifecycleCounts.raw), detail: 'Untrusted captured sources' },
-      { label: 'Extracted', value: String(lifecycleCounts.extracted), detail: 'Readable content extracted' },
-      { label: 'Context-ready', value: String(lifecycleCounts.promoted), detail: 'Reviewed and approved for OpenClaw context' }
+      {
+        label: 'Extracted',
+        value: String(lifecycleCounts.extracted),
+        detail: 'Readable content extracted'
+      },
+      {
+        label: 'Context-ready',
+        value: String(lifecycleCounts.promoted),
+        detail: 'Reviewed and approved for OpenClaw context'
+      }
     ],
     vault
   };
@@ -3427,7 +3981,6 @@ async function queueKnowledgeSource(input) {
   return result[0];
 }
 
-
 async function extractKnowledgeSource(input) {
   const id = String(input.id ?? '').trim();
   if (!id) {
@@ -3467,7 +4020,9 @@ async function extractKnowledgeSource(input) {
     }
   }
 
-  const summary = extractedText ? firstSentence(extractedText) : source.sourceUrl || 'No readable text extracted yet.';
+  const summary = extractedText
+    ? firstSentence(extractedText)
+    : source.sourceUrl || 'No readable text extracted yet.';
   const result = await sql`
     update knowledge_sources
     set status = 'extracted', raw_content = ${extractedText}, summary = ${summary}, updated_at = now(), metadata = ${metadataPatch({ extractedFrom: 'bridge', extractedAt: new Date().toISOString(), fetchStatus, fetchError })}
@@ -3519,17 +4074,20 @@ async function transitionKnowledgeSource(input) {
   return rows[0];
 }
 
-
 function gmailWebUrl(threadId) {
   return `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(threadId)}`;
 }
 
 function normalizeEmailText(value, max = 1800) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 function scoreMailCandidate(thread, detail) {
-  const haystack = `${thread.subject ?? ''} ${thread.from ?? ''} ${thread.labels?.join(' ') ?? ''} ${detail?.body ?? ''}`.toLowerCase();
+  const haystack =
+    `${thread.subject ?? ''} ${thread.from ?? ''} ${thread.labels?.join(' ') ?? ''} ${detail?.body ?? ''}`.toLowerCase();
   let score = 20;
   const reasons = [];
   if (thread.labels?.includes('IMPORTANT')) {
@@ -3540,15 +4098,25 @@ function scoreMailCandidate(thread, detail) {
     score += 10;
     reasons.push('Oläst');
   }
-  if (/lysande|kund|customer|lead|invoice|faktura|avtal|contract|deadline|intervju|meeting|linkedin|github|vercel|stripe/.test(haystack)) {
+  if (
+    /lysande|kund|customer|lead|invoice|faktura|avtal|contract|deadline|intervju|meeting|linkedin|github|vercel|stripe/.test(
+      haystack
+    )
+  ) {
     score += 25;
     reasons.push('Matchar projekt/lead/admin-signal');
   }
-  if (/unsubscribe|avregistrera|digest|newsletter|noreply|no-reply|promotion|rea|sale/.test(haystack)) {
+  if (
+    /unsubscribe|avregistrera|digest|newsletter|noreply|no-reply|promotion|rea|sale/.test(haystack)
+  ) {
     score -= 15;
     reasons.push('Ser ut som digest/marknadsmail');
   }
-  if (/bank|skatteverket|försäkringskassan|vård|1177|password|lösenord|verification code|kod/.test(haystack)) {
+  if (
+    /bank|skatteverket|försäkringskassan|vård|1177|password|lösenord|verification code|kod/.test(
+      haystack
+    )
+  ) {
     score -= 35;
     reasons.push('Potentiellt känsligt — bör inte sparas rått');
   }
@@ -3557,17 +4125,24 @@ function scoreMailCandidate(thread, detail) {
 
 async function mailRadarSnapshot(url) {
   const account = url.searchParams.get('account') || GMAIL_ACCOUNT;
-  const query = url.searchParams.get('query') || 'newer_than:7d (in:inbox OR is:important OR is:unread)';
+  const query =
+    url.searchParams.get('query') || 'newer_than:7d (in:inbox OR is:important OR is:unread)';
   const max = Math.min(Number(url.searchParams.get('max') ?? 12), 20);
 
-  const search = await gogJson(['gmail', 'search', query, '--account', account, '--max', String(max)], { timeout: 45000 });
+  const search = await gogJson(
+    ['gmail', 'search', query, '--account', account, '--max', String(max)],
+    { timeout: 45000 }
+  );
   const threads = Array.isArray(search.threads) ? search.threads : [];
   const candidates = [];
 
   for (const thread of threads.slice(0, max)) {
     let detail = null;
     try {
-      const full = await gogJson(['gmail', 'thread', 'get', String(thread.id), '--account', account, '--sanitize-content'], { timeout: 45000 });
+      const full = await gogJson(
+        ['gmail', 'thread', 'get', String(thread.id), '--account', account, '--sanitize-content'],
+        { timeout: 45000 }
+      );
       const message = full?.thread?.messages?.[0] ?? null;
       detail = {
         body: normalizeEmailText(message?.body, 2200),
@@ -3609,7 +4184,8 @@ async function mailRadarSnapshot(url) {
     counts: {
       total: candidates.length,
       highSignal: candidates.filter((candidate) => candidate.score >= 55).length,
-      saved: candidates.filter((candidate) => savedUrls.has(`gmail://thread/${candidate.threadId}`)).length
+      saved: candidates.filter((candidate) => savedUrls.has(`gmail://thread/${candidate.threadId}`))
+        .length
     },
     candidates: candidates.map((candidate) => ({
       ...candidate,
@@ -3628,10 +4204,14 @@ async function saveMailToKnowledge(input) {
   }
 
   const sourceUrl = `gmail://thread/${threadId}`;
-  const existing = await sql`select id, title, status from knowledge_sources where kind = 'email' and source_url = ${sourceUrl} limit 1`;
+  const existing =
+    await sql`select id, title, status from knowledge_sources where kind = 'email' and source_url = ${sourceUrl} limit 1`;
   if (existing.length) return { ...existing[0], duplicate: true };
 
-  const full = await gogJson(['gmail', 'thread', 'get', threadId, '--account', account, '--sanitize-content'], { timeout: 45000 });
+  const full = await gogJson(
+    ['gmail', 'thread', 'get', threadId, '--account', account, '--sanitize-content'],
+    { timeout: 45000 }
+  );
   const messages = Array.isArray(full?.thread?.messages) ? full.thread.messages : [];
   const first = messages[0] ?? {};
   const headers = first.headers ?? {};
@@ -3713,7 +4293,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, db: pong[0]?.ok === 1 });
     }
 
-    if (!checkAuth(req)) return unauthorized(res);
+    if (!checkAuth(req)) {
+      if (isSladdisContentIngestRoute(req, url) && checkSladdisContentIngestAuth(req)) {
+        if (req.method === 'GET') return send(res, 200, await contentItemsSnapshot());
+        return send(res, 201, await createContentItem(await readJson(req)));
+      }
+      return unauthorized(res);
+    }
 
     if (req.method === 'GET' && url.pathname === '/knowledge/snapshot') {
       return send(res, 200, await knowledgeSnapshot());
@@ -3901,10 +4487,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/knowledge/sessions/inventory') {
-      return send(res, 200, await sessionKnowledgeInventory({
-        limit: Number(url.searchParams.get('limit') ?? 25),
-        minScore: Number(url.searchParams.get('minScore') ?? 35)
-      }));
+      return send(
+        res,
+        200,
+        await sessionKnowledgeInventory({
+          limit: Number(url.searchParams.get('limit') ?? 25),
+          minScore: Number(url.searchParams.get('minScore') ?? 35)
+        })
+      );
     }
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sessions/harvest') {
