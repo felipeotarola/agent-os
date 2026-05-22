@@ -12,7 +12,8 @@
 @import './themes/cai-os.css';
 
 body {
-  @apply overscroll-none;
+  @apply overscroll-x-none;
+  -webkit-overflow-scrolling: touch;
 }
 
 :root {
