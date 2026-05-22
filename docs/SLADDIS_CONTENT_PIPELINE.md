@@ -39,8 +39,8 @@ The Sladdis Edge Function accepts `multipart/form-data`:
 - `platforms` — repeated field; defaults to Instagram, TikTok, YouTube Shorts
 - `media` — repeated image files, max 15 MB each
 
-It creates `content_items`, `content_variants`, uploads files to the private Supabase Storage bucket
-`sladdis-content`, and records source assets in `content_media_assets`.
+It creates `content_items` and `content_variants` in Supabase/Postgres, uploads image bytes to
+Vercel Blob, and records source asset references in `content_media_assets`.
 
 Next route configuration:
 
@@ -48,6 +48,12 @@ Next route configuration:
 - `SLADDIS_CONTENT_EDGE_TOKEN` — optional explicit function token
 - fallback URL: `${SUPABASE_URL}/functions/v1/sladdis-content`
 - fallback token: `SUPABASE_SERVICE_ROLE_KEY`, then anon-key envs if no service role exists
+
+Edge Function secrets:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `BLOB_READ_WRITE_TOKEN` or `VERCEL_BLOB_READ_WRITE_TOKEN`
 
 ## Supported statuses
 

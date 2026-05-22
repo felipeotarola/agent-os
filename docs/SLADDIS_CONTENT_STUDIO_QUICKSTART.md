@@ -15,7 +15,7 @@ Content Studio is a planning/control surface for Sladdis content.
 It can:
 
 - create content drafts
-- upload source images when the Sladdis Supabase Edge Function is configured
+- upload source images to Vercel Blob when the Sladdis Supabase Edge Function is configured
 - track content status: draft, ready, scheduled, posted, failed, archived
 - create platform variants for Instagram, TikTok, YouTube Shorts, YouTube longform, X, and Facebook
 - store campaign/pillar/schedule metadata
@@ -80,7 +80,7 @@ Notes:
 
 ## Current limitations
 
-- Image upload exists only when the Supabase Edge Function is deployed and configured.
+- Image upload exists only when the Supabase Edge Function is deployed and configured with a Vercel Blob token.
 - Video upload is not enabled yet.
 - No external autopublishing.
 - No platform-specific caption editor beyond generated metadata/variants.

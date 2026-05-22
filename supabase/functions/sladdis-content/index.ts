@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { put } from 'npm:@vercel/blob@0.27.3';
 
 const CONTENT_PLATFORMS = [
   'instagram',
@@ -10,7 +11,6 @@ const CONTENT_PLATFORMS = [
 ] as const;
 
 const DEFAULT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts'];
-const BUCKET = 'sladdis-content';
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const ALLOWED_MEDIA_PREFIXES = ['image/'];
 
@@ -59,8 +59,13 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const blobToken =
+    Deno.env.get('BLOB_READ_WRITE_TOKEN') || Deno.env.get('VERCEL_BLOB_READ_WRITE_TOKEN');
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: 'Supabase service environment is not configured' }, { status: 500 });
+  }
+  if (!blobToken) {
+    return json({ error: 'Vercel Blob token is not configured' }, { status: 500 });
   }
 
   const contentType = request.headers.get('content-type') ?? '';
@@ -93,10 +98,6 @@ Deno.serve(async (request) => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false }
-  });
-
-  await supabase.storage.createBucket(BUCKET, { public: false }).then(({ error }) => {
-    if (error && !/already exists/i.test(error.message)) throw error;
   });
 
   const itemId = crypto.randomUUID();
@@ -143,11 +144,12 @@ Deno.serve(async (request) => {
     const assetId = crypto.randomUUID();
     const cleanName = safeFileName(file.name);
     const blobKey = `${campaign}/${itemId}/${assetId}.${extensionFor(file)}`;
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(blobKey, file, {
+    const blob = await put(blobKey, file, {
+      access: 'public',
+      addRandomSuffix: false,
       contentType: file.type || 'application/octet-stream',
-      upsert: false
+      token: blobToken
     });
-    if (uploadError) return json({ error: uploadError.message }, { status: 500 });
 
     const row = {
       id: assetId,
@@ -156,11 +158,15 @@ Deno.serve(async (request) => {
       kind: 'source',
       status: 'uploaded',
       blob_key: blobKey,
-      blob_url: `${supabaseUrl}/storage/v1/object/${BUCKET}/${blobKey}`,
+      blob_url: blob.url,
       file_name: cleanName,
       content_type: file.type || null,
       bytes: file.size,
-      metadata: { bucket: BUCKET, originalName: file.name, createdBy: 'sladdis-content-edge' }
+      metadata: {
+        storage: 'vercel-blob',
+        originalName: file.name,
+        createdBy: 'sladdis-content-edge'
+      }
     };
     assets.push(row);
   }
