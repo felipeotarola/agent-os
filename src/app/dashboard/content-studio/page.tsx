@@ -223,8 +223,8 @@ export default async function ContentStudioPage({
                 </h1>
                 <p className='text-muted-foreground mt-2 max-w-3xl text-sm md:text-base'>
                   Draft, adapt and schedule Sladdis content across Instagram, TikTok and YouTube. V1
-                  stores metadata in Postgres and can upload source images through Supabase Edge
-                  Functions. No external autopublish runs here.
+                  stores metadata in Postgres and uploads source images to Vercel Blob through the
+                  scoped content ingest API. No external autopublish runs here.
                 </p>
               </div>
             </div>
