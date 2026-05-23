@@ -55,8 +55,7 @@ export function getRunwaySnapshot(): RunwaySnapshot {
         fit: 'highest',
         speed: 'fastest to cash',
         downside: 'Still requires outreach and sales conversations.',
-        nextAction:
-          'Package a 1-page fixed-scope offer and send it to warm fintech/product contacts.'
+        nextAction: 'Approve price, availability and 3-5 warm paths before any external outreach.'
       },
       {
         id: 'part-time-advisory',
@@ -77,16 +76,16 @@ export function getRunwaySnapshot(): RunwaySnapshot {
       }
     ],
     nextSevenDays: [
-      'Write the AI QA Audit Sprint one-pager: problem, outcome, timeline, price range, proof points.',
-      'List 20 warm/relevant leads ranked by speed-to-cash and trust.',
-      'Draft two Swedish outreach variants: warm contact and cold fintech/product lead.',
-      'Decide the minimum acceptable paid engagement for the next 30 days.',
+      'Choose AI QA Audit Sprint price floor and target; draft default is 45k/65k SEK ex VAT.',
+      'Pick one concrete 5-working-day availability window plus one backup window.',
+      'Name 3-5 warm contacts or referral paths for the first batch.',
+      'Match each approved contact to a feedback, referral or discovery-call message variant.',
       'Keep one product-growth block for Lysande, but do not let it consume the whole week.'
     ],
     questions: [
-      'What is the minimum monthly cash target that makes the next 60 days feel safe?',
-      'Which 5 warm people would not be weird to message this week?',
-      'What kind of consulting engagement is explicitly not acceptable?'
+      'Is the 45k SEK floor / 65k SEK target acceptable for the first AI QA Audit Sprint batch?',
+      'Which 5-working-day window can Felipe actually sell first?',
+      'Which 3-5 warm paths are safe and natural to approach?'
     ]
   };
 }

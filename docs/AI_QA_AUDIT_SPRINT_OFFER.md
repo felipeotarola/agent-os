@@ -174,3 +174,59 @@ Scoring suggestion before any outreach:
 - Minimum acceptable price for a 5-day sprint.
 - Whether to pitch fintech/banking first or broader product teams.
 - Which warm contacts are safe and natural to approach first.
+
+## Cai default recommendation — draft only
+
+Unless Felipe chooses otherwise, use this as the simplest first-batch plan:
+
+- Price posture: 45k SEK ex VAT floor, 65k SEK ex VAT target, no lower-price exceptions without a separate decision.
+- First segment: fintech/banking and adjacent regulated product teams first, because Felipe's proof points are strongest there.
+- Initial ask: warm feedback/referral message, not a hard sales pitch, to reduce friction and validate wording.
+- Batch size: 3-5 warm paths only; stop after that and review signal quality before widening.
+- Availability: choose one near-term 5-working-day window and one backup before any message is sent.
+
+This is an internal recommendation, not approval to send outreach.
+
+## Felipe decision worksheet — before first outreach
+
+Use this to turn the offer into an approved first batch without overthinking it.
+
+### 1) Price posture
+
+Pick one before sending any message:
+
+| Option | 5-day sprint price | When to use |
+| --- | ---: | --- |
+| Floor | 45k SEK ex VAT | Only if the contact is very warm, cash speed matters, or there is strong follow-up potential. |
+| Target | 65k SEK ex VAT | Default anchor for fintech/banking/product teams with clear release or QA pain. |
+| Stretch | 85k SEK ex VAT | Use when buyer is a budget owner, regulated complexity is high, or the sprint replaces senior QA lead time. |
+
+Internal rule: do not pitch below the floor without a separate explicit decision.
+
+### 2) Availability window
+
+Pick a concrete start window so the ask feels real:
+
+- earliest possible start date
+- one preferred 5-working-day window
+- one backup window
+- max number of parallel prospects to discuss at once
+
+### 3) First outreach batch
+
+Aim for 3-5 warm paths, not volume. For each candidate, fill:
+
+- contact / intro path
+- likely pain signal
+- best message variant
+- ask type: feedback, referral, or discovery call
+- follow-up date if no answer
+
+### 4) First-batch send gate
+
+Only send once these are all chosen:
+
+- price floor and target
+- availability window
+- 3-5 approved contacts/referral paths
+- exact message variant per contact

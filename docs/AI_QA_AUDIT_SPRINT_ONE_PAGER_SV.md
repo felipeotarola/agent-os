@@ -36,3 +36,12 @@ Senior QA/test automation lead med erfarenhet från bank, börs/fintech och komp
 ## Intern guardrail
 
 Pris, tillgänglighet, kontaktlista och eventuell uppföljning måste beslutas innan extern pitch.
+
+## Nästa interna steg
+
+Fyll beslutsguiden i `docs/AI_QA_AUDIT_SPRINT_OFFER.md` innan första batchen:
+
+- prisgolv och målpris
+- ett konkret 5-dagars tillgänglighetsfönster + backup
+- 3-5 varma kontakter eller referral paths
+- meddelandevariant per kontakt
