@@ -111,6 +111,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Trading Lab',
+        url: '/dashboard/trading-lab',
+        icon: 'dashboard',
+        shortcut: ['t', 'l'],
+        items: []
+      },
+      {
         title: 'GitHub',
         url: '/dashboard/github',
         icon: 'github',
