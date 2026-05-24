@@ -25,6 +25,15 @@ async function main() {
       detail: 'Lysande roadmap, PRDs, research, GTM context'
     },
     {
+      id: 'linda',
+      name: 'Linda',
+      emoji: '📈',
+      role: 'Paper trading research',
+      runtime: 'openclaw',
+      status: 'online',
+      detail: 'BTC-first paper trading, market research, backtests, and trading journal briefs'
+    },
+    {
       id: 'worker-pool',
       name: 'Worker pool',
       emoji: '🛠️',

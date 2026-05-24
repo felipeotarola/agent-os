@@ -21,6 +21,19 @@ const openClawAgentsSchema = z.object({
 
 export type OpenClawAgent = z.infer<typeof openClawAgentSchema>;
 
+const lindaAgent: OpenClawAgent = {
+  id: 'linda',
+  name: 'Linda',
+  identityName: 'Linda',
+  identityEmoji: '📈',
+  identitySource: 'workspace',
+  model: 'openai-codex/gpt-5.5',
+  workspace: '/root/.openclaw/agents/linda/workspace',
+  agentDir: '/root/.openclaw/agents/linda',
+  bindings: 1,
+  isDefault: false
+};
+
 const fallbackAgents: OpenClawAgent[] = [
   {
     id: 'main',
@@ -29,17 +42,25 @@ const fallbackAgents: OpenClawAgent[] = [
     model: 'openai-codex/gpt-5.5',
     workspace: '/root/.openclaw/workspace',
     isDefault: true
-  }
+  },
+  lindaAgent
 ];
+
+function withLinda(agents: OpenClawAgent[]) {
+  return agents.some((agent) => agent.id === 'linda' || agent.identityName === 'Linda')
+    ? agents
+    : [...agents, lindaAgent];
+}
 
 export async function getOpenClawAgents() {
   if (hasBridge()) {
     try {
-      return openClawAgentsSchema.parse(await bridgeRequest('/agents'));
+      const snapshot = openClawAgentsSchema.parse(await bridgeRequest('/agents'));
+      return { ...snapshot, agents: withLinda(snapshot.agents) };
     } catch (error) {
       console.error('OpenClaw agents bridge request failed', error);
     }
   }
 
-  return { agents: fallbackAgents, source: 'fallback' };
+  return { agents: withLinda(fallbackAgents), source: 'fallback' };
 }
