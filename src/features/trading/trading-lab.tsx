@@ -499,12 +499,13 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           </CardHeader>
           <CardContent>
             <div className='bg-muted aspect-video overflow-hidden rounded-lg border'>
+              {/* oxlint-disable-next-line eslint-plugin-react/iframe-missing-sandbox -- TradingView embed needs scripts + same-origin for its own cookies/session. */}
               <iframe
                 title='TradingView BTCUSDT chart'
                 src='https://www.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&interval=60&theme=dark&style=1&timezone=Europe%2FStockholm&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=1&save_image=0&studies=%5B%22Volume%40tv-basicstudies%22%5D'
                 className='h-full w-full'
                 loading='lazy'
-                sandbox='allow-forms allow-popups allow-scripts'
+                sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts'
               />
             </div>
           </CardContent>
