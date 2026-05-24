@@ -12,7 +12,9 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const DATA_DIR = path.join(process.cwd(), 'data', 'private');
+const DATA_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'agent-os', 'data', 'private')
+  : path.join(process.cwd(), 'data', 'private');
 const JOURNAL_PATH = path.join(DATA_DIR, 'trading-lab-journal.json');
 const MAX_BACKTEST_RUNS = 40;
 const MAX_DECISIONS = 120;
