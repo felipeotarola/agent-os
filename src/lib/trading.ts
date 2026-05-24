@@ -96,6 +96,7 @@ export type TradingJournal = {
 
 const BINANCE_REST = 'https://api.binance.com';
 const BINANCE_FUTURES = 'https://fapi.binance.com';
+const COINGECKO = 'https://api.coingecko.com/api/v3';
 
 function toNumber(value: unknown) {
   const parsed = Number(value);
@@ -140,23 +141,67 @@ type BinanceTicker = {
 
 type CoinGeckoSimple = {
   bitcoin?: {
+    usd?: number;
     usd_24h_vol?: number;
+    usd_24h_change?: number;
   };
 };
 
+type CoinGeckoMarketChart = {
+  prices?: Array<[number, number]>;
+  total_volumes?: Array<[number, number]>;
+};
+
+async function getCoinGeckoCandles(days = 90): Promise<Candle[]> {
+  const chart = await fetchJson<CoinGeckoMarketChart>(
+    `${COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`
+  );
+  const prices = chart.prices ?? [];
+  const volumes = new Map((chart.total_volumes ?? []).map(([time, volume]) => [time, volume]));
+
+  return prices.map(([time, close], index) => {
+    const previousClose = prices[index - 1]?.[1] ?? close;
+    return {
+      time,
+      open: previousClose,
+      high: Math.max(previousClose, close),
+      low: Math.min(previousClose, close),
+      close,
+      volume: 0,
+      quoteVolume: volumes.get(time) ?? 0
+    };
+  });
+}
+
+async function getCoinGeckoSimple() {
+  return fetchJson<CoinGeckoSimple>(
+    `${COINGECKO}/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true`
+  );
+}
+
 export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnapshot> {
-  const [candles, spotTicker, futuresTicker, coinGecko] = await Promise.all([
-    getDailyCandles(symbol, 90),
-    fetchJson<BinanceTicker>(
-      `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-    ),
-    fetchJson<BinanceTicker>(
-      `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-    ),
-    fetchJson<CoinGeckoSimple>(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true'
-    ).catch(() => undefined)
-  ]);
+  const [binanceCandles, coingeckoCandles, spotTicker, futuresTicker, coinGecko] =
+    await Promise.allSettled([
+      getDailyCandles(symbol, 90),
+      getCoinGeckoCandles(90),
+      fetchJson<BinanceTicker>(
+        `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+      ),
+      fetchJson<BinanceTicker>(
+        `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+      ),
+      getCoinGeckoSimple()
+    ]);
+
+  const candles =
+    binanceCandles.status === 'fulfilled' && binanceCandles.value.length > 0
+      ? binanceCandles.value
+      : coingeckoCandles.status === 'fulfilled'
+        ? coingeckoCandles.value
+        : [];
+  const spot = spotTicker.status === 'fulfilled' ? spotTicker.value : undefined;
+  const futures = futuresTicker.status === 'fulfilled' ? futuresTicker.value : undefined;
+  const gecko = coinGecko.status === 'fulfilled' ? coinGecko.value.bitcoin : undefined;
 
   const completeCandles = candles.slice(0, -1);
   const recent = completeCandles.slice(-8);
@@ -174,11 +219,11 @@ export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnaps
 
   return {
     symbol,
-    price: toNumber(spotTicker.lastPrice),
-    priceChangePct24h: toNumber(spotTicker.priceChangePercent),
-    spotQuoteVolume24h: toNumber(spotTicker.quoteVolume),
-    futuresQuoteVolume24h: toNumber(futuresTicker.quoteVolume),
-    globalQuoteVolume24h: coinGecko?.bitcoin?.usd_24h_vol,
+    price: toNumber(spot?.lastPrice ?? gecko?.usd),
+    priceChangePct24h: toNumber(spot?.priceChangePercent ?? gecko?.usd_24h_change),
+    spotQuoteVolume24h: toNumber(spot?.quoteVolume ?? gecko?.usd_24h_vol),
+    futuresQuoteVolume24h: toNumber(futures?.quoteVolume),
+    globalQuoteVolume24h: gecko?.usd_24h_vol,
     volumeTrend: {
       latest,
       previous,
