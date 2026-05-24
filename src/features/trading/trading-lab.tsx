@@ -707,6 +707,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                     <th className='p-2 text-left'>Side</th>
                     <th className='p-2 text-right'>Price</th>
                     <th className='p-2 text-left'>Reason</th>
+                    <th className='p-2 text-right'>Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -886,6 +887,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                   <th className='p-2 text-right'>Price</th>
                   <th className='p-2 text-right'>Confidence</th>
                   <th className='p-2 text-left'>Reason</th>
+                  <th className='p-2 text-right'>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -894,8 +896,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                   return (
                     <tr
                       key={decision.id}
-                      onClick={() => setSelectedJournalId(decision.id)}
-                      className={`cursor-pointer border-t transition ${selected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                      className={`border-t transition ${selected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
                     >
                       <td className='p-2'>
                         {new Date(decision.createdAt).toLocaleString('sv-SE')}
@@ -922,12 +923,22 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                         {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
                       </td>
                       <td className='text-muted-foreground p-2'>{decision.reason}</td>
+                      <td className='p-2 text-right'>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant={selected ? 'default' : 'outline'}
+                          onClick={() => setSelectedJournalId(decision.id)}
+                        >
+                          {selected ? 'Viewing' : 'View details'}
+                        </Button>
+                      </td>
                     </tr>
                   );
                 })}
                 {data.journal.decisions.length === 0 ? (
                   <tr>
-                    <td className='text-muted-foreground p-3' colSpan={6}>
+                    <td className='text-muted-foreground p-3' colSpan={7}>
                       Ingen bot-logg ännu. Kör en paper-beslutscykel när du vill börja samla
                       datapunkter.
                     </td>
