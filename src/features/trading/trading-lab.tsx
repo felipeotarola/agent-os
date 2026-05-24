@@ -59,6 +59,12 @@ function newestFirst<T>(items: T[]) {
   return items.reduceRight<T[]>((accumulator, item) => [...accumulator, item], []);
 }
 
+function actionTone(action?: string) {
+  if (action === 'buy') return 'text-primary';
+  if (action === 'sell') return 'text-destructive';
+  return 'text-muted-foreground';
+}
+
 export function TradingLab({ initialData }: { initialData: TradingLabPayload }) {
   const [data, setData] = useState(initialData);
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
@@ -93,6 +99,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     () => newestFirst(data.journal.decisions).find((decision) => decision.kind === 'bot'),
     [data.journal.decisions]
   );
+  const lindaDecisions = data.journal.decisions.filter(
+    (decision) => decision.kind === 'bot' && decision.agent === 'Linda'
+  );
+  const latestLindaAction = latestBotDecision?.kind === 'bot' ? latestBotDecision.action : 'hold';
 
   async function refresh() {
     setLoading(true);
@@ -455,17 +465,121 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         </Card>
       </div>
 
+      <div className='grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
+        <Card>
+          <CardHeader>
+            <div className='mb-2 flex items-center gap-2'>
+              <Badge variant='outline'>Linda</Badge>
+              <Badge variant='secondary'>Paper agent</Badge>
+            </div>
+            <CardTitle>Linda Bradford</CardTitle>
+            <CardDescription>
+              Dedikerad trading-agent för paper research. Hon får analysera och journalföra — inte
+              handla riktiga pengar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            <div className='grid grid-cols-2 gap-3 text-sm'>
+              <div>
+                <div className='text-muted-foreground'>Senaste stance</div>
+                <div className={`font-semibold uppercase ${actionTone(latestLindaAction)}`}>
+                  {latestLindaAction}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>Beslut loggade</div>
+                <div className='font-semibold'>{lindaDecisions.length}</div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>Scope</div>
+                <div className='font-medium'>BTC first</div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>Mode</div>
+                <div className='font-medium'>No keys</div>
+              </div>
+            </div>
+            <div className='rounded-lg border p-3 text-sm'>
+              <div className='mb-1 font-medium'>Phase 1 guardrails</div>
+              <ul className='text-muted-foreground list-disc space-y-1 pl-4 text-xs'>
+                <li>Ingen live trading, inga riktiga order.</li>
+                <li>Inga Binance API-nycklar behövs ännu.</li>
+                <li>Varje signal måste ha risk, evidens och nästa check.</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Linda decision brief</CardTitle>
+            <CardDescription>
+              Senaste paper-beslutet i rätt format: action, confidence, evidence, risk, next check.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            {latestBotDecision?.kind === 'bot' ? (
+              <>
+                <div className='grid gap-4 md:grid-cols-4'>
+                  <div>
+                    <div className='text-muted-foreground text-sm'>Action</div>
+                    <div
+                      className={`text-lg font-semibold uppercase ${actionTone(latestBotDecision.action)}`}
+                    >
+                      {latestBotDecision.action}
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-muted-foreground text-sm'>Confidence</div>
+                    <div className='text-lg font-semibold'>
+                      {latestBotDecision.confidence.toFixed(0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-muted-foreground text-sm'>Strategy</div>
+                    <div className='text-lg font-semibold'>
+                      {strategyLabels[latestBotDecision.strategy]}
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-muted-foreground text-sm'>Price</div>
+                    <div className='text-lg font-semibold'>{money(latestBotDecision.price)}</div>
+                  </div>
+                </div>
+                <div className='grid gap-3 md:grid-cols-3'>
+                  <div className='rounded-lg border p-3'>
+                    <div className='mb-1 text-sm font-medium'>Evidence</div>
+                    <p className='text-muted-foreground text-sm'>{latestBotDecision.reason}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <div className='mb-1 text-sm font-medium'>Risk</div>
+                    <p className='text-muted-foreground text-sm'>{latestBotDecision.risk}</p>
+                  </div>
+                  <div className='rounded-lg border p-3'>
+                    <div className='mb-1 text-sm font-medium'>Next check</div>
+                    <p className='text-muted-foreground text-sm'>{latestBotDecision.nextCheck}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className='text-muted-foreground text-sm'>
+                Linda har inte loggat något paper-beslut ännu. Kör en decision cycle nedan.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
           <div>
             <CardTitle>Paper bot journal</CardTitle>
             <CardDescription>
-              En lokal beslutslogg för vad botten skulle göra. Sparas i data/private, inga riktiga
-              order.
+              Lindas lokala beslutslogg. Sparas privat i runtime storage, inga riktiga order.
             </CardDescription>
           </div>
           <Button onClick={runPaperBot} disabled={botRunning} variant='secondary'>
-            {botRunning ? 'Kör paper bot…' : 'Kör paper bot decision'}
+            {botRunning ? 'Linda analyserar…' : 'Kör Linda decision'}
           </Button>
         </CardHeader>
         <CardContent>
@@ -474,6 +588,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
               <thead className='bg-muted/50 text-muted-foreground'>
                 <tr>
                   <th className='p-2 text-left'>Time</th>
+                  <th className='p-2 text-left'>Agent</th>
                   <th className='p-2 text-left'>Action</th>
                   <th className='p-2 text-right'>Price</th>
                   <th className='p-2 text-right'>Confidence</th>
@@ -484,6 +599,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                 {newestFirst(data.journal.decisions.slice(-8)).map((decision) => (
                   <tr key={decision.id} className='border-t'>
                     <td className='p-2'>{new Date(decision.createdAt).toLocaleString('sv-SE')}</td>
+                    <td className='p-2'>{decision.kind === 'bot' ? decision.agent : 'Manual'}</td>
                     <td className='p-2'>
                       <div className='flex items-center gap-2'>
                         <Badge
@@ -509,7 +625,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                 ))}
                 {data.journal.decisions.length === 0 ? (
                   <tr>
-                    <td className='text-muted-foreground p-3' colSpan={5}>
+                    <td className='text-muted-foreground p-3' colSpan={6}>
                       Ingen bot-logg ännu. Kör en paper-beslutscykel när du vill börja samla
                       datapunkter.
                     </td>

@@ -34,6 +34,7 @@ export type TradingStrategy = 'sma-cross' | 'rsi-reversion' | 'volume-breakout';
 export type PaperBotDecision = {
   id: string;
   kind: 'bot';
+  agent: 'Linda';
   createdAt: string;
   symbol: string;
   strategy: TradingStrategy;
@@ -41,6 +42,8 @@ export type PaperBotDecision = {
   price: number;
   confidence: number;
   reason: string;
+  risk: string;
+  nextCheck: string;
   evidence: {
     returnPct: number;
     maxDrawdownPct: number;

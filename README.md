@@ -14,6 +14,7 @@ Local-first cockpit for Felipe × Cai.
 - Memory: memory search/save surface
 - Permissions: notification/permission state
 - Settings: real system/data-source status and guardrails
+- Trading Lab: paper-only BTC research/backtesting workspace
 
 ## Removed from the product surface
 
@@ -38,3 +39,7 @@ Do not add mock SaaS/sample datasets back into runtime routes. If a screen needs
 5. Explicit user input
 
 See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
+
+## Feature docs
+
+- `docs/TRADING_LAB.md` — paper-only BTC research workspace, APIs, guardrails, and validation.

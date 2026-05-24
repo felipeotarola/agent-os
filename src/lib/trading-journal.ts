@@ -130,10 +130,15 @@ export function buildPaperBotDecision(
   const reason = latestSignalIsFresh
     ? `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
     : `No fresh ${selectedStrategy} signal on the latest completed candle; observe only.`;
+  const risk =
+    action === 'hold'
+      ? 'No fresh edge. Main risk is overtrading stale signals or acting on incomplete candles.'
+      : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
 
   return {
     id: randomUUID(),
     kind: 'bot',
+    agent: 'Linda',
     createdAt: new Date().toISOString(),
     symbol: snapshot.symbol,
     strategy: selectedStrategy,
@@ -141,6 +146,8 @@ export function buildPaperBotDecision(
     price: snapshot.price,
     confidence,
     reason,
+    risk,
+    nextCheck: 'Re-evaluate after the next completed daily candle or a major volume regime change.',
     evidence: {
       returnPct: backtest.returnPct,
       maxDrawdownPct: backtest.maxDrawdownPct,
