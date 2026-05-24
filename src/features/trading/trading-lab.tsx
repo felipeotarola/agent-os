@@ -4,7 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import type { BacktestResult, Candle, MarketSnapshot, Trade, TradingJournal } from '@/lib/trading';
+import type {
+  BacktestResult,
+  Candle,
+  MarketSnapshot,
+  PaperJournalEntry,
+  Trade,
+  TradingJournal
+} from '@/lib/trading';
 import { useEffect, useMemo, useState } from 'react';
 
 type TradingLabPayload = {
@@ -18,6 +25,8 @@ type PaperPortfolio = {
   btc: number;
   startedAt: string;
 };
+
+type JournalEntry = PaperJournalEntry;
 
 const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
 
@@ -295,6 +304,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [loading, setLoading] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
+  const [selectedJournalId, setSelectedJournalId] = useState<string>();
   const [selectedStrategy, setSelectedStrategy] = useState(
     initialData.backtests[0]?.strategy ?? 'sma-cross'
   );
@@ -324,6 +334,13 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     () => newestFirst(data.journal.decisions).find((decision) => decision.kind === 'bot'),
     [data.journal.decisions]
   );
+  const selectedJournalEntry = useMemo<JournalEntry | undefined>(() => {
+    if (selectedJournalId) {
+      const selected = data.journal.decisions.find((decision) => decision.id === selectedJournalId);
+      if (selected) return selected;
+    }
+    return newestFirst(data.journal.decisions)[0];
+  }, [data.journal.decisions, selectedJournalId]);
   const lindaDecisions = data.journal.decisions.filter(
     (decision) => decision.kind === 'bot' && decision.agent === 'Linda'
   );
@@ -872,33 +889,42 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                 </tr>
               </thead>
               <tbody>
-                {newestFirst(data.journal.decisions.slice(-8)).map((decision) => (
-                  <tr key={decision.id} className='border-t'>
-                    <td className='p-2'>{new Date(decision.createdAt).toLocaleString('sv-SE')}</td>
-                    <td className='p-2'>{decision.kind === 'bot' ? decision.agent : 'Manual'}</td>
-                    <td className='p-2'>
-                      <div className='flex items-center gap-2'>
-                        <Badge
-                          variant={
-                            decision.action === 'buy'
-                              ? 'default'
-                              : decision.action === 'sell'
-                                ? 'destructive'
-                                : 'secondary'
-                          }
-                        >
-                          {decision.action}
-                        </Badge>
-                        <span className='text-muted-foreground text-xs'>{decision.kind}</span>
-                      </div>
-                    </td>
-                    <td className='p-2 text-right'>{money(decision.price)}</td>
-                    <td className='p-2 text-right'>
-                      {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
-                    </td>
-                    <td className='text-muted-foreground p-2'>{decision.reason}</td>
-                  </tr>
-                ))}
+                {newestFirst(data.journal.decisions.slice(-8)).map((decision) => {
+                  const selected = selectedJournalEntry?.id === decision.id;
+                  return (
+                    <tr
+                      key={decision.id}
+                      onClick={() => setSelectedJournalId(decision.id)}
+                      className={`cursor-pointer border-t transition ${selected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                    >
+                      <td className='p-2'>
+                        {new Date(decision.createdAt).toLocaleString('sv-SE')}
+                      </td>
+                      <td className='p-2'>{decision.kind === 'bot' ? decision.agent : 'Manual'}</td>
+                      <td className='p-2'>
+                        <div className='flex items-center gap-2'>
+                          <Badge
+                            variant={
+                              decision.action === 'buy'
+                                ? 'default'
+                                : decision.action === 'sell'
+                                  ? 'destructive'
+                                  : 'secondary'
+                            }
+                          >
+                            {decision.action}
+                          </Badge>
+                          <span className='text-muted-foreground text-xs'>{decision.kind}</span>
+                        </div>
+                      </td>
+                      <td className='p-2 text-right'>{money(decision.price)}</td>
+                      <td className='p-2 text-right'>
+                        {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
+                      </td>
+                      <td className='text-muted-foreground p-2'>{decision.reason}</td>
+                    </tr>
+                  );
+                })}
                 {data.journal.decisions.length === 0 ? (
                   <tr>
                     <td className='text-muted-foreground p-3' colSpan={6}>
@@ -910,6 +936,108 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
               </tbody>
             </table>
           </div>
+          {selectedJournalEntry ? (
+            <div className='mt-4 space-y-3 rounded-lg border p-3'>
+              <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+                <div>
+                  <div className='text-sm font-medium'>Selected journal entry</div>
+                  <div className='text-muted-foreground text-xs'>
+                    {new Date(selectedJournalEntry.createdAt).toLocaleString('sv-SE')} ·{' '}
+                    {selectedJournalEntry.kind === 'bot' ? 'Linda decision' : 'Manual paper trade'}
+                  </div>
+                </div>
+                <Badge
+                  variant={
+                    selectedJournalEntry.action === 'buy'
+                      ? 'default'
+                      : selectedJournalEntry.action === 'sell'
+                        ? 'destructive'
+                        : 'secondary'
+                  }
+                >
+                  {selectedJournalEntry.action}
+                </Badge>
+              </div>
+              <div className='grid gap-3 md:grid-cols-3'>
+                <div className='rounded-lg border p-3'>
+                  <div className='mb-1 text-sm font-medium'>Why</div>
+                  <p className='text-muted-foreground text-sm'>{selectedJournalEntry.reason}</p>
+                </div>
+                <div className='rounded-lg border p-3'>
+                  <div className='mb-1 text-sm font-medium'>Price</div>
+                  <p className='text-sm font-semibold'>{money(selectedJournalEntry.price)}</p>
+                </div>
+                <div className='rounded-lg border p-3'>
+                  <div className='mb-1 text-sm font-medium'>Context</div>
+                  <p className='text-muted-foreground text-sm'>
+                    {selectedJournalEntry.kind === 'bot'
+                      ? `${strategyLabels[selectedJournalEntry.strategy]} · confidence ${selectedJournalEntry.confidence.toFixed(0)}%`
+                      : `Cash ${money(selectedJournalEntry.portfolio.cash)} · BTC ${selectedJournalEntry.portfolio.btc.toFixed(6)} · equity ${money(selectedJournalEntry.portfolio.equity)}`}
+                  </p>
+                </div>
+              </div>
+              {selectedJournalEntry.kind === 'bot' ? (
+                <div className='space-y-3'>
+                  <div className='grid gap-3 md:grid-cols-2'>
+                    <div className='rounded-lg border p-3'>
+                      <div className='mb-1 text-sm font-medium'>Risk / invalidation</div>
+                      <p className='text-muted-foreground text-sm'>{selectedJournalEntry.risk}</p>
+                    </div>
+                    <div className='rounded-lg border p-3'>
+                      <div className='mb-1 text-sm font-medium'>Next check</div>
+                      <p className='text-muted-foreground text-sm'>
+                        {selectedJournalEntry.nextCheck}
+                      </p>
+                    </div>
+                  </div>
+                  <div className='text-muted-foreground space-y-1 text-xs'>
+                    {[
+                      `Backtest return: ${percent(selectedJournalEntry.evidence.returnPct)} · max DD ${percent(-selectedJournalEntry.evidence.maxDrawdownPct)} · volume ${selectedJournalEntry.evidence.volumeVerdict}`,
+                      selectedJournalEntry.evidence.lastSignal
+                        ? `Last signal: ${selectedJournalEntry.evidence.lastSignal.side} · ${selectedJournalEntry.evidence.lastSignal.reason}`
+                        : 'Last signal: none in this window',
+                      ...(selectedJournalEntry.research?.factors ?? [])
+                    ].map((signal) => (
+                      <div key={signal}>• {signal}</div>
+                    ))}
+                  </div>
+                  {selectedJournalEntry.research ? (
+                    <div className='rounded-lg border p-3'>
+                      <div className='mb-2 text-sm font-medium'>Research used</div>
+                      <p className='text-muted-foreground text-sm'>
+                        {selectedJournalEntry.research.thesis}
+                      </p>
+                      <div className='mt-3 flex flex-wrap gap-2'>
+                        {selectedJournalEntry.research.links.map((link) => (
+                          <a
+                            key={link.url}
+                            href={link.url}
+                            target='_blank'
+                            rel='noreferrer'
+                            className='rounded-full border px-2 py-1 text-xs hover:text-foreground'
+                          >
+                            {link.source ? `${link.source}: ` : ''}
+                            {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className='text-muted-foreground rounded-lg border p-3 text-sm'>
+                      No research pack was captured for this older decision, but the original
+                      reason, risk, evidence and price are preserved above.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className='text-muted-foreground rounded-lg border p-3 text-sm'>
+                  This is a manual paper trade. It keeps the trade reason and resulting paper
+                  portfolio. If Linda generated a separate decision brief at the same time, select
+                  the adjacent Linda row to see the research pack.
+                </div>
+              )}
+            </div>
+          ) : null}
           {latestBotDecision?.kind === 'bot' ? (
             <div className='text-muted-foreground mt-3 space-y-1 text-xs'>
               {[
