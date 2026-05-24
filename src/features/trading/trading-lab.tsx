@@ -51,6 +51,14 @@ function defaultPortfolio(): PaperPortfolio {
   return { cash: 10_000, btc: 0, startedAt: new Date().toISOString() };
 }
 
+function latestItem<T>(items: T[]) {
+  return items.length > 0 ? items[items.length - 1] : undefined;
+}
+
+function newestFirst<T>(items: T[]) {
+  return items.reduceRight<T[]>((accumulator, item) => [...accumulator, item], []);
+}
+
 export function TradingLab({ initialData }: { initialData: TradingLabPayload }) {
   const [data, setData] = useState(initialData);
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
@@ -77,7 +85,14 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const latestCandles = data.snapshot.candles.slice(-8, -1);
   const maxVolume = Math.max(...latestCandles.map((candle) => candle.quoteVolume), 1);
 
-  const lastSignal = useMemo(() => selectedBacktest?.trades.at(-1), [selectedBacktest]);
+  const lastSignal = useMemo(
+    () => (selectedBacktest ? latestItem(selectedBacktest.trades) : undefined),
+    [selectedBacktest]
+  );
+  const latestBotDecision = useMemo(
+    () => newestFirst(data.journal.decisions).find((decision) => decision.kind === 'bot'),
+    [data.journal.decisions]
+  );
 
   async function refresh() {
     setLoading(true);
@@ -414,21 +429,18 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedBacktest.trades
-                    .slice(-8)
-                    .toReversed()
-                    .map((trade) => (
-                      <tr key={`${trade.time}-${trade.side}`} className='border-t'>
-                        <td className='p-2'>{dateLabel(trade.time)}</td>
-                        <td className='p-2'>
-                          <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'}>
-                            {trade.side}
-                          </Badge>
-                        </td>
-                        <td className='p-2 text-right'>{money(trade.price)}</td>
-                        <td className='text-muted-foreground p-2'>{trade.reason}</td>
-                      </tr>
-                    ))}
+                  {newestFirst(selectedBacktest.trades.slice(-8)).map((trade) => (
+                    <tr key={`${trade.time}-${trade.side}`} className='border-t'>
+                      <td className='p-2'>{dateLabel(trade.time)}</td>
+                      <td className='p-2'>
+                        <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'}>
+                          {trade.side}
+                        </Badge>
+                      </td>
+                      <td className='p-2 text-right'>{money(trade.price)}</td>
+                      <td className='text-muted-foreground p-2'>{trade.reason}</td>
+                    </tr>
+                  ))}
                   {selectedBacktest.trades.length === 0 ? (
                     <tr>
                       <td className='text-muted-foreground p-3' colSpan={4}>
@@ -469,37 +481,32 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                 </tr>
               </thead>
               <tbody>
-                {data.journal.decisions
-                  .slice(-8)
-                  .toReversed()
-                  .map((decision) => (
-                    <tr key={decision.id} className='border-t'>
-                      <td className='p-2'>
-                        {new Date(decision.createdAt).toLocaleString('sv-SE')}
-                      </td>
-                      <td className='p-2'>
-                        <div className='flex items-center gap-2'>
-                          <Badge
-                            variant={
-                              decision.action === 'buy'
-                                ? 'default'
-                                : decision.action === 'sell'
-                                  ? 'destructive'
-                                  : 'secondary'
-                            }
-                          >
-                            {decision.action}
-                          </Badge>
-                          <span className='text-muted-foreground text-xs'>{decision.kind}</span>
-                        </div>
-                      </td>
-                      <td className='p-2 text-right'>{money(decision.price)}</td>
-                      <td className='p-2 text-right'>
-                        {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
-                      </td>
-                      <td className='text-muted-foreground p-2'>{decision.reason}</td>
-                    </tr>
-                  ))}
+                {newestFirst(data.journal.decisions.slice(-8)).map((decision) => (
+                  <tr key={decision.id} className='border-t'>
+                    <td className='p-2'>{new Date(decision.createdAt).toLocaleString('sv-SE')}</td>
+                    <td className='p-2'>
+                      <div className='flex items-center gap-2'>
+                        <Badge
+                          variant={
+                            decision.action === 'buy'
+                              ? 'default'
+                              : decision.action === 'sell'
+                                ? 'destructive'
+                                : 'secondary'
+                          }
+                        >
+                          {decision.action}
+                        </Badge>
+                        <span className='text-muted-foreground text-xs'>{decision.kind}</span>
+                      </div>
+                    </td>
+                    <td className='p-2 text-right'>{money(decision.price)}</td>
+                    <td className='p-2 text-right'>
+                      {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
+                    </td>
+                    <td className='text-muted-foreground p-2'>{decision.reason}</td>
+                  </tr>
+                ))}
                 {data.journal.decisions.length === 0 ? (
                   <tr>
                     <td className='text-muted-foreground p-3' colSpan={5}>
@@ -511,23 +518,17 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
               </tbody>
             </table>
           </div>
-          {data.journal.decisions.toReversed().find((decision) => decision.kind === 'bot')?.kind ===
-          'bot' ? (
+          {latestBotDecision?.kind === 'bot' ? (
             <div className='text-muted-foreground mt-3 space-y-1 text-xs'>
-              {(() => {
-                const decision = data.journal.decisions
-                  .toReversed()
-                  .find((item) => item.kind === 'bot');
-                return decision?.kind === 'bot'
-                  ? [
-                      `Strategy: ${strategyLabels[decision.strategy]}`,
-                      `Backtest return: ${percent(decision.evidence.returnPct)} · max DD ${percent(-decision.evidence.maxDrawdownPct)} · volume ${decision.evidence.volumeVerdict}`,
-                      decision.evidence.lastSignal
-                        ? `Last signal: ${decision.evidence.lastSignal.side} · ${decision.evidence.lastSignal.reason}`
-                        : 'Last signal: none in this window'
-                    ].map((signal) => <div key={signal}>• {signal}</div>)
-                  : null;
-              })()}
+              {[
+                `Strategy: ${strategyLabels[latestBotDecision.strategy]}`,
+                `Backtest return: ${percent(latestBotDecision.evidence.returnPct)} · max DD ${percent(-latestBotDecision.evidence.maxDrawdownPct)} · volume ${latestBotDecision.evidence.volumeVerdict}`,
+                latestBotDecision.evidence.lastSignal
+                  ? `Last signal: ${latestBotDecision.evidence.lastSignal.side} · ${latestBotDecision.evidence.lastSignal.reason}`
+                  : 'Last signal: none in this window'
+              ].map((signal) => (
+                <div key={signal}>• {signal}</div>
+              ))}
             </div>
           ) : null}
         </CardContent>
