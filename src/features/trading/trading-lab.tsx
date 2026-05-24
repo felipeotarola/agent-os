@@ -560,6 +560,28 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                     <p className='text-muted-foreground text-sm'>{latestBotDecision.nextCheck}</p>
                   </div>
                 </div>
+                {latestBotDecision.research ? (
+                  <div className='rounded-lg border p-3'>
+                    <div className='mb-2 text-sm font-medium'>Research brief</div>
+                    <p className='text-muted-foreground text-sm'>
+                      {latestBotDecision.research.thesis}
+                    </p>
+                    <div className='mt-3 grid gap-2 md:grid-cols-2'>
+                      {latestBotDecision.research.links.map((link) => (
+                        <a
+                          key={link.url}
+                          href={link.url}
+                          target='_blank'
+                          rel='noreferrer'
+                          className='hover:bg-muted/50 rounded-md border p-2 text-sm transition'
+                        >
+                          <div className='font-medium'>{link.label}</div>
+                          <div className='text-muted-foreground text-xs'>{link.note}</div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <p className='text-muted-foreground text-sm'>
@@ -641,10 +663,26 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                 `Backtest return: ${percent(latestBotDecision.evidence.returnPct)} · max DD ${percent(-latestBotDecision.evidence.maxDrawdownPct)} · volume ${latestBotDecision.evidence.volumeVerdict}`,
                 latestBotDecision.evidence.lastSignal
                   ? `Last signal: ${latestBotDecision.evidence.lastSignal.side} · ${latestBotDecision.evidence.lastSignal.reason}`
-                  : 'Last signal: none in this window'
+                  : 'Last signal: none in this window',
+                ...(latestBotDecision.research?.factors ?? [])
               ].map((signal) => (
                 <div key={signal}>• {signal}</div>
               ))}
+              {latestBotDecision.research ? (
+                <div className='flex flex-wrap gap-2 pt-2'>
+                  {latestBotDecision.research.links.map((link) => (
+                    <a
+                      key={link.url}
+                      href={link.url}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='rounded-full border px-2 py-1 hover:text-foreground'
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </CardContent>

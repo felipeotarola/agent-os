@@ -53,6 +53,20 @@ export type PaperBotDecision = {
     volumeVsSevenDayPct: number;
     lastSignal?: Pick<Trade, 'side' | 'time' | 'reason'>;
   };
+  research?: {
+    summary: string;
+    thesis: string;
+    invalidation: string;
+    factors: string[];
+    fetchedAt: string;
+    links: Array<{
+      label: string;
+      url: string;
+      note: string;
+      source?: string;
+      publishedAt?: string;
+    }>;
+  };
   disclaimer: string;
 };
 
