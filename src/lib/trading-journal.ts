@@ -332,6 +332,27 @@ export async function appendPaperDecision(entry: PaperJournalEntry) {
   return entry;
 }
 
+export async function ensurePaperBotDecisionBrief(
+  snapshot: MarketSnapshot,
+  backtests: BacktestResult[],
+  selectedStrategy: TradingStrategy = 'volume-breakout'
+) {
+  const journal = await readJournal();
+  const latestDecision = journal.decisions.at(-1);
+
+  if (latestDecision?.kind === 'bot' && latestDecision.research) return undefined;
+
+  const backtest =
+    backtests.find((item) => item.strategy === selectedStrategy) ??
+    backtests[0] ??
+    backtestStrategy(snapshot.candles, selectedStrategy);
+  const decision = await buildPaperBotDecision(snapshot, backtest, backtest.strategy);
+
+  journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
+  await writeJournal(journal);
+  return decision;
+}
+
 export async function runPaperBotDecision(selectedStrategy: TradingStrategy) {
   const snapshot = await import('@/lib/trading').then((mod) => mod.getMarketSnapshot('BTCUSDT'));
   const backtest = backtestStrategy(snapshot.candles, selectedStrategy);

@@ -1,6 +1,10 @@
 import PageContainer from '@/components/layout/page-container';
 import { TradingLab } from '@/features/trading/trading-lab';
-import { getTradingJournal, persistBacktestRun } from '@/lib/trading-journal';
+import {
+  ensurePaperBotDecisionBrief,
+  getTradingJournal,
+  persistBacktestRun
+} from '@/lib/trading-journal';
 import {
   backtestStrategy,
   getFallbackMarketSnapshot,
@@ -26,6 +30,10 @@ export default async function TradingLabPage() {
       console.error('Trading Lab backtest persistence failed', error);
     });
   }
+
+  await ensurePaperBotDecisionBrief(snapshot, backtests).catch((error) => {
+    console.error('Trading Lab automatic decision brief failed', error);
+  });
 
   const journal = await getTradingJournal().catch((error) => {
     console.error('Trading Lab journal read failed', error);

@@ -1,5 +1,10 @@
 import { backtestStrategy, getMarketSnapshot, type TradingStrategy } from '@/lib/trading';
-import { getTradingJournal, persistBacktestRun, runPaperBotDecision } from '@/lib/trading-journal';
+import {
+  ensurePaperBotDecisionBrief,
+  getTradingJournal,
+  persistBacktestRun,
+  runPaperBotDecision
+} from '@/lib/trading-journal';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -11,9 +16,10 @@ export async function GET() {
     const snapshot = await getMarketSnapshot('BTCUSDT');
     const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
     await persistBacktestRun(snapshot, backtests);
+    const decision = await ensurePaperBotDecisionBrief(snapshot, backtests);
     const journal = await getTradingJournal();
 
-    return NextResponse.json({ snapshot, backtests, journal });
+    return NextResponse.json({ snapshot, backtests, journal, decision });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading snapshot failed' },

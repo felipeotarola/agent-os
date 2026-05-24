@@ -385,13 +385,18 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     });
     const payload = (await response.json()) as {
       decision?: TradingLabPayload['journal']['decisions'][number];
+      briefDecision?: TradingLabPayload['journal']['decisions'][number];
     };
-    if (payload.decision) {
+    const newDecisions = [payload.decision, payload.briefDecision].filter(
+      (decision): decision is TradingLabPayload['journal']['decisions'][number] =>
+        decision !== undefined
+    );
+    if (newDecisions.length > 0) {
       setData((current) => ({
         ...current,
         journal: {
           ...current.journal,
-          decisions: [...current.journal.decisions, payload.decision!]
+          decisions: [...current.journal.decisions, ...newDecisions]
         }
       }));
     }

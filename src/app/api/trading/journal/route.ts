@@ -1,4 +1,4 @@
-import { getTradingJournal, runPaperBotDecision, appendPaperDecision } from '@/lib/trading-journal';
+import { appendPaperDecision, getTradingJournal, runPaperBotDecision } from '@/lib/trading-journal';
 import type { ManualPaperDecision, TradingStrategy } from '@/lib/trading';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
@@ -69,7 +69,9 @@ export async function POST(request: Request) {
         disclaimer: 'Paper-only journal entry. No exchange keys, no real orders, no execution.'
       };
 
-      return NextResponse.json({ decision: await appendPaperDecision(entry) });
+      const decision = await appendPaperDecision(entry);
+      const briefDecision = await runPaperBotDecision('volume-breakout');
+      return NextResponse.json({ decision, briefDecision });
     }
 
     return NextResponse.json({ error: 'Invalid journal action' }, { status: 400 });
