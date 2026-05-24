@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import type { BacktestResult, MarketSnapshot, TradingJournal } from '@/lib/trading';
+import type { BacktestResult, Candle, MarketSnapshot, Trade, TradingJournal } from '@/lib/trading';
 import { useEffect, useMemo, useState } from 'react';
 
 type TradingLabPayload = {
@@ -65,11 +65,236 @@ function actionTone(action?: string) {
   return 'text-muted-foreground';
 }
 
+type HoveredTrade = {
+  trade: Trade;
+  x: number;
+  y: number;
+};
+
+function StrategyTradeChart({
+  candles,
+  trades,
+  strategy,
+  hoveredTrade,
+  onHoverTrade
+}: {
+  candles: Candle[];
+  trades: Trade[];
+  strategy: string;
+  hoveredTrade?: HoveredTrade;
+  onHoverTrade: (trade?: HoveredTrade) => void;
+}) {
+  const visibleCandles = candles.slice(-75, -1);
+  const width = 960;
+  const height = 360;
+  const padding = { top: 18, right: 68, bottom: 34, left: 52 };
+  const priceHeight = 226;
+  const volumeTop = padding.top + priceHeight + 20;
+  const volumeHeight = height - volumeTop - padding.bottom;
+  const plotWidth = width - padding.left - padding.right;
+  const highs = visibleCandles.map((candle) => candle.high || candle.close);
+  const lows = visibleCandles.map((candle) => candle.low || candle.close);
+  const minPrice = Math.min(...lows);
+  const maxPrice = Math.max(...highs);
+  const priceRange = Math.max(1, maxPrice - minPrice);
+  const maxChartVolume = Math.max(...visibleCandles.map((candle) => candle.quoteVolume), 1);
+  const candleIndex = new Map(visibleCandles.map((candle, index) => [candle.time, index]));
+  const visibleTrades = trades.filter((trade) => candleIndex.has(trade.time));
+
+  function xForIndex(index: number) {
+    return padding.left + (index / Math.max(visibleCandles.length - 1, 1)) * plotWidth;
+  }
+
+  function yForPrice(value: number) {
+    return padding.top + ((maxPrice - value) / priceRange) * priceHeight;
+  }
+
+  const closePoints = visibleCandles
+    .map((candle, index) => `${xForIndex(index)},${yForPrice(candle.close)}`)
+    .join(' ');
+  const lastCandle = visibleCandles.at(-1);
+  const firstCandle = visibleCandles.at(0);
+
+  return (
+    <div className='relative overflow-hidden rounded-lg border bg-black/[0.02] dark:bg-white/[0.02]'>
+      <svg viewBox={`0 0 ${width} ${height}`} className='h-[360px] w-full' role='img'>
+        <title>{strategy} paper trades with volume</title>
+        <defs>
+          <linearGradient
+            id='tradeVolumeGradient'
+            x1='0'
+            x2='0'
+            y1='0'
+            y2='1'
+            className='text-primary'
+          >
+            <stop offset='0%' stopColor='currentColor' stopOpacity='0.75' />
+            <stop offset='100%' stopColor='currentColor' stopOpacity='0.18' />
+          </linearGradient>
+        </defs>
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+          const y = padding.top + tick * priceHeight;
+          const value = maxPrice - tick * priceRange;
+          return (
+            <g key={tick}>
+              <line
+                x1={padding.left}
+                x2={width - padding.right}
+                y1={y}
+                y2={y}
+                className='stroke-border'
+                strokeDasharray='4 4'
+              />
+              <text
+                x={width - padding.right + 10}
+                y={y + 4}
+                className='fill-muted-foreground text-[11px]'
+              >
+                {money(value)}
+              </text>
+            </g>
+          );
+        })}
+        <text x={padding.left} y={volumeTop - 8} className='fill-muted-foreground text-[11px]'>
+          Volume
+        </text>
+        {visibleCandles.map((candle, index) => {
+          const x = xForIndex(index);
+          const barWidth = Math.max(3, plotWidth / Math.max(visibleCandles.length, 1) - 2);
+          const barHeight = Math.max(2, (candle.quoteVolume / maxChartVolume) * volumeHeight);
+          const isUp = candle.close >= candle.open;
+          return (
+            <g key={candle.time}>
+              <line
+                x1={x}
+                x2={x}
+                y1={yForPrice(candle.high || candle.close)}
+                y2={yForPrice(candle.low || candle.close)}
+                className={isUp ? 'stroke-primary/70' : 'stroke-destructive/70'}
+              />
+              <line
+                x1={x}
+                x2={x}
+                y1={yForPrice(candle.open || candle.close)}
+                y2={yForPrice(candle.close)}
+                className={isUp ? 'stroke-primary' : 'stroke-destructive'}
+                strokeWidth={Math.max(3, barWidth * 0.7)}
+                strokeLinecap='round'
+              />
+              <rect
+                x={x - barWidth / 2}
+                y={volumeTop + volumeHeight - barHeight}
+                width={barWidth}
+                height={barHeight}
+                rx='2'
+                fill='url(#tradeVolumeGradient)'
+                opacity={isUp ? 0.95 : 0.5}
+              />
+            </g>
+          );
+        })}
+        <polyline
+          points={closePoints}
+          fill='none'
+          className='stroke-foreground/70'
+          strokeWidth='1.4'
+        />
+        {visibleTrades.map((trade) => {
+          const index = candleIndex.get(trade.time) ?? 0;
+          const x = xForIndex(index);
+          const y = yForPrice(trade.price);
+          const buy = trade.side === 'buy';
+          return (
+            <g
+              key={`${trade.time}-${trade.side}-${trade.price}`}
+              onMouseEnter={() => onHoverTrade({ trade, x, y })}
+              onMouseLeave={() => onHoverTrade(undefined)}
+              className='cursor-pointer'
+            >
+              <circle
+                cx={x}
+                cy={y}
+                r='8'
+                className={buy ? 'fill-primary' : 'fill-destructive'}
+                opacity='0.22'
+              />
+              <circle
+                cx={x}
+                cy={y}
+                r='4.5'
+                className={
+                  buy ? 'fill-primary text-background' : 'fill-destructive text-background'
+                }
+                stroke='currentColor'
+                strokeWidth='2'
+              />
+              <text
+                x={x}
+                y={buy ? y - 12 : y + 22}
+                textAnchor='middle'
+                className={
+                  buy
+                    ? 'fill-primary text-[10px] font-semibold'
+                    : 'fill-destructive text-[10px] font-semibold'
+                }
+              >
+                {buy ? 'BUY' : 'SELL'}
+              </text>
+            </g>
+          );
+        })}
+        {firstCandle ? (
+          <text x={padding.left} y={height - 12} className='fill-muted-foreground text-[11px]'>
+            {dateLabel(firstCandle.time)}
+          </text>
+        ) : null}
+        {lastCandle ? (
+          <text
+            x={width - padding.right}
+            y={height - 12}
+            textAnchor='end'
+            className='fill-muted-foreground text-[11px]'
+          >
+            {dateLabel(lastCandle.time)}
+          </text>
+        ) : null}
+      </svg>
+      {hoveredTrade ? (
+        <div
+          className='bg-popover text-popover-foreground pointer-events-none absolute z-10 w-72 rounded-lg border p-3 text-xs shadow-xl'
+          style={{
+            left: `${Math.min(78, Math.max(8, (hoveredTrade.x / width) * 100))}%`,
+            top: `${Math.min(72, Math.max(6, (hoveredTrade.y / height) * 100))}%`
+          }}
+        >
+          <div className='mb-1 flex items-center justify-between gap-2'>
+            <Badge variant={hoveredTrade.trade.side === 'buy' ? 'default' : 'destructive'}>
+              {hoveredTrade.trade.side.toUpperCase()}
+            </Badge>
+            <span className='text-muted-foreground'>{dateLabel(hoveredTrade.trade.time)}</span>
+          </div>
+          <div className='font-medium'>{money(hoveredTrade.trade.price)}</div>
+          <div className='text-muted-foreground mt-1'>{hoveredTrade.trade.reason}</div>
+          <div className='text-muted-foreground mt-2'>
+            Equity then: {money(hoveredTrade.trade.equity)}
+          </div>
+        </div>
+      ) : null}
+      {visibleTrades.length === 0 ? (
+        <div className='text-muted-foreground absolute inset-x-0 top-1/2 text-center text-sm'>
+          No trades to plot for this strategy window.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function TradingLab({ initialData }: { initialData: TradingLabPayload }) {
   const [data, setData] = useState(initialData);
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
   const [loading, setLoading] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
+  const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedStrategy, setSelectedStrategy] = useState(
     initialData.backtests[0]?.strategy ?? 'sma-cross'
   );
@@ -335,6 +560,29 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+            <div>
+              <CardTitle>Paper trade chart</CardTitle>
+              <CardDescription>
+                Intern chart med pris, volym och hoverbara trade-dots från vald strategi.
+              </CardDescription>
+            </div>
+            <Badge variant='outline'>{strategyLabels[selectedBacktest.strategy]}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <StrategyTradeChart
+            candles={data.snapshot.candles}
+            trades={selectedBacktest.trades}
+            strategy={strategyLabels[selectedBacktest.strategy]}
+            hoveredTrade={hoveredTrade}
+            onHoverTrade={setHoveredTrade}
+          />
+        </CardContent>
+      </Card>
 
       <div className='grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
         <Card>
