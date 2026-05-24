@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { doublePrecision, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
@@ -190,6 +190,34 @@ export const contentMediaAssets = pgTable('content_media_assets', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const tradingBacktestRuns = pgTable('trading_backtest_runs', {
+  id: text('id').primaryKey(),
+  symbol: text('symbol').notNull(),
+  candleCount: integer('candle_count').notNull().default(0),
+  snapshotUpdatedAt: timestamp('snapshot_updated_at', { withTimezone: true }).notNull(),
+  strategies: jsonb('strategies').$type<unknown[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const tradingDecisions = pgTable('trading_decisions', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(),
+  agent: text('agent'),
+  symbol: text('symbol').notNull().default('BTCUSDT'),
+  strategy: text('strategy'),
+  action: text('action').notNull(),
+  price: doublePrecision('price').notNull().default(0),
+  confidence: doublePrecision('confidence'),
+  reason: text('reason').notNull().default(''),
+  risk: text('risk').notNull().default(''),
+  nextCheck: text('next_check').notNull().default(''),
+  evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+  research: jsonb('research').$type<Record<string, unknown> | null>(),
+  portfolio: jsonb('portfolio').$type<Record<string, unknown> | null>(),
+  disclaimer: text('disclaimer').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -204,3 +232,5 @@ export type Event = typeof events.$inferSelect;
 export type ContentItem = typeof contentItems.$inferSelect;
 export type ContentVariant = typeof contentVariants.$inferSelect;
 export type ContentMediaAsset = typeof contentMediaAssets.$inferSelect;
+export type TradingBacktestRun = typeof tradingBacktestRuns.$inferSelect;
+export type TradingDecision = typeof tradingDecisions.$inferSelect;

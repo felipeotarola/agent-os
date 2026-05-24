@@ -8,6 +8,9 @@ import {
   type PaperJournalEntry,
   type TradingStrategy
 } from '@/lib/trading';
+import { db } from '@/db/client';
+import { tradingBacktestRuns, tradingDecisions } from '@/db/schema';
+import { desc } from 'drizzle-orm';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -43,7 +46,159 @@ function emptyJournal(): TradingJournal {
   return { version: 1, backtestRuns: [], decisions: [] };
 }
 
+function databaseEnabled() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+function toDate(value: string) {
+  return new Date(value);
+}
+
+function fromDate(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function decisionToRow(entry: PaperJournalEntry) {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    agent: entry.kind === 'bot' ? entry.agent : null,
+    symbol: entry.symbol,
+    strategy: entry.kind === 'bot' ? entry.strategy : null,
+    action: entry.action,
+    price: entry.price,
+    confidence: entry.kind === 'bot' ? entry.confidence : null,
+    reason: entry.reason,
+    risk: entry.kind === 'bot' ? entry.risk : '',
+    nextCheck: entry.kind === 'bot' ? entry.nextCheck : '',
+    evidence: entry.kind === 'bot' ? entry.evidence : {},
+    research: entry.kind === 'bot' ? (entry.research ?? null) : null,
+    portfolio: entry.kind === 'manual' ? entry.portfolio : null,
+    disclaimer: entry.disclaimer,
+    createdAt: toDate(entry.createdAt)
+  };
+}
+
+function rowToDecision(row: typeof tradingDecisions.$inferSelect): PaperJournalEntry {
+  const base = {
+    id: row.id,
+    createdAt: fromDate(row.createdAt),
+    symbol: row.symbol,
+    action: row.action as 'buy' | 'sell' | 'hold' | 'reset',
+    price: row.price,
+    reason: row.reason,
+    disclaimer: row.disclaimer
+  };
+
+  if (row.kind === 'bot') {
+    return {
+      ...base,
+      kind: 'bot',
+      agent: (row.agent ?? 'Linda') as 'Linda',
+      strategy: (row.strategy ?? 'volume-breakout') as TradingStrategy,
+      action: base.action as 'buy' | 'sell' | 'hold',
+      confidence: row.confidence ?? 0,
+      risk: row.risk,
+      nextCheck: row.nextCheck,
+      evidence: row.evidence as Extract<PaperJournalEntry, { kind: 'bot' }>['evidence'],
+      research: (row.research ?? undefined) as Extract<
+        PaperJournalEntry,
+        { kind: 'bot' }
+      >['research']
+    };
+  }
+
+  return {
+    ...base,
+    kind: 'manual',
+    action: base.action as 'buy' | 'sell' | 'reset',
+    portfolio: (row.portfolio ?? { cash: 0, btc: 0, equity: 0 }) as Extract<
+      PaperJournalEntry,
+      { kind: 'manual' }
+    >['portfolio']
+  };
+}
+
+function backtestRunToRow(record: BacktestRunRecord) {
+  return {
+    id: record.id,
+    symbol: record.symbol,
+    candleCount: record.candleCount,
+    snapshotUpdatedAt: toDate(record.updatedAt),
+    strategies: record.strategies,
+    createdAt: toDate(record.createdAt)
+  };
+}
+
+function rowToBacktestRun(row: typeof tradingBacktestRuns.$inferSelect): BacktestRunRecord {
+  return {
+    id: row.id,
+    createdAt: fromDate(row.createdAt),
+    symbol: row.symbol,
+    candleCount: row.candleCount,
+    updatedAt: fromDate(row.snapshotUpdatedAt),
+    strategies: row.strategies as BacktestRunRecord['strategies']
+  };
+}
+
+async function readDbJournal(): Promise<TradingJournal> {
+  const [backtestRows, decisionRows] = await Promise.all([
+    db
+      .select()
+      .from(tradingBacktestRuns)
+      .orderBy(desc(tradingBacktestRuns.createdAt))
+      .limit(MAX_BACKTEST_RUNS),
+    db
+      .select()
+      .from(tradingDecisions)
+      .orderBy(desc(tradingDecisions.createdAt))
+      .limit(MAX_DECISIONS)
+  ]);
+
+  if (backtestRows.length === 0 && decisionRows.length === 0) {
+    const fileJournal = await readFileJournal();
+    if (fileJournal.backtestRuns.length > 0 || fileJournal.decisions.length > 0) {
+      await writeDbJournal(fileJournal);
+      return fileJournal;
+    }
+  }
+
+  return {
+    version: 1,
+    backtestRuns: backtestRows.map(rowToBacktestRun).toReversed(),
+    decisions: decisionRows.map(rowToDecision).toReversed()
+  };
+}
+
+async function writeDbJournal(journal: TradingJournal) {
+  if (journal.backtestRuns.length > 0) {
+    await db
+      .insert(tradingBacktestRuns)
+      .values(journal.backtestRuns.map(backtestRunToRow))
+      .onConflictDoNothing();
+  }
+
+  if (journal.decisions.length > 0) {
+    await db
+      .insert(tradingDecisions)
+      .values(journal.decisions.map(decisionToRow))
+      .onConflictDoNothing();
+  }
+}
+
 async function readJournal(): Promise<TradingJournal> {
+  if (databaseEnabled()) {
+    try {
+      return await readDbJournal();
+    } catch (error) {
+      console.error('Trading DB journal read failed; falling back to file', error);
+    }
+  }
+
+  return readFileJournal();
+}
+
+async function readFileJournal(): Promise<TradingJournal> {
   try {
     const raw = await readFile(JOURNAL_PATH, 'utf8');
     const parsed = JSON.parse(raw) as Partial<TradingJournal>;
@@ -59,6 +214,15 @@ async function readJournal(): Promise<TradingJournal> {
 }
 
 async function writeJournal(journal: TradingJournal) {
+  if (databaseEnabled()) {
+    try {
+      await writeDbJournal(journal);
+      return;
+    } catch (error) {
+      console.error('Trading DB journal write failed; falling back to file', error);
+    }
+  }
+
   await mkdir(DATA_DIR, { recursive: true });
   const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(temporaryPath, `${JSON.stringify(journal, null, 2)}\n`, 'utf8');
