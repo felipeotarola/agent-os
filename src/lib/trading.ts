@@ -90,6 +90,42 @@ export type MarketSnapshot = {
   updatedAt: string;
 };
 
+export function getFallbackMarketSnapshot(symbol = 'BTCUSDT'): MarketSnapshot {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const candles = Array.from({ length: 90 }, (_, index) => {
+    const time = now - (89 - index) * dayMs;
+    return {
+      time,
+      open: 0,
+      high: 0,
+      low: 0,
+      close: 0,
+      volume: 0,
+      quoteVolume: 0
+    };
+  });
+
+  return {
+    symbol,
+    price: 0,
+    priceChangePct24h: 0,
+    spotQuoteVolume24h: 0,
+    futuresQuoteVolume24h: 0,
+    globalQuoteVolume24h: 0,
+    volumeTrend: {
+      latest: 0,
+      previous: 0,
+      sevenDayAverage: 0,
+      changeVsPreviousPct: 0,
+      changeVsSevenDayPct: 0,
+      verdict: 'flat'
+    },
+    candles,
+    updatedAt: new Date().toISOString()
+  };
+}
+
 export type TradingJournal = {
   decisions: PaperJournalEntry[];
 };
