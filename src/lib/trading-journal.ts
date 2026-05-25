@@ -380,6 +380,17 @@ function latestCompleteCandleTime(snapshot: MarketSnapshot) {
   return snapshot.candles.slice(0, -1).at(-1)?.time;
 }
 
+const ACTIVE_SIGNAL_WINDOW_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function activeRecentTrade(backtest: BacktestResult, latestTime?: number) {
+  const lastTrade = backtest.trades.at(-1);
+  if (!lastTrade || latestTime === undefined) return undefined;
+
+  const ageDays = (latestTime - lastTrade.time) / DAY_MS;
+  return ageDays >= 0 && ageDays <= ACTIVE_SIGNAL_WINDOW_DAYS ? lastTrade : undefined;
+}
+
 type ResearchLink = NonNullable<PaperBotDecision['research']>['links'][number];
 
 type ResearchFeed = {
@@ -549,21 +560,33 @@ export async function buildPaperBotDecision(
 ): Promise<PaperBotDecision> {
   const lastTrade = backtest.trades.at(-1);
   const latestTime = latestCompleteCandleTime(snapshot);
+  const recentTrade = activeRecentTrade(backtest, latestTime);
   const score = scoreBacktest(backtest, snapshot);
   const latestSignalIsFresh =
     lastTrade !== undefined && latestTime !== undefined && lastTrade.time === latestTime;
-  const action = targetTrade ? targetTrade.side : latestSignalIsFresh ? lastTrade.side : 'hold';
-  const confidence = Math.max(5, Math.min(95, 50 + score));
+  const action = targetTrade
+    ? targetTrade.side
+    : latestSignalIsFresh
+      ? lastTrade.side
+      : recentTrade
+        ? recentTrade.side
+        : 'hold';
+  const activeSignalConfidenceBonus = !targetTrade && !latestSignalIsFresh && recentTrade ? 8 : 0;
+  const confidence = Math.max(5, Math.min(95, 50 + score + activeSignalConfidenceBonus));
   const reason = targetTrade
     ? `${targetTrade.side.toUpperCase()} signal from ${selectedStrategy} on ${new Date(targetTrade.time).toISOString().slice(0, 10)}: ${targetTrade.reason}`
     : latestSignalIsFresh
       ? `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
-      : `No fresh ${selectedStrategy} signal on the latest completed candle; observe only.`;
+      : recentTrade
+        ? `Recent ${recentTrade.side.toUpperCase()} signal from ${selectedStrategy} remains active (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
+        : `No fresh or active ${selectedStrategy} signal on the latest completed candle; observe only.`;
   const risk = targetTrade
     ? `Historical ${selectedStrategy} trade can fail if the next candles invalidate ${targetTrade.reason}, liquidity fades, or the strategy regime changes before exit.`
     : action === 'hold'
       ? 'No fresh edge. Main risk is overtrading stale signals or acting on incomplete candles.'
-      : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
+      : recentTrade && !latestSignalIsFresh
+        ? `Active ${selectedStrategy} signal is ${Math.round(((latestTime ?? recentTrade.time) - recentTrade.time) / DAY_MS)} completed candle(s) old; reduce conviction if price action fails to confirm or volume keeps fading.`
+        : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
   const research = await buildResearchBrief(
     snapshot,
     backtest,
@@ -609,9 +632,11 @@ export async function buildPaperBotDecision(
       volumeVsSevenDayPct: snapshot.volumeTrend.changeVsSevenDayPct,
       lastSignal: targetTrade
         ? { side: targetTrade.side, time: targetTrade.time, reason: targetTrade.reason }
-        : lastTrade
-          ? { side: lastTrade.side, time: lastTrade.time, reason: lastTrade.reason }
-          : undefined,
+        : recentTrade
+          ? { side: recentTrade.side, time: recentTrade.time, reason: recentTrade.reason }
+          : lastTrade
+            ? { side: lastTrade.side, time: lastTrade.time, reason: lastTrade.reason }
+            : undefined,
       trade: evidenceTrade
     },
     research,
