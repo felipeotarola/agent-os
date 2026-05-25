@@ -30,15 +30,95 @@ type PaperPortfolio = {
 };
 
 type JournalEntry = PaperJournalEntry;
+type TradingStrategy = BacktestResult['strategy'];
+type TradeAction = 'buy' | 'sell' | 'hold' | 'reset';
+
+type HoveredTrade = {
+  trade: Trade;
+  x: number;
+  y: number;
+};
+
+type ForwardPerformance = {
+  label: 'After 1D' | 'After 3D' | 'After 7D';
+  value?: number;
+};
+
+type RegimeDiagnostics = {
+  trend: 'Uptrend' | 'Range' | 'Downtrend';
+  volatility: 'High volatility' | 'Normal volatility';
+  volume: 'Volume rising' | 'Volume falling' | 'Volume flat';
+  priceVsAverage: string;
+  marketRegime: string;
+  liquidity: 'Healthy' | 'Thin';
+  movingAverage: number;
+  volatilityHigh: boolean;
+};
+
+type WatchLevels = {
+  upside: number;
+  downside: number;
+};
+
+type ReplayEvent = {
+  id: string;
+  action: 'buy' | 'sell' | 'hold';
+  time: number;
+  price: number;
+  label: string;
+  reason: string;
+  trade?: Trade;
+  decision?: PaperBotDecision;
+  synthetic?: boolean;
+};
+
+type DecisionViewModel = {
+  action: TradeAction;
+  time?: number | string;
+  confidence?: number;
+  strategy: string;
+  price?: number;
+  reason: string;
+  risk: string;
+  nextCheck: string;
+  evidence: string[];
+  watchLevels: WatchLevels;
+};
+
+type JournalReplayRow = {
+  id: string;
+  action: TradeAction;
+  time: number | string;
+  confidence?: number;
+  price: number;
+  reason: string;
+  strategy: string;
+  strategyKey: TradingStrategy;
+  trade?: Trade;
+  decision?: PaperJournalEntry;
+  forward: ForwardPerformance[];
+};
 
 const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
+
+const strategyLabels: Record<string, string> = {
+  'sma-cross': 'SMA cross',
+  'rsi-reversion': 'RSI reversion',
+  'volume-breakout': 'Volume breakout'
+};
+
+const bestRegimeByStrategy: Record<string, string> = {
+  'sma-cross': 'Uptrend, Low-Med Vol',
+  'rsi-reversion': 'Range, Low Vol',
+  'volume-breakout': 'High Vol, Breakout'
+};
 
 function isPaperBotDecision(decision: PaperJournalEntry): decision is PaperBotDecision {
   return decision.kind === 'bot';
 }
 
 function money(value?: number) {
-  if (value === undefined || Number.isNaN(value)) return '—';
+  if (value === undefined || Number.isNaN(value) || !Number.isFinite(value)) return '--';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -46,22 +126,36 @@ function money(value?: number) {
   }).format(value);
 }
 
+function moneyPrecise(value?: number) {
+  if (value === undefined || Number.isNaN(value) || !Number.isFinite(value)) return '--';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 function percent(value?: number) {
-  if (value === undefined || Number.isNaN(value)) return '—';
+  if (value === undefined || Number.isNaN(value) || !Number.isFinite(value)) return '--';
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
 function dateLabel(value: number | string) {
-  return new Intl.DateTimeFormat('sv-SE', { month: 'short', day: 'numeric' }).format(
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit' }).format(
     new Date(value)
   );
 }
 
-const strategyLabels: Record<string, string> = {
-  'sma-cross': 'SMA cross',
-  'rsi-reversion': 'RSI reversion',
-  'volume-breakout': 'Volume breakout'
-};
+function dateTimeLabel(value?: number | string) {
+  if (value === undefined) return '--';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
 
 function defaultPortfolio(): PaperPortfolio {
   return { cash: 10_000, btc: 0, startedAt: new Date().toISOString() };
@@ -75,43 +169,456 @@ function newestFirst<T>(items: T[]) {
   return items.reduceRight<T[]>((accumulator, item) => [...accumulator, item], []);
 }
 
-function actionTone(action?: string) {
-  if (action === 'buy') return 'text-primary';
-  if (action === 'sell') return 'text-destructive';
-  return 'text-muted-foreground';
+function average(values: number[]) {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-type HoveredTrade = {
-  trade: Trade;
-  x: number;
-  y: number;
-};
+function movingAverage(candles: Candle[], period: number) {
+  const slice = candles.slice(-period);
+  return average(slice.map((candle) => candle.close));
+}
+
+function dateRangeLabel(candles: Candle[]) {
+  const first = candles.at(0);
+  const last = candles.at(-1);
+  if (!first || !last) return '--';
+  return `${dateLabel(first.time)} - ${dateLabel(last.time)}`;
+}
+
+function currentOhlc(candles: Candle[], fallbackPrice: number) {
+  const candle = candles.at(-1);
+  if (!candle) {
+    return {
+      open: fallbackPrice,
+      high: fallbackPrice,
+      low: fallbackPrice,
+      close: fallbackPrice,
+      change: 0,
+      changePct: 0
+    };
+  }
+
+  const change = candle.close - candle.open;
+  const changePct = candle.open ? (change / candle.open) * 100 : 0;
+  return { ...candle, change, changePct };
+}
+
+function actionBadgeVariant(action?: TradeAction | string) {
+  if (action === 'buy') return 'default' as const;
+  if (action === 'sell') return 'destructive' as const;
+  return 'secondary' as const;
+}
+
+function getWatchLevels(candles: Candle[], price: number): WatchLevels {
+  const recent = candles.slice(-14);
+  const range = average(recent.map((candle) => Math.max(0, candle.high - candle.low)));
+  const buffer = range || price * 0.03;
+
+  // UI-only derived value until backend exposes persisted watch levels.
+  return {
+    upside: price + buffer,
+    downside: Math.max(0, price - buffer)
+  };
+}
+
+function getRegimeDiagnostics(snapshot: MarketSnapshot): RegimeDiagnostics {
+  const candles = snapshot.candles.filter((candle) => candle.close > 0);
+  const latest = candles.at(-1);
+  const close = latest?.close ?? snapshot.price;
+  const last20 = candles.slice(-20);
+  const prior20 = candles.slice(-40, -20);
+  const avg20 = movingAverage(candles, Math.min(20, Math.max(candles.length, 1)));
+  const avg200 =
+    candles.length >= 200
+      ? movingAverage(candles, 200)
+      : candles.length >= 100
+        ? movingAverage(candles, 100)
+        : avg20;
+  const rangeRecent = average(last20.map((candle) => Math.max(0, candle.high - candle.low)));
+  const rangePrior = average(prior20.map((candle) => Math.max(0, candle.high - candle.low)));
+  const volatilityHigh = rangePrior > 0 ? rangeRecent > rangePrior * 1.12 : false;
+  const volumeVerdict =
+    snapshot.volumeTrend?.verdict ??
+    (average(candles.slice(-7).map((candle) => candle.quoteVolume)) >
+    average(candles.slice(-14, -7).map((candle) => candle.quoteVolume))
+      ? 'rising'
+      : 'flat');
+  const trend = close > avg20 * 1.015 ? 'Uptrend' : close < avg20 * 0.985 ? 'Downtrend' : 'Range';
+
+  // UI-only derived value until backend exposes explicit regime diagnostics.
+  return {
+    trend,
+    volatility: volatilityHigh ? 'High volatility' : 'Normal volatility',
+    volume:
+      volumeVerdict === 'rising'
+        ? 'Volume rising'
+        : volumeVerdict === 'falling'
+          ? 'Volume falling'
+          : 'Volume flat',
+    priceVsAverage: close >= avg200 ? 'Above MA proxy' : 'Below MA proxy',
+    marketRegime:
+      trend === 'Uptrend' && volumeVerdict === 'rising'
+        ? 'Expansion'
+        : trend === 'Downtrend'
+          ? 'Risk-off'
+          : 'Compression',
+    liquidity:
+      snapshot.spotQuoteVolume24h > 0 || snapshot.futuresQuoteVolume24h > 0 ? 'Healthy' : 'Thin',
+    movingAverage: avg200,
+    volatilityHigh
+  };
+}
+
+function getForwardPerformance(
+  candles: Candle[],
+  time?: number | string,
+  price?: number,
+  action: TradeAction = 'hold'
+): ForwardPerformance[] {
+  const labels: ForwardPerformance[] = [
+    { label: 'After 1D' },
+    { label: 'After 3D' },
+    { label: 'After 7D' }
+  ];
+  if (time === undefined || price === undefined || price <= 0) return labels;
+
+  const eventTime = typeof time === 'string' ? new Date(time).getTime() : time;
+  const startIndex = candles.findIndex((candle) => candle.time >= eventTime);
+  if (startIndex < 0) return labels;
+
+  // UI-only derived value until backend exposes persisted forward results.
+  return labels.map((item, index) => {
+    const offset = [1, 3, 7][index];
+    const future = candles[startIndex + offset];
+    if (!future) return item;
+
+    const raw = ((future.close - price) / price) * 100;
+    const value = action === 'sell' ? -raw : raw;
+    return { ...item, value };
+  });
+}
+
+function getEvidenceBullets({
+  decision,
+  selectedBacktest,
+  diagnostics,
+  lastSignal
+}: {
+  decision?: PaperBotDecision;
+  selectedBacktest?: BacktestResult;
+  diagnostics: RegimeDiagnostics;
+  lastSignal?: Trade;
+}) {
+  if (decision) {
+    return [
+      decision.reason,
+      `Volume ${decision.evidence.volumeVerdict}`,
+      `Backtest return ${percent(decision.evidence.returnPct)}`,
+      `Win rate ${percent(decision.evidence.winRatePct)}`,
+      ...(decision.research?.factors ?? [])
+    ].filter(Boolean);
+  }
+
+  // Mocked for decision replay UI; replace with persisted metric later.
+  return [
+    `Price is ${diagnostics.priceVsAverage.toLowerCase()} at ${money(diagnostics.movingAverage)}`,
+    lastSignal
+      ? `Latest signal: ${lastSignal.side.toUpperCase()} - ${lastSignal.reason}`
+      : 'No strategy signal in the selected window',
+    diagnostics.volume,
+    `Backtest return ${percent(selectedBacktest?.returnPct)}`,
+    `Max drawdown ${percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}`,
+    `Win rate ${percent(selectedBacktest?.winRatePct)}`
+  ];
+}
+
+function getPositionRisk(diagnostics: RegimeDiagnostics, selectedBacktest?: BacktestResult) {
+  const drawdown = selectedBacktest?.maxDrawdownPct ?? 0;
+  if (diagnostics.volatilityHigh || drawdown > 10) return 'High';
+  if (!diagnostics.volatilityHigh && drawdown < 5) return 'Low';
+  return 'Medium';
+}
+
+function createReplayEvents({
+  selectedBacktest,
+  decisions,
+  selectedStrategy
+}: {
+  selectedBacktest?: BacktestResult;
+  decisions: PaperJournalEntry[];
+  selectedStrategy: TradingStrategy;
+}): ReplayEvent[] {
+  const trades = selectedBacktest?.trades ?? [];
+  const tradeEvents = trades.map((trade) => ({
+    id: getTradeDecisionKey(selectedStrategy, trade),
+    action: trade.side,
+    time: trade.time,
+    price: trade.price,
+    label: trade.side.toUpperCase(),
+    reason: trade.reason,
+    trade
+  }));
+  const holdEvents = decisions
+    .filter(isPaperBotDecision)
+    .filter((decision) => decision.action === 'hold' && decision.strategy === selectedStrategy)
+    .map((decision) => ({
+      id: decision.id,
+      action: 'hold' as const,
+      time: new Date(decision.createdAt).getTime(),
+      price: decision.price,
+      label: 'HOLD',
+      reason: decision.reason,
+      decision
+    }));
+
+  if (holdEvents.length === 0 && tradeEvents.length > 1) {
+    const syntheticHolds = tradeEvents
+      .slice(0, -1)
+      .slice(0, 3)
+      .map((event, index) => {
+        const next = tradeEvents[index + 1];
+        return {
+          id: `synthetic-hold-${event.id}`,
+          action: 'hold' as const,
+          time: Math.round((event.time + next.time) / 2),
+          price: (event.price + next.price) / 2,
+          label: 'HOLD',
+          reason: 'Synthetic replay checkpoint between strategy decisions',
+          synthetic: true
+        };
+      });
+    return [...tradeEvents, ...syntheticHolds].toSorted((left, right) => left.time - right.time);
+  }
+
+  return [...tradeEvents, ...holdEvents].toSorted((left, right) => left.time - right.time);
+}
+
+function createJournalRows({
+  selectedBacktest,
+  decisions,
+  selectedStrategy,
+  candles
+}: {
+  selectedBacktest?: BacktestResult;
+  decisions: PaperJournalEntry[];
+  selectedStrategy: TradingStrategy;
+  candles: Candle[];
+}): JournalReplayRow[] {
+  const botTradeKeys = new Set(
+    decisions
+      .filter(isPaperBotDecision)
+      .flatMap((decision) => (decision.evidence.trade?.key ? [decision.evidence.trade.key] : []))
+  );
+  const decisionRows: JournalReplayRow[] = decisions.map((decision) => {
+    const strategy = isPaperBotDecision(decision)
+      ? strategyLabels[decision.strategy]
+      : strategyLabels[selectedStrategy];
+    return {
+      id: decision.id,
+      action: decision.action,
+      time: decision.createdAt,
+      confidence: isPaperBotDecision(decision) ? decision.confidence : undefined,
+      price: decision.price,
+      reason: decision.reason,
+      strategy,
+      strategyKey: isPaperBotDecision(decision) ? decision.strategy : selectedStrategy,
+      decision,
+      forward: getForwardPerformance(candles, decision.createdAt, decision.price, decision.action)
+    };
+  });
+  const tradeRows: JournalReplayRow[] = (selectedBacktest?.trades ?? [])
+    .filter((trade) => !botTradeKeys.has(getTradeDecisionKey(selectedStrategy, trade)))
+    .map((trade) => ({
+      id: getTradeDecisionKey(selectedStrategy, trade),
+      action: trade.side,
+      time: trade.time,
+      confidence: undefined,
+      price: trade.price,
+      reason: trade.reason,
+      strategy: strategyLabels[selectedStrategy],
+      strategyKey: selectedStrategy,
+      trade,
+      forward: getForwardPerformance(candles, trade.time, trade.price, trade.side)
+    }));
+
+  return [...decisionRows, ...tradeRows]
+    .toSorted((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime())
+    .slice(0, 12);
+}
+
+function MetricItem({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: 'default' | 'positive' | 'negative' | 'warning';
+}) {
+  return (
+    <div className='min-w-0 border-l px-4 first:border-l-0'>
+      <div className='text-muted-foreground text-[11px]'>{label}</div>
+      <div
+        className={cn(
+          'truncate text-sm font-semibold',
+          tone === 'positive' && 'text-primary',
+          tone === 'negative' && 'text-destructive',
+          tone === 'warning' && 'text-muted-foreground'
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'positive' | 'negative' | 'warning';
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl border bg-muted/30 p-3',
+        tone === 'positive' && 'border-primary/40 bg-primary/10',
+        tone === 'negative' && 'border-destructive/40 bg-destructive/10',
+        tone === 'warning' && 'border-muted-foreground/30 bg-muted/50'
+      )}
+    >
+      <div className='text-muted-foreground text-[11px]'>{label}</div>
+      <div
+        className={cn(
+          'mt-1 text-sm font-semibold',
+          tone === 'positive' && 'text-primary',
+          tone === 'negative' && 'text-destructive',
+          tone === 'warning' && 'text-foreground'
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function TradingContextBar({
+  selectedBacktest,
+  candles,
+  portfolio,
+  paperEquity,
+  paperReturnPct,
+  lastSignal,
+  latestLindaAction
+}: {
+  selectedBacktest?: BacktestResult;
+  candles: Candle[];
+  portfolio: PaperPortfolio;
+  paperEquity: number;
+  paperReturnPct: number;
+  lastSignal?: Trade;
+  latestLindaAction: TradeAction;
+}) {
+  const currentPosition = portfolio.btc > 0 ? 'LONG' : 'FLAT';
+  const lastSignalLabel = lastSignal
+    ? lastSignal.side.toUpperCase()
+    : latestLindaAction.toUpperCase();
+
+  return (
+    <Card className='overflow-hidden rounded-2xl'>
+      <CardContent className='p-0'>
+        <div className='grid gap-0 lg:grid-cols-[1fr_340px]'>
+          <div className='grid gap-0 md:grid-cols-4 xl:grid-cols-8'>
+            <div className='flex items-center gap-3 border-b p-4 md:border-b-0'>
+              <div className='flex size-10 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary'>
+                B
+              </div>
+              <div>
+                <div className='font-semibold'>BTC/USDT</div>
+                <div className='text-muted-foreground text-xs'>1D - Binance</div>
+              </div>
+            </div>
+            <MetricItem label='Strategy' value={strategyLabels[selectedBacktest?.strategy ?? '']} />
+            <MetricItem label='Date range' value={dateRangeLabel(candles)} />
+            <MetricItem
+              label='Return'
+              value={percent(selectedBacktest?.returnPct)}
+              tone={(selectedBacktest?.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
+            />
+            <MetricItem
+              label='Max drawdown'
+              value={percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
+              tone='negative'
+            />
+            <MetricItem label='Win rate' value={percent(selectedBacktest?.winRatePct)} />
+            <MetricItem label='Trades' value={selectedBacktest?.trades.length ?? 0} />
+            <MetricItem
+              label='Position / signal'
+              value={`${currentPosition} / ${lastSignalLabel}`}
+              tone={currentPosition === 'LONG' ? 'positive' : 'warning'}
+            />
+          </div>
+          <div className='border-t p-4 lg:border-l lg:border-t-0'>
+            <div className='flex items-start justify-between gap-3'>
+              <div>
+                <div className='text-muted-foreground text-xs'>Paper portfolio</div>
+                <div className='font-semibold'>{money(paperEquity)}</div>
+                <div
+                  className={cn(
+                    'text-xs',
+                    paperReturnPct >= 0 ? 'text-primary' : 'text-destructive'
+                  )}
+                >
+                  {percent(paperReturnPct)}
+                </div>
+              </div>
+              <div className='flex gap-2'>
+                <Button type='button' variant='outline' size='sm' disabled>
+                  Export report
+                </Button>
+                <Button type='button' size='sm' disabled>
+                  New backtest
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function StrategyTradeChart({
   candles,
   trades,
   strategy,
+  ohlc,
   hoveredTrade,
   onHoverTrade
 }: {
   candles: Candle[];
   trades: Trade[];
   strategy: string;
+  ohlc: ReturnType<typeof currentOhlc>;
   hoveredTrade?: HoveredTrade;
   onHoverTrade: (trade?: HoveredTrade) => void;
 }) {
-  const visibleCandles = candles.slice(-75, -1);
-  const width = 960;
-  const height = 440;
-  const padding = { top: 18, right: 68, bottom: 34, left: 52 };
-  const priceHeight = 306;
-  const volumeTop = padding.top + priceHeight + 20;
+  const visibleCandles = candles.filter((candle) => candle.close > 0).slice(-95);
+  const width = 1120;
+  const height = 520;
+  const padding = { top: 24, right: 76, bottom: 40, left: 54 };
+  const priceHeight = 350;
+  const volumeTop = padding.top + priceHeight + 28;
   const volumeHeight = height - volumeTop - padding.bottom;
   const plotWidth = width - padding.left - padding.right;
   const highs = visibleCandles.map((candle) => candle.high || candle.close);
   const lows = visibleCandles.map((candle) => candle.low || candle.close);
-  const minPrice = Math.min(...lows);
-  const maxPrice = Math.max(...highs);
+  const minPrice = Math.min(...lows, ohlc.close || 0);
+  const maxPrice = Math.max(...highs, ohlc.close || 1);
   const priceRange = Math.max(1, maxPrice - minPrice);
   const maxChartVolume = Math.max(...visibleCandles.map((candle) => candle.quoteVolume), 1);
   const candleIndex = new Map(visibleCandles.map((candle, index) => [candle.time, index]));
@@ -128,180 +635,859 @@ function StrategyTradeChart({
   const closePoints = visibleCandles
     .map((candle, index) => `${xForIndex(index)},${yForPrice(candle.close)}`)
     .join(' ');
+  const smaPoints = visibleCandles
+    .map((_, index) => {
+      const slice = visibleCandles.slice(Math.max(0, index - 19), index + 1);
+      return `${xForIndex(index)},${yForPrice(average(slice.map((candle) => candle.close)))}`;
+    })
+    .join(' ');
   const lastCandle = visibleCandles.at(-1);
   const firstCandle = visibleCandles.at(0);
 
   return (
-    <div className='relative overflow-hidden rounded-lg border bg-black/[0.02] dark:bg-white/[0.02]'>
-      <svg viewBox={`0 0 ${width} ${height}`} className='h-[440px] w-full' role='img'>
-        <title>{strategy} paper trades with volume</title>
-        <defs>
-          <linearGradient
-            id='tradeVolumeGradient'
-            x1='0'
-            x2='0'
-            y1='0'
-            y2='1'
-            className='text-primary'
-          >
-            <stop offset='0%' stopColor='currentColor' stopOpacity='0.75' />
-            <stop offset='100%' stopColor='currentColor' stopOpacity='0.18' />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-          const y = padding.top + tick * priceHeight;
-          const value = maxPrice - tick * priceRange;
-          return (
-            <g key={tick}>
-              <line
-                x1={padding.left}
-                x2={width - padding.right}
-                y1={y}
-                y2={y}
-                className='stroke-border'
-                strokeDasharray='4 4'
-              />
-              <text
-                x={width - padding.right + 10}
-                y={y + 4}
-                className='fill-muted-foreground text-[11px]'
+    <div className='overflow-hidden rounded-2xl border bg-card'>
+      <div className='flex flex-col gap-3 border-b bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between'>
+        <div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='font-semibold'>BTC/USDT</div>
+            <Badge variant='outline'>1D</Badge>
+            <Badge variant='secondary'>Binance</Badge>
+            <Badge variant='outline'>{strategy}</Badge>
+          </div>
+          <div className='text-muted-foreground mt-2 flex flex-wrap gap-3 text-xs'>
+            <span>O {moneyPrecise(ohlc.open)}</span>
+            <span>H {moneyPrecise(ohlc.high)}</span>
+            <span>L {moneyPrecise(ohlc.low)}</span>
+            <span>C {moneyPrecise(ohlc.close)}</span>
+            <span className={ohlc.change >= 0 ? 'text-primary' : 'text-destructive'}>
+              {moneyPrecise(ohlc.change)} ({percent(ohlc.changePct)})
+            </span>
+          </div>
+        </div>
+        <div className='flex flex-wrap gap-2 text-xs'>
+          <Badge variant='secondary'>Indicators</Badge>
+          <Badge variant='outline'>SMA proxy</Badge>
+          <Badge variant='outline'>Volume</Badge>
+        </div>
+      </div>
+      <div className='relative bg-background'>
+        <svg viewBox={`0 0 ${width} ${height}`} className='h-[520px] w-full' role='img'>
+          <title>{strategy} decision replay with volume</title>
+          <defs>
+            <linearGradient id='tradeVolumeGradient' x1='0' x2='0' y1='0' y2='1'>
+              <stop offset='0%' stopColor='currentColor' stopOpacity='0.7' />
+              <stop offset='100%' stopColor='currentColor' stopOpacity='0.16' />
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+            const y = padding.top + tick * priceHeight;
+            const value = maxPrice - tick * priceRange;
+            return (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  className='stroke-border'
+                  strokeDasharray='5 7'
+                  opacity='0.8'
+                />
+                <text
+                  x={width - padding.right + 12}
+                  y={y + 4}
+                  className='fill-muted-foreground text-[11px]'
+                >
+                  {money(value)}
+                </text>
+              </g>
+            );
+          })}
+          <text x={padding.left} y={volumeTop - 10} className='fill-muted-foreground text-[11px]'>
+            Volume
+          </text>
+          {visibleCandles.map((candle, index) => {
+            const x = xForIndex(index);
+            const barWidth = Math.max(3, plotWidth / Math.max(visibleCandles.length, 1) - 2);
+            const barHeight = Math.max(2, (candle.quoteVolume / maxChartVolume) * volumeHeight);
+            const isUp = candle.close >= candle.open;
+            return (
+              <g key={candle.time}>
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={yForPrice(candle.high || candle.close)}
+                  y2={yForPrice(candle.low || candle.close)}
+                  className={isUp ? 'stroke-primary/60' : 'stroke-destructive/60'}
+                />
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={yForPrice(candle.open || candle.close)}
+                  y2={yForPrice(candle.close)}
+                  className={isUp ? 'stroke-primary' : 'stroke-destructive'}
+                  strokeLinecap='round'
+                  strokeWidth={Math.max(3, barWidth * 0.65)}
+                />
+                <rect
+                  x={x - barWidth / 2}
+                  y={volumeTop + volumeHeight - barHeight}
+                  width={barWidth}
+                  height={barHeight}
+                  rx='2'
+                  className='fill-primary'
+                  opacity={isUp ? 0.45 : 0.25}
+                />
+              </g>
+            );
+          })}
+          <polyline
+            points={smaPoints}
+            fill='none'
+            className='stroke-primary/50'
+            strokeWidth='1.7'
+          />
+          <polyline
+            points={closePoints}
+            fill='none'
+            className='stroke-foreground/75'
+            strokeWidth='1.25'
+          />
+          {visibleTrades.map((trade) => {
+            const index = candleIndex.get(trade.time) ?? 0;
+            const x = xForIndex(index);
+            const y = yForPrice(trade.price);
+            const buy = trade.side === 'buy';
+            return (
+              <g
+                key={`${trade.time}-${trade.side}-${trade.price}`}
+                onMouseEnter={() => onHoverTrade({ trade, x, y })}
+                onMouseLeave={() => onHoverTrade(undefined)}
+                className='cursor-pointer'
               >
-                {money(value)}
-              </text>
-            </g>
-          );
-        })}
-        <text x={padding.left} y={volumeTop - 8} className='fill-muted-foreground text-[11px]'>
-          Volume
-        </text>
-        {visibleCandles.map((candle, index) => {
-          const x = xForIndex(index);
-          const barWidth = Math.max(3, plotWidth / Math.max(visibleCandles.length, 1) - 2);
-          const barHeight = Math.max(2, (candle.quoteVolume / maxChartVolume) * volumeHeight);
-          const isUp = candle.close >= candle.open;
-          return (
-            <g key={candle.time}>
-              <line
-                x1={x}
-                x2={x}
-                y1={yForPrice(candle.high || candle.close)}
-                y2={yForPrice(candle.low || candle.close)}
-                className={isUp ? 'stroke-primary/70' : 'stroke-destructive/70'}
-              />
-              <line
-                x1={x}
-                x2={x}
-                y1={yForPrice(candle.open || candle.close)}
-                y2={yForPrice(candle.close)}
-                className={isUp ? 'stroke-primary' : 'stroke-destructive'}
-                strokeWidth={Math.max(3, barWidth * 0.7)}
-                strokeLinecap='round'
-              />
-              <rect
-                x={x - barWidth / 2}
-                y={volumeTop + volumeHeight - barHeight}
-                width={barWidth}
-                height={barHeight}
-                rx='2'
-                fill='url(#tradeVolumeGradient)'
-                opacity={isUp ? 0.95 : 0.5}
-              />
-            </g>
-          );
-        })}
-        <polyline
-          points={closePoints}
-          fill='none'
-          className='stroke-foreground/70'
-          strokeWidth='1.4'
-        />
-        {visibleTrades.map((trade) => {
-          const index = candleIndex.get(trade.time) ?? 0;
-          const x = xForIndex(index);
-          const y = yForPrice(trade.price);
-          const buy = trade.side === 'buy';
-          return (
-            <g
-              key={`${trade.time}-${trade.side}-${trade.price}`}
-              onMouseEnter={() => onHoverTrade({ trade, x, y })}
-              onMouseLeave={() => onHoverTrade(undefined)}
-              className='cursor-pointer'
+                <circle
+                  cx={x}
+                  cy={y}
+                  r='11'
+                  className={buy ? 'fill-primary' : 'fill-destructive'}
+                  opacity='0.18'
+                />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r='5'
+                  className={buy ? 'fill-primary' : 'fill-destructive'}
+                  stroke='currentColor'
+                  strokeWidth='2'
+                />
+                <text
+                  x={x}
+                  y={buy ? y - 15 : y + 25}
+                  textAnchor='middle'
+                  className={
+                    buy
+                      ? 'fill-primary text-[10px] font-bold'
+                      : 'fill-destructive text-[10px] font-bold'
+                  }
+                >
+                  {buy ? 'BUY' : 'SELL'}
+                </text>
+              </g>
+            );
+          })}
+          {firstCandle ? (
+            <text x={padding.left} y={height - 14} className='fill-muted-foreground text-[11px]'>
+              {dateLabel(firstCandle.time)}
+            </text>
+          ) : null}
+          {lastCandle ? (
+            <text
+              x={width - padding.right}
+              y={height - 14}
+              textAnchor='end'
+              className='fill-muted-foreground text-[11px]'
             >
-              <circle
-                cx={x}
-                cy={y}
-                r='8'
-                className={buy ? 'fill-primary' : 'fill-destructive'}
-                opacity='0.22'
-              />
-              <circle
-                cx={x}
-                cy={y}
-                r='4.5'
-                className={
-                  buy ? 'fill-primary text-background' : 'fill-destructive text-background'
-                }
-                stroke='currentColor'
-                strokeWidth='2'
-              />
-              <text
-                x={x}
-                y={buy ? y - 12 : y + 22}
-                textAnchor='middle'
-                className={
-                  buy
-                    ? 'fill-primary text-[10px] font-semibold'
-                    : 'fill-destructive text-[10px] font-semibold'
-                }
-              >
-                {buy ? 'BUY' : 'SELL'}
-              </text>
-            </g>
-          );
-        })}
-        {firstCandle ? (
-          <text x={padding.left} y={height - 12} className='fill-muted-foreground text-[11px]'>
-            {dateLabel(firstCandle.time)}
-          </text>
-        ) : null}
-        {lastCandle ? (
-          <text
-            x={width - padding.right}
-            y={height - 12}
-            textAnchor='end'
-            className='fill-muted-foreground text-[11px]'
+              {dateLabel(lastCandle.time)}
+            </text>
+          ) : null}
+        </svg>
+        {hoveredTrade ? (
+          <div
+            className='pointer-events-none absolute z-10 w-72 rounded-xl border bg-popover p-3 text-xs text-popover-foreground shadow-xl'
+            style={{
+              left: `${Math.min(76, Math.max(8, (hoveredTrade.x / width) * 100))}%`,
+              top: `${Math.min(70, Math.max(8, (hoveredTrade.y / height) * 100))}%`
+            }}
           >
-            {dateLabel(lastCandle.time)}
-          </text>
+            <div className='mb-2 flex items-center justify-between gap-2'>
+              <Badge variant={hoveredTrade.trade.side === 'buy' ? 'default' : 'destructive'}>
+                {hoveredTrade.trade.side.toUpperCase()}
+              </Badge>
+              <span className='text-muted-foreground'>{dateLabel(hoveredTrade.trade.time)}</span>
+            </div>
+            <div className='font-medium'>{moneyPrecise(hoveredTrade.trade.price)}</div>
+            <div className='mt-1 text-muted-foreground'>{hoveredTrade.trade.reason}</div>
+            <div className='mt-2 text-muted-foreground'>
+              Equity then: {money(hoveredTrade.trade.equity)}
+            </div>
+          </div>
         ) : null}
-      </svg>
-      {hoveredTrade ? (
-        <div
-          className='bg-popover text-popover-foreground pointer-events-none absolute z-10 w-72 rounded-lg border p-3 text-xs shadow-xl'
-          style={{
-            left: `${Math.min(78, Math.max(8, (hoveredTrade.x / width) * 100))}%`,
-            top: `${Math.min(72, Math.max(6, (hoveredTrade.y / height) * 100))}%`
-          }}
-        >
-          <div className='mb-1 flex items-center justify-between gap-2'>
-            <Badge variant={hoveredTrade.trade.side === 'buy' ? 'default' : 'destructive'}>
-              {hoveredTrade.trade.side.toUpperCase()}
-            </Badge>
-            <span className='text-muted-foreground'>{dateLabel(hoveredTrade.trade.time)}</span>
+        {visibleCandles.length === 0 ? (
+          <div className='absolute inset-x-0 top-1/2 text-center text-sm text-muted-foreground'>
+            No candles available for the selected replay.
           </div>
-          <div className='font-medium'>{money(hoveredTrade.trade.price)}</div>
-          <div className='text-muted-foreground mt-1'>{hoveredTrade.trade.reason}</div>
-          <div className='text-muted-foreground mt-2'>
-            Equity then: {money(hoveredTrade.trade.equity)}
-          </div>
-        </div>
-      ) : null}
-      {visibleTrades.length === 0 ? (
-        <div className='text-muted-foreground absolute inset-x-0 top-1/2 text-center text-sm'>
-          No trades to plot for this strategy window.
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+function SelectedDecisionInspector({
+  decision,
+  forwardPerformance,
+  positionRisk,
+  selectedBacktest
+}: {
+  decision: DecisionViewModel;
+  forwardPerformance: ForwardPerformance[];
+  positionRisk: string;
+  selectedBacktest?: BacktestResult;
+}) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader className='flex flex-row items-start justify-between gap-3'>
+        <div>
+          <CardTitle>Selected decision</CardTitle>
+          <CardDescription>{decision.action.toUpperCase()} replay context</CardDescription>
+        </div>
+        <Badge variant={actionBadgeVariant(decision.action)}>{decision.action.toUpperCase()}</Badge>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-5'>
+        <div className='grid gap-3 text-sm'>
+          <InspectorRow label='Date / Time' value={dateTimeLabel(decision.time)} />
+          <InspectorRow
+            label='Confidence'
+            value={decision.confidence !== undefined ? `${decision.confidence.toFixed(0)}%` : '--'}
+          />
+          {decision.confidence !== undefined ? <Progress value={decision.confidence} /> : null}
+          <InspectorRow label='Strategy' value={decision.strategy} />
+          <InspectorRow label='Entry price (ref)' value={moneyPrecise(decision.price)} />
+        </div>
+
+        <div className='border-t pt-4'>
+          <div className='mb-3 text-sm font-semibold'>Forward performance</div>
+          <div className='grid grid-cols-3 gap-3'>
+            {forwardPerformance.map((item) => (
+              <div key={item.label} className='rounded-xl border bg-muted/20 p-3'>
+                <div className='text-muted-foreground text-[11px]'>{item.label}</div>
+                <div
+                  className={cn(
+                    'mt-1 text-sm font-semibold',
+                    (item.value ?? 0) > 0 && 'text-primary',
+                    (item.value ?? 0) < 0 && 'text-destructive'
+                  )}
+                >
+                  {item.value === undefined ? '--' : percent(item.value)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className='grid grid-cols-2 gap-3 border-t pt-4 text-sm'>
+          <div>
+            <div className='text-muted-foreground text-xs'>Drawdown to date</div>
+            <div className='font-semibold text-destructive'>
+              {percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
+            </div>
+          </div>
+          <div>
+            <div className='text-muted-foreground text-xs'>Position risk</div>
+            <div className={cn('font-semibold', positionRisk === 'High' && 'text-destructive')}>
+              {positionRisk}
+            </div>
+          </div>
+        </div>
+
+        <div className='border-t pt-4'>
+          <div className='mb-2 text-sm font-semibold'>Evidence</div>
+          <div className='flex flex-col gap-2 text-xs text-muted-foreground'>
+            {decision.evidence.slice(0, 5).map((item) => (
+              <div key={item}>- {item}</div>
+            ))}
+          </div>
+        </div>
+
+        <div className='grid gap-3 border-t pt-4 text-sm'>
+          <div>
+            <div className='text-muted-foreground text-xs'>Risk</div>
+            <div>{decision.risk}</div>
+          </div>
+          <div>
+            <div className='text-muted-foreground text-xs'>Next check</div>
+            <div>{decision.nextCheck}</div>
+          </div>
+          <div>
+            <div className='text-muted-foreground text-xs'>Watch levels</div>
+            <div>
+              Upside {money(decision.watchLevels.upside)} / Downside{' '}
+              {money(decision.watchLevels.downside)}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InspectorRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className='flex items-center justify-between gap-3'>
+      <span className='text-muted-foreground'>{label}</span>
+      <span className='text-right font-medium'>{value}</span>
+    </div>
+  );
+}
+
+function DecisionTimeline({
+  events,
+  selectedId,
+  onSelect
+}: {
+  events: ReplayEvent[];
+  selectedId?: string;
+  onSelect: (event: ReplayEvent) => void;
+}) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader className='pb-2'>
+        <CardTitle>Decision timeline</CardTitle>
+        <CardDescription>
+          Backtrack every selected strategy decision in chronological order.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {events.length > 0 ? (
+          <div className='flex gap-3 overflow-x-auto pb-2'>
+            {events.map((event) => {
+              const selected = selectedId === event.id;
+              return (
+                <button
+                  key={event.id}
+                  type='button'
+                  onClick={() => onSelect(event)}
+                  className={cn(
+                    'min-w-36 rounded-2xl border bg-muted/20 p-3 text-left transition hover:bg-muted/40',
+                    selected && 'border-primary bg-primary/10 shadow-sm'
+                  )}
+                >
+                  <div className='flex items-center justify-between gap-2'>
+                    <Badge variant={actionBadgeVariant(event.action)}>
+                      {event.action.toUpperCase()}
+                    </Badge>
+                    {event.synthetic ? (
+                      <span className='text-muted-foreground text-[10px]'>UI</span>
+                    ) : null}
+                  </div>
+                  <div className='mt-3 text-sm font-semibold'>{dateLabel(event.time)}</div>
+                  <div className='text-muted-foreground mt-1 text-xs'>
+                    {moneyPrecise(event.price)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
+            No decisions available for this strategy yet.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StrategyComparison({
+  backtests,
+  selectedStrategy,
+  onSelectStrategy
+}: {
+  backtests: BacktestResult[];
+  selectedStrategy: TradingStrategy;
+  onSelectStrategy: (strategy: TradingStrategy) => void;
+}) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader>
+        <CardTitle>Strategy comparison</CardTitle>
+        <CardDescription>Compare replay outcomes across available strategy runs.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className='overflow-x-auto'>
+          <table className='w-full min-w-[560px] text-sm'>
+            <thead className='text-muted-foreground'>
+              <tr className='border-b'>
+                <th className='py-2 text-left'>Strategy</th>
+                <th className='py-2 text-right'>Return</th>
+                <th className='py-2 text-right'>Max drawdown</th>
+                <th className='py-2 text-right'>Win rate</th>
+                <th className='py-2 text-right'>Trades</th>
+                <th className='py-2 text-left'>Best regime</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backtests.map((backtest) => {
+                const selected = selectedStrategy === backtest.strategy;
+                return (
+                  <tr
+                    key={backtest.strategy}
+                    className={cn(
+                      'cursor-pointer border-b transition hover:bg-muted/30',
+                      selected && 'bg-primary/10'
+                    )}
+                    onClick={() => onSelectStrategy(backtest.strategy)}
+                  >
+                    <td className='py-3 font-medium'>
+                      <div className='flex items-center gap-2'>
+                        {strategyLabels[backtest.strategy]}
+                        {selected ? <Badge variant='outline'>Active</Badge> : null}
+                      </div>
+                    </td>
+                    <td
+                      className={cn(
+                        'py-3 text-right font-medium',
+                        backtest.returnPct >= 0 ? 'text-primary' : 'text-destructive'
+                      )}
+                    >
+                      {percent(backtest.returnPct)}
+                    </td>
+                    <td className='py-3 text-right text-destructive'>
+                      {percent(-backtest.maxDrawdownPct)}
+                    </td>
+                    <td className='py-3 text-right'>{percent(backtest.winRatePct)}</td>
+                    <td className='py-3 text-right'>{backtest.trades.length}</td>
+                    <td className='py-3 text-muted-foreground'>
+                      {bestRegimeByStrategy[backtest.strategy]}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics }) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader>
+        <CardTitle>Regime / Diagnostics</CardTitle>
+        <CardDescription>Derived market state for the replay window.</CardDescription>
+      </CardHeader>
+      <CardContent className='grid gap-3 sm:grid-cols-2'>
+        <StatusPill
+          label='Trend'
+          value={diagnostics.trend}
+          tone={
+            diagnostics.trend === 'Uptrend'
+              ? 'positive'
+              : diagnostics.trend === 'Downtrend'
+                ? 'negative'
+                : 'warning'
+          }
+        />
+        <StatusPill
+          label='Volatility'
+          value={diagnostics.volatility}
+          tone={diagnostics.volatilityHigh ? 'warning' : 'positive'}
+        />
+        <StatusPill
+          label='Volume'
+          value={diagnostics.volume}
+          tone={
+            diagnostics.volume === 'Volume rising'
+              ? 'positive'
+              : diagnostics.volume === 'Volume falling'
+                ? 'negative'
+                : 'warning'
+          }
+        />
+        <StatusPill label='Price vs 200 SMA' value={diagnostics.priceVsAverage} tone='positive' />
+        <StatusPill label='Market regime' value={diagnostics.marketRegime} />
+        <StatusPill
+          label='Liquidity'
+          value={diagnostics.liquidity}
+          tone={diagnostics.liquidity === 'Healthy' ? 'positive' : 'warning'}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function LindaAnalystBrief({
+  activeLindaDecision,
+  latestLindaAction,
+  watchLevels,
+  botRunning,
+  onRunPaperBot
+}: {
+  activeLindaDecision?: PaperBotDecision;
+  latestLindaAction: TradeAction;
+  watchLevels: WatchLevels;
+  botRunning: boolean;
+  onRunPaperBot: () => void;
+}) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div className='flex gap-3'>
+          <div className='flex size-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary'>
+            LB
+          </div>
+          <div>
+            <CardTitle>AI analyst brief</CardTitle>
+            <CardDescription>Linda Bradford - AI Market Analyst</CardDescription>
+          </div>
+        </div>
+        <Badge variant='secondary'>Agent insight</Badge>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-4'>
+        {activeLindaDecision ? (
+          <>
+            <div>
+              <div className='mb-1 text-sm font-semibold'>Decision rationale</div>
+              <p className='text-sm text-muted-foreground'>{activeLindaDecision.reason}</p>
+            </div>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <div className='rounded-xl border bg-muted/20 p-3'>
+                <div className='text-muted-foreground text-xs'>Upside</div>
+                <div className='font-semibold text-primary'>{money(watchLevels.upside)}</div>
+              </div>
+              <div className='rounded-xl border bg-muted/20 p-3'>
+                <div className='text-muted-foreground text-xs'>Downside</div>
+                <div className='font-semibold text-destructive'>{money(watchLevels.downside)}</div>
+              </div>
+            </div>
+            <div className='flex items-center justify-between gap-3 text-sm'>
+              <div>
+                <div className='text-muted-foreground text-xs'>Next update</div>
+                <div>{activeLindaDecision.nextCheck}</div>
+              </div>
+              <Button type='button' variant='secondary' size='sm'>
+                View full brief
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className='flex flex-col gap-4'>
+            <p className='text-sm text-muted-foreground'>
+              No Linda decision is selected yet. Run a paper decision to create a replay-ready
+              rationale, risk note, and next check.
+            </p>
+            <div className='flex items-center justify-between gap-3'>
+              <Badge variant={actionBadgeVariant(latestLindaAction)}>
+                {latestLindaAction.toUpperCase()}
+              </Badge>
+              <Button
+                type='button'
+                variant='secondary'
+                isLoading={botRunning}
+                onClick={onRunPaperBot}
+              >
+                Run Linda decision
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaperPortfolioCompact({
+  portfolio,
+  paperEquity,
+  paperReturnPct,
+  onBuy,
+  onSell,
+  onReset
+}: {
+  portfolio: PaperPortfolio;
+  paperEquity: number;
+  paperReturnPct: number;
+  onBuy: () => void;
+  onSell: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader>
+        <CardTitle>Paper portfolio</CardTitle>
+        <CardDescription>Local paper controls remain secondary to replay analysis.</CardDescription>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-4'>
+        <div className='grid grid-cols-2 gap-3 text-sm'>
+          <div>
+            <div className='text-muted-foreground'>Equity</div>
+            <div className='font-semibold'>{money(paperEquity)}</div>
+          </div>
+          <div>
+            <div className='text-muted-foreground'>Return</div>
+            <div
+              className={cn(
+                'font-semibold',
+                paperReturnPct >= 0 ? 'text-primary' : 'text-destructive'
+              )}
+            >
+              {percent(paperReturnPct)}
+            </div>
+          </div>
+          <div>
+            <div className='text-muted-foreground'>Cash</div>
+            <div className='font-semibold'>{money(portfolio.cash)}</div>
+          </div>
+          <div>
+            <div className='text-muted-foreground'>BTC</div>
+            <div className='font-semibold'>{portfolio.btc.toFixed(6)}</div>
+          </div>
+        </div>
+        <div className='grid grid-cols-3 gap-2'>
+          <Button type='button' variant='secondary' size='sm' onClick={onBuy}>
+            Paper buy
+          </Button>
+          <Button type='button' variant='secondary' size='sm' onClick={onSell}>
+            Paper sell
+          </Button>
+          <Button type='button' variant='outline' size='sm' onClick={onReset}>
+            Reset
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaperBotJournal({
+  rows,
+  selectedRowId,
+  selectedJournalEntry,
+  selectedTradeKey,
+  onSelectDecision,
+  onOpenTradeBrief,
+  botRunning,
+  onRunPaperBot,
+  tradeBriefRunningKey,
+  watchLevels
+}: {
+  rows: JournalReplayRow[];
+  selectedRowId?: string;
+  selectedJournalEntry?: JournalEntry;
+  selectedTradeKey?: string;
+  onSelectDecision: (decision: PaperJournalEntry) => void;
+  onOpenTradeBrief: (trade: Trade) => void;
+  botRunning: boolean;
+  onRunPaperBot: () => void;
+  tradeBriefRunningKey?: string;
+  watchLevels: WatchLevels;
+}) {
+  const expandedDecision = selectedJournalEntry;
+
+  return (
+    <Card className='rounded-2xl'>
+      <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+        <div>
+          <CardTitle>Paper bot journal</CardTitle>
+          <CardDescription>Review every decision the strategy made.</CardDescription>
+        </div>
+        <Button type='button' variant='secondary' isLoading={botRunning} onClick={onRunPaperBot}>
+          Run Linda decision
+        </Button>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-4'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button type='button' variant='outline' size='sm' disabled>
+            All decisions
+          </Button>
+          <Button type='button' variant='outline' size='sm' disabled>
+            All actions
+          </Button>
+          <Button type='button' variant='outline' size='sm' disabled>
+            Date range
+          </Button>
+          <Button type='button' variant='outline' size='sm' disabled>
+            More filters
+          </Button>
+          <div className='ml-auto flex flex-wrap gap-2'>
+            <Button type='button' variant='outline' size='sm' disabled>
+              Search decisions...
+            </Button>
+            <Button type='button' variant='outline' size='sm' disabled>
+              Show only key decisions
+            </Button>
+          </div>
+        </div>
+        <div className='overflow-x-auto rounded-xl border'>
+          <table className='w-full min-w-[980px] text-sm'>
+            <thead className='bg-muted/40 text-muted-foreground'>
+              <tr>
+                <th className='p-3 text-left'>Date / Time</th>
+                <th className='p-3 text-left'>Action</th>
+                <th className='p-3 text-right'>Confidence</th>
+                <th className='p-3 text-right'>Price</th>
+                <th className='p-3 text-left'>Reason short</th>
+                <th className='p-3 text-left'>Strategy</th>
+                <th className='p-3 text-right'>Result 1D</th>
+                <th className='p-3 text-right'>Result 3D</th>
+                <th className='p-3 text-right'>Result 7D</th>
+                <th className='p-3 text-right'>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const tradeKey = row.trade
+                  ? getTradeDecisionKey(row.strategyKey, row.trade)
+                  : undefined;
+                const selected =
+                  selectedRowId === row.id ||
+                  selectedJournalEntry?.id === row.decision?.id ||
+                  selectedTradeKey === row.id ||
+                  selectedTradeKey === tradeKey;
+                const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
+
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-t transition hover:bg-muted/30',
+                      selected && 'bg-primary/10'
+                    )}
+                    onClick={() => {
+                      if (row.decision) onSelectDecision(row.decision);
+                      else if (row.trade) onOpenTradeBrief(row.trade);
+                    }}
+                  >
+                    <td className='p-3'>{dateTimeLabel(row.time)}</td>
+                    <td className='p-3'>
+                      <Badge variant={actionBadgeVariant(row.action)}>
+                        {row.action.toUpperCase()}
+                      </Badge>
+                    </td>
+                    <td className='p-3 text-right'>
+                      {row.confidence !== undefined ? `${row.confidence.toFixed(0)}%` : '--'}
+                    </td>
+                    <td className='p-3 text-right'>{moneyPrecise(row.price)}</td>
+                    <td className='max-w-80 truncate p-3 text-muted-foreground'>{row.reason}</td>
+                    <td className='p-3'>{row.strategy}</td>
+                    {row.forward.map((item) => (
+                      <td
+                        key={item.label}
+                        className={cn(
+                          'p-3 text-right',
+                          (item.value ?? 0) > 0 && 'text-primary',
+                          (item.value ?? 0) < 0 && 'text-destructive'
+                        )}
+                      >
+                        {item.value === undefined ? '--' : percent(item.value)}
+                      </td>
+                    ))}
+                    <td className='p-3 text-right'>
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant={selected ? 'default' : 'outline'}
+                        isLoading={creating}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (row.decision) onSelectDecision(row.decision);
+                          else if (row.trade) onOpenTradeBrief(row.trade);
+                        }}
+                      >
+                        {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className='p-6 text-center text-muted-foreground'>
+                    No replay decisions yet. Run Linda or pick a strategy with trades.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        {expandedDecision ? (
+          <div className='grid gap-4 rounded-2xl border bg-muted/20 p-4 lg:grid-cols-4'>
+            <div>
+              <div className='mb-1 text-sm font-semibold'>Why this decision?</div>
+              <p className='text-sm text-muted-foreground'>{expandedDecision.reason}</p>
+            </div>
+            <div>
+              <div className='mb-1 text-sm font-semibold'>Evidence</div>
+              <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
+                {isPaperBotDecision(expandedDecision) ? (
+                  <>
+                    <span>Return {percent(expandedDecision.evidence.returnPct)}</span>
+                    <span>Win rate {percent(expandedDecision.evidence.winRatePct)}</span>
+                    <span>Volume {expandedDecision.evidence.volumeVerdict}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Manual paper action</span>
+                    <span>Portfolio equity {money(expandedDecision.portfolio.equity)}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className='mb-1 text-sm font-semibold'>Risk / invalidations</div>
+              <p className='text-sm text-muted-foreground'>
+                {isPaperBotDecision(expandedDecision)
+                  ? expandedDecision.risk
+                  : 'Manual paper action with no automated risk pack.'}
+              </p>
+            </div>
+            <div>
+              <div className='mb-1 text-sm font-semibold'>Next check</div>
+              <p className='text-sm text-muted-foreground'>
+                {isPaperBotDecision(expandedDecision)
+                  ? expandedDecision.nextCheck
+                  : 'Review at the next replay checkpoint.'}
+              </p>
+              <div className='mt-2 text-xs text-muted-foreground'>
+                Watch {money(watchLevels.upside)} / {money(watchLevels.downside)}
+              </div>
+            </div>
+            {isPaperBotDecision(expandedDecision) && expandedDecision.research ? (
+              <div className='lg:col-span-4'>
+                <div className='mb-2 text-sm font-semibold'>Research used</div>
+                <p className='text-sm text-muted-foreground'>{expandedDecision.research.thesis}</p>
+                <div className='mt-3 flex flex-wrap gap-2'>
+                  {expandedDecision.research.links.map((link) => (
+                    <a
+                      key={link.url}
+                      href={link.url}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='rounded-full border px-3 py-1 text-xs hover:text-foreground'
+                    >
+                      {link.source ? `${link.source}: ` : ''}
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -313,8 +1499,9 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
   const [selectedTradeKey, setSelectedTradeKey] = useState<string>();
+  const [selectedReplayEventId, setSelectedReplayEventId] = useState<string>();
   const [tradeBriefRunningKey, setTradeBriefRunningKey] = useState<string>();
-  const [selectedStrategy, setSelectedStrategy] = useState(
+  const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy>(
     initialData.backtests[0]?.strategy ?? 'sma-cross'
   );
 
@@ -332,9 +1519,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const price = data.snapshot.price;
   const paperEquity = portfolio.cash + portfolio.btc * price;
   const paperReturnPct = ((paperEquity - 10_000) / 10_000) * 100;
-  const latestCandles = data.snapshot.candles.slice(-8, -1);
-  const maxVolume = Math.max(...latestCandles.map((candle) => candle.quoteVolume), 1);
-
   const lastSignal = useMemo(
     () => (selectedBacktest ? latestItem(selectedBacktest.trades) : undefined),
     [selectedBacktest]
@@ -362,7 +1546,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const selectedTradeDecision = selectedTradeKey
     ? tradeDecisionMap.get(selectedTradeKey)
     : undefined;
-  const activeLindaDecision = selectedTradeDecision ?? latestBotDecision;
   const selectedJournalEntry = useMemo<JournalEntry | undefined>(() => {
     if (selectedJournalId) {
       const selected = data.journal.decisions.find((decision) => decision.id === selectedJournalId);
@@ -370,10 +1553,69 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     }
     return newestFirst(data.journal.decisions)[0];
   }, [data.journal.decisions, selectedJournalId]);
-  const lindaDecisions = data.journal.decisions.filter(
-    (decision) => decision.kind === 'bot' && decision.agent === 'Linda'
-  );
   const latestLindaAction = latestBotDecision?.kind === 'bot' ? latestBotDecision.action : 'hold';
+  const diagnostics = useMemo(() => getRegimeDiagnostics(data.snapshot), [data.snapshot]);
+  const ohlc = useMemo(
+    () => currentOhlc(data.snapshot.candles, data.snapshot.price),
+    [data.snapshot.candles, data.snapshot.price]
+  );
+  const replayEvents = useMemo(
+    () =>
+      createReplayEvents({
+        selectedBacktest,
+        decisions: data.journal.decisions,
+        selectedStrategy
+      }),
+    [data.journal.decisions, selectedBacktest, selectedStrategy]
+  );
+  const selectedReplayEvent = replayEvents.find((event) => event.id === selectedReplayEventId);
+  const selectedReplayDecision = selectedReplayEvent?.decision;
+  const activeLindaDecision = selectedTradeDecision ?? selectedReplayDecision ?? latestBotDecision;
+  const primaryTrade = selectedTrade ?? selectedReplayEvent?.trade ?? lastSignal;
+  const decisionPrice = activeLindaDecision?.price ?? primaryTrade?.price ?? data.snapshot.price;
+  const watchLevels = useMemo(
+    () => getWatchLevels(data.snapshot.candles, decisionPrice),
+    [data.snapshot.candles, decisionPrice]
+  );
+  const evidence = getEvidenceBullets({
+    decision: activeLindaDecision,
+    selectedBacktest,
+    diagnostics,
+    lastSignal
+  });
+  const selectedDecision: DecisionViewModel = {
+    action: activeLindaDecision?.action ?? primaryTrade?.side ?? 'hold',
+    time: activeLindaDecision?.createdAt ?? primaryTrade?.time ?? selectedReplayEvent?.time,
+    confidence: activeLindaDecision?.confidence,
+    strategy:
+      strategyLabels[
+        activeLindaDecision?.strategy ?? selectedBacktest?.strategy ?? selectedStrategy
+      ],
+    price: decisionPrice,
+    reason: activeLindaDecision?.reason ?? primaryTrade?.reason ?? 'No selected decision yet.',
+    risk:
+      activeLindaDecision?.risk ??
+      `${getPositionRisk(diagnostics, selectedBacktest)} position risk based on volatility and drawdown.`,
+    nextCheck: activeLindaDecision?.nextCheck ?? 'Review again at the next daily candle close.',
+    evidence,
+    watchLevels
+  };
+  const forwardPerformance = getForwardPerformance(
+    data.snapshot.candles,
+    selectedDecision.time,
+    selectedDecision.price,
+    selectedDecision.action
+  );
+  const journalRows = useMemo(
+    () =>
+      createJournalRows({
+        selectedBacktest,
+        decisions: data.journal.decisions,
+        selectedStrategy,
+        candles: data.snapshot.candles
+      }),
+    [data.journal.decisions, data.snapshot.candles, selectedBacktest, selectedStrategy]
+  );
 
   async function refresh() {
     setLoading(true);
@@ -398,6 +1640,8 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         decision?: TradingLabPayload['journal']['decisions'][number];
       };
       if (payload.decision) {
+        setSelectedJournalId(payload.decision.id);
+        setSelectedReplayEventId(payload.decision.id);
         setData((current) => ({
           ...current,
           journal: {
@@ -412,10 +1656,12 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   }
 
   async function openTradeBrief(trade: Trade) {
+    if (!selectedBacktest) return;
     const tradeKey = getTradeDecisionKey(selectedBacktest.strategy, trade);
     const existingDecision = tradeDecisionMap.get(tradeKey);
 
     setSelectedTradeKey(tradeKey);
+    setSelectedReplayEventId(tradeKey);
 
     if (existingDecision) {
       setSelectedJournalId(existingDecision.id);
@@ -516,9 +1762,32 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     );
   }
 
+  function selectReplayEvent(event: ReplayEvent) {
+    setSelectedReplayEventId(event.id);
+    if (event.trade) {
+      void openTradeBrief(event.trade);
+      return;
+    }
+    if (event.decision) {
+      setSelectedJournalId(event.decision.id);
+      setSelectedTradeKey(event.decision.evidence.trade?.key);
+      return;
+    }
+    setSelectedTradeKey(undefined);
+    setSelectedJournalId(undefined);
+  }
+
+  function selectJournalDecision(decision: PaperJournalEntry) {
+    setSelectedJournalId(decision.id);
+    setSelectedReplayEventId(decision.id);
+    if (isPaperBotDecision(decision)) {
+      setSelectedTradeKey(decision.evidence.trade?.key);
+    }
+  }
+
   return (
-    <div className='space-y-6'>
-      <div className='flex flex-col gap-3 md:flex-row md:items-end md:justify-between'>
+    <div className='flex flex-col gap-6'>
+      <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
         <div>
           <div className='mb-2 flex flex-wrap items-center gap-2'>
             <Badge variant='outline'>Paper only</Badge>
@@ -530,645 +1799,95 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           </div>
           <h1 className='text-3xl font-semibold tracking-tight'>Trading Lab</h1>
           <p className='text-muted-foreground'>
-            BTC cockpit för backtest, låtsastrades och volymkoll. Inga riktiga order.
+            Decision replay cockpit for backtesting and paper trading
           </p>
         </div>
-        <Button onClick={refresh} disabled={loading}>
-          {loading ? 'Uppdaterar…' : 'Uppdatera data'}
+        <Button type='button' onClick={refresh} disabled={loading} isLoading={loading}>
+          Refresh data
         </Button>
       </div>
 
-      <div className='grid gap-4 md:grid-cols-4'>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardDescription>BTCUSDT</CardDescription>
-            <CardTitle>{money(price)}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <span
-              className={data.snapshot.priceChangePct24h >= 0 ? 'text-primary' : 'text-destructive'}
-            >
-              {percent(data.snapshot.priceChangePct24h)} 24h
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardDescription>Global 24h-volym</CardDescription>
-            <CardTitle>{money(data.snapshot.globalQuoteVolume24h)}</CardTitle>
-          </CardHeader>
-          <CardContent className='text-muted-foreground text-sm'>
-            CoinGecko market volume
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardDescription>Binance futures</CardDescription>
-            <CardTitle>{money(data.snapshot.futuresQuoteVolume24h)}</CardTitle>
-          </CardHeader>
-          <CardContent className='text-muted-foreground text-sm'>
-            Spot: {money(data.snapshot.spotQuoteVolume24h)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardDescription>Volym mot 7D-snitt</CardDescription>
-            <CardTitle>{percent(data.snapshot.volumeTrend.changeVsSevenDayPct)}</CardTitle>
-          </CardHeader>
-          <CardContent className='text-muted-foreground text-sm'>
-            Senaste fulla dag: {money(data.snapshot.volumeTrend.latest)}
-          </CardContent>
-        </Card>
-      </div>
+      <TradingContextBar
+        selectedBacktest={selectedBacktest}
+        candles={data.snapshot.candles}
+        portfolio={portfolio}
+        paperEquity={paperEquity}
+        paperReturnPct={paperReturnPct}
+        lastSignal={lastSignal}
+        latestLindaAction={latestLindaAction}
+      />
 
       <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
-        <Card className='overflow-hidden'>
-          <CardHeader className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <div>
-              <CardTitle>BTCUSDT paper chart</CardTitle>
-              <CardDescription>
-                Price, volume, and hoverable trade dots from the selected strategy in one chart.
-              </CardDescription>
-            </div>
-            <Badge variant='outline'>{strategyLabels[selectedBacktest.strategy]}</Badge>
-          </CardHeader>
-          <CardContent>
-            <StrategyTradeChart
-              candles={data.snapshot.candles}
-              trades={selectedBacktest.trades}
-              strategy={strategyLabels[selectedBacktest.strategy]}
-              hoveredTrade={hoveredTrade}
-              onHoverTrade={setHoveredTrade}
-            />
-          </CardContent>
-        </Card>
+        <div className='flex flex-col gap-6'>
+          <StrategyTradeChart
+            candles={data.snapshot.candles}
+            trades={selectedBacktest?.trades ?? []}
+            strategy={strategyLabels[selectedBacktest?.strategy ?? selectedStrategy]}
+            ohlc={ohlc}
+            hoveredTrade={hoveredTrade}
+            onHoverTrade={setHoveredTrade}
+          />
+          <DecisionTimeline
+            events={replayEvents}
+            selectedId={selectedReplayEventId ?? selectedTradeKey ?? selectedJournalId}
+            onSelect={selectReplayEvent}
+          />
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Paper portfolio</CardTitle>
-            <CardDescription>LocalStorage-portfölj med startkapital $10k.</CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='grid grid-cols-2 gap-3 text-sm'>
-              <div>
-                <div className='text-muted-foreground'>Equity</div>
-                <div className='font-medium'>{money(paperEquity)}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>Return</div>
-                <div
-                  className={
-                    paperReturnPct >= 0
-                      ? 'font-medium text-primary'
-                      : 'font-medium text-destructive'
-                  }
-                >
-                  {percent(paperReturnPct)}
-                </div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>Cash</div>
-                <div className='font-medium'>{money(portfolio.cash)}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>BTC</div>
-                <div className='font-medium'>{portfolio.btc.toFixed(6)}</div>
-              </div>
-            </div>
-            <div className='grid grid-cols-3 gap-2'>
-              <Button variant='secondary' onClick={paperBuy}>
-                Paper buy
-              </Button>
-              <Button variant='secondary' onClick={paperSell}>
-                Paper sell
-              </Button>
-              <Button variant='outline' onClick={paperReset}>
-                Reset
-              </Button>
-            </div>
-            <p className='text-muted-foreground text-xs'>
-              Det här är medvetet friktionslöst och ofarligt: ingen exchange, inga API-keys, inga
-              riktiga pengar.
-            </p>
-          </CardContent>
-        </Card>
+        <div className='flex flex-col gap-6'>
+          <SelectedDecisionInspector
+            decision={selectedDecision}
+            forwardPerformance={forwardPerformance}
+            positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
+            selectedBacktest={selectedBacktest}
+          />
+          <PaperPortfolioCompact
+            portfolio={portfolio}
+            paperEquity={paperEquity}
+            paperReturnPct={paperReturnPct}
+            onBuy={paperBuy}
+            onSell={paperSell}
+            onReset={paperReset}
+          />
+        </div>
       </div>
 
-      <div className='grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
-        <Card>
-          <CardHeader>
-            <CardTitle>Backtest strategies</CardTitle>
-            <CardDescription>
-              90 dagar, dagliga candles, 0.1% fee. Rough men användbart.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-2'>
-            {data.backtests.map((backtest) => (
-              <button
-                key={backtest.strategy}
-                onClick={() => {
-                  setSelectedStrategy(backtest.strategy);
-                  setSelectedTradeKey(undefined);
-                }}
-                className={cn(
-                  'w-full rounded-lg border p-3 text-left transition',
-                  selectedStrategy === backtest.strategy
-                    ? 'border-primary bg-primary/10'
-                    : 'bg-card hover:bg-muted/50'
-                )}
-              >
-                <div className='flex items-center justify-between gap-3'>
-                  <span className='font-medium'>{strategyLabels[backtest.strategy]}</span>
-                  <span className={backtest.returnPct >= 0 ? 'text-primary' : 'text-destructive'}>
-                    {percent(backtest.returnPct)}
-                  </span>
-                </div>
-                <div className='text-muted-foreground mt-1 text-xs'>
-                  {backtest.trades.length} trades · max DD {percent(-backtest.maxDrawdownPct)}
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{strategyLabels[selectedBacktest.strategy]} result</CardTitle>
-            <CardDescription>
-              Senaste signal:{' '}
-              {lastSignal
-                ? `${lastSignal.side.toUpperCase()} · ${lastSignal.reason} · ${dateLabel(lastSignal.time)}`
-                : 'Ingen signal ännu'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-5'>
-            <div className='grid gap-4 md:grid-cols-4'>
-              <div>
-                <div className='text-muted-foreground text-sm'>Final equity</div>
-                <div className='text-lg font-semibold'>{money(selectedBacktest.finalEquity)}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground text-sm'>Return</div>
-                <div
-                  className={
-                    selectedBacktest.returnPct >= 0
-                      ? 'text-lg font-semibold text-primary'
-                      : 'text-lg font-semibold text-destructive'
-                  }
-                >
-                  {percent(selectedBacktest.returnPct)}
-                </div>
-              </div>
-              <div>
-                <div className='text-muted-foreground text-sm'>Win rate</div>
-                <div className='text-lg font-semibold'>{percent(selectedBacktest.winRatePct)}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground text-sm'>Exposure</div>
-                <div className='text-lg font-semibold'>{percent(selectedBacktest.exposurePct)}</div>
-              </div>
-            </div>
-
-            <div>
-              <div className='mb-2 flex items-center justify-between text-sm'>
-                <span className='text-muted-foreground'>Max drawdown</span>
-                <span>{percent(-selectedBacktest.maxDrawdownPct)}</span>
-              </div>
-              <Progress value={Math.min(selectedBacktest.maxDrawdownPct, 100)} />
-            </div>
-
-            <div>
-              <div className='mb-3 text-sm font-medium'>Senaste fulla dagars volym</div>
-              <div className='flex h-32 items-end gap-2 rounded-lg border p-3'>
-                {latestCandles.map((candle) => (
-                  <div key={candle.time} className='flex flex-1 flex-col items-center gap-2'>
-                    <div
-                      className='bg-primary/80 w-full rounded-t'
-                      style={{ height: `${Math.max(8, (candle.quoteVolume / maxVolume) * 100)}%` }}
-                    />
-                    <div className='text-muted-foreground text-[10px]'>
-                      {dateLabel(candle.time)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className='max-h-96 overflow-auto rounded-lg border'>
-              <table className='w-full text-sm'>
-                <thead className='bg-muted/50 text-muted-foreground sticky top-0 z-10'>
-                  <tr>
-                    <th className='p-2 text-left'>Date</th>
-                    <th className='p-2 text-left'>Side</th>
-                    <th className='p-2 text-right'>Price</th>
-                    <th className='p-2 text-left'>Reason</th>
-                    <th className='p-2 text-right'>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {newestFirst(selectedBacktest.trades).map((trade) => {
-                    const tradeKey = getTradeDecisionKey(selectedBacktest.strategy, trade);
-                    const tradeDecision = tradeDecisionMap.get(tradeKey);
-                    const selected = selectedTradeKey === tradeKey;
-                    const creating = tradeBriefRunningKey === tradeKey;
-
-                    return (
-                      <tr
-                        key={`${trade.time}-${trade.side}`}
-                        className={cn(
-                          'cursor-pointer border-t transition',
-                          selected ? 'bg-primary/10' : 'hover:bg-muted/50'
-                        )}
-                        onClick={() => void openTradeBrief(trade)}
-                      >
-                        <td className='p-2'>{dateLabel(trade.time)}</td>
-                        <td className='p-2'>
-                          <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'}>
-                            {trade.side}
-                          </Badge>
-                        </td>
-                        <td className='p-2 text-right'>{money(trade.price)}</td>
-                        <td className='text-muted-foreground p-2'>{trade.reason}</td>
-                        <td className='p-2 text-right'>
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant={selected ? 'default' : 'outline'}
-                            isLoading={creating}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void openTradeBrief(trade);
-                            }}
-                          >
-                            {selected ? 'Viewing' : tradeDecision ? 'Open brief' : 'Create brief'}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {selectedBacktest.trades.length === 0 ? (
-                    <tr>
-                      <td className='text-muted-foreground p-3' colSpan={5}>
-                        Inga trades för perioden.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+      <div className='grid gap-6 xl:grid-cols-[1.3fr_1fr_1fr]'>
+        <StrategyComparison
+          backtests={data.backtests}
+          selectedStrategy={selectedStrategy}
+          onSelectStrategy={(strategy) => {
+            setSelectedStrategy(strategy);
+            setSelectedTradeKey(undefined);
+            setSelectedReplayEventId(undefined);
+          }}
+        />
+        <RegimeDiagnosticsCard diagnostics={diagnostics} />
+        <LindaAnalystBrief
+          activeLindaDecision={activeLindaDecision}
+          latestLindaAction={latestLindaAction}
+          watchLevels={watchLevels}
+          botRunning={botRunning}
+          onRunPaperBot={() => void runPaperBot()}
+        />
       </div>
 
-      <div className='grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
-        <Card>
-          <CardHeader>
-            <div className='mb-2 flex items-center gap-2'>
-              <Badge variant='outline'>Linda</Badge>
-              <Badge variant='secondary'>Paper agent</Badge>
-            </div>
-            <CardTitle>Linda Bradford</CardTitle>
-            <CardDescription>
-              Dedikerad trading-agent för paper research. Hon får analysera och journalföra — inte
-              handla riktiga pengar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='grid grid-cols-2 gap-3 text-sm'>
-              <div>
-                <div className='text-muted-foreground'>Senaste stance</div>
-                <div className={`font-semibold uppercase ${actionTone(latestLindaAction)}`}>
-                  {latestLindaAction}
-                </div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>Beslut loggade</div>
-                <div className='font-semibold'>{lindaDecisions.length}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>Scope</div>
-                <div className='font-medium'>BTC first</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground'>Mode</div>
-                <div className='font-medium'>No keys</div>
-              </div>
-            </div>
-            <div className='rounded-lg border p-3 text-sm'>
-              <div className='mb-1 font-medium'>Phase 1 guardrails</div>
-              <ul className='text-muted-foreground list-disc space-y-1 pl-4 text-xs'>
-                <li>Ingen live trading, inga riktiga order.</li>
-                <li>Inga Binance API-nycklar behövs ännu.</li>
-                <li>Varje signal måste ha risk, evidens och nästa check.</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Linda decision brief</CardTitle>
-            <CardDescription>
-              {selectedTrade
-                ? `Trade brief: ${selectedTrade.side.toUpperCase()} ${dateLabel(selectedTrade.time)} from ${strategyLabels[selectedBacktest.strategy]}.`
-                : 'Senaste paper-beslutet i rätt format: action, confidence, evidence, risk, next check.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {activeLindaDecision ? (
-              <>
-                <div className='grid gap-4 md:grid-cols-4'>
-                  <div>
-                    <div className='text-muted-foreground text-sm'>Action</div>
-                    <div
-                      className={`text-lg font-semibold uppercase ${actionTone(activeLindaDecision.action)}`}
-                    >
-                      {activeLindaDecision.action}
-                    </div>
-                  </div>
-                  <div>
-                    <div className='text-muted-foreground text-sm'>Confidence</div>
-                    <div className='text-lg font-semibold'>
-                      {activeLindaDecision.confidence.toFixed(0)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className='text-muted-foreground text-sm'>Strategy</div>
-                    <div className='text-lg font-semibold'>
-                      {strategyLabels[activeLindaDecision.strategy]}
-                    </div>
-                  </div>
-                  <div>
-                    <div className='text-muted-foreground text-sm'>Price</div>
-                    <div className='text-lg font-semibold'>{money(activeLindaDecision.price)}</div>
-                  </div>
-                </div>
-                <div className='grid gap-3 md:grid-cols-3'>
-                  <div className='rounded-lg border p-3'>
-                    <div className='mb-1 text-sm font-medium'>Evidence</div>
-                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.reason}</p>
-                  </div>
-                  <div className='rounded-lg border p-3'>
-                    <div className='mb-1 text-sm font-medium'>Risk</div>
-                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.risk}</p>
-                  </div>
-                  <div className='rounded-lg border p-3'>
-                    <div className='mb-1 text-sm font-medium'>Next check</div>
-                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.nextCheck}</p>
-                  </div>
-                </div>
-                {activeLindaDecision.research ? (
-                  <div className='rounded-lg border p-3'>
-                    <div className='mb-2 text-sm font-medium'>Research brief</div>
-                    <p className='text-muted-foreground text-sm'>
-                      {activeLindaDecision.research.thesis}
-                    </p>
-                    <div className='mt-3 grid gap-2 md:grid-cols-2'>
-                      {activeLindaDecision.research.links.map((link) => (
-                        <a
-                          key={link.url}
-                          href={link.url}
-                          target='_blank'
-                          rel='noreferrer'
-                          className='hover:bg-muted/50 rounded-md border p-2 text-sm transition'
-                        >
-                          <div className='font-medium'>{link.label}</div>
-                          <div className='text-muted-foreground text-xs'>{link.note}</div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p className='text-muted-foreground text-sm'>
-                Linda har inte loggat något paper-beslut ännu. Kör en decision cycle nedan.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-          <div>
-            <CardTitle>Paper bot journal</CardTitle>
-            <CardDescription>
-              Lindas lokala beslutslogg. Sparas privat i runtime storage, inga riktiga order.
-            </CardDescription>
-          </div>
-          <Button onClick={runPaperBot} disabled={botRunning} variant='secondary'>
-            {botRunning ? 'Linda analyserar…' : 'Kör Linda decision'}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className='overflow-hidden rounded-lg border'>
-            <table className='w-full text-sm'>
-              <thead className='bg-muted/50 text-muted-foreground'>
-                <tr>
-                  <th className='p-2 text-left'>Time</th>
-                  <th className='p-2 text-left'>Agent</th>
-                  <th className='p-2 text-left'>Action</th>
-                  <th className='p-2 text-right'>Price</th>
-                  <th className='p-2 text-right'>Confidence</th>
-                  <th className='p-2 text-left'>Reason</th>
-                  <th className='p-2 text-right'>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {newestFirst(data.journal.decisions.slice(-8)).map((decision) => {
-                  const selected = selectedJournalEntry?.id === decision.id;
-                  return (
-                    <tr
-                      key={decision.id}
-                      className={`border-t transition ${selected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
-                    >
-                      <td className='p-2'>
-                        {new Date(decision.createdAt).toLocaleString('sv-SE')}
-                      </td>
-                      <td className='p-2'>{decision.kind === 'bot' ? decision.agent : 'Manual'}</td>
-                      <td className='p-2'>
-                        <div className='flex items-center gap-2'>
-                          <Badge
-                            variant={
-                              decision.action === 'buy'
-                                ? 'default'
-                                : decision.action === 'sell'
-                                  ? 'destructive'
-                                  : 'secondary'
-                            }
-                          >
-                            {decision.action}
-                          </Badge>
-                          <span className='text-muted-foreground text-xs'>{decision.kind}</span>
-                        </div>
-                      </td>
-                      <td className='p-2 text-right'>{money(decision.price)}</td>
-                      <td className='p-2 text-right'>
-                        {decision.kind === 'bot' ? `${decision.confidence.toFixed(0)}%` : '—'}
-                      </td>
-                      <td className='text-muted-foreground p-2'>{decision.reason}</td>
-                      <td className='p-2 text-right'>
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant={selected ? 'default' : 'outline'}
-                          onClick={() => setSelectedJournalId(decision.id)}
-                        >
-                          {selected ? 'Viewing' : 'View details'}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {data.journal.decisions.length === 0 ? (
-                  <tr>
-                    <td className='text-muted-foreground p-3' colSpan={7}>
-                      Ingen bot-logg ännu. Kör en paper-beslutscykel när du vill börja samla
-                      datapunkter.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-          {selectedJournalEntry ? (
-            <div className='mt-4 space-y-3 rounded-lg border p-3'>
-              <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
-                <div>
-                  <div className='text-sm font-medium'>Selected journal entry</div>
-                  <div className='text-muted-foreground text-xs'>
-                    {new Date(selectedJournalEntry.createdAt).toLocaleString('sv-SE')} ·{' '}
-                    {selectedJournalEntry.kind === 'bot' ? 'Linda decision' : 'Manual paper trade'}
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    selectedJournalEntry.action === 'buy'
-                      ? 'default'
-                      : selectedJournalEntry.action === 'sell'
-                        ? 'destructive'
-                        : 'secondary'
-                  }
-                >
-                  {selectedJournalEntry.action}
-                </Badge>
-              </div>
-              <div className='grid gap-3 md:grid-cols-3'>
-                <div className='rounded-lg border p-3'>
-                  <div className='mb-1 text-sm font-medium'>Why</div>
-                  <p className='text-muted-foreground text-sm'>{selectedJournalEntry.reason}</p>
-                </div>
-                <div className='rounded-lg border p-3'>
-                  <div className='mb-1 text-sm font-medium'>Price</div>
-                  <p className='text-sm font-semibold'>{money(selectedJournalEntry.price)}</p>
-                </div>
-                <div className='rounded-lg border p-3'>
-                  <div className='mb-1 text-sm font-medium'>Context</div>
-                  <p className='text-muted-foreground text-sm'>
-                    {selectedJournalEntry.kind === 'bot'
-                      ? `${strategyLabels[selectedJournalEntry.strategy]} · confidence ${selectedJournalEntry.confidence.toFixed(0)}%`
-                      : `Cash ${money(selectedJournalEntry.portfolio.cash)} · BTC ${selectedJournalEntry.portfolio.btc.toFixed(6)} · equity ${money(selectedJournalEntry.portfolio.equity)}`}
-                  </p>
-                </div>
-              </div>
-              {selectedJournalEntry.kind === 'bot' ? (
-                <div className='space-y-3'>
-                  <div className='grid gap-3 md:grid-cols-2'>
-                    <div className='rounded-lg border p-3'>
-                      <div className='mb-1 text-sm font-medium'>Risk / invalidation</div>
-                      <p className='text-muted-foreground text-sm'>{selectedJournalEntry.risk}</p>
-                    </div>
-                    <div className='rounded-lg border p-3'>
-                      <div className='mb-1 text-sm font-medium'>Next check</div>
-                      <p className='text-muted-foreground text-sm'>
-                        {selectedJournalEntry.nextCheck}
-                      </p>
-                    </div>
-                  </div>
-                  <div className='text-muted-foreground space-y-1 text-xs'>
-                    {[
-                      `Backtest return: ${percent(selectedJournalEntry.evidence.returnPct)} · max DD ${percent(-selectedJournalEntry.evidence.maxDrawdownPct)} · volume ${selectedJournalEntry.evidence.volumeVerdict}`,
-                      selectedJournalEntry.evidence.lastSignal
-                        ? `Last signal: ${selectedJournalEntry.evidence.lastSignal.side} · ${selectedJournalEntry.evidence.lastSignal.reason}`
-                        : 'Last signal: none in this window',
-                      ...(selectedJournalEntry.research?.factors ?? [])
-                    ].map((signal) => (
-                      <div key={signal}>• {signal}</div>
-                    ))}
-                  </div>
-                  {selectedJournalEntry.research ? (
-                    <div className='rounded-lg border p-3'>
-                      <div className='mb-2 text-sm font-medium'>Research used</div>
-                      <p className='text-muted-foreground text-sm'>
-                        {selectedJournalEntry.research.thesis}
-                      </p>
-                      <div className='mt-3 flex flex-wrap gap-2'>
-                        {selectedJournalEntry.research.links.map((link) => (
-                          <a
-                            key={link.url}
-                            href={link.url}
-                            target='_blank'
-                            rel='noreferrer'
-                            className='rounded-full border px-2 py-1 text-xs hover:text-foreground'
-                          >
-                            {link.source ? `${link.source}: ` : ''}
-                            {link.label}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className='text-muted-foreground rounded-lg border p-3 text-sm'>
-                      No research pack was captured for this older decision, but the original
-                      reason, risk, evidence and price are preserved above.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className='text-muted-foreground rounded-lg border p-3 text-sm'>
-                  This is a manual paper trade. It keeps the trade reason and resulting paper
-                  portfolio. If Linda generated a separate decision brief at the same time, select
-                  the adjacent Linda row to see the research pack.
-                </div>
-              )}
-            </div>
-          ) : null}
-          {latestBotDecision?.kind === 'bot' ? (
-            <div className='text-muted-foreground mt-3 space-y-1 text-xs'>
-              {[
-                `Strategy: ${strategyLabels[latestBotDecision.strategy]}`,
-                `Backtest return: ${percent(latestBotDecision.evidence.returnPct)} · max DD ${percent(-latestBotDecision.evidence.maxDrawdownPct)} · volume ${latestBotDecision.evidence.volumeVerdict}`,
-                latestBotDecision.evidence.lastSignal
-                  ? `Last signal: ${latestBotDecision.evidence.lastSignal.side} · ${latestBotDecision.evidence.lastSignal.reason}`
-                  : 'Last signal: none in this window',
-                ...(latestBotDecision.research?.factors ?? [])
-              ].map((signal) => (
-                <div key={signal}>• {signal}</div>
-              ))}
-              {latestBotDecision.research ? (
-                <div className='flex flex-wrap gap-2 pt-2'>
-                  {latestBotDecision.research.links.map((link) => (
-                    <a
-                      key={link.url}
-                      href={link.url}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='rounded-full border px-2 py-1 hover:text-foreground'
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <PaperBotJournal
+        rows={journalRows}
+        selectedRowId={selectedReplayEventId}
+        selectedJournalEntry={selectedJournalEntry}
+        selectedTradeKey={selectedTradeKey}
+        onSelectDecision={selectJournalDecision}
+        onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
+        botRunning={botRunning}
+        onRunPaperBot={() => void runPaperBot()}
+        tradeBriefRunningKey={tradeBriefRunningKey}
+        watchLevels={watchLevels}
+      />
 
       <div className='text-muted-foreground text-xs'>
-        Uppdaterad {new Date(data.snapshot.updatedAt).toLocaleString('sv-SE')} · Datakälla: Binance
-        + CoinGecko. Inte finansiell rådgivning.
+        Updated {dateTimeLabel(data.snapshot.updatedAt)} - Data source: Binance + CoinGecko. Not
+        financial advice.
       </div>
     </div>
   );
