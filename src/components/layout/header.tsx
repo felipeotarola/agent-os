@@ -6,7 +6,7 @@ import SearchInput from '../search-input';
 import { ThemeSelector } from '../themes/theme-selector';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
-import { ContextRailHeaderTrigger } from '@/components/context-rail-header-trigger';
+import { RightContextSidebarTrigger } from '@/components/layout/right-context-sidebar';
 
 export default function Header() {
   return (
@@ -26,7 +26,7 @@ export default function Header() {
           <ThemeSelector />
         </div>
         <NotificationCenter />
-        <ContextRailHeaderTrigger />
+        <RightContextSidebarTrigger />
       </div>
     </header>
   );

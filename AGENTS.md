@@ -681,10 +681,11 @@ Browse all available icons at `/dashboard/elements/icons` — a searchable grid 
 2. Create `src/features/<name>/api/service.ts` — data access functions (mock by default)
 3. Create `src/features/<name>/api/queries.ts` — query key factory + `queryOptions`
 4. Create page route: `src/app/dashboard/<name>/page.tsx`
-5. Create feature components in `src/features/<name>/components/`
-6. Add navigation item in `src/config/nav-config.ts`
-7. (Optional) Add route handlers in `src/app/api/<name>/` for REST API patterns
-8. (Optional) Register new icon in `src/components/icons.tsx`
+5. Wrap dashboard pages in `PageContainer` and provide `rightRail` content for page context when relevant
+6. Create feature components in `src/features/<name>/components/`
+7. Add navigation item in `src/config/nav-config.ts`
+8. (Optional) Add route handlers in `src/app/api/<name>/` for REST API patterns
+9. (Optional) Register new icon in `src/components/icons.tsx`
 
 ### Adding a New API Route
 
@@ -755,3 +756,4 @@ See "Theming System" section above or `docs/themes.md`.
 10. **Forms** - Use TanStack Form via `useAppForm` from `@/components/ui/tanstack-form`. Never use `useState` inside `AppField` render props — extract stateful logic into separate components.
 11. **Button loading** - Use `<Button isLoading={isPending}>` for loading states. Uses CSS Grid overlap trick for zero layout shift. When `isLoading` is not passed, button behaves as default shadcn. `SubmitButton` in forms handles this automatically via form `isSubmitting` state.
 12. **Data layer** - Always go through the service layer: `types.ts` → `service.ts` → `queries.ts`. Components import types from `types.ts`, functions from `service.ts`, query options from `queries.ts`. Never add runtime mock datasets or sample APIs to product routes.
+13. **Dashboard right rail** - The dashboard shell owns the persistent right context sidebar, and `PageContainer` registers page-specific content into it. New dashboard pages should pass `rightRail`, `rightRailTitle`, and `rightRailDescription` when they have page-specific context, filters, selected-item details, actions, notes, or AI brief content. Do not build ad hoc right sidebars inside individual pages unless there is a documented layout exception.

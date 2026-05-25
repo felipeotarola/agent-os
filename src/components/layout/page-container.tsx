@@ -1,6 +1,7 @@
 import React from 'react';
 import { Heading } from '../ui/heading';
 import type { InfobarContent } from '@/components/ui/infobar';
+import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
 
 function PageSkeleton() {
   return (
@@ -25,7 +26,11 @@ export default function PageContainer({
   pageTitle,
   pageDescription,
   infoContent,
-  pageHeaderAction
+  pageHeaderAction,
+  rightRail,
+  rightRailTitle,
+  rightRailDescription,
+  rightRailDefaultOpen
 }: {
   children: React.ReactNode;
   isLoading?: boolean;
@@ -35,6 +40,10 @@ export default function PageContainer({
   pageDescription?: string;
   infoContent?: InfobarContent;
   pageHeaderAction?: React.ReactNode;
+  rightRail?: React.ReactNode;
+  rightRailTitle?: string;
+  rightRailDescription?: string;
+  rightRailDefaultOpen?: boolean;
 }) {
   if (!access) {
     return (
@@ -54,6 +63,13 @@ export default function PageContainer({
 
   return (
     <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-3 pt-2 pb-4 min-[390px]:px-4 md:px-6 md:pt-4'>
+      <RightContextSidebarRegistration
+        title={rightRailTitle}
+        description={rightRailDescription}
+        defaultOpen={rightRailDefaultOpen}
+      >
+        {rightRail}
+      </RightContextSidebarRegistration>
       {hasHeader && (
         <div className='mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row'>
           <Heading

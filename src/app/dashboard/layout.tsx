@@ -2,6 +2,10 @@ import KBar from '@/components/kbar';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';
 import { InfoSidebar } from '@/components/layout/info-sidebar';
+import {
+  RightContextSidebar,
+  RightContextSidebarProvider
+} from '@/components/layout/right-context-sidebar';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { GlobalCaiChat } from '@/features/chat/components/global-cai-chat';
@@ -24,15 +28,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <KBar>
       <SidebarProvider defaultOpen={defaultOpen}>
-        <AppSidebar />
-        <SidebarInset>
-          <Header />
-          <InfobarProvider defaultOpen={false}>
-            {children}
-            <GlobalCaiChat />
-            <InfoSidebar side='right' />
-          </InfobarProvider>
-        </SidebarInset>
+        <RightContextSidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <Header />
+            <InfobarProvider defaultOpen={false}>
+              {children}
+              <GlobalCaiChat />
+              <InfoSidebar side='right' />
+            </InfobarProvider>
+          </SidebarInset>
+          <RightContextSidebar />
+        </RightContextSidebarProvider>
       </SidebarProvider>
     </KBar>
   );
