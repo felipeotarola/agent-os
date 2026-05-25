@@ -552,6 +552,28 @@ function createJournalRows({
     .slice(0, 12);
 }
 
+function createPersistedChartTrades(
+  decisions: PaperJournalEntry[],
+  selectedStrategy: TradingStrategy
+) {
+  return decisions
+    .filter(isPaperBotDecision)
+    .filter((decision) => decision.strategy === selectedStrategy)
+    .flatMap((decision): Trade[] => {
+      if (!decision.evidence.trade) return [];
+      return [
+        {
+          side: decision.evidence.trade.side,
+          time: decision.evidence.trade.time,
+          price: decision.evidence.trade.price,
+          quantity: decision.evidence.trade.quantity,
+          equity: decision.evidence.trade.equity,
+          reason: decision.reason
+        }
+      ];
+    });
+}
+
 function MetricItem({
   label,
   value,
@@ -1920,13 +1942,17 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
     return new Map(entries);
   }, [data.journal.decisions]);
+  const chartTrades = useMemo(
+    () => createPersistedChartTrades(data.journal.decisions, selectedStrategy),
+    [data.journal.decisions, selectedStrategy]
+  );
   const selectedTrade = useMemo(() => {
     if (!selectedTradeKey || !selectedBacktest) return undefined;
 
-    return selectedBacktest.trades.find(
+    return chartTrades.find(
       (trade) => getTradeDecisionKey(selectedBacktest.strategy, trade) === selectedTradeKey
     );
-  }, [selectedBacktest, selectedTradeKey]);
+  }, [chartTrades, selectedBacktest, selectedTradeKey]);
   const selectedTradeDecision = selectedTradeKey
     ? tradeDecisionMap.get(selectedTradeKey)
     : undefined;
@@ -2017,6 +2043,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
       setSelectedJournalId(undefined);
       setSelectedReplayEventId(undefined);
       setSelectedTradeKey(undefined);
+      setHoveredTrade(undefined);
       setData((current) => ({
         ...current,
         journal: { backtestRuns: [], decisions: [] }
@@ -2168,7 +2195,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
       <div className='flex flex-col gap-6'>
         <StrategyTradeChart
           candles={data.snapshot.candles}
-          trades={selectedBacktest?.trades ?? []}
+          trades={chartTrades}
           strategyKey={selectedBacktest?.strategy ?? selectedStrategy}
           strategy={strategyLabels[selectedBacktest?.strategy ?? selectedStrategy]}
           ohlc={ohlc}

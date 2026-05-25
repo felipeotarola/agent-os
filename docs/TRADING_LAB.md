@@ -46,6 +46,7 @@ Better split:
 - `decision_briefs`: optional research/brief payload linked to an `agent_decision` or `strategy_signal`.
 
 Rule: reads must not write. Opening or refreshing Trading Lab should never mutate persistence.
+Chart markers must come from persisted journal decisions, not raw backtest output, so clearing the journal removes them everywhere.
 
 ### Persistence rule
 
