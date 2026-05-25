@@ -167,6 +167,66 @@ function SignalCard({ signal, selected = false }: { signal: RadarSignal; selecte
   );
 }
 
+type RadarSnapshot = Awaited<ReturnType<typeof getRadarSnapshot>>;
+
+function RadarRightRail({ snapshot }: { snapshot: RadarSnapshot }) {
+  return (
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent flow map</CardTitle>
+          <CardDescription>Interaktiv karta: zooma, panorera, förstå flödet.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MermaidDiagram
+            title='Inbox Radar agent flow'
+            chart={agentFlowDiagram(
+              snapshot.counts.high,
+              snapshot.counts.review,
+              snapshot.counts.approvals
+            )}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Operating rules</CardTitle>
+          <CardDescription>Chat är inte hela produkten. Kontrollpanelen är.</CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-2 text-sm'>
+          {[
+            'Inbox Radar = attention + review + approvals, inte bara alerts.',
+            'Cai får förbereda och föreslå; externa eller riskabla steg kräver approval.',
+            'Varje item ska kunna bli task, snoozas, markeras handled eller öppnas i sin källa.',
+            'Mer detaljer visas när risken är hög — inte som standardbrus.'
+          ].map((item) => (
+            <div key={item} className='rounded-xl border bg-background/45 p-3'>
+              {item}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {snapshot.sourceErrors.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Source errors</CardTitle>
+            <CardDescription>Fail-soft connectors that need inspection.</CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-2 text-sm'>
+            {snapshot.sourceErrors.map((error) => (
+              <div key={error} className='rounded-xl border bg-background/40 p-3'>
+                {error}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default async function RadarPage({
   searchParams
 }: {
@@ -186,7 +246,11 @@ export default async function RadarPage({
   const activeView = views.find((view) => view.value === selectedView) ?? views[0];
 
   return (
-    <PageContainer>
+    <PageContainer
+      rightRailTitle='Radar context'
+      rightRailDescription='Flow, rules, and source health.'
+      rightRail={<RadarRightRail snapshot={snapshot} />}
+    >
       <div className='flex flex-1 flex-col gap-6'>
         <div className='relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm'>
           <div className='absolute inset-y-0 right-0 hidden w-1/2 rounded-l-full bg-primary/10 blur-3xl lg:block' />
@@ -222,7 +286,7 @@ export default async function RadarPage({
 
         {status && <Badge variant={status.tone}>{status.text}</Badge>}
 
-        <div className='grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]'>
+        <div className='grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
           <div className='space-y-4'>
             <Card>
               <CardHeader>
@@ -358,60 +422,6 @@ export default async function RadarPage({
               </div>
             </CardContent>
           </Card>
-
-          <div className='space-y-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>Agent flow map</CardTitle>
-                <CardDescription>Interaktiv karta: zooma, panorera, förstå flödet.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <MermaidDiagram
-                  title='Inbox Radar agent flow'
-                  chart={agentFlowDiagram(
-                    snapshot.counts.high,
-                    snapshot.counts.review,
-                    snapshot.counts.approvals
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Operating rules</CardTitle>
-                <CardDescription>Chat är inte hela produkten. Kontrollpanelen är.</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-2 text-sm'>
-                {[
-                  'Inbox Radar = attention + review + approvals, inte bara alerts.',
-                  'Cai får förbereda och föreslå; externa eller riskabla steg kräver approval.',
-                  'Varje item ska kunna bli task, snoozas, markeras handled eller öppnas i sin källa.',
-                  'Mer detaljer visas när risken är hög — inte som standardbrus.'
-                ].map((item) => (
-                  <div key={item} className='rounded-xl border bg-background/45 p-3'>
-                    {item}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {snapshot.sourceErrors.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Source errors</CardTitle>
-                  <CardDescription>Fail-soft connectors that need inspection.</CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-2 text-sm'>
-                  {snapshot.sourceErrors.map((error) => (
-                    <div key={error} className='rounded-xl border bg-background/40 p-3'>
-                      {error}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
         </div>
 
         <div className='text-muted-foreground flex flex-wrap items-center justify-between gap-3 text-xs'>
