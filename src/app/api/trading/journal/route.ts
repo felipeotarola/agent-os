@@ -13,6 +13,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const strategies: TradingStrategy[] = ['sma-cross', 'rsi-reversion', 'volume-breakout'];
+const noStoreHeaders = { 'cache-control': 'no-store' };
 
 function isStrategy(value: unknown): value is TradingStrategy {
   return typeof value === 'string' && strategies.includes(value as TradingStrategy);
@@ -29,11 +30,11 @@ function isTradeSide(value: unknown): value is 'buy' | 'sell' {
 
 export async function GET() {
   try {
-    return NextResponse.json(await getTradingJournal());
+    return NextResponse.json(await getTradingJournal(), { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading journal read failed' },
-      { status: 500 }
+      { status: 500, headers: noStoreHeaders }
     );
   }
 }
@@ -41,12 +42,12 @@ export async function GET() {
 export async function DELETE(request: Request) {
   try {
     const id = new URL(request.url).searchParams.get('id');
-    if (id) return NextResponse.json(await deleteTradingSignal(id));
-    return NextResponse.json(await clearTradingJournal());
+    if (id) return NextResponse.json(await deleteTradingSignal(id), { headers: noStoreHeaders });
+    return NextResponse.json(await clearTradingJournal(), { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading journal clear failed' },
-      { status: 500 }
+      { status: 500, headers: noStoreHeaders }
     );
   }
 }
@@ -57,23 +58,33 @@ export async function POST(request: Request) {
 
     if (body.kind === 'bot') {
       if (!isStrategy(body.strategy)) {
-        return NextResponse.json({ error: 'Invalid strategy' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Invalid strategy' },
+          { status: 400, headers: noStoreHeaders }
+        );
       }
 
       const tradeTime = toFiniteNumber(body.tradeTime);
       const tradeSide = body.tradeSide;
 
       if (body.tradeTime !== undefined && tradeTime === undefined) {
-        return NextResponse.json({ error: 'Invalid trade time' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Invalid trade time' },
+          { status: 400, headers: noStoreHeaders }
+        );
       }
 
       if (tradeSide !== undefined && !isTradeSide(tradeSide)) {
-        return NextResponse.json({ error: 'Invalid trade side' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Invalid trade side' },
+          { status: 400, headers: noStoreHeaders }
+        );
       }
 
-      return NextResponse.json({
-        decision: await runPaperBotDecision(body.strategy, { tradeTime, tradeSide })
-      });
+      return NextResponse.json(
+        { decision: await runPaperBotDecision(body.strategy, { tradeTime, tradeSide }) },
+        { headers: noStoreHeaders }
+      );
     }
 
     if (body.kind === 'manual') {
@@ -90,7 +101,10 @@ export async function POST(request: Request) {
         btc === undefined ||
         equity === undefined
       ) {
-        return NextResponse.json({ error: 'Invalid manual paper decision' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Invalid manual paper decision' },
+          { status: 400, headers: noStoreHeaders }
+        );
       }
 
       const entry: ManualPaperDecision = {
@@ -107,14 +121,17 @@ export async function POST(request: Request) {
       };
 
       const decision = await appendPaperDecision(entry);
-      return NextResponse.json({ decision });
+      return NextResponse.json({ decision }, { headers: noStoreHeaders });
     }
 
-    return NextResponse.json({ error: 'Invalid journal action' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid journal action' },
+      { status: 400, headers: noStoreHeaders }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading journal write failed' },
-      { status: 500 }
+      { status: 500, headers: noStoreHeaders }
     );
   }
 }

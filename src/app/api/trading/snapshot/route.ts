@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const strategies: TradingStrategy[] = ['sma-cross', 'rsi-reversion', 'volume-breakout'];
+const noStoreHeaders = { 'cache-control': 'no-store' };
 
 export async function GET() {
   try {
@@ -13,11 +14,11 @@ export async function GET() {
     const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
     const journal = await getTradingJournal();
 
-    return NextResponse.json({ snapshot, backtests, journal });
+    return NextResponse.json({ snapshot, backtests, journal }, { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading snapshot failed' },
-      { status: 502 }
+      { status: 502, headers: noStoreHeaders }
     );
   }
 }
@@ -33,11 +34,14 @@ export async function POST(request: Request) {
     const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
     const journal = await getTradingJournal();
 
-    return NextResponse.json({ snapshot, backtests, journal, decision });
+    return NextResponse.json(
+      { snapshot, backtests, journal, decision },
+      { headers: noStoreHeaders }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Paper bot decision failed' },
-      { status: 502 }
+      { status: 502, headers: noStoreHeaders }
     );
   }
 }

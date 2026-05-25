@@ -132,8 +132,7 @@ type PersistedStrategySummary = {
   tradeCount: number;
 };
 
-const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
-const tradingResetKey = 'agent-os:trading-lab:local-reset:v2';
+const tradingStoragePrefix = 'agent-os:trading-lab';
 
 const strategyLabels: Record<string, string> = {
   'sma-cross': 'SMA cross',
@@ -2190,22 +2189,13 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   );
 
   useEffect(() => {
-    if (window.localStorage.getItem(tradingResetKey) !== 'done') {
-      for (const key of Object.keys(window.localStorage)) {
-        if (key.toLowerCase().includes('trading-lab')) window.localStorage.removeItem(key);
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith(tradingStoragePrefix) || key.toLowerCase().includes('trading-lab')) {
+        window.localStorage.removeItem(key);
       }
-      window.localStorage.setItem(tradingResetKey, 'done');
-      setPortfolio(defaultPortfolio());
-      return;
     }
-
-    const stored = window.localStorage.getItem(paperKey);
-    if (stored) setPortfolio(JSON.parse(stored) as PaperPortfolio);
+    setPortfolio(defaultPortfolio());
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(paperKey, JSON.stringify(portfolio));
-  }, [portfolio]);
 
   const selectedBacktest =
     data.backtests.find((item) => item.strategy === selectedStrategy) ?? data.backtests[0];

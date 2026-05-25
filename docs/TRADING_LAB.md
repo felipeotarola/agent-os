@@ -18,7 +18,7 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
   - `rsi-reversion`
   - `volume-breakout`
 - Shows persisted Linda paper trades for review, audit, chart markers, timeline, and strategy summaries.
-- Maintains a browser-local paper portfolio in `localStorage`.
+- Does not store Trading Lab trades or paper portfolio state in browser `localStorage`.
 - Treats Linda as the trader; the UI must not create trades from raw backtest rows.
 - Lets the user inspect or delete persisted Linda trades, but trade creation happens agent-side.
 - Shows a Linda Bradford agent panel with stance, guardrails, latest evidence, risk, and next check.
@@ -68,7 +68,7 @@ Top strategy metrics also come from persisted `TradingSignal` summaries, not raw
 
 ### Persistence rule
 
-Production must not use the JSON file fallback unless `TRADING_JOURNAL_FILE_FALLBACK=1` is explicitly set. Without `DATABASE_URL`, Trading Lab returns an empty journal and skips durable writes, because serverless file fallback can keep warm-instance ghost rows across browsers.
+Trading Lab must use Postgres/Supabase via `DATABASE_URL` for persistence. The JSON file fallback is disabled unless `TRADING_JOURNAL_FILE_FALLBACK=1` is explicitly set. Without `DATABASE_URL`, Trading Lab returns an empty journal and skips durable writes, because file fallback can keep ghost rows outside Supabase.
 
 ## Guardrails
 
