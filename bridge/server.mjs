@@ -17,6 +17,24 @@ if (!databaseUrl) throw new Error('BRIDGE_DATABASE_URL or DATABASE_URL is requir
 
 const sql = postgres(databaseUrl, { max: 5, prepare: false });
 const execFileAsync = promisify(execFile);
+
+function databaseSource() {
+  try {
+    const url = new URL(databaseUrl);
+    const host = url.hostname;
+    return {
+      provider: host.includes('supabase.co') ? 'supabase' : 'postgres',
+      host,
+      database: url.pathname.replace(/^\//, '') || 'postgres',
+      user: decodeURIComponent(url.username || ''),
+      ssl: url.searchParams.get('sslmode') ?? null
+    };
+  } catch {
+    return { provider: 'postgres', host: 'unknown', database: 'unknown', user: '', ssl: null };
+  }
+}
+
+const dbSource = databaseSource();
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const bridgeVersion = String(packageJson.version ?? 'unknown');
 const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
@@ -1007,6 +1025,7 @@ async function systemStatus() {
     db: {
       status: dbOnline ? 'online' : 'unknown',
       checkedAt,
+      source: dbSource,
       error: dbResult.status === 'rejected' ? dbResult.reason?.message : null
     },
     openclaw: openclawValue,

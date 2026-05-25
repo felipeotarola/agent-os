@@ -34,6 +34,15 @@ const systemStatusSchema = z.object({
   db: z.object({
     status: z.string(),
     checkedAt: z.string().optional(),
+    source: z
+      .object({
+        provider: z.string(),
+        host: z.string(),
+        database: z.string(),
+        user: z.string(),
+        ssl: z.string().nullable().optional()
+      })
+      .optional(),
     error: z.string().nullable().optional()
   }),
   openclaw: z

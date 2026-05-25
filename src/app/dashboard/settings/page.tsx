@@ -32,10 +32,14 @@ export default async function SettingsPage() {
       configured: Boolean(process.env.AGENT_OS_BRIDGE_URL && process.env.AGENT_OS_BRIDGE_TOKEN)
     },
     {
-      name: 'Postgres',
+      name: status.db.source?.provider === 'supabase' ? 'Supabase Postgres' : 'Postgres',
       status: status.db.status,
-      detail: process.env.DATABASE_URL ? 'DATABASE_URL configured' : 'DATABASE_URL missing',
-      configured: Boolean(process.env.DATABASE_URL)
+      detail: status.db.source
+        ? `${status.db.source.host} · ${status.db.source.database} · ${status.db.source.user}`
+        : process.env.DATABASE_URL
+          ? 'DATABASE_URL configured'
+          : 'DATABASE_URL missing',
+      configured: Boolean(process.env.DATABASE_URL || status.db.source)
     },
     {
       name: 'OpenClaw CLI',
@@ -135,7 +139,11 @@ export default async function SettingsPage() {
               <CardDescription>DB</CardDescription>
               <CardTitle className='text-3xl'>{status.db.status}</CardTitle>
             </CardHeader>
-            <CardContent className='text-muted-foreground text-sm'>Postgres read model</CardContent>
+            <CardContent className='text-muted-foreground text-sm'>
+              {status.db.source?.provider === 'supabase'
+                ? `Supabase · ${status.db.source.database}`
+                : 'Postgres read model'}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className='pb-2'>
