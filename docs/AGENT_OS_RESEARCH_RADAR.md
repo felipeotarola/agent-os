@@ -2,7 +2,7 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-05-19
+Last scan: 2026-05-25
 
 ## What strong agentic systems tend to have
 
@@ -12,6 +12,7 @@ Sources reviewed in this pass:
 - Microsoft Azure Architecture Center: orchestration patterns — direct model, single-agent-with-tools, multi-agent; sequential, concurrent, handoff/group patterns.
 - HITL Agent Inbox docs: review inbox states, assignments, filters, bulk operations, analytics, access control.
 - OpenAI ChatGPT agent announcement: unified research/action environment, multiple tool modes, connectors, virtual computer, interrupt/steer/pause/resume, asks permission before consequential actions.
+- Microsoft STATE-Bench: stateful agent task evaluation benchmark focused on whether memory improves real multi-turn task outcomes, not just retrieval.
 
 ## Gap analysis vs current Agent OS / OpenClaw
 
@@ -121,6 +122,21 @@ V1:
 - “too noisy / useful / wrong / risky” tags
 - weekly summary of what to adjust
 
+### 6. Memory eval harness, inspired by STATE-Bench
+
+Why: most memory checks only prove recall works. Agent OS needs to know whether memory/proactivity changes outcomes: fewer repeated mistakes, fewer unnecessary turns, safer approvals, better task completion, lower cost.
+
+High-signal pattern from Microsoft STATE-Bench:
+- evaluate agents in stateful multi-turn scenarios with tools and a simulated user, not static Q&A
+- score final state / task completion, reliability across repeated runs, cost/turn/tool efficiency, and UX/consent quality
+- compare memory configurations by measuring behavior improvement, not retrieval accuracy alone
+
+Safe internal V1 for Agent OS:
+- create 10-20 local “Felipe cockpit” scenarios: convert inbox signal to task, prepare approval item, recover from stale connector, promote memory, reject unsafe external action
+- run each scenario against fixed fixture state with memory enabled/disabled or old/new prompts
+- score: task completed, approval safety, unnecessary messages/tool calls, uses known preferences correctly, avoids leaking private context
+- surface the weekly result in Evals or Inbox Radar as “memory/proactivity regression check”
+
 ## OpenClaw vs Agent OS split
 
 OpenClaw already provides primitives:
@@ -147,3 +163,5 @@ Continue Inbox Radar V2 rather than adding `/dashboard/review`.
 Highest-leverage next step: wire producers into the new bridge-backed `inbox_items` endpoint so proactive loops and subagents can create approval/review items directly instead of only surfacing derived signals.
 
 Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`) and Inbox Radar now reads active persisted items alongside derived signals. Producers now have a local bridge CLI helper at `scripts/create-inbox-item.mjs` for idempotently creating review/approval/task items without adding new dashboard surfaces.
+
+New build candidate from 2026-05-25 scan: add a tiny memory/proactivity regression harness inspired by STATE-Bench, using local Agent OS fixtures and scoring outcome/reliability/cost/safety instead of retrieval accuracy.
