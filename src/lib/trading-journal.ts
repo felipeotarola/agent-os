@@ -254,6 +254,7 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
 
   let cash = PAPER_WALLET_STARTING_CASH;
   let btc = 0;
+  let realizedPnl = 0;
   const executions: Array<typeof tradingExecutions.$inferInsert> = [];
 
   for (const decision of decisions.toSorted(
@@ -291,6 +292,7 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
       const proceeds = grossCash - fee;
       btc = 0;
       cash += proceeds;
+      realizedPnl = cash - PAPER_WALLET_STARTING_CASH;
       executions.push({
         id: randomUUID(),
         walletId: PAPER_WALLET_ID,
@@ -316,7 +318,7 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
         asset_balance, realized_pnl, updated_at
       ) values (
         ${PAPER_WALLET_ID}, 'Linda', 'BTCUSDC', 'BTC', 'USDC', ${PAPER_WALLET_STARTING_CASH},
-        ${cash}, ${btc}, ${cash + btc * (decisions.at(-1)?.price ?? 0) - PAPER_WALLET_STARTING_CASH}, now()
+        ${cash}, ${btc}, ${realizedPnl}, now()
       )
       on conflict (id) do update set
         cash_balance = excluded.cash_balance,
