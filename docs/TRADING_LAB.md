@@ -47,6 +47,7 @@ Better split:
 
 Rule: reads must not write. Opening or refreshing Trading Lab should never mutate persistence.
 Chart markers must come from persisted journal decisions, not raw backtest output, so clearing the journal removes them everywhere.
+Chart interval buttons aggregate OHLCV candles: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly, 5Y=five-year buckets.
 
 ### Persistence rule
 

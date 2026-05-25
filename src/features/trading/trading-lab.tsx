@@ -188,6 +188,65 @@ function toChartTime(value: number): UTCTimestamp {
   return Math.floor(value / 1000) as UTCTimestamp;
 }
 
+function startOfUtcDay(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function startOfUtcWeek(value: number) {
+  const dayStart = startOfUtcDay(value);
+  const date = new Date(dayStart);
+  const day = date.getUTCDay() || 7;
+  return dayStart - (day - 1) * 24 * 60 * 60 * 1000;
+}
+
+function startOfUtcMonth(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+function startOfUtcYear(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), 0, 1);
+}
+
+function startOfUtcFiveYear(value: number) {
+  const date = new Date(value);
+  return Date.UTC(Math.floor(date.getUTCFullYear() / 5) * 5, 0, 1);
+}
+
+function candleBucketTime(value: number, interval: ChartInterval) {
+  if (interval === '1W') return startOfUtcWeek(value);
+  if (interval === '1M') return startOfUtcMonth(value);
+  if (interval === '1Y' || interval === 'All') return startOfUtcYear(value);
+  if (interval === '5Y') return startOfUtcFiveYear(value);
+  return startOfUtcDay(value);
+}
+
+function aggregateCandlesForInterval(candles: Candle[], interval: ChartInterval): Candle[] {
+  if (interval === '1D') return candles;
+
+  const aggregated = new Map<number, Candle>();
+
+  for (const candle of candles) {
+    const time = candleBucketTime(candle.time, interval);
+    const existing = aggregated.get(time);
+
+    if (!existing) {
+      aggregated.set(time, { ...candle, time });
+      continue;
+    }
+
+    existing.high = Math.max(existing.high, candle.high);
+    existing.low = Math.min(existing.low, candle.low);
+    existing.close = candle.close;
+    existing.volume += candle.volume;
+    existing.quoteVolume += candle.quoteVolume;
+  }
+
+  return [...aggregated.values()].toSorted((left, right) => left.time - right.time);
+}
+
 function clampRgb(value: number) {
   return Math.min(255, Math.max(0, Math.round(value * 255)));
 }
@@ -338,10 +397,10 @@ function dateRangeLabel(candles: Candle[]) {
 
 function chartRangeBars(interval: ChartInterval, candleCount: number) {
   if (interval === '1D') return Math.min(95, candleCount);
-  if (interval === '1W') return Math.min(7, candleCount);
-  if (interval === '1M') return Math.min(30, candleCount);
-  if (interval === '1Y') return Math.min(365, candleCount);
-  if (interval === '5Y') return Math.min(365 * 5, candleCount);
+  if (interval === '1W') return Math.min(52, candleCount);
+  if (interval === '1M') return Math.min(36, candleCount);
+  if (interval === '1Y') return Math.min(12, candleCount);
+  if (interval === '5Y') return Math.min(8, candleCount);
   return candleCount;
 }
 
@@ -862,7 +921,14 @@ function StrategyTradeChart({
 }) {
   const [chartInterval, setChartInterval] = useState<ChartInterval>('1D');
   const sourceCandles = useMemo(() => candles.filter((candle) => candle.close > 0), [candles]);
-  const chartCandles = sourceCandles;
+  const chartCandles = useMemo(
+    () => aggregateCandlesForInterval(sourceCandles, chartInterval),
+    [chartInterval, sourceCandles]
+  );
+  const chartOhlc = useMemo(
+    () => currentOhlc(chartCandles, ohlc.close),
+    [chartCandles, ohlc.close]
+  );
   const width = 1120;
   const height = 520;
   const visibleCandleTimes = useMemo(
@@ -901,12 +967,12 @@ function StrategyTradeChart({
             <Badge variant='outline'>{strategy}</Badge>
           </div>
           <div className='text-muted-foreground mt-2 flex flex-wrap gap-3 text-xs'>
-            <span>O {moneyPrecise(ohlc.open)}</span>
-            <span>H {moneyPrecise(ohlc.high)}</span>
-            <span>L {moneyPrecise(ohlc.low)}</span>
-            <span>C {moneyPrecise(ohlc.close)}</span>
-            <span className={ohlc.change >= 0 ? 'text-primary' : 'text-destructive'}>
-              {moneyPrecise(ohlc.change)} ({percent(ohlc.changePct)})
+            <span>O {moneyPrecise(chartOhlc.open)}</span>
+            <span>H {moneyPrecise(chartOhlc.high)}</span>
+            <span>L {moneyPrecise(chartOhlc.low)}</span>
+            <span>C {moneyPrecise(chartOhlc.close)}</span>
+            <span className={chartOhlc.change >= 0 ? 'text-primary' : 'text-destructive'}>
+              {moneyPrecise(chartOhlc.change)} ({percent(chartOhlc.changePct)})
             </span>
           </div>
         </div>
@@ -1106,7 +1172,7 @@ function TradingViewDecisionChart({
       const tradeKey = getTradeDecisionKey(strategyKey, trade);
       const buy = trade.side === 'buy';
       const selected = selectedTradeKey === tradeKey;
-      const markerTime = toChartTime(trade.time);
+      const markerTime = toChartTime(candleBucketTime(trade.time, interval));
       tradeById.set(tradeKey, trade);
       tradeByTime.set(markerTime as number, trade);
 
