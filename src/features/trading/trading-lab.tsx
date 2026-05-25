@@ -885,25 +885,24 @@ function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics
 
 function TradingContextBar({
   selectedBacktest,
+  selectedSummary,
   candles,
   portfolio,
   paperEquity,
   paperReturnPct,
-  lastSignal,
   latestLindaAction
 }: {
   selectedBacktest?: BacktestResult;
+  selectedSummary?: PersistedStrategySummary;
   candles: Candle[];
   portfolio: PaperPortfolio;
   paperEquity: number;
   paperReturnPct: number;
-  lastSignal?: Trade;
   latestLindaAction: TradeAction;
 }) {
   const currentPosition = portfolio.btc > 0 ? 'LONG' : 'FLAT';
-  const lastSignalLabel = lastSignal
-    ? lastSignal.side.toUpperCase()
-    : latestLindaAction.toUpperCase();
+  const hasPersistedTrades = (selectedSummary?.tradeCount ?? 0) > 0;
+  const lastSignalLabel = hasPersistedTrades ? latestLindaAction.toUpperCase() : 'NONE';
 
   return (
     <Card className='overflow-hidden rounded-2xl py-0'>
@@ -922,16 +921,19 @@ function TradingContextBar({
           <MetricItem label='Date range' value={dateRangeLabel(candles)} />
           <MetricItem
             label='Return'
-            value={percent(selectedBacktest?.returnPct)}
-            tone={(selectedBacktest?.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
+            value={hasPersistedTrades ? percent(selectedSummary?.returnPct) : '--'}
+            tone={(selectedSummary?.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
           />
           <MetricItem
             label='Max drawdown'
-            value={percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
+            value={hasPersistedTrades ? percent(-(selectedSummary?.maxDrawdownPct ?? 0)) : '--'}
             tone='negative'
           />
-          <MetricItem label='Win rate' value={percent(selectedBacktest?.winRatePct)} />
-          <MetricItem label='Trades' value={selectedBacktest?.trades.length ?? 0} />
+          <MetricItem
+            label='Win rate'
+            value={hasPersistedTrades ? percent(selectedSummary?.winRatePct) : '--'}
+          />
+          <MetricItem label='Trades' value={selectedSummary?.tradeCount ?? 0} />
           <MetricItem
             label='Position / signal'
             value={`${currentPosition} / ${lastSignalLabel}`}
@@ -2203,6 +2205,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     [data.backtests, data.journal.signals]
   );
 
+  const selectedStrategySummary = strategySummaries.find(
+    (summary) => summary.strategy === selectedStrategy
+  );
+
   async function refresh() {
     setLoading(true);
     try {
@@ -2376,11 +2382,11 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
       <TradingContextBar
         selectedBacktest={selectedBacktest}
+        selectedSummary={selectedStrategySummary}
         candles={data.snapshot.candles}
         portfolio={portfolio}
         paperEquity={paperEquity}
         paperReturnPct={paperReturnPct}
-        lastSignal={lastSignal}
         latestLindaAction={latestLindaAction}
       />
 

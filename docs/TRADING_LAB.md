@@ -61,6 +61,7 @@ Chart markers must come from persisted journal decisions, not raw backtest outpu
 Chart interval buttons aggregate OHLCV candles: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly, 5Y=five-year buckets.
 Strategy comparison is read-only persisted trade summary state; selecting a strategy must not select/create a trade decision.
 Strategy comparison metrics come from persisted `TradingSignal` objects. If no signals exist for a strategy, return/drawdown/win-rate render empty instead of using raw generated backtest trades.
+Top strategy metrics also come from persisted `TradingSignal` summaries, not raw generated backtests.
 
 ### Persistence rule
 
