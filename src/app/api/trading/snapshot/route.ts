@@ -3,6 +3,7 @@ import { getTradingJournal, runPaperBotDecision } from '@/lib/trading-journal';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const strategies: TradingStrategy[] = ['sma-cross', 'rsi-reversion', 'volume-breakout'];
 

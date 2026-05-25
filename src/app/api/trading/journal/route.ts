@@ -1,9 +1,15 @@
-import { appendPaperDecision, getTradingJournal, runPaperBotDecision } from '@/lib/trading-journal';
+import {
+  appendPaperDecision,
+  clearTradingJournal,
+  getTradingJournal,
+  runPaperBotDecision
+} from '@/lib/trading-journal';
 import type { ManualPaperDecision, TradingStrategy } from '@/lib/trading';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const strategies: TradingStrategy[] = ['sma-cross', 'rsi-reversion', 'volume-breakout'];
 
@@ -26,6 +32,17 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Trading journal read failed' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE() {
+  try {
+    return NextResponse.json(await clearTradingJournal());
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Trading journal clear failed' },
       { status: 500 }
     );
   }

@@ -1694,6 +1694,8 @@ function PaperBotJournal({
   onOpenTradeBrief,
   botRunning,
   onRunPaperBot,
+  onClearJournal,
+  journalClearing,
   tradeBriefRunningKey,
   watchLevels
 }: {
@@ -1705,6 +1707,8 @@ function PaperBotJournal({
   onOpenTradeBrief: (trade: Trade) => void;
   botRunning: boolean;
   onRunPaperBot: () => void;
+  onClearJournal: () => void;
+  journalClearing: boolean;
   tradeBriefRunningKey?: string;
   watchLevels: WatchLevels;
 }) {
@@ -1715,9 +1719,19 @@ function PaperBotJournal({
           <CardTitle>Paper bot journal</CardTitle>
           <CardDescription>Review every decision the strategy made.</CardDescription>
         </div>
-        <Button type='button' variant='secondary' isLoading={botRunning} onClick={onRunPaperBot}>
-          Run Linda decision
-        </Button>
+        <div className='flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            isLoading={journalClearing}
+            onClick={onClearJournal}
+          >
+            Clear journal
+          </Button>
+          <Button type='button' variant='secondary' isLoading={botRunning} onClick={onRunPaperBot}>
+            Run Linda decision
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className='flex flex-col gap-4'>
         <div className='flex flex-wrap items-center gap-2'>
@@ -1856,6 +1870,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
   const [loading, setLoading] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
+  const [journalClearing, setJournalClearing] = useState(false);
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
   const [selectedTradeKey, setSelectedTradeKey] = useState<string>();
@@ -1992,6 +2007,22 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
       setData(payload);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function clearJournal() {
+    setJournalClearing(true);
+    try {
+      await fetch('/api/trading/journal', { method: 'DELETE', cache: 'no-store' });
+      setSelectedJournalId(undefined);
+      setSelectedReplayEventId(undefined);
+      setSelectedTradeKey(undefined);
+      setData((current) => ({
+        ...current,
+        journal: { backtestRuns: [], decisions: [] }
+      }));
+    } finally {
+      setJournalClearing(false);
     }
   }
 
@@ -2173,6 +2204,8 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
           botRunning={botRunning}
           onRunPaperBot={() => void runPaperBot()}
+          onClearJournal={() => void clearJournal()}
+          journalClearing={journalClearing}
           tradeBriefRunningKey={tradeBriefRunningKey}
           watchLevels={watchLevels}
         />

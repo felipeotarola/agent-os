@@ -8,6 +8,8 @@ import {
   type TradingStrategy
 } from '@/lib/trading';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Agent OS: Trading Lab'
 };

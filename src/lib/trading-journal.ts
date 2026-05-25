@@ -239,6 +239,24 @@ export async function getTradingJournal() {
   };
 }
 
+export async function clearTradingJournal() {
+  const empty = emptyJournal();
+
+  if (databaseEnabled()) {
+    try {
+      await Promise.all([db.delete(tradingDecisions), db.delete(tradingBacktestRuns)]);
+    } catch (error) {
+      console.error('Trading DB journal clear failed; still clearing file journal', error);
+    }
+  }
+
+  await mkdir(DATA_DIR, { recursive: true });
+  const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(empty, null, 2)}\n`, 'utf8');
+  await rename(temporaryPath, JOURNAL_PATH);
+  return empty;
+}
+
 export async function persistBacktestRun(snapshot: MarketSnapshot, backtests: BacktestResult[]) {
   const journal = await readJournal();
   const record: BacktestRunRecord = {
