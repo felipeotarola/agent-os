@@ -7,13 +7,19 @@ import {
   type MarketSnapshot,
   type PaperBotDecision,
   type PaperJournalEntry,
+  type PaperWallet,
   type Trade,
   type TradingSignal,
   type TradingStrategy
 } from '@/lib/trading';
-import { db } from '@/db/client';
-import { tradingBacktestRuns, tradingDecisions } from '@/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { db, sql } from '@/db/client';
+import {
+  tradingBacktestRuns,
+  tradingDecisions,
+  tradingExecutions,
+  tradingWallets
+} from '@/db/schema';
+import { asc, desc, eq } from 'drizzle-orm';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -24,11 +30,15 @@ const DATA_DIR = process.env.VERCEL
 const JOURNAL_PATH = path.join(DATA_DIR, 'trading-lab-journal.json');
 const MAX_BACKTEST_RUNS = 40;
 const MAX_DECISIONS = 120;
+const PAPER_WALLET_ID = 'linda-btcusdc-paper';
+const PAPER_WALLET_STARTING_CASH = 10_000;
+const PAPER_WALLET_FEE_RATE = 0.001;
 
 type TradingJournal = {
   version: 1;
   backtestRuns: BacktestRunRecord[];
   decisions: PaperJournalEntry[];
+  wallet?: PaperWallet;
 };
 
 export type BacktestRunRecord = {
@@ -173,6 +183,177 @@ function rowToBacktestRun(row: typeof tradingBacktestRuns.$inferSelect): Backtes
   };
 }
 
+function emptyPaperWallet(): PaperWallet {
+  return {
+    id: PAPER_WALLET_ID,
+    agent: 'Linda',
+    symbol: 'BTCUSDC',
+    baseAsset: 'BTC',
+    quoteAsset: 'USDC',
+    startingCash: PAPER_WALLET_STARTING_CASH,
+    cashBalance: PAPER_WALLET_STARTING_CASH,
+    assetBalance: 0,
+    realizedPnl: 0,
+    updatedAt: new Date().toISOString(),
+    executions: []
+  };
+}
+
+function rowToWallet(
+  wallet: typeof tradingWallets.$inferSelect,
+  executions: Array<typeof tradingExecutions.$inferSelect>
+): PaperWallet {
+  return {
+    id: wallet.id,
+    agent: 'Linda',
+    symbol: 'BTCUSDC',
+    baseAsset: 'BTC',
+    quoteAsset: 'USDC',
+    startingCash: wallet.startingCash,
+    cashBalance: wallet.cashBalance,
+    assetBalance: wallet.assetBalance,
+    realizedPnl: wallet.realizedPnl,
+    updatedAt: fromDate(wallet.updatedAt),
+    executions: executions.map((execution) => ({
+      id: execution.id,
+      walletId: execution.walletId,
+      decisionId: execution.decisionId,
+      action: execution.action as 'buy' | 'sell',
+      price: execution.price,
+      quantity: execution.quantity,
+      cashDelta: execution.cashDelta,
+      assetDelta: execution.assetDelta,
+      fee: execution.fee,
+      equityAfter: execution.equityAfter,
+      reason: execution.reason,
+      createdAt: fromDate(execution.createdAt)
+    }))
+  };
+}
+
+async function readDbWallet(): Promise<PaperWallet> {
+  const [wallet] = await db
+    .select()
+    .from(tradingWallets)
+    .where(eq(tradingWallets.id, PAPER_WALLET_ID))
+    .limit(1);
+
+  if (!wallet) return emptyPaperWallet();
+
+  const executions = await db
+    .select()
+    .from(tradingExecutions)
+    .where(eq(tradingExecutions.walletId, PAPER_WALLET_ID))
+    .orderBy(asc(tradingExecutions.createdAt));
+
+  return rowToWallet(wallet, executions);
+}
+
+async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
+  if (!databaseEnabled()) return emptyPaperWallet();
+
+  let cash = PAPER_WALLET_STARTING_CASH;
+  let btc = 0;
+  const executions: Array<typeof tradingExecutions.$inferInsert> = [];
+
+  for (const decision of decisions.toSorted(
+    (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt)
+  )) {
+    if (decision.action !== 'buy' && decision.action !== 'sell') continue;
+    if (!Number.isFinite(decision.price) || decision.price <= 0) continue;
+
+    if (decision.action === 'buy') {
+      if (cash <= 0) continue;
+      const grossCash = cash;
+      const fee = grossCash * PAPER_WALLET_FEE_RATE;
+      const quantity = (grossCash - fee) / decision.price;
+      cash = 0;
+      btc += quantity;
+      executions.push({
+        id: randomUUID(),
+        walletId: PAPER_WALLET_ID,
+        decisionId: decision.id,
+        action: 'buy',
+        price: decision.price,
+        quantity,
+        cashDelta: -grossCash,
+        assetDelta: quantity,
+        fee,
+        equityAfter: cash + btc * decision.price,
+        reason: decision.reason,
+        createdAt: toDate(decision.createdAt)
+      });
+    } else {
+      if (btc <= 0) continue;
+      const quantity = btc;
+      const grossCash = quantity * decision.price;
+      const fee = grossCash * PAPER_WALLET_FEE_RATE;
+      const proceeds = grossCash - fee;
+      btc = 0;
+      cash += proceeds;
+      executions.push({
+        id: randomUUID(),
+        walletId: PAPER_WALLET_ID,
+        decisionId: decision.id,
+        action: 'sell',
+        price: decision.price,
+        quantity,
+        cashDelta: proceeds,
+        assetDelta: -quantity,
+        fee,
+        equityAfter: cash,
+        reason: decision.reason,
+        createdAt: toDate(decision.createdAt)
+      });
+    }
+  }
+
+  await sql.begin(async (tx) => {
+    await tx`delete from trading_executions where wallet_id = ${PAPER_WALLET_ID}`;
+    await tx`
+      insert into trading_wallets (
+        id, agent, symbol, base_asset, quote_asset, starting_cash, cash_balance,
+        asset_balance, realized_pnl, updated_at
+      ) values (
+        ${PAPER_WALLET_ID}, 'Linda', 'BTCUSDC', 'BTC', 'USDC', ${PAPER_WALLET_STARTING_CASH},
+        ${cash}, ${btc}, ${cash + btc * (decisions.at(-1)?.price ?? 0) - PAPER_WALLET_STARTING_CASH}, now()
+      )
+      on conflict (id) do update set
+        cash_balance = excluded.cash_balance,
+        asset_balance = excluded.asset_balance,
+        realized_pnl = excluded.realized_pnl,
+        updated_at = now()
+    `;
+
+    for (const execution of executions) {
+      const id = execution.id ?? randomUUID();
+      const walletId = execution.walletId ?? PAPER_WALLET_ID;
+      const decisionId = execution.decisionId ?? '';
+      const action = execution.action ?? 'buy';
+      const price = execution.price ?? 0;
+      const quantity = execution.quantity ?? 0;
+      const cashDelta = execution.cashDelta ?? 0;
+      const assetDelta = execution.assetDelta ?? 0;
+      const fee = execution.fee ?? 0;
+      const equityAfter = execution.equityAfter ?? 0;
+      const reason = execution.reason ?? '';
+      const createdAt = fromDate(execution.createdAt ?? new Date());
+
+      await tx`
+        insert into trading_executions (
+          id, wallet_id, decision_id, action, price, quantity, cash_delta, asset_delta,
+          fee, equity_after, reason, created_at
+        ) values (
+          ${id}, ${walletId}, ${decisionId}, ${action}, ${price}, ${quantity}, ${cashDelta}, ${assetDelta},
+          ${fee}, ${equityAfter}, ${reason}, ${createdAt}
+        )
+      `;
+    }
+  });
+
+  return readDbWallet();
+}
+
 async function readDbJournal(): Promise<TradingJournal> {
   const [backtestRows, decisionRows] = await Promise.all([
     db
@@ -195,10 +376,20 @@ async function readDbJournal(): Promise<TradingJournal> {
     }
   }
 
+  const decisions = decisionRows.map(rowToDecision).toReversed();
+  const wallet = await readDbWallet();
+  const hasExecutableDecisions = decisions.some(
+    (decision) => decision.action === 'buy' || decision.action === 'sell'
+  );
+
   return {
     version: 1,
     backtestRuns: backtestRows.map(rowToBacktestRun).toReversed(),
-    decisions: decisionRows.map(rowToDecision).toReversed()
+    decisions,
+    wallet:
+      wallet.executions.length === 0 && hasExecutableDecisions
+        ? await rebuildPaperWallet(decisions)
+        : wallet
   };
 }
 
@@ -281,7 +472,8 @@ export async function getTradingJournal() {
   return {
     backtestRuns: journal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
     decisions,
-    signals: buildTradingSignals(decisions)
+    signals: buildTradingSignals(decisions),
+    wallet: journal.wallet ?? emptyPaperWallet()
   };
 }
 
@@ -290,7 +482,8 @@ export async function clearTradingJournal() {
 
   if (databaseEnabled()) {
     try {
-      await Promise.all([db.delete(tradingDecisions), db.delete(tradingBacktestRuns)]);
+      await Promise.all([db.delete(tradingExecutions), db.delete(tradingBacktestRuns)]);
+      await db.delete(tradingDecisions);
     } catch (error) {
       console.error('Trading DB journal clear failed', error);
     }
@@ -303,7 +496,10 @@ export async function clearTradingJournal() {
     await rename(temporaryPath, JOURNAL_PATH);
   }
 
-  return empty;
+  return {
+    ...empty,
+    wallet: databaseEnabled() ? await rebuildPaperWallet([]) : emptyPaperWallet()
+  };
 }
 
 export async function deleteTradingSignal(signalId: string) {
@@ -317,12 +513,14 @@ export async function deleteTradingSignal(signalId: string) {
     return {
       backtestRuns: journal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
       decisions,
-      signals: buildTradingSignals(decisions)
+      signals: buildTradingSignals(decisions),
+      wallet: journal.wallet ?? emptyPaperWallet()
     };
   }
 
   if (databaseEnabled()) {
     try {
+      await db.delete(tradingExecutions).where(eq(tradingExecutions.decisionId, decision.id));
       await db.delete(tradingDecisions).where(eq(tradingDecisions.id, decision.id));
     } catch (error) {
       console.error('Trading DB signal delete failed', error);
@@ -335,12 +533,16 @@ export async function deleteTradingSignal(signalId: string) {
   };
 
   if (fileJournalEnabled()) await writeJournal(nextJournal);
+  const wallet = databaseEnabled()
+    ? await rebuildPaperWallet(nextJournal.decisions)
+    : emptyPaperWallet();
 
   const decisions = nextJournal.decisions.slice(-MAX_DECISIONS);
   return {
     backtestRuns: nextJournal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
     decisions,
-    signals: buildTradingSignals(decisions)
+    signals: buildTradingSignals(decisions),
+    wallet
   };
 }
 
@@ -654,6 +856,7 @@ export async function appendPaperDecision(entry: PaperJournalEntry) {
   const journal = await readJournal();
   journal.decisions = [...journal.decisions, entry].slice(-MAX_DECISIONS);
   await writeJournal(journal);
+  if (databaseEnabled()) await rebuildPaperWallet(journal.decisions);
   return entry;
 }
 
@@ -675,6 +878,7 @@ export async function ensurePaperBotDecisionBrief(
 
   journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
   await writeJournal(journal);
+  if (databaseEnabled()) await rebuildPaperWallet(journal.decisions);
   return decision;
 }
 
@@ -712,6 +916,7 @@ export async function runPaperBotDecision(
     const decision = await buildPaperBotDecision(snapshot, backtest, selectedStrategy, targetTrade);
     journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
     await writeJournal(journal);
+    if (databaseEnabled()) await rebuildPaperWallet(journal.decisions);
     return decision;
   }
 

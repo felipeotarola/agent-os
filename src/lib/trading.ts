@@ -178,6 +178,36 @@ export type TradingJournal = {
   backtestRuns: unknown[];
   decisions: PaperJournalEntry[];
   signals: TradingSignal[];
+  wallet?: PaperWallet;
+};
+
+export type PaperWalletExecution = {
+  id: string;
+  walletId: string;
+  decisionId: string;
+  action: 'buy' | 'sell';
+  price: number;
+  quantity: number;
+  cashDelta: number;
+  assetDelta: number;
+  fee: number;
+  equityAfter: number;
+  reason: string;
+  createdAt: string;
+};
+
+export type PaperWallet = {
+  id: string;
+  agent: 'Linda';
+  symbol: 'BTCUSDC';
+  baseAsset: 'BTC';
+  quoteAsset: 'USDC';
+  startingCash: number;
+  cashBalance: number;
+  assetBalance: number;
+  realizedPnl: number;
+  updatedAt: string;
+  executions: PaperWalletExecution[];
 };
 
 const BINANCE_REST = 'https://api.binance.com';

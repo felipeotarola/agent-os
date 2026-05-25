@@ -218,6 +218,37 @@ export const tradingDecisions = pgTable('trading_decisions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const tradingWallets = pgTable('trading_wallets', {
+  id: text('id').primaryKey(),
+  agent: text('agent').notNull().default('Linda'),
+  symbol: text('symbol').notNull().default('BTCUSDC'),
+  baseAsset: text('base_asset').notNull().default('BTC'),
+  quoteAsset: text('quote_asset').notNull().default('USDC'),
+  startingCash: doublePrecision('starting_cash').notNull().default(10_000),
+  cashBalance: doublePrecision('cash_balance').notNull().default(10_000),
+  assetBalance: doublePrecision('asset_balance').notNull().default(0),
+  realizedPnl: doublePrecision('realized_pnl').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const tradingExecutions = pgTable('trading_executions', {
+  id: text('id').primaryKey(),
+  walletId: text('wallet_id')
+    .notNull()
+    .references(() => tradingWallets.id),
+  decisionId: text('decision_id').notNull(),
+  action: text('action').notNull(),
+  price: doublePrecision('price').notNull(),
+  quantity: doublePrecision('quantity').notNull().default(0),
+  cashDelta: doublePrecision('cash_delta').notNull().default(0),
+  assetDelta: doublePrecision('asset_delta').notNull().default(0),
+  fee: doublePrecision('fee').notNull().default(0),
+  equityAfter: doublePrecision('equity_after').notNull().default(0),
+  reason: text('reason').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -234,3 +265,5 @@ export type ContentVariant = typeof contentVariants.$inferSelect;
 export type ContentMediaAsset = typeof contentMediaAssets.$inferSelect;
 export type TradingBacktestRun = typeof tradingBacktestRuns.$inferSelect;
 export type TradingDecision = typeof tradingDecisions.$inferSelect;
+export type TradingWallet = typeof tradingWallets.$inferSelect;
+export type TradingExecution = typeof tradingExecutions.$inferSelect;

@@ -48,7 +48,21 @@ type TradingLabPayload = {
 type PaperPortfolio = {
   cash: number;
   btc: number;
-  startedAt: string;
+  startingCash: number;
+  realizedPnl: number;
+  updatedAt: string;
+  executions: Array<{
+    id: string;
+    decisionId: string;
+    action: 'buy' | 'sell';
+    price: number;
+    quantity: number;
+    cashDelta: number;
+    assetDelta: number;
+    fee: number;
+    equityAfter: number;
+    createdAt: string;
+  }>;
 };
 
 type JournalEntry = PaperJournalEntry;
@@ -383,7 +397,26 @@ function chartTokenColor(container: HTMLElement, tokenName: string, fallback: st
 }
 
 function defaultPortfolio(): PaperPortfolio {
-  return { cash: 10_000, btc: 0, startedAt: new Date().toISOString() };
+  return {
+    cash: 10_000,
+    btc: 0,
+    startingCash: 10_000,
+    realizedPnl: 0,
+    updatedAt: new Date().toISOString(),
+    executions: []
+  };
+}
+
+function normalizePortfolio(journal: TradingJournal): PaperPortfolio {
+  if (!journal.wallet) return defaultPortfolio();
+  return {
+    cash: journal.wallet.cashBalance,
+    btc: journal.wallet.assetBalance,
+    startingCash: journal.wallet.startingCash,
+    realizedPnl: journal.wallet.realizedPnl,
+    updatedAt: journal.wallet.updatedAt,
+    executions: journal.wallet.executions
+  };
 }
 
 function latestItem<T>(items: T[]) {
@@ -977,6 +1010,59 @@ function TradingContextBar({
             </div>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaperWalletCard({
+  portfolio,
+  price,
+  paperEquity,
+  paperReturnPct
+}: {
+  portfolio: PaperPortfolio;
+  price: number;
+  paperEquity: number;
+  paperReturnPct: number;
+}) {
+  const latestExecution = portfolio.executions.at(-1);
+  const position = portfolio.btc > 0 ? 'LONG BTC' : 'FLAT USDC';
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+        <div>
+          <CardTitle>Linda paper wallet</CardTitle>
+          <CardDescription>
+            Starts with 10,000 USDC. Backend simulates BTC/USDC paper executions from Linda
+            decisions.
+          </CardDescription>
+        </div>
+        <Badge variant={portfolio.btc > 0 ? 'default' : 'secondary'}>{position}</Badge>
+      </CardHeader>
+      <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-6'>
+        <MetricItem label='USDC balance' value={money(portfolio.cash)} />
+        <MetricItem label='BTC balance' value={portfolio.btc.toFixed(6)} />
+        <MetricItem label='BTC price' value={moneyPrecise(price)} />
+        <MetricItem
+          label='Total equity'
+          value={money(paperEquity)}
+          tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
+        />
+        <MetricItem
+          label='PnL'
+          value={`${money(paperEquity - portfolio.startingCash)} / ${percent(paperReturnPct)}`}
+          tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
+        />
+        <MetricItem
+          label='Executions'
+          value={
+            latestExecution
+              ? `${portfolio.executions.length} · ${latestExecution.action.toUpperCase()}`
+              : '0'
+          }
+        />
       </CardContent>
     </Card>
   );
@@ -2281,7 +2367,6 @@ function PaperBotJournal({
 
 export function TradingLab({ initialData }: { initialData: TradingLabPayload }) {
   const [data, setData] = useState(initialData);
-  const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
   const [loading, setLoading] = useState(false);
   const [signalDeletingId, setSignalDeletingId] = useState<string>();
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
@@ -2298,14 +2383,14 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         window.localStorage.removeItem(key);
       }
     }
-    setPortfolio(defaultPortfolio());
   }, []);
 
   const selectedBacktest =
     data.backtests.find((item) => item.strategy === selectedStrategy) ?? data.backtests[0];
   const price = data.snapshot.price;
+  const portfolio = normalizePortfolio(data.journal);
   const paperEquity = portfolio.cash + portfolio.btc * price;
-  const paperReturnPct = ((paperEquity - 10_000) / 10_000) * 100;
+  const paperReturnPct = ((paperEquity - portfolio.startingCash) / portfolio.startingCash) * 100;
   const lastSignal = useMemo(
     () => (selectedBacktest ? latestItem(selectedBacktest.trades) : undefined),
     [selectedBacktest]
@@ -2516,6 +2601,13 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         paperEquity={paperEquity}
         paperReturnPct={paperReturnPct}
         latestLindaAction={latestLindaAction}
+      />
+
+      <PaperWalletCard
+        portfolio={portfolio}
+        price={price}
+        paperEquity={paperEquity}
+        paperReturnPct={paperReturnPct}
       />
 
       <div className='flex flex-col gap-6'>
