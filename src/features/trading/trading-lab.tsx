@@ -102,9 +102,9 @@ function StrategyTradeChart({
 }) {
   const visibleCandles = candles.slice(-75, -1);
   const width = 960;
-  const height = 360;
+  const height = 440;
   const padding = { top: 18, right: 68, bottom: 34, left: 52 };
-  const priceHeight = 226;
+  const priceHeight = 306;
   const volumeTop = padding.top + priceHeight + 20;
   const volumeHeight = height - volumeTop - padding.bottom;
   const plotWidth = width - padding.left - padding.right;
@@ -133,7 +133,7 @@ function StrategyTradeChart({
 
   return (
     <div className='relative overflow-hidden rounded-lg border bg-black/[0.02] dark:bg-white/[0.02]'>
-      <svg viewBox={`0 0 ${width} ${height}`} className='h-[360px] w-full' role='img'>
+      <svg viewBox={`0 0 ${width} ${height}`} className='h-[440px] w-full' role='img'>
         <title>{strategy} paper trades with volume</title>
         <defs>
           <linearGradient
@@ -583,23 +583,23 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
       <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
         <Card className='overflow-hidden'>
-          <CardHeader>
-            <CardTitle>TradingView BTCUSDT</CardTitle>
-            <CardDescription>
-              Grafen är TradingView. Signaler/backtester är våra egna.
-            </CardDescription>
+          <CardHeader className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+            <div>
+              <CardTitle>BTCUSDT paper chart</CardTitle>
+              <CardDescription>
+                Price, volume, and hoverable trade dots from the selected strategy in one chart.
+              </CardDescription>
+            </div>
+            <Badge variant='outline'>{strategyLabels[selectedBacktest.strategy]}</Badge>
           </CardHeader>
           <CardContent>
-            <div className='bg-muted aspect-video overflow-hidden rounded-lg border'>
-              {/* oxlint-disable-next-line eslint-plugin-react/iframe-missing-sandbox -- TradingView embed needs scripts + same-origin for its own cookies/session. */}
-              <iframe
-                title='TradingView BTCUSDT chart'
-                src='https://www.tradingview.com/widgetembed/?symbol=BINANCE%3ABTCUSDT&interval=60&theme=dark&style=1&timezone=Europe%2FStockholm&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=1&save_image=0&studies=%5B%22Volume%40tv-basicstudies%22%5D'
-                className='h-full w-full'
-                loading='lazy'
-                sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts'
-              />
-            </div>
+            <StrategyTradeChart
+              candles={data.snapshot.candles}
+              trades={selectedBacktest.trades}
+              strategy={strategyLabels[selectedBacktest.strategy]}
+              hoveredTrade={hoveredTrade}
+              onHoverTrade={setHoveredTrade}
+            />
           </CardContent>
         </Card>
 
@@ -653,29 +653,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
-            <div>
-              <CardTitle>Paper trade chart</CardTitle>
-              <CardDescription>
-                Intern chart med pris, volym och hoverbara trade-dots från vald strategi.
-              </CardDescription>
-            </div>
-            <Badge variant='outline'>{strategyLabels[selectedBacktest.strategy]}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <StrategyTradeChart
-            candles={data.snapshot.candles}
-            trades={selectedBacktest.trades}
-            strategy={strategyLabels[selectedBacktest.strategy]}
-            hoveredTrade={hoveredTrade}
-            onHoverTrade={setHoveredTrade}
-          />
-        </CardContent>
-      </Card>
 
       <div className='grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
         <Card>
