@@ -8,11 +8,12 @@ export const metadata: Metadata = {
 export default async function Page({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; signup?: string }>;
+  searchParams: Promise<{ error?: string; signup?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const hasError = params.error === 'invalid';
   const signupDisabled = params.signup === 'disabled';
+  const nextPath = params.next?.startsWith('/') ? params.next : '/dashboard/overview';
 
   return (
     <main className='bg-background flex min-h-screen items-center justify-center p-6 text-foreground'>
@@ -21,7 +22,7 @@ export default async function Page({
           <div className='text-primary text-sm font-medium'>⚛️ Cai OS</div>
           <h1 className='text-3xl font-semibold tracking-tight'>Logga in</h1>
           <p className='text-muted-foreground text-sm'>
-            Agent OS cockpit är privat. Signup är avstängt.
+            Agent OS cockpit är privat. Logga in med Supabase email/password.
           </p>
         </div>
 
@@ -37,6 +38,7 @@ export default async function Page({
         )}
 
         <form action='/api/auth/sign-in' method='post' className='space-y-4'>
+          <input type='hidden' name='next' value={nextPath} />
           <div className='space-y-2'>
             <label htmlFor='email' className='text-sm font-medium'>
               Email

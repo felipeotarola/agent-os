@@ -42,7 +42,7 @@ export default function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className='overflow-x-hidden'>
+      <SidebarContent className='overflow-x-hidden pb-2'>
         {filteredGroups.map((group) => (
           <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
             {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
@@ -68,7 +68,7 @@ export default function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className='mt-auto shrink-0 border-t border-sidebar-border/70 bg-sidebar/95 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-2'>
         <SidebarMenu>
           <SidebarMenuItem>
             <AccountMenu />

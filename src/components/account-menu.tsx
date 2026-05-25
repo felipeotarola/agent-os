@@ -57,14 +57,15 @@ export function AccountMenu() {
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton
           size='lg'
-          className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+          tooltip='Felipe account'
+          className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'
         >
           <AccountAvatar avatar={avatar} />
-          <div className='grid flex-1 text-left text-sm leading-tight'>
+          <div className='grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>
-            <span className='text-muted-foreground truncate text-xs'>Local-first / portable</span>
+            <span className='text-muted-foreground truncate text-xs'>Supabase email login</span>
           </div>
-          <Icons.chevronsDown className='ml-auto size-4' />
+          <Icons.chevronsDown className='ml-auto size-4 group-data-[collapsible=icon]:hidden' />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
