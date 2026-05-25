@@ -16,6 +16,7 @@ import {
   type TradingJournal
 } from '@/lib/trading';
 import { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 
 type TradingLabPayload = {
   snapshot: MarketSnapshot;
@@ -457,11 +458,11 @@ function MetricItem({
   tone?: 'default' | 'positive' | 'negative' | 'warning';
 }) {
   return (
-    <div className='min-w-0 border-l px-4 first:border-l-0'>
-      <div className='text-muted-foreground text-[11px]'>{label}</div>
+    <div className='flex h-16 min-w-0 flex-col justify-center overflow-hidden border-l px-4 py-2 first:border-l-0'>
+      <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>{label}</div>
       <div
         className={cn(
-          'truncate text-sm font-semibold',
+          'truncate text-sm font-semibold leading-tight',
           tone === 'positive' && 'text-primary',
           tone === 'negative' && 'text-destructive',
           tone === 'warning' && 'text-muted-foreground'
@@ -529,60 +530,62 @@ function TradingContextBar({
     : latestLindaAction.toUpperCase();
 
   return (
-    <Card className='overflow-hidden rounded-2xl'>
+    <Card className='overflow-hidden rounded-2xl py-0'>
       <CardContent className='p-0'>
-        <div className='grid gap-0 lg:grid-cols-[1fr_340px]'>
-          <div className='grid gap-0 md:grid-cols-4 xl:grid-cols-8'>
-            <div className='flex items-center gap-3 border-b p-4 md:border-b-0'>
-              <div className='flex size-10 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary'>
-                B
+        <div className='grid gap-0 md:grid-cols-4 xl:grid-cols-[minmax(140px,1fr)_repeat(7,minmax(0,1fr))_minmax(280px,2fr)]'>
+          <div className='flex h-16 min-w-0 items-center gap-2 overflow-hidden border-b px-3 py-0 md:border-b-0'>
+            <div className='flex size-8 min-w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary'>
+              B
+            </div>
+            <div className='min-w-0 text-left'>
+              <div className='truncate text-sm font-semibold leading-tight'>BTC/USDT</div>
+              <div className='truncate text-xs text-muted-foreground'>1D - Binance</div>
+            </div>
+          </div>
+          <MetricItem label='Strategy' value={strategyLabels[selectedBacktest?.strategy ?? '']} />
+          <MetricItem label='Date range' value={dateRangeLabel(candles)} />
+          <MetricItem
+            label='Return'
+            value={percent(selectedBacktest?.returnPct)}
+            tone={(selectedBacktest?.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
+          />
+          <MetricItem
+            label='Max drawdown'
+            value={percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
+            tone='negative'
+          />
+          <MetricItem label='Win rate' value={percent(selectedBacktest?.winRatePct)} />
+          <MetricItem label='Trades' value={selectedBacktest?.trades.length ?? 0} />
+          <MetricItem
+            label='Position / signal'
+            value={`${currentPosition} / ${lastSignalLabel}`}
+            tone={currentPosition === 'LONG' ? 'positive' : 'warning'}
+          />
+          <div className='flex h-16 min-w-0 items-center justify-between gap-4 overflow-hidden border-l px-4 py-2'>
+            <div className='min-w-0'>
+              <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>
+                Paper portfolio
               </div>
-              <div>
-                <div className='font-semibold'>BTC/USDT</div>
-                <div className='text-muted-foreground text-xs'>1D - Binance</div>
+              <div className='truncate text-sm font-semibold leading-tight'>
+                {money(paperEquity)}
+              </div>
+              <div
+                className={cn(
+                  'text-xs leading-tight',
+                  paperReturnPct >= 0 ? 'text-primary' : 'text-destructive'
+                )}
+              >
+                {percent(paperReturnPct)}
               </div>
             </div>
-            <MetricItem label='Strategy' value={strategyLabels[selectedBacktest?.strategy ?? '']} />
-            <MetricItem label='Date range' value={dateRangeLabel(candles)} />
-            <MetricItem
-              label='Return'
-              value={percent(selectedBacktest?.returnPct)}
-              tone={(selectedBacktest?.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
-            />
-            <MetricItem
-              label='Max drawdown'
-              value={percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
-              tone='negative'
-            />
-            <MetricItem label='Win rate' value={percent(selectedBacktest?.winRatePct)} />
-            <MetricItem label='Trades' value={selectedBacktest?.trades.length ?? 0} />
-            <MetricItem
-              label='Position / signal'
-              value={`${currentPosition} / ${lastSignalLabel}`}
-              tone={currentPosition === 'LONG' ? 'positive' : 'warning'}
-            />
-          </div>
-          <div className='border-t p-4 lg:border-l lg:border-t-0'>
-            <div className='flex items-start justify-between gap-3'>
+            <div className='grid shrink-0 grid-cols-2 gap-x-5 text-right text-xs'>
               <div>
-                <div className='text-muted-foreground text-xs'>Paper portfolio</div>
-                <div className='font-semibold'>{money(paperEquity)}</div>
-                <div
-                  className={cn(
-                    'text-xs',
-                    paperReturnPct >= 0 ? 'text-primary' : 'text-destructive'
-                  )}
-                >
-                  {percent(paperReturnPct)}
-                </div>
+                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>Cash</div>
+                <div className='font-semibold leading-tight'>{money(portfolio.cash)}</div>
               </div>
-              <div className='flex gap-2'>
-                <Button type='button' variant='outline' size='sm' disabled>
-                  Export report
-                </Button>
-                <Button type='button' size='sm' disabled>
-                  New backtest
-                </Button>
+              <div>
+                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>BTC</div>
+                <div className='font-semibold leading-tight'>{portfolio.btc.toFixed(6)}</div>
               </div>
             </div>
           </div>
@@ -949,6 +952,43 @@ function InspectorRow({ label, value }: { label: string; value: React.ReactNode 
   );
 }
 
+function timelineActionTone(action: ReplayEvent['action']) {
+  const normalized = String(action).toLowerCase();
+
+  if (normalized === 'buy') {
+    return {
+      dot: 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.7)]',
+      text: 'text-cyan-300',
+      selected:
+        'border-cyan-400/40 bg-cyan-400/8 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_8px_30px_rgba(34,211,238,0.10)]'
+    };
+  }
+
+  if (normalized === 'sell') {
+    return {
+      dot: 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]',
+      text: 'text-rose-300',
+      selected:
+        'border-rose-400/40 bg-rose-400/8 shadow-[0_0_0_1px_rgba(251,113,133,0.08),0_8px_30px_rgba(251,113,133,0.10)]'
+    };
+  }
+
+  if (normalized === 'hold') {
+    return {
+      dot: 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]',
+      text: 'text-amber-300',
+      selected:
+        'border-amber-400/40 bg-amber-400/8 shadow-[0_0_0_1px_rgba(251,191,36,0.08),0_8px_30px_rgba(251,191,36,0.10)]'
+    };
+  }
+
+  return {
+    dot: 'bg-slate-400',
+    text: 'text-slate-300',
+    selected: 'border-slate-500/40 bg-slate-500/8 shadow-[0_0_0_1px_rgba(148,163,184,0.08)]'
+  };
+}
+
 function DecisionTimeline({
   events,
   selectedId,
@@ -958,47 +998,108 @@ function DecisionTimeline({
   selectedId?: string;
   onSelect: (event: ReplayEvent) => void;
 }) {
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  const scrollByAmount = (amount: number) => {
+    scrollRef.current?.scrollBy({
+      left: amount,
+      behavior: 'smooth'
+    });
+  };
+
+  const hasEvents = events.length > 0;
+
   return (
-    <Card className='rounded-2xl'>
-      <CardHeader className='pb-2'>
-        <CardTitle>Decision timeline</CardTitle>
-        <CardDescription>
-          Backtrack every selected strategy decision in chronological order.
-        </CardDescription>
+    <Card className='relative h-[196px] shrink-0 gap-0 overflow-hidden rounded-3xl border border-white/10 bg-[#020817] py-0 text-white shadow-none'>
+      <CardHeader className='shrink-0 px-6 pb-0 pt-6'>
+        <div className='flex items-center gap-2'>
+          <CardTitle className='text-[15px] font-semibold leading-none tracking-tight text-white'>
+            Decision timeline
+          </CardTitle>
+
+          <span className='flex h-4 w-4 items-center justify-center rounded-full border border-white/15 text-[10px] leading-none text-slate-400'>
+            i
+          </span>
+        </div>
       </CardHeader>
-      <CardContent>
-        {events.length > 0 ? (
-          <div className='flex gap-3 overflow-x-auto pb-2'>
-            {events.map((event) => {
-              const selected = selectedId === event.id;
-              return (
-                <button
-                  key={event.id}
-                  type='button'
-                  onClick={() => onSelect(event)}
-                  className={cn(
-                    'min-w-36 rounded-2xl border bg-muted/20 p-3 text-left transition hover:bg-muted/40',
-                    selected && 'border-primary bg-primary/10 shadow-sm'
-                  )}
-                >
-                  <div className='flex items-center justify-between gap-2'>
-                    <Badge variant={actionBadgeVariant(event.action)}>
-                      {event.action.toUpperCase()}
-                    </Badge>
-                    {event.synthetic ? (
-                      <span className='text-muted-foreground text-[10px]'>UI</span>
-                    ) : null}
-                  </div>
-                  <div className='mt-3 text-sm font-semibold'>{dateLabel(event.time)}</div>
-                  <div className='text-muted-foreground mt-1 text-xs'>
-                    {moneyPrecise(event.price)}
-                  </div>
-                </button>
-              );
-            })}
+
+      <CardContent className='flex min-h-0 flex-1 items-center px-6 pb-5 pt-0'>
+        {hasEvents ? (
+          <div className='relative h-[118px] w-full'>
+            <button
+              type='button'
+              onClick={() => scrollByAmount(-260)}
+              aria-label='Scroll left'
+              className='absolute left-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#06101f]/95 text-slate-400 transition hover:border-white/20 hover:text-white'
+            >
+              &lsaquo;
+            </button>
+
+            <button
+              type='button'
+              onClick={() => scrollByAmount(260)}
+              aria-label='Scroll right'
+              className='absolute right-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#06101f]/95 text-slate-400 transition hover:border-white/20 hover:text-white'
+            >
+              &rsaquo;
+            </button>
+
+            <div className='pointer-events-none absolute left-12 right-12 top-[36px] h-px bg-white/10' />
+
+            <div
+              ref={scrollRef}
+              className='no-scrollbar h-full overflow-x-auto overflow-y-visible px-12'
+            >
+              <div className='flex h-full min-w-full items-start gap-5'>
+                {events.map((event) => {
+                  const selected = selectedId === event.id;
+                  const tone = timelineActionTone(event.action);
+
+                  return (
+                    <button
+                      key={event.id}
+                      type='button'
+                      onClick={() => onSelect(event)}
+                      className={cn(
+                        'relative flex h-[112px] min-w-[92px] flex-col items-center rounded-2xl border border-transparent px-2 pt-[29px] text-center transition-all duration-200',
+                        'hover:bg-white/[0.035]',
+                        selected &&
+                          'border-white/25 bg-white/[0.035] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'absolute left-1/2 top-[29px] z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full ring-4 ring-[#020817]',
+                          tone.dot
+                        )}
+                      />
+
+                      <div className='mt-[27px] flex flex-col items-center'>
+                        <div
+                          className={cn(
+                            'text-[10px] font-semibold uppercase leading-none tracking-wide',
+                            tone.text
+                          )}
+                        >
+                          {String(event.action).toUpperCase()}
+                        </div>
+
+                        <div className='mt-2 text-[10px] font-medium leading-none text-slate-300'>
+                          {dateLabel(event.time)}
+                        </div>
+
+                        <div className='mt-2 text-[10px] leading-none text-slate-500'>
+                          {moneyPrecise(event.price)}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
+          <div className='w-full rounded-2xl border border-dashed border-white/10 p-4 text-sm text-slate-400'>
             No decisions available for this strategy yet.
           </div>
         )}
@@ -1017,22 +1118,24 @@ function StrategyComparison({
   onSelectStrategy: (strategy: TradingStrategy) => void;
 }) {
   return (
-    <Card className='rounded-2xl'>
-      <CardHeader>
+    <Card className='gap-1.5 rounded-2xl py-2.5'>
+      <CardHeader className='gap-1 px-6 pb-0'>
         <CardTitle>Strategy comparison</CardTitle>
-        <CardDescription>Compare replay outcomes across available strategy runs.</CardDescription>
+        <CardDescription className='mt-[-2px] leading-[1.2]'>
+          Compare replay outcomes across available strategy runs.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className='pt-4'>
         <div className='overflow-x-auto'>
-          <table className='w-full min-w-[560px] text-sm'>
+          <table className='mt-[-0.5rem] w-full min-w-[620px] text-sm'>
             <thead className='text-muted-foreground'>
               <tr className='border-b'>
-                <th className='py-2 text-left'>Strategy</th>
-                <th className='py-2 text-right'>Return</th>
-                <th className='py-2 text-right'>Max drawdown</th>
-                <th className='py-2 text-right'>Win rate</th>
-                <th className='py-2 text-right'>Trades</th>
-                <th className='py-2 text-left'>Best regime</th>
+                <th className='py-1 text-left'>Strategy</th>
+                <th className='py-0.5 text-right'>Return</th>
+                <th className='py-0.5 text-right'>Max drawdown</th>
+                <th className='py-0.5 text-right'>Win rate</th>
+                <th className='py-0.5 text-right'>Trades</th>
+                <th className='py-1 text-left'>Best regime</th>
               </tr>
             </thead>
             <tbody>
@@ -1082,12 +1185,14 @@ function StrategyComparison({
 
 function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics }) {
   return (
-    <Card className='rounded-2xl'>
-      <CardHeader>
+    <Card className='gap-1.5 rounded-2xl py-2.5'>
+      <CardHeader className='gap-1 px-6 pb-0'>
         <CardTitle>Regime / Diagnostics</CardTitle>
-        <CardDescription>Derived market state for the replay window.</CardDescription>
+        <CardDescription className='mt-[-2px] leading-[1.2]'>
+          Derived market state for the replay window.
+        </CardDescription>
       </CardHeader>
-      <CardContent className='grid gap-3 sm:grid-cols-2'>
+      <CardContent className='mt-auto grid gap-3 pt-4 sm:grid-cols-3'>
         <StatusPill
           label='Trend'
           value={diagnostics.trend}
@@ -1207,64 +1312,31 @@ function LindaAnalystBrief({
   );
 }
 
-function PaperPortfolioCompact({
-  portfolio,
-  paperEquity,
-  paperReturnPct,
+function PaperTradeControls({
   onBuy,
   onSell,
   onReset
 }: {
-  portfolio: PaperPortfolio;
-  paperEquity: number;
-  paperReturnPct: number;
   onBuy: () => void;
   onSell: () => void;
   onReset: () => void;
 }) {
   return (
     <Card className='rounded-2xl'>
-      <CardHeader>
-        <CardTitle>Paper portfolio</CardTitle>
-        <CardDescription>Local paper controls remain secondary to replay analysis.</CardDescription>
+      <CardHeader className='pb-3'>
+        <CardTitle>Paper controls</CardTitle>
+        <CardDescription>Local paper actions for the current portfolio.</CardDescription>
       </CardHeader>
-      <CardContent className='flex flex-col gap-4'>
-        <div className='grid grid-cols-2 gap-3 text-sm'>
-          <div>
-            <div className='text-muted-foreground'>Equity</div>
-            <div className='font-semibold'>{money(paperEquity)}</div>
-          </div>
-          <div>
-            <div className='text-muted-foreground'>Return</div>
-            <div
-              className={cn(
-                'font-semibold',
-                paperReturnPct >= 0 ? 'text-primary' : 'text-destructive'
-              )}
-            >
-              {percent(paperReturnPct)}
-            </div>
-          </div>
-          <div>
-            <div className='text-muted-foreground'>Cash</div>
-            <div className='font-semibold'>{money(portfolio.cash)}</div>
-          </div>
-          <div>
-            <div className='text-muted-foreground'>BTC</div>
-            <div className='font-semibold'>{portfolio.btc.toFixed(6)}</div>
-          </div>
-        </div>
-        <div className='grid grid-cols-3 gap-2'>
-          <Button type='button' variant='secondary' size='sm' onClick={onBuy}>
-            Paper buy
-          </Button>
-          <Button type='button' variant='secondary' size='sm' onClick={onSell}>
-            Paper sell
-          </Button>
-          <Button type='button' variant='outline' size='sm' onClick={onReset}>
-            Reset
-          </Button>
-        </div>
+      <CardContent className='grid grid-cols-3 gap-2'>
+        <Button type='button' variant='secondary' size='sm' onClick={onBuy}>
+          Buy
+        </Button>
+        <Button type='button' variant='secondary' size='sm' onClick={onSell}>
+          Sell
+        </Button>
+        <Button type='button' variant='outline' size='sm' onClick={onReset}>
+          Reset
+        </Button>
       </CardContent>
     </Card>
   );
@@ -1789,14 +1861,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     <div className='flex flex-col gap-6'>
       <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
         <div>
-          <div className='mb-2 flex flex-wrap items-center gap-2'>
-            <Badge variant='outline'>Paper only</Badge>
-            <Badge
-              variant={data.snapshot.volumeTrend.verdict === 'rising' ? 'default' : 'secondary'}
-            >
-              Volume {data.snapshot.volumeTrend.verdict}
-            </Badge>
-          </div>
           <h1 className='text-3xl font-semibold tracking-tight'>Trading Lab</h1>
           <p className='text-muted-foreground'>
             Decision replay cockpit for backtesting and paper trading
@@ -1807,15 +1871,18 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         </Button>
       </div>
 
-      <TradingContextBar
-        selectedBacktest={selectedBacktest}
-        candles={data.snapshot.candles}
-        portfolio={portfolio}
-        paperEquity={paperEquity}
-        paperReturnPct={paperReturnPct}
-        lastSignal={lastSignal}
-        latestLindaAction={latestLindaAction}
-      />
+      <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
+        <TradingContextBar
+          selectedBacktest={selectedBacktest}
+          candles={data.snapshot.candles}
+          portfolio={portfolio}
+          paperEquity={paperEquity}
+          paperReturnPct={paperReturnPct}
+          lastSignal={lastSignal}
+          latestLindaAction={latestLindaAction}
+        />
+        <div className='hidden xl:block' />
+      </div>
 
       <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
         <div className='flex flex-col gap-6'>
@@ -1832,6 +1899,31 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
             selectedId={selectedReplayEventId ?? selectedTradeKey ?? selectedJournalId}
             onSelect={selectReplayEvent}
           />
+          <div className='grid gap-6 2xl:grid-cols-2'>
+            <StrategyComparison
+              backtests={data.backtests}
+              selectedStrategy={selectedStrategy}
+              onSelectStrategy={(strategy) => {
+                setSelectedStrategy(strategy);
+                setSelectedTradeKey(undefined);
+                setSelectedReplayEventId(undefined);
+              }}
+            />
+            <RegimeDiagnosticsCard diagnostics={diagnostics} />
+          </div>
+
+          <PaperBotJournal
+            rows={journalRows}
+            selectedRowId={selectedReplayEventId}
+            selectedJournalEntry={selectedJournalEntry}
+            selectedTradeKey={selectedTradeKey}
+            onSelectDecision={selectJournalDecision}
+            onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
+            botRunning={botRunning}
+            onRunPaperBot={() => void runPaperBot()}
+            tradeBriefRunningKey={tradeBriefRunningKey}
+            watchLevels={watchLevels}
+          />
         </div>
 
         <div className='flex flex-col gap-6'>
@@ -1841,49 +1933,16 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
             positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
             selectedBacktest={selectedBacktest}
           />
-          <PaperPortfolioCompact
-            portfolio={portfolio}
-            paperEquity={paperEquity}
-            paperReturnPct={paperReturnPct}
-            onBuy={paperBuy}
-            onSell={paperSell}
-            onReset={paperReset}
+          <PaperTradeControls onBuy={paperBuy} onSell={paperSell} onReset={paperReset} />
+          <LindaAnalystBrief
+            activeLindaDecision={activeLindaDecision}
+            latestLindaAction={latestLindaAction}
+            watchLevels={watchLevels}
+            botRunning={botRunning}
+            onRunPaperBot={() => void runPaperBot()}
           />
         </div>
       </div>
-
-      <div className='grid gap-6 xl:grid-cols-[1.3fr_1fr_1fr]'>
-        <StrategyComparison
-          backtests={data.backtests}
-          selectedStrategy={selectedStrategy}
-          onSelectStrategy={(strategy) => {
-            setSelectedStrategy(strategy);
-            setSelectedTradeKey(undefined);
-            setSelectedReplayEventId(undefined);
-          }}
-        />
-        <RegimeDiagnosticsCard diagnostics={diagnostics} />
-        <LindaAnalystBrief
-          activeLindaDecision={activeLindaDecision}
-          latestLindaAction={latestLindaAction}
-          watchLevels={watchLevels}
-          botRunning={botRunning}
-          onRunPaperBot={() => void runPaperBot()}
-        />
-      </div>
-
-      <PaperBotJournal
-        rows={journalRows}
-        selectedRowId={selectedReplayEventId}
-        selectedJournalEntry={selectedJournalEntry}
-        selectedTradeKey={selectedTradeKey}
-        onSelectDecision={selectJournalDecision}
-        onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
-        botRunning={botRunning}
-        onRunPaperBot={() => void runPaperBot()}
-        tradeBriefRunningKey={tradeBriefRunningKey}
-        watchLevels={watchLevels}
-      />
 
       <div className='text-muted-foreground text-xs'>
         Updated {dateTimeLabel(data.snapshot.updatedAt)} - Data source: Binance + CoinGecko. Not
