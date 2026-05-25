@@ -25,7 +25,7 @@ export default async function TradingLabPage() {
 
   const journal = await getTradingJournal().catch((error) => {
     console.error('Trading Lab journal read failed', error);
-    return { backtestRuns: [], decisions: [] };
+    return { backtestRuns: [], decisions: [], signals: [] };
   });
 
   return (

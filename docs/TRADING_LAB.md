@@ -32,6 +32,17 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
 - Trade-level briefs are stored as normal Linda decisions with a stable evidence key:
   `strategy:tradeTime:side:price`.
 
+## Unified object model
+
+Trading Lab surfaces should share one object identity:
+
+- `TradingSignal.id` is the canonical UI identity for a persisted paper trade/signal.
+- A signal is derived from exactly one journal decision (`decisionId`).
+- Chart markers, replay timeline rows, paper bot journal rows, and the selected decision sidebar all select by `TradingSignal.id`.
+- Raw backtest trades are preview data only; they do not become chart/journal/sidebar state until a Linda/journal decision persists them.
+- Clearing/deleting the journal removes signals, which removes markers, rows, and sidebar state together.
+- `DELETE /api/trading/journal?id=<TradingSignal.id>` deletes that signal's backing decision, so chart, journal, timeline, and sidebar disappear together.
+
 ## Data model direction
 
 Current model is too muddy: backtest outputs, trade-level briefs, manual paper portfolio actions, and Linda decisions all live under “journal/decisions”. That makes normal page loads look like trading activity.

@@ -8,11 +8,12 @@ import {
   type PaperBotDecision,
   type PaperJournalEntry,
   type Trade,
+  type TradingSignal,
   type TradingStrategy
 } from '@/lib/trading';
 import { db } from '@/db/client';
 import { tradingBacktestRuns, tradingDecisions } from '@/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -46,6 +47,27 @@ export type BacktestRunRecord = {
 
 function emptyJournal(): TradingJournal {
   return { version: 1, backtestRuns: [], decisions: [] };
+}
+
+function decisionSignalId(decision: PaperJournalEntry) {
+  if (decision.kind === 'bot' && decision.evidence.trade?.key) return decision.evidence.trade.key;
+  return `decision:${decision.id}`;
+}
+
+function buildTradingSignals(decisions: PaperJournalEntry[]): TradingSignal[] {
+  return decisions.map((decision) => ({
+    id: decisionSignalId(decision),
+    source: 'journal-decision',
+    decisionId: decision.id,
+    symbol: decision.symbol,
+    strategy: decision.kind === 'bot' ? decision.strategy : undefined,
+    action: decision.action,
+    time: decision.createdAt,
+    price: decision.price,
+    reason: decision.reason,
+    trade: decision.kind === 'bot' ? decision.evidence.trade : undefined,
+    decision
+  }));
 }
 
 function databaseEnabled() {
@@ -161,7 +183,7 @@ async function readDbJournal(): Promise<TradingJournal> {
       .limit(MAX_DECISIONS)
   ]);
 
-  if (backtestRows.length === 0 && decisionRows.length === 0) {
+  if (fileJournalEnabled() && backtestRows.length === 0 && decisionRows.length === 0) {
     const fileJournal = await readFileJournal();
     if (fileJournal.backtestRuns.length > 0 || fileJournal.decisions.length > 0) {
       await writeDbJournal(fileJournal);
@@ -249,9 +271,11 @@ async function writeJournal(journal: TradingJournal) {
 
 export async function getTradingJournal() {
   const journal = await readJournal();
+  const decisions = journal.decisions.slice(-MAX_DECISIONS);
   return {
     backtestRuns: journal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
-    decisions: journal.decisions.slice(-MAX_DECISIONS)
+    decisions,
+    signals: buildTradingSignals(decisions)
   };
 }
 
@@ -274,6 +298,44 @@ export async function clearTradingJournal() {
   }
 
   return empty;
+}
+
+export async function deleteTradingSignal(signalId: string) {
+  const journal = await readJournal();
+  const decision = journal.decisions.find(
+    (entry) => decisionSignalId(entry) === signalId || entry.id === signalId
+  );
+
+  if (!decision) {
+    const decisions = journal.decisions.slice(-MAX_DECISIONS);
+    return {
+      backtestRuns: journal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
+      decisions,
+      signals: buildTradingSignals(decisions)
+    };
+  }
+
+  if (databaseEnabled()) {
+    try {
+      await db.delete(tradingDecisions).where(eq(tradingDecisions.id, decision.id));
+    } catch (error) {
+      console.error('Trading DB signal delete failed', error);
+    }
+  }
+
+  const nextJournal = {
+    ...journal,
+    decisions: journal.decisions.filter((entry) => entry.id !== decision.id)
+  };
+
+  if (fileJournalEnabled()) await writeJournal(nextJournal);
+
+  const decisions = nextJournal.decisions.slice(-MAX_DECISIONS);
+  return {
+    backtestRuns: nextJournal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
+    decisions,
+    signals: buildTradingSignals(decisions)
+  };
 }
 
 export async function persistBacktestRun(snapshot: MarketSnapshot, backtests: BacktestResult[]) {

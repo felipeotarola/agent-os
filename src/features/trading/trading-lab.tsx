@@ -32,7 +32,8 @@ import {
   type PaperBotDecision,
   type PaperJournalEntry,
   type Trade,
-  type TradingJournal
+  type TradingJournal,
+  type TradingSignal
 } from '@/lib/trading';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import React from 'react';
@@ -92,8 +93,8 @@ type ReplayEvent = {
   label: string;
   reason: string;
   trade?: Trade;
+  signal: TradingSignal;
   decision?: PaperBotDecision;
-  synthetic?: boolean;
 };
 
 type DecisionViewModel = {
@@ -142,6 +143,25 @@ const bestRegimeByStrategy: Record<string, string> = {
 
 function isPaperBotDecision(decision: PaperJournalEntry): decision is PaperBotDecision {
   return decision.kind === 'bot';
+}
+
+function signalFromDecision(decision: PaperJournalEntry): TradingSignal {
+  return {
+    id:
+      isPaperBotDecision(decision) && decision.evidence.trade?.key
+        ? decision.evidence.trade.key
+        : `decision:${decision.id}`,
+    source: 'journal-decision',
+    decisionId: decision.id,
+    symbol: decision.symbol,
+    strategy: isPaperBotDecision(decision) ? decision.strategy : undefined,
+    action: decision.action,
+    time: decision.createdAt,
+    price: decision.price,
+    reason: decision.reason,
+    trade: isPaperBotDecision(decision) ? decision.evidence.trade : undefined,
+    decision
+  };
 }
 
 function money(value?: number) {
@@ -559,75 +579,85 @@ function getPositionRisk(diagnostics: RegimeDiagnostics, selectedBacktest?: Back
 }
 
 function createReplayEvents({
-  decisions,
+  signals,
   selectedStrategy
 }: {
-  decisions: PaperJournalEntry[];
+  signals: TradingSignal[];
   selectedStrategy: TradingStrategy;
 }): ReplayEvent[] {
-  return decisions
-    .filter(isPaperBotDecision)
-    .filter((decision) => decision.strategy === selectedStrategy)
-    .map((decision) => ({
-      id: decision.id,
-      action: decision.action,
-      time: new Date(decision.createdAt).getTime(),
-      price: decision.price,
-      label: decision.action.toUpperCase(),
-      reason: decision.reason,
-      decision
+  return signals
+    .filter((signal) => signal.decision.kind === 'bot')
+    .filter((signal) => signal.strategy === selectedStrategy)
+    .map((signal) => ({
+      id: signal.id,
+      action: signal.action as 'buy' | 'sell' | 'hold',
+      time: new Date(signal.time).getTime(),
+      price: signal.price,
+      label: signal.action.toUpperCase(),
+      reason: signal.reason,
+      trade: signal.trade
+        ? {
+            ...signal.trade,
+            id: signal.id,
+            decisionId: signal.decisionId,
+            reason: signal.reason
+          }
+        : undefined,
+      signal,
+      decision: signal.decision as PaperBotDecision
     }))
     .toSorted((left, right) => left.time - right.time);
 }
 
 function createJournalRows({
-  decisions,
+  signals,
   selectedStrategy,
   candles
 }: {
-  decisions: PaperJournalEntry[];
+  signals: TradingSignal[];
   selectedStrategy: TradingStrategy;
   candles: Candle[];
 }): JournalReplayRow[] {
-  return decisions
-    .map((decision) => {
-      const strategy = isPaperBotDecision(decision)
-        ? strategyLabels[decision.strategy]
-        : strategyLabels[selectedStrategy];
+  return signals
+    .map((signal) => {
+      const strategyKey = signal.strategy ?? selectedStrategy;
+      const trade = signal.trade
+        ? {
+            ...signal.trade,
+            id: signal.id,
+            decisionId: signal.decisionId,
+            reason: signal.reason
+          }
+        : undefined;
       return {
-        id: decision.id,
-        action: decision.action,
-        time: decision.createdAt,
-        confidence: isPaperBotDecision(decision) ? decision.confidence : undefined,
-        price: decision.price,
-        reason: decision.reason,
-        strategy,
-        strategyKey: isPaperBotDecision(decision) ? decision.strategy : selectedStrategy,
-        decision,
-        forward: getForwardPerformance(candles, decision.createdAt, decision.price, decision.action)
+        id: signal.id,
+        action: signal.action,
+        time: signal.time,
+        confidence: isPaperBotDecision(signal.decision) ? signal.decision.confidence : undefined,
+        price: signal.price,
+        reason: signal.reason,
+        strategy: strategyLabels[strategyKey],
+        strategyKey,
+        trade,
+        decision: signal.decision,
+        forward: getForwardPerformance(candles, signal.time, signal.price, signal.action)
       };
     })
     .toSorted((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime())
     .slice(0, 12);
 }
 
-function createPersistedChartTrades(
-  decisions: PaperJournalEntry[],
-  selectedStrategy: TradingStrategy
-) {
-  return decisions
-    .filter(isPaperBotDecision)
-    .filter((decision) => decision.strategy === selectedStrategy)
-    .flatMap((decision): Trade[] => {
-      if (!decision.evidence.trade) return [];
+function createPersistedChartTrades(signals: TradingSignal[], selectedStrategy: TradingStrategy) {
+  return signals
+    .filter((signal) => signal.strategy === selectedStrategy)
+    .flatMap((signal): Trade[] => {
+      if (!signal.trade) return [];
       return [
         {
-          side: decision.evidence.trade.side,
-          time: decision.evidence.trade.time,
-          price: decision.evidence.trade.price,
-          quantity: decision.evidence.trade.quantity,
-          equity: decision.evidence.trade.equity,
-          reason: decision.reason
+          ...signal.trade,
+          id: signal.id,
+          decisionId: signal.decisionId,
+          reason: signal.reason
         }
       ];
     });
@@ -1169,7 +1199,7 @@ function TradingViewDecisionChart({
     const tradeById = new Map<string, Trade>();
     const tradeByTime = new Map<number, Trade>();
     const markers: SeriesMarker<Time>[] = trades.map((trade) => {
-      const tradeKey = getTradeDecisionKey(strategyKey, trade);
+      const tradeKey = trade.id ?? getTradeDecisionKey(strategyKey, trade);
       const buy = trade.side === 'buy';
       const selected = selectedTradeKey === tradeKey;
       const markerTime = toChartTime(candleBucketTime(trade.time, interval));
@@ -1801,7 +1831,9 @@ function PaperBotJournal({
   botRunning,
   onRunPaperBot,
   onClearJournal,
+  onDeleteSignal,
   journalClearing,
+  signalDeletingId,
   tradeBriefRunningKey,
   watchLevels
 }: {
@@ -1814,7 +1846,9 @@ function PaperBotJournal({
   botRunning: boolean;
   onRunPaperBot: () => void;
   onClearJournal: () => void;
+  onDeleteSignal: (signalId: string) => void;
   journalClearing: boolean;
+  signalDeletingId?: string;
   tradeBriefRunningKey?: string;
   watchLevels: WatchLevels;
 }) {
@@ -1890,6 +1924,7 @@ function PaperBotJournal({
                     (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
                 const expandedDecision = selected && row.decision ? row.decision : undefined;
                 const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
+                const deleting = signalDeletingId === row.id;
 
                 return (
                   <React.Fragment key={row.id}>
@@ -1928,19 +1963,33 @@ function PaperBotJournal({
                         </td>
                       ))}
                       <td className='p-3 text-right'>
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant={selected ? 'default' : 'outline'}
-                          isLoading={creating}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (row.decision) onSelectDecision(row.decision);
-                            else if (row.trade) onOpenTradeBrief(row.trade);
-                          }}
-                        >
-                          {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
-                        </Button>
+                        <div className='flex justify-end gap-2'>
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant={selected ? 'default' : 'outline'}
+                            isLoading={creating}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (row.decision) onSelectDecision(row.decision);
+                              else if (row.trade) onOpenTradeBrief(row.trade);
+                            }}
+                          >
+                            {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                          </Button>
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant='outline'
+                            isLoading={deleting}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDeleteSignal(row.id);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                     {expandedDecision ? (
@@ -1977,6 +2026,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [loading, setLoading] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
   const [journalClearing, setJournalClearing] = useState(false);
+  const [signalDeletingId, setSignalDeletingId] = useState<string>();
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
   const [selectedTradeKey, setSelectedTradeKey] = useState<string>();
@@ -2018,17 +2068,15 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     [data.journal.decisions]
   );
   const tradeDecisionMap = useMemo(() => {
-    const entries = data.journal.decisions
-      .filter(isPaperBotDecision)
-      .flatMap((decision) =>
-        decision.evidence.trade?.key ? [[decision.evidence.trade.key, decision] as const] : []
-      );
+    const entries = data.journal.signals.flatMap((signal) =>
+      signal.decision.kind === 'bot' ? [[signal.id, signal.decision] as const] : []
+    );
 
     return new Map(entries);
-  }, [data.journal.decisions]);
+  }, [data.journal.signals]);
   const chartTrades = useMemo(
-    () => createPersistedChartTrades(data.journal.decisions, selectedStrategy),
-    [data.journal.decisions, selectedStrategy]
+    () => createPersistedChartTrades(data.journal.signals, selectedStrategy),
+    [data.journal.signals, selectedStrategy]
   );
   const selectedTradeDecision = selectedTradeKey
     ? tradeDecisionMap.get(selectedTradeKey)
@@ -2049,10 +2097,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const replayEvents = useMemo(
     () =>
       createReplayEvents({
-        decisions: data.journal.decisions,
+        signals: data.journal.signals,
         selectedStrategy
       }),
-    [data.journal.decisions, selectedStrategy]
+    [data.journal.signals, selectedStrategy]
   );
   const selectedReplayEvent = replayEvents.find((event) => event.id === selectedReplayEventId);
   const selectedReplayDecision = selectedReplayEvent?.decision;
@@ -2095,11 +2143,11 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const journalRows = useMemo(
     () =>
       createJournalRows({
-        decisions: data.journal.decisions,
+        signals: data.journal.signals,
         selectedStrategy,
         candles: data.snapshot.candles
       }),
-    [data.journal.decisions, data.snapshot.candles, selectedStrategy]
+    [data.journal.signals, data.snapshot.candles, selectedStrategy]
   );
 
   async function refresh() {
@@ -2123,10 +2171,28 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
       setHoveredTrade(undefined);
       setData((current) => ({
         ...current,
-        journal: { backtestRuns: [], decisions: [] }
+        journal: { backtestRuns: [], decisions: [], signals: [] }
       }));
     } finally {
       setJournalClearing(false);
+    }
+  }
+
+  async function deleteSignal(signalId: string) {
+    setSignalDeletingId(signalId);
+    try {
+      const response = await fetch(`/api/trading/journal?id=${encodeURIComponent(signalId)}`, {
+        method: 'DELETE',
+        cache: 'no-store'
+      });
+      const journal = (await response.json()) as TradingLabPayload['journal'];
+      setSelectedJournalId(undefined);
+      setSelectedReplayEventId(undefined);
+      setSelectedTradeKey(undefined);
+      setHoveredTrade(undefined);
+      setData((current) => ({ ...current, journal }));
+    } finally {
+      setSignalDeletingId(undefined);
     }
   }
 
@@ -2142,17 +2208,16 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         decision?: TradingLabPayload['journal']['decisions'][number];
       };
       if (payload.decision) {
-        const tradeKey = isPaperBotDecision(payload.decision)
-          ? payload.decision.evidence.trade?.key
-          : undefined;
+        const signal = signalFromDecision(payload.decision);
         setSelectedJournalId(payload.decision.id);
-        setSelectedTradeKey(tradeKey);
-        setSelectedReplayEventId(tradeKey ?? payload.decision.id);
+        setSelectedTradeKey(signal.id);
+        setSelectedReplayEventId(signal.id);
         setData((current) => ({
           ...current,
           journal: {
             ...current.journal,
-            decisions: [...current.journal.decisions, payload.decision!]
+            decisions: [...current.journal.decisions, payload.decision!],
+            signals: [...current.journal.signals, signal]
           }
         }));
       }
@@ -2163,7 +2228,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
   async function openTradeBrief(trade: Trade) {
     if (!selectedBacktest) return;
-    const tradeKey = getTradeDecisionKey(selectedBacktest.strategy, trade);
+    const tradeKey = trade.id ?? getTradeDecisionKey(selectedBacktest.strategy, trade);
     const existingDecision = tradeDecisionMap.get(tradeKey);
 
     setSelectedTradeKey(tradeKey);
@@ -2190,12 +2255,16 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         decision?: TradingLabPayload['journal']['decisions'][number];
       };
       if (payload.decision) {
+        const signal = signalFromDecision(payload.decision);
         setSelectedJournalId(payload.decision.id);
+        setSelectedTradeKey(signal.id);
+        setSelectedReplayEventId(signal.id);
         setData((current) => ({
           ...current,
           journal: {
             ...current.journal,
-            decisions: [...current.journal.decisions, payload.decision!]
+            decisions: [...current.journal.decisions, payload.decision!],
+            signals: [...current.journal.signals, signal]
           }
         }));
       }
@@ -2206,24 +2275,17 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
   function selectReplayEvent(event: ReplayEvent) {
     setSelectedReplayEventId(event.id);
-    if (event.trade) {
-      void openTradeBrief(event.trade);
-      return;
-    }
-    if (event.decision) {
-      setSelectedJournalId(event.decision.id);
-      setSelectedTradeKey(event.decision.evidence.trade?.key);
-      return;
-    }
-    setSelectedTradeKey(undefined);
-    setSelectedJournalId(undefined);
+    setSelectedTradeKey(event.id);
+    setSelectedJournalId(event.signal.decisionId);
   }
 
   function selectJournalDecision(decision: PaperJournalEntry) {
-    const tradeKey = isPaperBotDecision(decision) ? decision.evidence.trade?.key : undefined;
+    const signal =
+      data.journal.signals.find((item) => item.decisionId === decision.id) ??
+      signalFromDecision(decision);
     setSelectedJournalId(decision.id);
-    setSelectedTradeKey(tradeKey);
-    setSelectedReplayEventId(tradeKey ?? decision.id);
+    setSelectedTradeKey(signal.id);
+    setSelectedReplayEventId(signal.id);
   }
 
   return (
@@ -2311,7 +2373,9 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           botRunning={botRunning}
           onRunPaperBot={() => void runPaperBot()}
           onClearJournal={() => void clearJournal()}
+          onDeleteSignal={(signalId) => void deleteSignal(signalId)}
           journalClearing={journalClearing}
+          signalDeletingId={signalDeletingId}
           tradeBriefRunningKey={tradeBriefRunningKey}
           watchLevels={watchLevels}
         />

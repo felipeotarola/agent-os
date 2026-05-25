@@ -9,6 +9,8 @@ export type Candle = {
 };
 
 export type Trade = {
+  id?: string;
+  decisionId?: string;
   side: 'buy' | 'sell';
   time: number;
   price: number;
@@ -96,6 +98,20 @@ export type ManualPaperDecision = {
 
 export type PaperJournalEntry = PaperBotDecision | ManualPaperDecision;
 
+export type TradingSignal = {
+  id: string;
+  source: 'journal-decision';
+  decisionId: string;
+  symbol: string;
+  strategy?: TradingStrategy;
+  action: 'buy' | 'sell' | 'hold' | 'reset';
+  time: string;
+  price: number;
+  reason: string;
+  trade?: TradeDecisionLink;
+  decision: PaperJournalEntry;
+};
+
 export type MarketSnapshot = {
   symbol: string;
   price: number;
@@ -159,7 +175,9 @@ export function getFallbackMarketSnapshot(symbol = 'BTCUSDT'): MarketSnapshot {
 }
 
 export type TradingJournal = {
+  backtestRuns: unknown[];
   decisions: PaperJournalEntry[];
+  signals: TradingSignal[];
 };
 
 const BINANCE_REST = 'https://api.binance.com';

@@ -1,6 +1,7 @@
 import {
   appendPaperDecision,
   clearTradingJournal,
+  deleteTradingSignal,
   getTradingJournal,
   runPaperBotDecision
 } from '@/lib/trading-journal';
@@ -37,8 +38,10 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
+    const id = new URL(request.url).searchParams.get('id');
+    if (id) return NextResponse.json(await deleteTradingSignal(id));
     return NextResponse.json(await clearTradingJournal());
   } catch (error) {
     return NextResponse.json(
