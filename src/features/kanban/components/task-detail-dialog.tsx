@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,6 +52,9 @@ export function TaskDetailDialog({
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [comment, setComment] = useState('');
   const [copiedId, setCopiedId] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const lastSavedRef = useRef('');
+  const saveTimerRef = useRef<number | null>(null);
 
   const initial = useMemo(
     () => ({
@@ -68,9 +71,23 @@ export function TaskDetailDialog({
 
   const [form, setForm] = useState(initial);
 
+  const formKey = useMemo(() => JSON.stringify(form), [form]);
+
   useEffect(() => {
-    if (open) setForm(initial);
+    if (open) {
+      setForm(initial);
+      lastSavedRef.current = JSON.stringify(initial);
+      setSaveState('idle');
+      setError(null);
+    }
   }, [initial, open]);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!open || !task?.id) {
@@ -131,29 +148,85 @@ export function TaskDetailDialog({
     }
   }
 
-  async function save() {
-    if (!task) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/tasks', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: task.id, ...form })
-      });
-      if (!response.ok) throw new Error(await response.text());
-      const updated = (await response.json()) as Task;
-      onTaskUpdate(updated);
-      onOpenChange(false);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Kunde inte spara tasken.');
-    } finally {
-      setSaving(false);
+  const save = useCallback(
+    async (options?: { close?: boolean }) => {
+      if (!task || !form.title.trim()) return;
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+
+      const nextKey = JSON.stringify(form);
+      if (nextKey === lastSavedRef.current) {
+        if (options?.close) onOpenChange(false);
+        return;
+      }
+
+      setSaving(true);
+      setSaveState('saving');
+      setError(null);
+      try {
+        const response = await fetch('/api/tasks', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: task.id, ...form })
+        });
+        if (!response.ok) throw new Error(await response.text());
+        const updated = (await response.json()) as Task;
+        lastSavedRef.current = nextKey;
+        setSaveState('saved');
+        onTaskUpdate(updated);
+        if (options?.close) onOpenChange(false);
+      } catch (saveError) {
+        setSaveState('dirty');
+        setError(saveError instanceof Error ? saveError.message : 'Kunde inte spara tasken.');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [form, onOpenChange, onTaskUpdate, task]
+  );
+
+  useEffect(() => {
+    if (!open || !task) return;
+    if (formKey === lastSavedRef.current) return;
+    if (!form.title.trim()) {
+      setSaveState('dirty');
+      return;
     }
+
+    setSaveState('dirty');
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      void save();
+    }, 900);
+  }, [form.title, formKey, open, save, task]);
+
+  const saveLabel =
+    saveState === 'saving'
+      ? 'Sparar…'
+      : saveState === 'saved'
+        ? 'Sparat automatiskt'
+        : saveState === 'dirty'
+          ? 'Osparade ändringar'
+          : 'Autosparar';
+
+  function requestOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+
+    if (task && form.title.trim() && formKey !== lastSavedRef.current) {
+      void save({ close: true });
+      return;
+    }
+
+    onOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-3xl'>
         <DialogHeader>
           <div className='flex flex-wrap items-center gap-2'>
@@ -338,11 +411,24 @@ export function TaskDetailDialog({
         )}
 
         <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)} disabled={saving}>
+          <div className='mr-auto flex items-center gap-2 text-xs text-muted-foreground'>
+            <span
+              className={
+                saveState === 'dirty' || saveState === 'saving' ? 'text-primary' : undefined
+              }
+            >
+              {saveLabel}
+            </span>
+          </div>
+          <Button variant='outline' onClick={() => requestOpenChange(false)} disabled={saving}>
             Stäng
           </Button>
-          <Button onClick={save} isLoading={saving} disabled={!task || !form.title.trim()}>
-            Spara ändringar
+          <Button
+            onClick={() => save({ close: true })}
+            isLoading={saving}
+            disabled={!task || !form.title.trim()}
+          >
+            Spara & stäng
           </Button>
         </DialogFooter>
       </DialogContent>
