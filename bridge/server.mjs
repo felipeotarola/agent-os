@@ -1066,6 +1066,17 @@ async function systemStatus() {
 }
 
 async function ensureTaskBoardColumns() {
+  const [positionColumn] = await sql`
+    select 1 as exists
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tasks'
+      and column_name = 'position'
+    limit 1
+  `;
+
+  if (positionColumn) return;
+
   await sql`alter table tasks add column if not exists position integer not null default 0`;
 }
 
