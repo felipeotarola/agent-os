@@ -124,6 +124,14 @@ type JournalReplayRow = {
   forward: ForwardPerformance[];
 };
 
+type PersistedStrategySummary = {
+  strategy: TradingStrategy;
+  returnPct?: number;
+  maxDrawdownPct?: number;
+  winRatePct?: number;
+  tradeCount: number;
+};
+
 const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
 const tradingResetKey = 'agent-os:trading-lab:local-reset:v2';
 
@@ -661,6 +669,41 @@ function createPersistedChartTrades(signals: TradingSignal[], selectedStrategy: 
         }
       ];
     });
+}
+
+function createPersistedStrategySummaries(
+  signals: TradingSignal[],
+  strategies: TradingStrategy[]
+): PersistedStrategySummary[] {
+  return strategies.map((strategy) => {
+    const trades = signals
+      .filter((signal) => signal.strategy === strategy && signal.trade)
+      .map((signal) => signal.trade!)
+      .toSorted((left, right) => left.time - right.time);
+
+    if (trades.length === 0) return { strategy, tradeCount: 0 };
+
+    const firstEquity = trades[0].equity || 10_000;
+    const lastEquity = trades.at(-1)?.equity ?? firstEquity;
+    let peak = firstEquity;
+    let maxDrawdownPct = 0;
+    let wins = 0;
+
+    for (let index = 0; index < trades.length; index += 1) {
+      const equity = trades[index].equity;
+      peak = Math.max(peak, equity);
+      if (peak > 0) maxDrawdownPct = Math.max(maxDrawdownPct, ((peak - equity) / peak) * 100);
+      if (index > 0 && equity > trades[index - 1].equity) wins += 1;
+    }
+
+    return {
+      strategy,
+      returnPct: firstEquity ? ((lastEquity - firstEquity) / firstEquity) * 100 : undefined,
+      maxDrawdownPct,
+      winRatePct: trades.length > 1 ? (wins / (trades.length - 1)) * 100 : undefined,
+      tradeCount: trades.length
+    };
+  });
 }
 
 function MetricItem({
@@ -1583,11 +1626,11 @@ function DecisionTimeline({
 }
 
 function StrategyComparison({
-  backtests,
+  summaries,
   selectedStrategy,
   onSelectStrategy
 }: {
-  backtests: BacktestResult[];
+  summaries: PersistedStrategySummary[];
   selectedStrategy: TradingStrategy;
   onSelectStrategy: (strategy: TradingStrategy) => void;
 }) {
@@ -1596,7 +1639,7 @@ function StrategyComparison({
       <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
         <CardTitle>Strategy comparison</CardTitle>
         <CardDescription className='mt-[-2px] leading-[1.2]'>
-          Compare replay outcomes across available strategy runs.
+          Compare persisted paper trade outcomes by strategy.
         </CardDescription>
       </CardHeader>
       <CardContent className='pt-0'>
@@ -1613,27 +1656,26 @@ function StrategyComparison({
               </tr>
             </thead>
             <tbody>
-              {backtests.map((backtest) => {
-                const selected = selectedStrategy === backtest.strategy;
+              {summaries.map((summary) => {
+                const selected = selectedStrategy === summary.strategy;
+                const hasTrades = summary.tradeCount > 0;
                 return (
                   <tr
-                    key={backtest.strategy}
+                    key={summary.strategy}
                     className={cn(
                       'cursor-pointer border-t transition hover:bg-muted/30',
                       selected && 'bg-primary/10'
                     )}
-                    onClick={() => onSelectStrategy(backtest.strategy)}
+                    onClick={() => onSelectStrategy(summary.strategy)}
                   >
                     <td className='py-3 text-left font-medium'>
                       <div className='flex min-w-0 items-center gap-2'>
                         <span className='flex size-5 shrink-0 items-center justify-center rounded-full border bg-background/50 text-muted-foreground'>
-                          {React.createElement(StrategyRowIcon({ strategy: backtest.strategy }), {
+                          {React.createElement(StrategyRowIcon({ strategy: summary.strategy }), {
                             className: 'size-3'
                           })}
                         </span>
-                        <span className='min-w-0 truncate'>
-                          {strategyLabels[backtest.strategy]}
-                        </span>
+                        <span className='min-w-0 truncate'>{strategyLabels[summary.strategy]}</span>
                         {selected ? (
                           <Icons.exclusive className='size-3.5 shrink-0 text-primary' />
                         ) : null}
@@ -1642,19 +1684,21 @@ function StrategyComparison({
                     <td
                       className={cn(
                         'py-3 text-right font-medium',
-                        backtest.returnPct >= 0 ? 'text-primary' : 'text-destructive'
+                        (summary.returnPct ?? 0) >= 0 ? 'text-primary' : 'text-destructive'
                       )}
                     >
-                      {percent(backtest.returnPct)}
+                      {hasTrades ? percent(summary.returnPct) : '--'}
                     </td>
                     <td className='py-3 text-right text-destructive'>
-                      {percent(-backtest.maxDrawdownPct)}
+                      {hasTrades ? percent(-(summary.maxDrawdownPct ?? 0)) : '--'}
                     </td>
-                    <td className='py-3 text-right'>{percent(backtest.winRatePct)}</td>
-                    <td className='py-3 pr-6 text-right'>{backtest.trades.length}</td>
+                    <td className='py-3 text-right'>
+                      {hasTrades ? percent(summary.winRatePct) : '--'}
+                    </td>
+                    <td className='py-3 pr-6 text-right'>{summary.tradeCount}</td>
                     <td className='py-3 pl-3 text-left text-muted-foreground'>
                       <span className='block truncate'>
-                        {bestRegimeByStrategy[backtest.strategy]}
+                        {hasTrades ? bestRegimeByStrategy[summary.strategy] : 'No persisted trades'}
                       </span>
                     </td>
                   </tr>
@@ -2150,6 +2194,15 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     [data.journal.signals, data.snapshot.candles, selectedStrategy]
   );
 
+  const strategySummaries = useMemo(
+    () =>
+      createPersistedStrategySummaries(
+        data.journal.signals,
+        data.backtests.map((backtest) => backtest.strategy)
+      ),
+    [data.backtests, data.journal.signals]
+  );
+
   async function refresh() {
     setLoading(true);
     try {
@@ -2350,7 +2403,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         />
         <div className='grid gap-6 2xl:grid-cols-2'>
           <StrategyComparison
-            backtests={data.backtests}
+            summaries={strategySummaries}
             selectedStrategy={selectedStrategy}
             onSelectStrategy={(strategy) => {
               setSelectedStrategy(strategy);
