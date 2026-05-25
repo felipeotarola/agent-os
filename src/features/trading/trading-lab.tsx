@@ -1764,15 +1764,11 @@ function StrategyComparison({
 function LindaAnalystBrief({
   activeLindaDecision,
   latestLindaAction,
-  watchLevels,
-  botRunning,
-  onRunPaperBot
+  watchLevels
 }: {
   activeLindaDecision?: PaperBotDecision;
   latestLindaAction: TradeAction;
   watchLevels: WatchLevels;
-  botRunning: boolean;
-  onRunPaperBot: () => void;
 }) {
   return (
     <Card className='rounded-2xl'>
@@ -1818,21 +1814,14 @@ function LindaAnalystBrief({
         ) : (
           <div className='flex flex-col gap-4'>
             <p className='text-sm text-muted-foreground'>
-              No Linda decision is selected yet. Run a paper decision to create a replay-ready
-              rationale, risk note, and next check.
+              No Linda trade is selected yet. Linda is the trading agent; this page is read-only for
+              review, rationale, risk notes, and next checks.
             </p>
             <div className='flex items-center justify-between gap-3'>
               <Badge variant={actionBadgeVariant(latestLindaAction)}>
                 {latestLindaAction.toUpperCase()}
               </Badge>
-              <Button
-                type='button'
-                variant='secondary'
-                isLoading={botRunning}
-                onClick={onRunPaperBot}
-              >
-                Run Linda decision
-              </Button>
+              <Badge variant='outline'>Read-only</Badge>
             </div>
           </div>
         )}
@@ -1920,14 +1909,10 @@ function PaperBotJournal({
   selectedJournalEntry,
   selectedTradeKey,
   onSelectDecision,
-  onOpenTradeBrief,
-  botRunning,
-  onRunPaperBot,
   onClearJournal,
   onDeleteSignal,
   journalClearing,
   signalDeletingId,
-  tradeBriefRunningKey,
   watchLevels
 }: {
   rows: JournalReplayRow[];
@@ -1935,22 +1920,20 @@ function PaperBotJournal({
   selectedJournalEntry?: JournalEntry;
   selectedTradeKey?: string;
   onSelectDecision: (decision: PaperJournalEntry) => void;
-  onOpenTradeBrief: (trade: Trade) => void;
-  botRunning: boolean;
-  onRunPaperBot: () => void;
   onClearJournal: () => void;
   onDeleteSignal: (signalId: string) => void;
   journalClearing: boolean;
   signalDeletingId?: string;
-  tradeBriefRunningKey?: string;
   watchLevels: WatchLevels;
 }) {
   return (
     <Card className='rounded-2xl'>
       <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
         <div>
-          <CardTitle>Paper bot journal</CardTitle>
-          <CardDescription>Review every decision the strategy made.</CardDescription>
+          <CardTitle>Linda trade journal</CardTitle>
+          <CardDescription>
+            Review Linda's persisted paper trades. Creation happens agent-side.
+          </CardDescription>
         </div>
         <div className='flex flex-wrap gap-2'>
           <Button
@@ -1960,9 +1943,6 @@ function PaperBotJournal({
             onClick={onClearJournal}
           >
             Clear journal
-          </Button>
-          <Button type='button' variant='secondary' isLoading={botRunning} onClick={onRunPaperBot}>
-            Run Linda decision
           </Button>
         </div>
       </CardHeader>
@@ -1999,7 +1979,6 @@ function PaperBotJournal({
               selectedJournalEntry?.id === row.decision?.id ||
               (selectedTradeKey !== undefined &&
                 (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
-            const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
             const deleting = signalDeletingId === row.id;
             return (
               <div
@@ -2014,7 +1993,6 @@ function PaperBotJournal({
                   className='w-full text-left'
                   onClick={() => {
                     if (row.decision) onSelectDecision(row.decision);
-                    else if (row.trade) onOpenTradeBrief(row.trade);
                   }}
                 >
                   <div className='mb-3 flex items-start justify-between gap-3'>
@@ -2047,13 +2025,11 @@ function PaperBotJournal({
                     type='button'
                     size='sm'
                     variant={selected ? 'default' : 'outline'}
-                    isLoading={creating}
                     onClick={() => {
                       if (row.decision) onSelectDecision(row.decision);
-                      else if (row.trade) onOpenTradeBrief(row.trade);
                     }}
                   >
-                    {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                    {selected ? 'Viewing' : 'View'}
                   </Button>
                   <Button
                     type='button'
@@ -2075,7 +2051,7 @@ function PaperBotJournal({
           })}
           {rows.length === 0 ? (
             <div className='rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground'>
-              No replay decisions yet. Run Linda or pick a strategy with trades.
+              No Linda trades yet. Trades are created by Linda, not from this UI.
             </div>
           ) : null}
         </div>
@@ -2106,7 +2082,6 @@ function PaperBotJournal({
                   (selectedTradeKey !== undefined &&
                     (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
                 const expandedDecision = selected && row.decision ? row.decision : undefined;
-                const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
                 const deleting = signalDeletingId === row.id;
 
                 return (
@@ -2118,7 +2093,6 @@ function PaperBotJournal({
                       )}
                       onClick={() => {
                         if (row.decision) onSelectDecision(row.decision);
-                        else if (row.trade) onOpenTradeBrief(row.trade);
                       }}
                     >
                       <td className='p-3'>{dateTimeLabel(row.time)}</td>
@@ -2151,14 +2125,12 @@ function PaperBotJournal({
                             type='button'
                             size='sm'
                             variant={selected ? 'default' : 'outline'}
-                            isLoading={creating}
                             onClick={(event) => {
                               event.stopPropagation();
                               if (row.decision) onSelectDecision(row.decision);
-                              else if (row.trade) onOpenTradeBrief(row.trade);
                             }}
                           >
-                            {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                            {selected ? 'Viewing' : 'View'}
                           </Button>
                           <Button
                             type='button'
@@ -2191,7 +2163,7 @@ function PaperBotJournal({
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={10} className='p-6 text-center text-muted-foreground'>
-                    No replay decisions yet. Run Linda or pick a strategy with trades.
+                    No Linda trades yet. Trades are created by Linda, not from this UI.
                   </td>
                 </tr>
               ) : null}
@@ -2207,14 +2179,12 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [data, setData] = useState(initialData);
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
   const [loading, setLoading] = useState(false);
-  const [botRunning, setBotRunning] = useState(false);
   const [journalClearing, setJournalClearing] = useState(false);
   const [signalDeletingId, setSignalDeletingId] = useState<string>();
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
   const [selectedTradeKey, setSelectedTradeKey] = useState<string>();
   const [selectedReplayEventId, setSelectedReplayEventId] = useState<string>();
-  const [tradeBriefRunningKey, setTradeBriefRunningKey] = useState<string>();
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy>(
     initialData.backtests[0]?.strategy ?? 'sma-cross'
   );
@@ -2392,81 +2362,14 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     }
   }
 
-  async function runPaperBot() {
-    setBotRunning(true);
-    try {
-      const response = await fetch('/api/trading/journal', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind: 'bot', strategy: selectedStrategy })
-      });
-      const payload = (await response.json()) as {
-        decision?: TradingLabPayload['journal']['decisions'][number];
-      };
-      if (payload.decision) {
-        const signal = signalFromDecision(payload.decision);
-        setSelectedJournalId(payload.decision.id);
-        setSelectedTradeKey(signal.id);
-        setSelectedReplayEventId(signal.id);
-        setData((current) => ({
-          ...current,
-          journal: {
-            ...current.journal,
-            decisions: [...current.journal.decisions, payload.decision!],
-            signals: [...current.journal.signals, signal]
-          }
-        }));
-      }
-    } finally {
-      setBotRunning(false);
-    }
-  }
-
-  async function openTradeBrief(trade: Trade) {
-    if (!selectedBacktest) return;
-    const tradeKey = trade.id ?? getTradeDecisionKey(selectedBacktest.strategy, trade);
-    const existingDecision = tradeDecisionMap.get(tradeKey);
-
-    setSelectedTradeKey(tradeKey);
-    setSelectedReplayEventId(tradeKey);
-
-    if (existingDecision) {
-      setSelectedJournalId(existingDecision.id);
-      return;
-    }
-
-    setTradeBriefRunningKey(tradeKey);
-    try {
-      const response = await fetch('/api/trading/journal', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'bot',
-          strategy: selectedBacktest.strategy,
-          tradeTime: trade.time,
-          tradeSide: trade.side
-        })
-      });
-      const payload = (await response.json()) as {
-        decision?: TradingLabPayload['journal']['decisions'][number];
-      };
-      if (payload.decision) {
-        const signal = signalFromDecision(payload.decision);
-        setSelectedJournalId(payload.decision.id);
-        setSelectedTradeKey(signal.id);
-        setSelectedReplayEventId(signal.id);
-        setData((current) => ({
-          ...current,
-          journal: {
-            ...current.journal,
-            decisions: [...current.journal.decisions, payload.decision!],
-            signals: [...current.journal.signals, signal]
-          }
-        }));
-      }
-    } finally {
-      setTradeBriefRunningKey(undefined);
-    }
+  function selectPersistedTrade(trade: Trade) {
+    const signal = data.journal.signals.find(
+      (item) => item.id === trade.id || item.decisionId === trade.decisionId
+    );
+    if (!signal) return;
+    setSelectedJournalId(signal.decisionId);
+    setSelectedTradeKey(signal.id);
+    setSelectedReplayEventId(signal.id);
   }
 
   function selectReplayEvent(event: ReplayEvent) {
@@ -2500,8 +2403,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           activeLindaDecision={activeLindaDecision}
           latestLindaAction={latestLindaAction}
           watchLevels={watchLevels}
-          botRunning={botRunning}
-          onRunPaperBot={() => void runPaperBot()}
         />
       </RightContextSidebarRegistration>
 
@@ -2537,7 +2438,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           selectedTradeKey={selectedTradeKey}
           hoveredTrade={hoveredTrade}
           onHoverTrade={setHoveredTrade}
-          onSelectTrade={(trade) => void openTradeBrief(trade)}
+          onSelectTrade={selectPersistedTrade}
         />
         <DecisionTimeline
           events={replayEvents}
@@ -2565,14 +2466,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           selectedJournalEntry={selectedJournalEntry}
           selectedTradeKey={selectedTradeKey}
           onSelectDecision={selectJournalDecision}
-          onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
-          botRunning={botRunning}
-          onRunPaperBot={() => void runPaperBot()}
           onClearJournal={() => void clearJournal()}
           onDeleteSignal={(signalId) => void deleteSignal(signalId)}
           journalClearing={journalClearing}
           signalDeletingId={signalDeletingId}
-          tradeBriefRunningKey={tradeBriefRunningKey}
           watchLevels={watchLevels}
         />
       </div>

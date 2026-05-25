@@ -17,9 +17,10 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
   - `sma-cross`
   - `rsi-reversion`
   - `volume-breakout`
-- Backtest trade rows can create/open a Linda brief for that exact paper trade.
+- Shows persisted Linda paper trades for review, audit, chart markers, timeline, and strategy summaries.
 - Maintains a browser-local paper portfolio in `localStorage`.
-- Appends manual and Linda paper decisions to the private runtime journal only after an explicit user action.
+- Treats Linda as the trader; the UI must not create trades from raw backtest rows.
+- Lets the user inspect or delete persisted Linda trades, but trade creation happens agent-side.
 - Shows a Linda Bradford agent panel with stance, guardrails, latest evidence, risk, and next check.
 
 ## Linda trading agent
@@ -39,7 +40,8 @@ Trading Lab surfaces should share one object identity:
 - `TradingSignal.id` is the canonical UI identity for a persisted paper trade/signal.
 - A signal is derived from exactly one journal decision (`decisionId`).
 - Chart markers, replay timeline rows, paper bot journal rows, and the selected decision sidebar all select by `TradingSignal.id`.
-- Raw backtest trades are preview data only; they do not become chart/journal/sidebar state until a Linda/journal decision persists them.
+- Raw backtest trades are preview data only and must not become chart/journal/sidebar state from UI interaction.
+- Linda is the paper trader; Trading Lab is the observer/audit UI for persisted Linda trades.
 - Clearing/deleting the journal removes signals, which removes markers, rows, and sidebar state together.
 - `DELETE /api/trading/journal?id=<TradingSignal.id>` deletes that signal's backing decision, so chart, journal, timeline, and sidebar disappear together.
 
@@ -53,13 +55,14 @@ Better split:
 - `backtest_runs`: explicit saved experiment runs only, created by a “Save run” action, not page load.
 - `strategy_signals`: deterministic generated signals from a backtest run. These are not journal decisions.
 - `paper_orders` / `paper_portfolio_events`: user-created paper buy/sell/reset actions.
-- `agent_decisions`: Linda decisions created only by pressing “Run Linda decision” or opening a trade brief.
+- `agent_decisions`: Linda decisions created agent-side, not by casual UI table/chart interaction.
 - `decision_briefs`: optional research/brief payload linked to an `agent_decision` or `strategy_signal`.
 
 Rule: reads must not write. Opening or refreshing Trading Lab should never mutate persistence.
 Chart markers must come from persisted journal decisions, not raw backtest output, so clearing the journal removes them everywhere.
 Chart interval buttons aggregate OHLCV candles: 1D=daily, 1W=weekly, 1M=monthly, 1Y=yearly, 5Y=five-year buckets.
 Strategy comparison is read-only persisted trade summary state; selecting a strategy must not select/create a trade decision.
+Chart/journal interactions are read-only selectors; they must not create trade briefs or journal rows.
 Strategy comparison metrics come from persisted `TradingSignal` objects. If no signals exist for a strategy, return/drawdown/win-rate render empty instead of using raw generated backtest trades.
 Top strategy metrics also come from persisted `TradingSignal` summaries, not raw generated backtests.
 
