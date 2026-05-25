@@ -2,10 +2,12 @@ import 'server-only';
 
 import {
   backtestStrategy,
+  getTradeDecisionKey,
   type BacktestResult,
   type MarketSnapshot,
   type PaperBotDecision,
   type PaperJournalEntry,
+  type Trade,
   type TradingStrategy
 } from '@/lib/trading';
 import { db } from '@/db/client';
@@ -377,18 +379,25 @@ async function buildResearchBrief(
   selectedStrategy: TradingStrategy,
   action: 'buy' | 'sell' | 'hold',
   reason: string,
-  risk: string
+  risk: string,
+  targetTrade?: Trade
 ): Promise<PaperBotDecision['research']> {
   const performanceLabel = `${backtest.returnPct.toFixed(2)}% return, ${backtest.maxDrawdownPct.toFixed(2)}% max drawdown, ${backtest.winRatePct.toFixed(2)}% win rate`;
   const volumeLabel = `${snapshot.volumeTrend.verdict} volume, ${snapshot.volumeTrend.changeVsSevenDayPct.toFixed(2)}% vs 7D average`;
-  const liveLinks = await fetchLiveResearchLinks();
-  const thesis =
-    action === 'hold'
+  const liveLinks = targetTrade ? [] : await fetchLiveResearchLinks();
+  const tradeLabel = targetTrade
+    ? `${new Date(targetTrade.time).toISOString().slice(0, 10)} ${targetTrade.side.toUpperCase()} at ${targetTrade.price.toFixed(2)}`
+    : undefined;
+  const thesis = targetTrade
+    ? `Trade-level brief for ${tradeLabel}: ${reason} Backtest quality is ${performanceLabel}; volume context is ${volumeLabel}. This is a historical paper decision brief for the selected backtest trade.`
+    : action === 'hold'
       ? `Stand down: ${reason} Backtest quality is ${performanceLabel}; volume context is ${volumeLabel}. Live research is logged as context, not as permission to override the signal.`
       : `${action.toUpperCase()} is paper-only and conditional: ${reason} Backtest quality is ${performanceLabel}; volume context is ${volumeLabel}. Live research is logged as context, not confirmation by itself.`;
 
   return {
-    summary: `Linda decision research pack for ${snapshot.symbol}: strategy=${selectedStrategy}, action=${action}, price=${snapshot.price.toFixed(2)}.`,
+    summary: targetTrade
+      ? `Linda trade brief for ${snapshot.symbol}: strategy=${selectedStrategy}, action=${action}, trade=${tradeLabel}.`
+      : `Linda decision research pack for ${snapshot.symbol}: strategy=${selectedStrategy}, action=${action}, price=${snapshot.price.toFixed(2)}.`,
     thesis,
     invalidation: risk,
     fetchedAt: new Date().toISOString(),
@@ -398,6 +407,7 @@ async function buildResearchBrief(
       `Exposure: ${backtest.exposurePct.toFixed(2)}% of completed daily candles`,
       `Volume regime: ${volumeLabel}`,
       `Live research links captured: ${liveLinks.length}`,
+      ...(targetTrade ? [`Selected trade: ${tradeLabel} — ${targetTrade.reason}`] : []),
       backtest.trades.at(-1)
         ? `Latest backtest signal: ${backtest.trades.at(-1)?.side} — ${backtest.trades.at(-1)?.reason}`
         : 'Latest backtest signal: none in this window'
@@ -435,20 +445,24 @@ async function buildResearchBrief(
 export async function buildPaperBotDecision(
   snapshot: MarketSnapshot,
   backtest: BacktestResult,
-  selectedStrategy: TradingStrategy
+  selectedStrategy: TradingStrategy,
+  targetTrade?: Trade
 ): Promise<PaperBotDecision> {
   const lastTrade = backtest.trades.at(-1);
   const latestTime = latestCompleteCandleTime(snapshot);
   const score = scoreBacktest(backtest, snapshot);
   const latestSignalIsFresh =
     lastTrade !== undefined && latestTime !== undefined && lastTrade.time === latestTime;
-  const action = latestSignalIsFresh ? lastTrade.side : 'hold';
+  const action = targetTrade ? targetTrade.side : latestSignalIsFresh ? lastTrade.side : 'hold';
   const confidence = Math.max(5, Math.min(95, 50 + score));
-  const reason = latestSignalIsFresh
-    ? `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
-    : `No fresh ${selectedStrategy} signal on the latest completed candle; observe only.`;
-  const risk =
-    action === 'hold'
+  const reason = targetTrade
+    ? `${targetTrade.side.toUpperCase()} signal from ${selectedStrategy} on ${new Date(targetTrade.time).toISOString().slice(0, 10)}: ${targetTrade.reason}`
+    : latestSignalIsFresh
+      ? `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
+      : `No fresh ${selectedStrategy} signal on the latest completed candle; observe only.`;
+  const risk = targetTrade
+    ? `Historical ${selectedStrategy} trade can fail if the next candles invalidate ${targetTrade.reason}, liquidity fades, or the strategy regime changes before exit.`
+    : action === 'hold'
       ? 'No fresh edge. Main risk is overtrading stale signals or acting on incomplete candles.'
       : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
   const research = await buildResearchBrief(
@@ -457,22 +471,36 @@ export async function buildPaperBotDecision(
     selectedStrategy,
     action,
     reason,
-    risk
+    risk,
+    targetTrade
   );
+  const evidenceTrade = targetTrade
+    ? {
+        key: getTradeDecisionKey(selectedStrategy, targetTrade),
+        side: targetTrade.side,
+        time: targetTrade.time,
+        price: targetTrade.price,
+        quantity: targetTrade.quantity,
+        equity: targetTrade.equity,
+        reason: targetTrade.reason
+      }
+    : undefined;
 
   return {
     id: randomUUID(),
     kind: 'bot',
     agent: 'Linda',
-    createdAt: new Date().toISOString(),
+    createdAt: targetTrade ? new Date(targetTrade.time).toISOString() : new Date().toISOString(),
     symbol: snapshot.symbol,
     strategy: selectedStrategy,
     action,
-    price: snapshot.price,
+    price: targetTrade ? targetTrade.price : snapshot.price,
     confidence,
     reason,
     risk,
-    nextCheck: 'Re-evaluate after the next completed daily candle or a major volume regime change.',
+    nextCheck: targetTrade
+      ? 'Follow the next completed candle after this trade and compare the strategy exit rule before repeating the setup.'
+      : 'Re-evaluate after the next completed daily candle or a major volume regime change.',
     evidence: {
       returnPct: backtest.returnPct,
       maxDrawdownPct: backtest.maxDrawdownPct,
@@ -480,9 +508,12 @@ export async function buildPaperBotDecision(
       exposurePct: backtest.exposurePct,
       volumeVerdict: snapshot.volumeTrend.verdict,
       volumeVsSevenDayPct: snapshot.volumeTrend.changeVsSevenDayPct,
-      lastSignal: lastTrade
-        ? { side: lastTrade.side, time: lastTrade.time, reason: lastTrade.reason }
-        : undefined
+      lastSignal: targetTrade
+        ? { side: targetTrade.side, time: targetTrade.time, reason: targetTrade.reason }
+        : lastTrade
+          ? { side: lastTrade.side, time: lastTrade.time, reason: lastTrade.reason }
+          : undefined,
+      trade: evidenceTrade
     },
     research,
     disclaimer: 'Paper-only decision. No exchange keys, no real orders, no execution.'
@@ -517,9 +548,43 @@ export async function ensurePaperBotDecisionBrief(
   return decision;
 }
 
-export async function runPaperBotDecision(selectedStrategy: TradingStrategy) {
+export async function runPaperBotDecision(
+  selectedStrategy: TradingStrategy,
+  target?: { tradeTime?: number; tradeSide?: Trade['side'] }
+) {
   const snapshot = await import('@/lib/trading').then((mod) => mod.getMarketSnapshot('BTCUSDT'));
   const backtest = backtestStrategy(snapshot.candles, selectedStrategy);
+  const targetTrade =
+    target?.tradeTime === undefined
+      ? undefined
+      : backtest.trades.find(
+          (trade) =>
+            trade.time === target.tradeTime &&
+            (target.tradeSide === undefined || trade.side === target.tradeSide)
+        );
+
+  if (target?.tradeTime !== undefined && targetTrade === undefined) {
+    throw new Error('Backtest trade was not found for this strategy');
+  }
+
+  if (targetTrade) {
+    const journal = await readJournal();
+    const tradeKey = getTradeDecisionKey(selectedStrategy, targetTrade);
+    const existingDecision = journal.decisions.find(
+      (decision) =>
+        decision.kind === 'bot' &&
+        decision.strategy === selectedStrategy &&
+        decision.evidence.trade?.key === tradeKey
+    );
+
+    if (existingDecision?.kind === 'bot') return existingDecision;
+
+    const decision = await buildPaperBotDecision(snapshot, backtest, selectedStrategy, targetTrade);
+    journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
+    await writeJournal(journal);
+    return decision;
+  }
+
   const decision = await buildPaperBotDecision(snapshot, backtest, selectedStrategy);
   await appendPaperDecision(decision);
   return decision;

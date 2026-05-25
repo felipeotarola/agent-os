@@ -17,6 +17,7 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
   - `sma-cross`
   - `rsi-reversion`
   - `volume-breakout`
+- Backtest trade rows can create/open a Linda brief for that exact paper trade.
 - Maintains a browser-local paper portfolio in `localStorage`.
 - Appends manual and Linda paper decisions to the private runtime journal.
 - Shows a Linda Bradford agent panel with stance, guardrails, latest evidence, risk, and next check.
@@ -28,6 +29,8 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
 - Mandate: paper-only BTC research and backtest critique.
 - Phase 1: no exchange keys, no real orders, no money movement.
 - Every Linda decision should include action, confidence, evidence, risk, and next check.
+- Trade-level briefs are stored as normal Linda decisions with a stable evidence key:
+  `strategy:tradeTime:side:price`.
 
 ## Guardrails
 

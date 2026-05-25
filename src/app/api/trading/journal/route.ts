@@ -16,6 +16,10 @@ function toFiniteNumber(value: unknown) {
   return Number.isFinite(number) ? number : undefined;
 }
 
+function isTradeSide(value: unknown): value is 'buy' | 'sell' {
+  return value === 'buy' || value === 'sell';
+}
+
 export async function GET() {
   try {
     return NextResponse.json(await getTradingJournal());
@@ -36,7 +40,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid strategy' }, { status: 400 });
       }
 
-      return NextResponse.json({ decision: await runPaperBotDecision(body.strategy) });
+      const tradeTime = toFiniteNumber(body.tradeTime);
+      const tradeSide = body.tradeSide;
+
+      if (body.tradeTime !== undefined && tradeTime === undefined) {
+        return NextResponse.json({ error: 'Invalid trade time' }, { status: 400 });
+      }
+
+      if (tradeSide !== undefined && !isTradeSide(tradeSide)) {
+        return NextResponse.json({ error: 'Invalid trade side' }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        decision: await runPaperBotDecision(body.strategy, { tradeTime, tradeSide })
+      });
     }
 
     if (body.kind === 'manual') {

@@ -4,13 +4,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import type {
-  BacktestResult,
-  Candle,
-  MarketSnapshot,
-  PaperJournalEntry,
-  Trade,
-  TradingJournal
+import { cn } from '@/lib/utils';
+import {
+  getTradeDecisionKey,
+  type BacktestResult,
+  type Candle,
+  type MarketSnapshot,
+  type PaperBotDecision,
+  type PaperJournalEntry,
+  type Trade,
+  type TradingJournal
 } from '@/lib/trading';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -29,6 +32,10 @@ type PaperPortfolio = {
 type JournalEntry = PaperJournalEntry;
 
 const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
+
+function isPaperBotDecision(decision: PaperJournalEntry): decision is PaperBotDecision {
+  return decision.kind === 'bot';
+}
 
 function money(value?: number) {
   if (value === undefined || Number.isNaN(value)) return '—';
@@ -305,6 +312,8 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [botRunning, setBotRunning] = useState(false);
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
+  const [selectedTradeKey, setSelectedTradeKey] = useState<string>();
+  const [tradeBriefRunningKey, setTradeBriefRunningKey] = useState<string>();
   const [selectedStrategy, setSelectedStrategy] = useState(
     initialData.backtests[0]?.strategy ?? 'sma-cross'
   );
@@ -331,9 +340,29 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     [selectedBacktest]
   );
   const latestBotDecision = useMemo(
-    () => newestFirst(data.journal.decisions).find((decision) => decision.kind === 'bot'),
+    () => newestFirst(data.journal.decisions).find(isPaperBotDecision),
     [data.journal.decisions]
   );
+  const tradeDecisionMap = useMemo(() => {
+    const entries = data.journal.decisions
+      .filter(isPaperBotDecision)
+      .flatMap((decision) =>
+        decision.evidence.trade?.key ? [[decision.evidence.trade.key, decision] as const] : []
+      );
+
+    return new Map(entries);
+  }, [data.journal.decisions]);
+  const selectedTrade = useMemo(() => {
+    if (!selectedTradeKey || !selectedBacktest) return undefined;
+
+    return selectedBacktest.trades.find(
+      (trade) => getTradeDecisionKey(selectedBacktest.strategy, trade) === selectedTradeKey
+    );
+  }, [selectedBacktest, selectedTradeKey]);
+  const selectedTradeDecision = selectedTradeKey
+    ? tradeDecisionMap.get(selectedTradeKey)
+    : undefined;
+  const activeLindaDecision = selectedTradeDecision ?? latestBotDecision;
   const selectedJournalEntry = useMemo<JournalEntry | undefined>(() => {
     if (selectedJournalId) {
       const selected = data.journal.decisions.find((decision) => decision.id === selectedJournalId);
@@ -379,6 +408,47 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
       }
     } finally {
       setBotRunning(false);
+    }
+  }
+
+  async function openTradeBrief(trade: Trade) {
+    const tradeKey = getTradeDecisionKey(selectedBacktest.strategy, trade);
+    const existingDecision = tradeDecisionMap.get(tradeKey);
+
+    setSelectedTradeKey(tradeKey);
+
+    if (existingDecision) {
+      setSelectedJournalId(existingDecision.id);
+      return;
+    }
+
+    setTradeBriefRunningKey(tradeKey);
+    try {
+      const response = await fetch('/api/trading/journal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'bot',
+          strategy: selectedBacktest.strategy,
+          tradeTime: trade.time,
+          tradeSide: trade.side
+        })
+      });
+      const payload = (await response.json()) as {
+        decision?: TradingLabPayload['journal']['decisions'][number];
+      };
+      if (payload.decision) {
+        setSelectedJournalId(payload.decision.id);
+        setData((current) => ({
+          ...current,
+          journal: {
+            ...current.journal,
+            decisions: [...current.journal.decisions, payload.decision!]
+          }
+        }));
+      }
+    } finally {
+      setTradeBriefRunningKey(undefined);
     }
   }
 
@@ -619,8 +689,16 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
             {data.backtests.map((backtest) => (
               <button
                 key={backtest.strategy}
-                onClick={() => setSelectedStrategy(backtest.strategy)}
-                className={`w-full rounded-lg border p-3 text-left transition ${selectedStrategy === backtest.strategy ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted/50'}`}
+                onClick={() => {
+                  setSelectedStrategy(backtest.strategy);
+                  setSelectedTradeKey(undefined);
+                }}
+                className={cn(
+                  'w-full rounded-lg border p-3 text-left transition',
+                  selectedStrategy === backtest.strategy
+                    ? 'border-primary bg-primary/10'
+                    : 'bg-card hover:bg-muted/50'
+                )}
               >
                 <div className='flex items-center justify-between gap-3'>
                   <span className='font-medium'>{strategyLabels[backtest.strategy]}</span>
@@ -699,9 +777,9 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
               </div>
             </div>
 
-            <div className='overflow-hidden rounded-lg border'>
+            <div className='max-h-96 overflow-auto rounded-lg border'>
               <table className='w-full text-sm'>
-                <thead className='bg-muted/50 text-muted-foreground'>
+                <thead className='bg-muted/50 text-muted-foreground sticky top-0 z-10'>
                   <tr>
                     <th className='p-2 text-left'>Date</th>
                     <th className='p-2 text-left'>Side</th>
@@ -711,21 +789,49 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {newestFirst(selectedBacktest.trades.slice(-8)).map((trade) => (
-                    <tr key={`${trade.time}-${trade.side}`} className='border-t'>
-                      <td className='p-2'>{dateLabel(trade.time)}</td>
-                      <td className='p-2'>
-                        <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'}>
-                          {trade.side}
-                        </Badge>
-                      </td>
-                      <td className='p-2 text-right'>{money(trade.price)}</td>
-                      <td className='text-muted-foreground p-2'>{trade.reason}</td>
-                    </tr>
-                  ))}
+                  {newestFirst(selectedBacktest.trades).map((trade) => {
+                    const tradeKey = getTradeDecisionKey(selectedBacktest.strategy, trade);
+                    const tradeDecision = tradeDecisionMap.get(tradeKey);
+                    const selected = selectedTradeKey === tradeKey;
+                    const creating = tradeBriefRunningKey === tradeKey;
+
+                    return (
+                      <tr
+                        key={`${trade.time}-${trade.side}`}
+                        className={cn(
+                          'cursor-pointer border-t transition',
+                          selected ? 'bg-primary/10' : 'hover:bg-muted/50'
+                        )}
+                        onClick={() => void openTradeBrief(trade)}
+                      >
+                        <td className='p-2'>{dateLabel(trade.time)}</td>
+                        <td className='p-2'>
+                          <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'}>
+                            {trade.side}
+                          </Badge>
+                        </td>
+                        <td className='p-2 text-right'>{money(trade.price)}</td>
+                        <td className='text-muted-foreground p-2'>{trade.reason}</td>
+                        <td className='p-2 text-right'>
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant={selected ? 'default' : 'outline'}
+                            isLoading={creating}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void openTradeBrief(trade);
+                            }}
+                          >
+                            {selected ? 'Viewing' : tradeDecision ? 'Open brief' : 'Create brief'}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {selectedBacktest.trades.length === 0 ? (
                     <tr>
-                      <td className='text-muted-foreground p-3' colSpan={4}>
+                      <td className='text-muted-foreground p-3' colSpan={5}>
                         Inga trades för perioden.
                       </td>
                     </tr>
@@ -786,60 +892,62 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           <CardHeader>
             <CardTitle>Linda decision brief</CardTitle>
             <CardDescription>
-              Senaste paper-beslutet i rätt format: action, confidence, evidence, risk, next check.
+              {selectedTrade
+                ? `Trade brief: ${selectedTrade.side.toUpperCase()} ${dateLabel(selectedTrade.time)} from ${strategyLabels[selectedBacktest.strategy]}.`
+                : 'Senaste paper-beslutet i rätt format: action, confidence, evidence, risk, next check.'}
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-4'>
-            {latestBotDecision?.kind === 'bot' ? (
+            {activeLindaDecision ? (
               <>
                 <div className='grid gap-4 md:grid-cols-4'>
                   <div>
                     <div className='text-muted-foreground text-sm'>Action</div>
                     <div
-                      className={`text-lg font-semibold uppercase ${actionTone(latestBotDecision.action)}`}
+                      className={`text-lg font-semibold uppercase ${actionTone(activeLindaDecision.action)}`}
                     >
-                      {latestBotDecision.action}
+                      {activeLindaDecision.action}
                     </div>
                   </div>
                   <div>
                     <div className='text-muted-foreground text-sm'>Confidence</div>
                     <div className='text-lg font-semibold'>
-                      {latestBotDecision.confidence.toFixed(0)}%
+                      {activeLindaDecision.confidence.toFixed(0)}%
                     </div>
                   </div>
                   <div>
                     <div className='text-muted-foreground text-sm'>Strategy</div>
                     <div className='text-lg font-semibold'>
-                      {strategyLabels[latestBotDecision.strategy]}
+                      {strategyLabels[activeLindaDecision.strategy]}
                     </div>
                   </div>
                   <div>
                     <div className='text-muted-foreground text-sm'>Price</div>
-                    <div className='text-lg font-semibold'>{money(latestBotDecision.price)}</div>
+                    <div className='text-lg font-semibold'>{money(activeLindaDecision.price)}</div>
                   </div>
                 </div>
                 <div className='grid gap-3 md:grid-cols-3'>
                   <div className='rounded-lg border p-3'>
                     <div className='mb-1 text-sm font-medium'>Evidence</div>
-                    <p className='text-muted-foreground text-sm'>{latestBotDecision.reason}</p>
+                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.reason}</p>
                   </div>
                   <div className='rounded-lg border p-3'>
                     <div className='mb-1 text-sm font-medium'>Risk</div>
-                    <p className='text-muted-foreground text-sm'>{latestBotDecision.risk}</p>
+                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.risk}</p>
                   </div>
                   <div className='rounded-lg border p-3'>
                     <div className='mb-1 text-sm font-medium'>Next check</div>
-                    <p className='text-muted-foreground text-sm'>{latestBotDecision.nextCheck}</p>
+                    <p className='text-muted-foreground text-sm'>{activeLindaDecision.nextCheck}</p>
                   </div>
                 </div>
-                {latestBotDecision.research ? (
+                {activeLindaDecision.research ? (
                   <div className='rounded-lg border p-3'>
                     <div className='mb-2 text-sm font-medium'>Research brief</div>
                     <p className='text-muted-foreground text-sm'>
-                      {latestBotDecision.research.thesis}
+                      {activeLindaDecision.research.thesis}
                     </p>
                     <div className='mt-3 grid gap-2 md:grid-cols-2'>
-                      {latestBotDecision.research.links.map((link) => (
+                      {activeLindaDecision.research.links.map((link) => (
                         <a
                           key={link.url}
                           href={link.url}

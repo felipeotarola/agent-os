@@ -17,6 +17,13 @@ export type Trade = {
   reason: string;
 };
 
+export type TradeDecisionLink = Pick<
+  Trade,
+  'side' | 'time' | 'price' | 'quantity' | 'equity' | 'reason'
+> & {
+  key: string;
+};
+
 export type BacktestResult = {
   strategy: TradingStrategy;
   symbol: string;
@@ -52,6 +59,7 @@ export type PaperBotDecision = {
     volumeVerdict: 'rising' | 'flat' | 'falling';
     volumeVsSevenDayPct: number;
     lastSignal?: Pick<Trade, 'side' | 'time' | 'reason'>;
+    trade?: TradeDecisionLink;
   };
   research?: {
     summary: string;
@@ -106,6 +114,13 @@ export type MarketSnapshot = {
   candles: Candle[];
   updatedAt: string;
 };
+
+export function getTradeDecisionKey(
+  strategy: TradingStrategy,
+  trade: Pick<Trade, 'side' | 'time' | 'price'>
+) {
+  return `${strategy}:${trade.time}:${trade.side}:${trade.price.toFixed(2)}`;
+}
 
 export function getFallbackMarketSnapshot(symbol = 'BTCUSDT'): MarketSnapshot {
   const now = Date.now();
