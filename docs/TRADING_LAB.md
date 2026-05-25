@@ -19,7 +19,7 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
   - `volume-breakout`
 - Backtest trade rows can create/open a Linda brief for that exact paper trade.
 - Maintains a browser-local paper portfolio in `localStorage`.
-- Appends manual and Linda paper decisions to the private runtime journal.
+- Appends manual and Linda paper decisions to the private runtime journal only after an explicit user action.
 - Shows a Linda Bradford agent panel with stance, guardrails, latest evidence, risk, and next check.
 
 ## Linda trading agent
@@ -31,6 +31,21 @@ Agent OS Trading Lab is a local BTC research workspace for paper-only experiment
 - Every Linda decision should include action, confidence, evidence, risk, and next check.
 - Trade-level briefs are stored as normal Linda decisions with a stable evidence key:
   `strategy:tradeTime:side:price`.
+
+## Data model direction
+
+Current model is too muddy: backtest outputs, trade-level briefs, manual paper portfolio actions, and Linda decisions all live under “journal/decisions”. That makes normal page loads look like trading activity.
+
+Better split:
+
+- `market_snapshots` / ephemeral API response: fetched public candles, price, volume regime. Usually not persisted.
+- `backtest_runs`: explicit saved experiment runs only, created by a “Save run” action, not page load.
+- `strategy_signals`: deterministic generated signals from a backtest run. These are not journal decisions.
+- `paper_orders` / `paper_portfolio_events`: user-created paper buy/sell/reset actions.
+- `agent_decisions`: Linda decisions created only by pressing “Run Linda decision” or opening a trade brief.
+- `decision_briefs`: optional research/brief payload linked to an `agent_decision` or `strategy_signal`.
+
+Rule: reads must not write. Opening or refreshing Trading Lab should never mutate persistence.
 
 ## Guardrails
 

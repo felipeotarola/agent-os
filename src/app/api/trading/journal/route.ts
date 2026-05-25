@@ -87,8 +87,7 @@ export async function POST(request: Request) {
       };
 
       const decision = await appendPaperDecision(entry);
-      const briefDecision = await runPaperBotDecision('volume-breakout');
-      return NextResponse.json({ decision, briefDecision });
+      return NextResponse.json({ decision });
     }
 
     return NextResponse.json({ error: 'Invalid journal action' }, { status: 400 });

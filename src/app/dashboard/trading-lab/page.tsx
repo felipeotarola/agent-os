@@ -1,10 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { TradingLab } from '@/features/trading/trading-lab';
-import {
-  ensurePaperBotDecisionBrief,
-  getTradingJournal,
-  persistBacktestRun
-} from '@/lib/trading-journal';
+import { getTradingJournal } from '@/lib/trading-journal';
 import {
   backtestStrategy,
   getFallbackMarketSnapshot,
@@ -24,16 +20,6 @@ export default async function TradingLabPage() {
     return getFallbackMarketSnapshot('BTCUSDT');
   });
   const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
-
-  if (snapshot.price > 0) {
-    await persistBacktestRun(snapshot, backtests).catch((error) => {
-      console.error('Trading Lab backtest persistence failed', error);
-    });
-  }
-
-  await ensurePaperBotDecisionBrief(snapshot, backtests).catch((error) => {
-    console.error('Trading Lab automatic decision brief failed', error);
-  });
 
   const journal = await getTradingJournal().catch((error) => {
     console.error('Trading Lab journal read failed', error);
