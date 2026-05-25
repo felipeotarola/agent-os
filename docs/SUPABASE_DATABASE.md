@@ -37,6 +37,6 @@ The initial local Docker Postgres public schema/data was migrated to Supabase vi
 ## Next steps
 
 - Move Linda paper-trade writes behind a Supabase Edge Function.
-- Replace current login/auth flow with Supabase Auth in a separate phase.
+- Supabase Auth is live for Agent OS login; keep `docs/SUPABASE_AUTH.md` as the auth runbook.
 - Rotate Supabase/Vercel tokens that were used during setup.
 - Decide when to retire the local Docker Postgres container/volume after Supabase has baked in production.
