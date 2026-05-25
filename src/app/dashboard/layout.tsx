@@ -12,6 +12,10 @@ import { GlobalCaiChat } from '@/features/chat/components/global-cai-chat';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export const metadata: Metadata = {
   title: 'Cai OS',
   description: 'Agent OS cockpit',

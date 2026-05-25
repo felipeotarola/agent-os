@@ -25,6 +25,7 @@ const baseConfig: NextConfig = {
 };
 
 let configWithPlugins = baseConfig;
+const sentrySourceMapsEnabled = process.env.SENTRY_SOURCE_MAPS === 'true';
 
 // Conditionally enable Sentry configuration
 if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
@@ -34,8 +35,8 @@ if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
     // Only print logs for uploading source maps in CI
     silent: !process.env.CI,
 
-    // Upload a larger set of source maps for prettier stack traces (increases build time)
-    widenClientFileUpload: true,
+    // Source map upload is useful for debugging but can noticeably increase deploy time.
+    widenClientFileUpload: sentrySourceMapsEnabled,
 
     // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
     tunnelRoute: '/monitoring',
@@ -55,7 +56,10 @@ if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
 
     // Disable source map upload when org/project are not configured
     sourcemaps: {
-      disable: !process.env.NEXT_PUBLIC_SENTRY_ORG || !process.env.NEXT_PUBLIC_SENTRY_PROJECT
+      disable:
+        !sentrySourceMapsEnabled ||
+        !process.env.NEXT_PUBLIC_SENTRY_ORG ||
+        !process.env.NEXT_PUBLIC_SENTRY_PROJECT
     }
   });
 }
