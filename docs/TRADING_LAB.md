@@ -47,6 +47,10 @@ Better split:
 
 Rule: reads must not write. Opening or refreshing Trading Lab should never mutate persistence.
 
+### Persistence rule
+
+Production must not use the JSON file fallback unless `TRADING_JOURNAL_FILE_FALLBACK=1` is explicitly set. Without `DATABASE_URL`, Trading Lab returns an empty journal and skips durable writes, because serverless file fallback can keep warm-instance ghost rows across browsers.
+
 ## Guardrails
 
 - Paper-only: no exchange keys, no real orders, no execution.

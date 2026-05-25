@@ -52,6 +52,10 @@ function databaseEnabled() {
   return Boolean(process.env.DATABASE_URL);
 }
 
+function fileJournalEnabled() {
+  return process.env.NODE_ENV !== 'production' || process.env.TRADING_JOURNAL_FILE_FALLBACK === '1';
+}
+
 function toDate(value: string) {
   return new Date(value);
 }
@@ -193,9 +197,15 @@ async function readJournal(): Promise<TradingJournal> {
     try {
       return await readDbJournal();
     } catch (error) {
+      if (!fileJournalEnabled()) {
+        console.error('Trading DB journal read failed; returning empty journal', error);
+        return emptyJournal();
+      }
       console.error('Trading DB journal read failed; falling back to file', error);
     }
   }
+
+  if (!fileJournalEnabled()) return emptyJournal();
 
   return readFileJournal();
 }
@@ -221,9 +231,15 @@ async function writeJournal(journal: TradingJournal) {
       await writeDbJournal(journal);
       return;
     } catch (error) {
+      if (!fileJournalEnabled()) {
+        console.error('Trading DB journal write failed; skipping file fallback', error);
+        return;
+      }
       console.error('Trading DB journal write failed; falling back to file', error);
     }
   }
+
+  if (!fileJournalEnabled()) return;
 
   await mkdir(DATA_DIR, { recursive: true });
   const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
@@ -246,14 +262,17 @@ export async function clearTradingJournal() {
     try {
       await Promise.all([db.delete(tradingDecisions), db.delete(tradingBacktestRuns)]);
     } catch (error) {
-      console.error('Trading DB journal clear failed; still clearing file journal', error);
+      console.error('Trading DB journal clear failed', error);
     }
   }
 
-  await mkdir(DATA_DIR, { recursive: true });
-  const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(empty, null, 2)}\n`, 'utf8');
-  await rename(temporaryPath, JOURNAL_PATH);
+  if (fileJournalEnabled()) {
+    await mkdir(DATA_DIR, { recursive: true });
+    const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(temporaryPath, `${JSON.stringify(empty, null, 2)}\n`, 'utf8');
+    await rename(temporaryPath, JOURNAL_PATH);
+  }
+
   return empty;
 }
 
