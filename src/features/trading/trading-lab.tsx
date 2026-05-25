@@ -4,6 +4,7 @@ import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -735,17 +736,20 @@ function StatusPill({
   label,
   value,
   tone = 'default',
-  icon: Icon
+  icon: Icon,
+  compact = false
 }: {
   label: string;
   value: string;
   tone?: StatusTone;
   icon: React.ComponentType<{ className?: string }>;
+  compact?: boolean;
 }) {
   return (
     <div
       className={cn(
         'flex min-h-[56px] items-center gap-3 rounded-xl border bg-muted/30 px-3 py-2',
+        compact && 'min-h-[52px] gap-2.5 px-2.5',
         tone === 'positive' && 'border-primary/40 bg-primary/10',
         tone === 'negative' && 'border-destructive/40 bg-destructive/10',
         tone === 'warning' && 'border-chart-4/40 bg-chart-4/10'
@@ -830,7 +834,7 @@ function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics
   const RegimeIcon = MarketRegimeIcon({ regime: diagnostics.marketRegime });
 
   return (
-    <Card className='gap-0 rounded-2xl py-2.5'>
+    <Card className='@container gap-0 rounded-2xl py-2.5'>
       <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
         <div className='flex items-center gap-2'>
           <CardTitle>Regime / Diagnostics</CardTitle>
@@ -840,42 +844,48 @@ function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics
           Derived from candles, volume trend, moving averages, and liquidity.
         </CardDescription>
       </CardHeader>
-      <CardContent className='grid gap-3 pt-0 sm:grid-cols-3'>
+      <CardContent className='grid gap-3 pt-0 @[360px]:grid-cols-2'>
         <StatusPill
           label='Trend'
           value={diagnostics.trend}
           tone={diagnosticTone(diagnostics.trend)}
           icon={TrendStatusIcon}
+          compact
         />
         <StatusPill
           label='Volatility'
           value={diagnostics.volatility}
           tone={diagnosticTone(diagnostics.volatility)}
           icon={Icons.activity}
+          compact
         />
         <StatusPill
           label='Volume'
           value={diagnostics.volume}
           tone={diagnosticTone(diagnostics.volume)}
           icon={Icons.adjustments}
+          compact
         />
         <StatusPill
           label='Price vs 200 SMA'
           value={diagnostics.priceVsAverage}
           tone={diagnosticTone(diagnostics.priceVsAverage)}
           icon={Icons.trendingUp}
+          compact
         />
         <StatusPill
           label='Market regime'
           value={diagnostics.marketRegime}
           tone={diagnosticTone(diagnostics.marketRegime)}
           icon={RegimeIcon}
+          compact
         />
         <StatusPill
           label='Liquidity'
           value={diagnostics.liquidity}
           tone={diagnosticTone(diagnostics.liquidity)}
           icon={Icons.database}
+          compact
         />
       </CardContent>
     </Card>
@@ -1629,11 +1639,13 @@ function DecisionTimeline({
 function StrategyComparison({
   summaries,
   selectedStrategy,
-  onSelectStrategy
+  onSelectStrategy,
+  compact = false
 }: {
   summaries: PersistedStrategySummary[];
   selectedStrategy: TradingStrategy;
   onSelectStrategy: (strategy: TradingStrategy) => void;
+  compact?: boolean;
 }) {
   return (
     <Card className='gap-0 rounded-2xl py-2.5'>
@@ -1644,7 +1656,7 @@ function StrategyComparison({
         </CardDescription>
       </CardHeader>
       <CardContent className='pt-0'>
-        <div className='grid gap-3 md:hidden'>
+        <div className={cn('grid gap-3 md:hidden', compact && 'md:grid')}>
           {summaries.map((summary) => {
             const selected = selectedStrategy === summary.strategy;
             const hasTrades = summary.tradeCount > 0;
@@ -1654,6 +1666,7 @@ function StrategyComparison({
                 type='button'
                 className={cn(
                   'rounded-2xl border p-4 text-left transition hover:bg-muted/30',
+                  compact && 'p-3',
                   selected && 'border-primary/40 bg-primary/10'
                 )}
                 onClick={() => onSelectStrategy(summary.strategy)}
@@ -1669,20 +1682,27 @@ function StrategyComparison({
                   </div>
                   {selected ? <Icons.exclusive className='size-4 shrink-0 text-primary' /> : null}
                 </div>
-                <div className='grid grid-cols-2 gap-3 text-sm'>
-                  <InspectorRow
+                <div
+                  className={cn(
+                    'grid grid-cols-2 gap-3 text-sm',
+                    compact && 'gap-x-4 gap-y-2 text-xs'
+                  )}
+                >
+                  <StrategyMetric
                     label='Return'
                     value={hasTrades ? percent(summary.returnPct) : '--'}
+                    tone={(summary.returnPct ?? 0) >= 0 ? 'positive' : 'negative'}
                   />
-                  <InspectorRow
-                    label='Max drawdown'
+                  <StrategyMetric
+                    label='Max DD'
                     value={hasTrades ? percent(-(summary.maxDrawdownPct ?? 0)) : '--'}
+                    tone='negative'
                   />
-                  <InspectorRow
+                  <StrategyMetric
                     label='Win rate'
                     value={hasTrades ? percent(summary.winRatePct) : '--'}
                   />
-                  <InspectorRow label='Trades' value={summary.tradeCount} />
+                  <StrategyMetric label='Trades' value={summary.tradeCount} />
                 </div>
                 <div className='mt-3 text-xs text-muted-foreground'>
                   {hasTrades ? bestRegimeByStrategy[summary.strategy] : 'No persisted trades'}
@@ -1691,7 +1711,7 @@ function StrategyComparison({
             );
           })}
         </div>
-        <div className='hidden overflow-x-auto md:block'>
+        <div className={cn('hidden overflow-x-auto md:block', compact && 'md:hidden')}>
           <table className='w-full min-w-[620px] table-fixed border-collapse text-sm'>
             <thead className='text-muted-foreground'>
               <tr className='border-b'>
@@ -1757,6 +1777,32 @@ function StrategyComparison({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function StrategyMetric({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: StatusTone;
+}) {
+  return (
+    <div className='min-w-0'>
+      <div className='text-[10px] leading-none text-muted-foreground'>{label}</div>
+      <div
+        className={cn(
+          'mt-1 truncate font-semibold leading-tight',
+          tone === 'positive' && 'text-primary',
+          tone === 'negative' && 'text-destructive',
+          tone === 'warning' && 'text-chart-4'
+        )}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -1908,9 +1954,7 @@ function PaperBotJournal({
   selectedJournalEntry,
   selectedTradeKey,
   onSelectDecision,
-  onClearJournal,
   onDeleteSignal,
-  journalClearing,
   signalDeletingId,
   watchLevels
 }: {
@@ -1919,12 +1963,44 @@ function PaperBotJournal({
   selectedJournalEntry?: JournalEntry;
   selectedTradeKey?: string;
   onSelectDecision: (decision: PaperJournalEntry) => void;
-  onClearJournal: () => void;
-  onDeleteSignal: (signalId: string) => void;
-  journalClearing: boolean;
+  onDeleteSignal: (signalId: string) => Promise<void>;
   signalDeletingId?: string;
   watchLevels: WatchLevels;
 }) {
+  const [checkedRowIds, setCheckedRowIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const checkedVisibleIds = checkedRowIds.filter((id) => visibleRowIds.includes(id));
+  const allVisibleChecked = visibleRowIds.length > 0 && checkedVisibleIds.length === rows.length;
+  const someVisibleChecked = checkedVisibleIds.length > 0;
+
+  useEffect(() => {
+    setCheckedRowIds((current) => current.filter((id) => visibleRowIds.includes(id)));
+  }, [visibleRowIds]);
+
+  const toggleRow = (rowId: string, checked: boolean) => {
+    setCheckedRowIds((current) => {
+      if (checked) return current.includes(rowId) ? current : [...current, rowId];
+      return current.filter((id) => id !== rowId);
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setCheckedRowIds(checked ? visibleRowIds : []);
+  };
+
+  const deleteCheckedRows = async () => {
+    setBulkDeleting(true);
+    try {
+      for (const rowId of checkedVisibleIds) {
+        await onDeleteSignal(rowId);
+      }
+      setCheckedRowIds([]);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <Card className='rounded-2xl'>
       <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
@@ -1934,14 +2010,24 @@ function PaperBotJournal({
             Review Linda's persisted paper trades. Creation happens agent-side.
           </CardDescription>
         </div>
-        <div className='flex flex-wrap gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex h-9 items-center gap-2 rounded-xl border px-3 text-sm text-muted-foreground'>
+            <Checkbox
+              checked={allVisibleChecked}
+              onCheckedChange={(checked) => toggleAllVisible(checked === true)}
+              aria-label='Select all visible journal rows'
+              disabled={rows.length === 0 || bulkDeleting}
+            />
+            <span>Select all visible</span>
+          </div>
           <Button
             type='button'
-            variant='outline'
-            isLoading={journalClearing}
-            onClick={onClearJournal}
+            variant='destructive'
+            isLoading={bulkDeleting}
+            disabled={!someVisibleChecked || bulkDeleting}
+            onClick={() => void deleteCheckedRows()}
           >
-            Clear journal
+            Delete selected{someVisibleChecked ? ` (${checkedVisibleIds.length})` : ''}
           </Button>
         </div>
       </CardHeader>
@@ -1979,6 +2065,7 @@ function PaperBotJournal({
               (selectedTradeKey !== undefined &&
                 (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
             const deleting = signalDeletingId === row.id;
+            const checked = checkedRowIds.includes(row.id);
             return (
               <div
                 key={row.id}
@@ -1987,6 +2074,20 @@ function PaperBotJournal({
                   selected && 'border-primary/40 bg-primary/10'
                 )}
               >
+                <div className='mb-3 flex items-start justify-between gap-3'>
+                  <div className='flex min-w-0 items-start gap-3'>
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(nextChecked) => toggleRow(row.id, nextChecked === true)}
+                      aria-label={`Select ${dateTimeLabel(row.time)} journal row`}
+                    />
+                    <div className='min-w-0'>
+                      <div className='text-sm font-medium'>{dateTimeLabel(row.time)}</div>
+                      <div className='mt-1 text-xs text-muted-foreground'>{row.strategy}</div>
+                    </div>
+                  </div>
+                  <Badge variant={actionBadgeVariant(row.action)}>{row.action.toUpperCase()}</Badge>
+                </div>
                 <button
                   type='button'
                   className='w-full text-left'
@@ -1994,15 +2095,6 @@ function PaperBotJournal({
                     if (row.decision) onSelectDecision(row.decision);
                   }}
                 >
-                  <div className='mb-3 flex items-start justify-between gap-3'>
-                    <div>
-                      <div className='text-sm font-medium'>{dateTimeLabel(row.time)}</div>
-                      <div className='mt-1 text-xs text-muted-foreground'>{row.strategy}</div>
-                    </div>
-                    <Badge variant={actionBadgeVariant(row.action)}>
-                      {row.action.toUpperCase()}
-                    </Badge>
-                  </div>
                   <div className='mb-3 text-sm text-muted-foreground'>{row.reason}</div>
                   <div className='grid grid-cols-2 gap-3 text-sm'>
                     <InspectorRow
@@ -2082,6 +2174,7 @@ function PaperBotJournal({
                     (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
                 const expandedDecision = selected && row.decision ? row.decision : undefined;
                 const deleting = signalDeletingId === row.id;
+                const checked = checkedRowIds.includes(row.id);
 
                 return (
                   <React.Fragment key={row.id}>
@@ -2094,7 +2187,19 @@ function PaperBotJournal({
                         if (row.decision) onSelectDecision(row.decision);
                       }}
                     >
-                      <td className='p-3'>{dateTimeLabel(row.time)}</td>
+                      <td className='p-3'>
+                        <div className='flex items-center gap-3'>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(nextChecked) =>
+                              toggleRow(row.id, nextChecked === true)
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                            aria-label={`Select ${dateTimeLabel(row.time)} journal row`}
+                          />
+                          <span>{dateTimeLabel(row.time)}</span>
+                        </div>
+                      </td>
                       <td className='p-3'>
                         <Badge variant={actionBadgeVariant(row.action)}>
                           {row.action.toUpperCase()}
@@ -2178,7 +2283,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const [data, setData] = useState(initialData);
   const [portfolio, setPortfolio] = useState<PaperPortfolio>(defaultPortfolio());
   const [loading, setLoading] = useState(false);
-  const [journalClearing, setJournalClearing] = useState(false);
   const [signalDeletingId, setSignalDeletingId] = useState<string>();
   const [hoveredTrade, setHoveredTrade] = useState<HoveredTrade>();
   const [selectedJournalId, setSelectedJournalId] = useState<string>();
@@ -2317,23 +2421,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     }
   }
 
-  async function clearJournal() {
-    setJournalClearing(true);
-    try {
-      await fetch('/api/trading/journal', { method: 'DELETE', cache: 'no-store' });
-      setSelectedJournalId(undefined);
-      setSelectedReplayEventId(undefined);
-      setSelectedTradeKey(undefined);
-      setHoveredTrade(undefined);
-      setData((current) => ({
-        ...current,
-        journal: { backtestRuns: [], decisions: [], signals: [] }
-      }));
-    } finally {
-      setJournalClearing(false);
-    }
-  }
-
   async function deleteSignal(signalId: string) {
     setSignalDeletingId(signalId);
     try {
@@ -2389,6 +2476,19 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
           selectedBacktest={selectedBacktest}
         />
+        <StrategyComparison
+          summaries={strategySummaries}
+          selectedStrategy={selectedStrategy}
+          compact
+          onSelectStrategy={(strategy) => {
+            setSelectedStrategy(strategy);
+            setSelectedTradeKey(undefined);
+            setSelectedReplayEventId(undefined);
+            setSelectedJournalId(undefined);
+            setHoveredTrade(undefined);
+          }}
+        />
+        <RegimeDiagnosticsCard diagnostics={diagnostics} />
         <LindaAnalystBrief
           activeLindaDecision={activeLindaDecision}
           latestLindaAction={latestLindaAction}
@@ -2435,20 +2535,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           selectedId={selectedReplayEventId ?? selectedTradeKey ?? selectedJournalId}
           onSelect={selectReplayEvent}
         />
-        <div className='grid gap-6 2xl:grid-cols-2'>
-          <StrategyComparison
-            summaries={strategySummaries}
-            selectedStrategy={selectedStrategy}
-            onSelectStrategy={(strategy) => {
-              setSelectedStrategy(strategy);
-              setSelectedTradeKey(undefined);
-              setSelectedReplayEventId(undefined);
-              setSelectedJournalId(undefined);
-              setHoveredTrade(undefined);
-            }}
-          />
-          <RegimeDiagnosticsCard diagnostics={diagnostics} />
-        </div>
 
         <PaperBotJournal
           rows={journalRows}
@@ -2456,9 +2542,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           selectedJournalEntry={selectedJournalEntry}
           selectedTradeKey={selectedTradeKey}
           onSelectDecision={selectJournalDecision}
-          onClearJournal={() => void clearJournal()}
-          onDeleteSignal={(signalId) => void deleteSignal(signalId)}
-          journalClearing={journalClearing}
+          onDeleteSignal={deleteSignal}
           signalDeletingId={signalDeletingId}
           watchLevels={watchLevels}
         />
