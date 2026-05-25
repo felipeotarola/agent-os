@@ -2972,6 +2972,31 @@ async function updateTask(input) {
   const dueAt = hasDueDate && input.dueDate ? new Date(String(input.dueDate)).toISOString() : null;
   const hasPosition = Object.prototype.hasOwnProperty.call(input, 'position');
   const position = hasPosition ? Number(input.position ?? 0) : null;
+
+  const existingRows = await sql`
+    select id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
+    from tasks
+    where id = ${id}
+  `;
+  if (!existingRows.length) {
+    const error = new Error('task not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const existing = existingRows[0];
+  const changed =
+    (hasTitle && title !== String(existing.title ?? '')) ||
+    (hasDescription && description !== String(existing.description ?? '')) ||
+    (hasStatus && status !== normalizeTaskStatus(existing.status)) ||
+    (hasPriority && priority !== Number(existing.priority ?? 0)) ||
+    (hasOwnerAgentId && ownerAgentId !== (existing.ownerAgentId ?? null)) ||
+    (hasProjectId && projectId !== (existing.projectId ?? null)) ||
+    (hasDueDate && dueAt !== (existing.dueAt ? new Date(existing.dueAt).toISOString() : null)) ||
+    (hasPosition && position !== Number(existing.position ?? 0));
+
+  if (!changed) return mapTask(existing);
+
   const rows = await sql`
     update tasks
     set
@@ -2987,11 +3012,6 @@ async function updateTask(input) {
     where id = ${id}
     returning id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
   `;
-  if (!rows.length) {
-    const error = new Error('task not found');
-    error.status = 404;
-    throw error;
-  }
   const eventKind =
     hasStatus && Object.keys(input).every((key) => ['id', 'status', 'position'].includes(key))
       ? 'moved'

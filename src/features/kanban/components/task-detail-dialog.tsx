@@ -40,6 +40,32 @@ type TaskEvent = {
   createdAt?: string | null;
 };
 
+type EditableTask = {
+  title: string;
+  description: string;
+  status: string;
+  priority: Priority;
+  ownerAgentId: string;
+  projectId: string;
+  dueDate: string;
+};
+
+function editableTask(task: Task | null): EditableTask {
+  return {
+    title: task?.title ?? '',
+    description: task?.description ?? '',
+    status: task?.status ?? 'backlog',
+    priority: task?.priority ?? 'medium',
+    ownerAgentId: task?.assignee ?? '',
+    projectId: task?.projectId ?? '',
+    dueDate: task?.dueDate ?? ''
+  };
+}
+
+function editableKey(editable: EditableTask) {
+  return JSON.stringify(editable);
+}
+
 export function TaskDetailDialog({
   task,
   open,
@@ -55,32 +81,25 @@ export function TaskDetailDialog({
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const lastSavedRef = useRef('');
   const saveTimerRef = useRef<number | null>(null);
+  const currentTaskIdRef = useRef<string | null>(null);
 
-  const initial = useMemo(
-    () => ({
-      title: task?.title ?? '',
-      description: task?.description ?? '',
-      status: task?.status ?? 'backlog',
-      priority: task?.priority ?? 'medium',
-      ownerAgentId: task?.assignee ?? '',
-      projectId: task?.projectId ?? '',
-      dueDate: task?.dueDate ?? ''
-    }),
-    [task]
-  );
+  const initial = useMemo(() => editableTask(task), [task]);
 
   const [form, setForm] = useState(initial);
 
-  const formKey = useMemo(() => JSON.stringify(form), [form]);
+  const formKey = useMemo(() => editableKey(form), [form]);
 
   useEffect(() => {
-    if (open) {
-      setForm(initial);
-      lastSavedRef.current = JSON.stringify(initial);
+    if (!open) return;
+    if (currentTaskIdRef.current !== (task?.id ?? null)) {
+      currentTaskIdRef.current = task?.id ?? null;
+      const nextInitial = editableTask(task);
+      setForm(nextInitial);
+      lastSavedRef.current = editableKey(nextInitial);
       setSaveState('idle');
       setError(null);
     }
-  }, [initial, open]);
+  }, [open, task]);
 
   useEffect(
     () => () => {
@@ -156,7 +175,7 @@ export function TaskDetailDialog({
         saveTimerRef.current = null;
       }
 
-      const nextKey = JSON.stringify(form);
+      const nextKey = editableKey(form);
       if (nextKey === lastSavedRef.current) {
         if (options?.close) onOpenChange(false);
         return;
