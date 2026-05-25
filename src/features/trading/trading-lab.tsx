@@ -1645,7 +1645,54 @@ function StrategyComparison({
         </CardDescription>
       </CardHeader>
       <CardContent className='pt-0'>
-        <div className='overflow-x-auto'>
+        <div className='grid gap-3 md:hidden'>
+          {summaries.map((summary) => {
+            const selected = selectedStrategy === summary.strategy;
+            const hasTrades = summary.tradeCount > 0;
+            return (
+              <button
+                key={summary.strategy}
+                type='button'
+                className={cn(
+                  'rounded-2xl border p-4 text-left transition hover:bg-muted/30',
+                  selected && 'border-primary/40 bg-primary/10'
+                )}
+                onClick={() => onSelectStrategy(summary.strategy)}
+              >
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                  <div className='flex min-w-0 items-center gap-2 font-medium'>
+                    <span className='flex size-6 shrink-0 items-center justify-center rounded-full border bg-background/50 text-muted-foreground'>
+                      {React.createElement(StrategyRowIcon({ strategy: summary.strategy }), {
+                        className: 'size-3.5'
+                      })}
+                    </span>
+                    <span className='truncate'>{strategyLabels[summary.strategy]}</span>
+                  </div>
+                  {selected ? <Icons.exclusive className='size-4 shrink-0 text-primary' /> : null}
+                </div>
+                <div className='grid grid-cols-2 gap-3 text-sm'>
+                  <InspectorRow
+                    label='Return'
+                    value={hasTrades ? percent(summary.returnPct) : '--'}
+                  />
+                  <InspectorRow
+                    label='Max drawdown'
+                    value={hasTrades ? percent(-(summary.maxDrawdownPct ?? 0)) : '--'}
+                  />
+                  <InspectorRow
+                    label='Win rate'
+                    value={hasTrades ? percent(summary.winRatePct) : '--'}
+                  />
+                  <InspectorRow label='Trades' value={summary.tradeCount} />
+                </div>
+                <div className='mt-3 text-xs text-muted-foreground'>
+                  {hasTrades ? bestRegimeByStrategy[summary.strategy] : 'No persisted trades'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className='hidden overflow-x-auto md:block'>
           <table className='w-full min-w-[620px] table-fixed border-collapse text-sm'>
             <thead className='text-muted-foreground'>
               <tr className='border-b'>
@@ -1933,7 +1980,7 @@ function PaperBotJournal({
           <Button type='button' variant='outline' size='sm' disabled>
             More filters
           </Button>
-          <div className='ml-auto flex flex-wrap gap-2'>
+          <div className='flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto'>
             <Button type='button' variant='outline' size='sm' disabled>
               Search decisions...
             </Button>
@@ -1942,7 +1989,97 @@ function PaperBotJournal({
             </Button>
           </div>
         </div>
-        <div className='overflow-x-auto rounded-xl border'>
+        <div className='grid gap-3 md:hidden'>
+          {rows.map((row) => {
+            const tradeKey = row.trade
+              ? getTradeDecisionKey(row.strategyKey, row.trade)
+              : undefined;
+            const selected =
+              (selectedRowId !== undefined && selectedRowId === row.id) ||
+              selectedJournalEntry?.id === row.decision?.id ||
+              (selectedTradeKey !== undefined &&
+                (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
+            const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
+            const deleting = signalDeletingId === row.id;
+            return (
+              <div
+                key={row.id}
+                className={cn(
+                  'rounded-2xl border p-4',
+                  selected && 'border-primary/40 bg-primary/10'
+                )}
+              >
+                <button
+                  type='button'
+                  className='w-full text-left'
+                  onClick={() => {
+                    if (row.decision) onSelectDecision(row.decision);
+                    else if (row.trade) onOpenTradeBrief(row.trade);
+                  }}
+                >
+                  <div className='mb-3 flex items-start justify-between gap-3'>
+                    <div>
+                      <div className='text-sm font-medium'>{dateTimeLabel(row.time)}</div>
+                      <div className='mt-1 text-xs text-muted-foreground'>{row.strategy}</div>
+                    </div>
+                    <Badge variant={actionBadgeVariant(row.action)}>
+                      {row.action.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className='mb-3 text-sm text-muted-foreground'>{row.reason}</div>
+                  <div className='grid grid-cols-2 gap-3 text-sm'>
+                    <InspectorRow
+                      label='Confidence'
+                      value={row.confidence !== undefined ? `${row.confidence.toFixed(0)}%` : '--'}
+                    />
+                    <InspectorRow label='Price' value={moneyPrecise(row.price)} />
+                    {row.forward.map((item) => (
+                      <InspectorRow
+                        key={item.label}
+                        label={item.label}
+                        value={item.value === undefined ? '--' : percent(item.value)}
+                      />
+                    ))}
+                  </div>
+                </button>
+                <div className='mt-4 flex flex-wrap gap-2'>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={selected ? 'default' : 'outline'}
+                    isLoading={creating}
+                    onClick={() => {
+                      if (row.decision) onSelectDecision(row.decision);
+                      else if (row.trade) onOpenTradeBrief(row.trade);
+                    }}
+                  >
+                    {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                  </Button>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant='outline'
+                    isLoading={deleting}
+                    onClick={() => onDeleteSignal(row.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+                {selected && row.decision ? (
+                  <div className='mt-4 border-t pt-4'>
+                    <JournalDecisionDetail decision={row.decision} watchLevels={watchLevels} />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {rows.length === 0 ? (
+            <div className='rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground'>
+              No replay decisions yet. Run Linda or pick a strategy with trades.
+            </div>
+          ) : null}
+        </div>
+        <div className='hidden overflow-x-auto rounded-xl border md:block'>
           <table className='w-full min-w-[980px] text-sm'>
             <thead className='bg-muted/40 text-muted-foreground'>
               <tr>
