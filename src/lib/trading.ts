@@ -165,6 +165,8 @@ export type TradingJournal = {
 const BINANCE_REST = 'https://api.binance.com';
 const BINANCE_FUTURES = 'https://fapi.binance.com';
 const COINGECKO = 'https://api.coingecko.com/api/v3';
+const DAILY_CANDLE_HISTORY_LIMIT = 4_000;
+const BINANCE_KLINE_PAGE_LIMIT = 1_000;
 
 function toNumber(value: unknown) {
   const parsed = Number(value);
@@ -186,19 +188,41 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export async function getDailyCandles(symbol = 'BTCUSDT', limit = 120): Promise<Candle[]> {
-  const rows = await fetchJson<unknown[][]>(
-    `${BINANCE_REST}/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}`
-  );
+  let remaining = Math.max(1, limit);
+  let endTime = Date.now();
+  const candles: Candle[] = [];
 
-  return rows.map((row) => ({
-    time: toNumber(row[0]),
-    open: toNumber(row[1]),
-    high: toNumber(row[2]),
-    low: toNumber(row[3]),
-    close: toNumber(row[4]),
-    volume: toNumber(row[5]),
-    quoteVolume: toNumber(row[7])
-  }));
+  while (remaining > 0) {
+    const pageLimit = Math.min(BINANCE_KLINE_PAGE_LIMIT, remaining);
+    const rows = await fetchJson<unknown[][]>(
+      `${BINANCE_REST}/api/v3/klines?symbol=${encodeURIComponent(
+        symbol
+      )}&interval=1d&limit=${pageLimit}&endTime=${endTime}`
+    );
+
+    if (rows.length === 0) break;
+
+    const pageCandles = rows.map((row) => ({
+      time: toNumber(row[0]),
+      open: toNumber(row[1]),
+      high: toNumber(row[2]),
+      low: toNumber(row[3]),
+      close: toNumber(row[4]),
+      volume: toNumber(row[5]),
+      quoteVolume: toNumber(row[7])
+    }));
+
+    candles.unshift(...pageCandles);
+    remaining -= pageCandles.length;
+    endTime = pageCandles[0].time - 1;
+
+    if (pageCandles.length < pageLimit) break;
+  }
+
+  const unique = new Map(candles.map((candle) => [candle.time, candle]));
+  return Array.from(unique.values())
+    .toSorted((left, right) => left.time - right.time)
+    .slice(-limit);
 }
 
 type BinanceTicker = {
@@ -250,8 +274,8 @@ async function getCoinGeckoSimple() {
 export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnapshot> {
   const [binanceCandles, coingeckoCandles, spotTicker, futuresTicker, coinGecko] =
     await Promise.allSettled([
-      getDailyCandles(symbol, 90),
-      getCoinGeckoCandles(90),
+      getDailyCandles(symbol, DAILY_CANDLE_HISTORY_LIMIT),
+      getCoinGeckoCandles(DAILY_CANDLE_HISTORY_LIMIT),
       fetchJson<BinanceTicker>(
         `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
       ),

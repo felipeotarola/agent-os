@@ -8,6 +8,23 @@ import { RightContextSidebarRegistration } from '@/components/layout/right-conte
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  HistogramSeries,
+  LineSeries,
+  createChart,
+  createSeriesMarkers,
+  type CandlestickData,
+  type HistogramData,
+  type LineData,
+  type LogicalRange,
+  type MouseEventParams,
+  type SeriesMarker,
+  type Time,
+  type UTCTimestamp
+} from 'lightweight-charts';
+import {
   getTradeDecisionKey,
   type BacktestResult,
   type Candle,
@@ -17,7 +34,7 @@ import {
   type Trade,
   type TradingJournal
 } from '@/lib/trading';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import React from 'react';
 
 type TradingLabPayload = {
@@ -65,6 +82,8 @@ type WatchLevels = {
   downside: number;
 };
 
+type ChartInterval = '1D' | '1W' | '1M' | '1Y' | '5Y' | 'All';
+
 type ReplayEvent = {
   id: string;
   action: 'buy' | 'sell' | 'hold';
@@ -111,6 +130,8 @@ const strategyLabels: Record<string, string> = {
   'rsi-reversion': 'RSI reversion',
   'volume-breakout': 'Volume breakout'
 };
+
+const chartIntervals: ChartInterval[] = ['1D', '1W', '1M', '1Y', '5Y', 'All'];
 
 const bestRegimeByStrategy: Record<string, string> = {
   'sma-cross': 'Uptrend, Low-Med Vol',
@@ -162,6 +183,117 @@ function dateTimeLabel(value?: number | string) {
   }).format(new Date(value));
 }
 
+function toChartTime(value: number): UTCTimestamp {
+  return Math.floor(value / 1000) as UTCTimestamp;
+}
+
+function clampRgb(value: number) {
+  return Math.min(255, Math.max(0, Math.round(value * 255)));
+}
+
+function linearRgbToSrgb(value: number) {
+  return value <= 0.0031308 ? 12.92 * value : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+}
+
+function rgbString(red: number, green: number, blue: number) {
+  return `rgb(${clampRgb(red)}, ${clampRgb(green)}, ${clampRgb(blue)})`;
+}
+
+function splitColorChannels(value: string) {
+  return value
+    .replace(/\s*\/\s*[\d.]+%?/, '')
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.trim());
+}
+
+function parseLabColor(value: string) {
+  const match = value.match(/^lab\((.+)\)$/i);
+  if (!match) return undefined;
+
+  const [lightnessPart, aPart, bPart] = splitColorChannels(match[1]);
+  const lightness = Number(lightnessPart.replace('%', ''));
+  const a = Number(aPart);
+  const b = Number(bPart);
+  if (![lightness, a, b].every(Number.isFinite)) return undefined;
+
+  const fy = (lightness + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const epsilon = 216 / 24389;
+  const kappa = 24389 / 27;
+  const inverse = (channel: number) => {
+    const cubed = channel ** 3;
+    return cubed > epsilon ? cubed : (116 * channel - 16) / kappa;
+  };
+
+  const xD50 = 0.96422 * inverse(fx);
+  const yD50 = inverse(fy);
+  const zD50 = 0.82521 * inverse(fz);
+  const x = 0.9554734 * xD50 - 0.0230985 * yD50 + 0.0632593 * zD50;
+  const y = -0.0283697 * xD50 + 1.0099956 * yD50 + 0.0210414 * zD50;
+  const z = 0.012314 * xD50 - 0.0205077 * yD50 + 1.3303659 * zD50;
+
+  const red = linearRgbToSrgb(3.2404542 * x - 1.5371385 * y - 0.4985314 * z);
+  const green = linearRgbToSrgb(-0.969266 * x + 1.8760108 * y + 0.041556 * z);
+  const blue = linearRgbToSrgb(0.0556434 * x - 0.2040259 * y + 1.0572252 * z);
+  return rgbString(red, green, blue);
+}
+
+function parseOklchColor(value: string) {
+  const match = value.match(/^oklch\((.+)\)$/i);
+  if (!match) return undefined;
+
+  const [lightnessPart, chromaPart, huePart = '0'] = splitColorChannels(match[1]);
+  const lightness = lightnessPart.endsWith('%')
+    ? Number(lightnessPart.replace('%', '')) / 100
+    : Number(lightnessPart);
+  const chroma = Number(chromaPart);
+  const hue = Number(huePart);
+  if (![lightness, chroma, hue].every(Number.isFinite)) return undefined;
+
+  const hueRadians = (hue * Math.PI) / 180;
+  const a = chroma * Math.cos(hueRadians);
+  const b = chroma * Math.sin(hueRadians);
+  const lPrime = lightness + 0.3963377774 * a + 0.2158037573 * b;
+  const mPrime = lightness - 0.1055613458 * a - 0.0638541728 * b;
+  const sPrime = lightness - 0.0894841775 * a - 1.291485548 * b;
+  const l = lPrime ** 3;
+  const m = mPrime ** 3;
+  const s = sPrime ** 3;
+
+  const red = linearRgbToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s);
+  const green = linearRgbToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s);
+  const blue = linearRgbToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s);
+  return rgbString(red, green, blue);
+}
+
+function normalizeCanvasColor(value: string, fallback: string) {
+  const parsed = parseLabColor(value) ?? parseOklchColor(value);
+  if (parsed) return parsed;
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return fallback;
+
+  context.fillStyle = fallback;
+  context.fillStyle = value;
+  const resolved = context.fillStyle || fallback;
+  return parseLabColor(resolved) ?? parseOklchColor(resolved) ?? resolved;
+}
+
+function chartTokenColor(container: HTMLElement, tokenName: string, fallback: string) {
+  const probe = document.createElement('span');
+  probe.style.color = `var(${tokenName})`;
+  probe.style.display = 'none';
+  container.appendChild(probe);
+
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+
+  return normalizeCanvasColor(resolved, fallback);
+}
+
 function defaultPortfolio(): PaperPortfolio {
   return { cash: 10_000, btc: 0, startedAt: new Date().toISOString() };
 }
@@ -188,7 +320,28 @@ function dateRangeLabel(candles: Candle[]) {
   const first = candles.at(0);
   const last = candles.at(-1);
   if (!first || !last) return '--';
+
+  const firstDate = new Date(first.time);
+  const lastDate = new Date(last.time);
+  if (firstDate.getUTCFullYear() !== lastDate.getUTCFullYear()) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric'
+    });
+    return `${formatter.format(firstDate)} - ${formatter.format(lastDate)}`;
+  }
+
   return `${dateLabel(first.time)} - ${dateLabel(last.time)}`;
+}
+
+function chartRangeBars(interval: ChartInterval, candleCount: number) {
+  if (interval === '1D') return Math.min(95, candleCount);
+  if (interval === '1W') return Math.min(7, candleCount);
+  if (interval === '1M') return Math.min(30, candleCount);
+  if (interval === '1Y') return Math.min(365, candleCount);
+  if (interval === '5Y') return Math.min(365 * 5, candleCount);
+  return candleCount;
 }
 
 function currentOhlc(candles: Candle[], fallbackPrice: number) {
@@ -738,42 +891,19 @@ function StrategyTradeChart({
   onHoverTrade: (trade?: HoveredTrade) => void;
   onSelectTrade: (trade: Trade) => void;
 }) {
-  const visibleCandles = candles.filter((candle) => candle.close > 0).slice(-95);
+  const [chartInterval, setChartInterval] = useState<ChartInterval>('1D');
+  const sourceCandles = useMemo(() => candles.filter((candle) => candle.close > 0), [candles]);
+  const chartCandles = sourceCandles;
   const width = 1120;
   const height = 520;
-  const padding = { top: 24, right: 76, bottom: 40, left: 54 };
-  const priceHeight = 350;
-  const volumeTop = padding.top + priceHeight + 28;
-  const volumeHeight = height - volumeTop - padding.bottom;
-  const plotWidth = width - padding.left - padding.right;
-  const highs = visibleCandles.map((candle) => candle.high || candle.close);
-  const lows = visibleCandles.map((candle) => candle.low || candle.close);
-  const minPrice = Math.min(...lows, ohlc.close || 0);
-  const maxPrice = Math.max(...highs, ohlc.close || 1);
-  const priceRange = Math.max(1, maxPrice - minPrice);
-  const maxChartVolume = Math.max(...visibleCandles.map((candle) => candle.quoteVolume), 1);
-  const candleIndex = new Map(visibleCandles.map((candle, index) => [candle.time, index]));
-  const visibleTrades = trades.filter((trade) => candleIndex.has(trade.time));
-
-  function xForIndex(index: number) {
-    return padding.left + (index / Math.max(visibleCandles.length - 1, 1)) * plotWidth;
-  }
-
-  function yForPrice(value: number) {
-    return padding.top + ((maxPrice - value) / priceRange) * priceHeight;
-  }
-
-  const closePoints = visibleCandles
-    .map((candle, index) => `${xForIndex(index)},${yForPrice(candle.close)}`)
-    .join(' ');
-  const smaPoints = visibleCandles
-    .map((_, index) => {
-      const slice = visibleCandles.slice(Math.max(0, index - 19), index + 1);
-      return `${xForIndex(index)},${yForPrice(average(slice.map((candle) => candle.close)))}`;
-    })
-    .join(' ');
-  const lastCandle = visibleCandles.at(-1);
-  const firstCandle = visibleCandles.at(0);
+  const visibleCandleTimes = useMemo(
+    () => new Set(chartCandles.map((candle) => candle.time)),
+    [chartCandles]
+  );
+  const visibleTrades = useMemo(
+    () => trades.filter((trade) => visibleCandleTimes.has(trade.time)),
+    [trades, visibleCandleTimes]
+  );
 
   return (
     <div className='overflow-hidden rounded-2xl border bg-card'>
@@ -781,7 +911,23 @@ function StrategyTradeChart({
         <div>
           <div className='flex flex-wrap items-center gap-2'>
             <div className='font-semibold'>BTC/USDT</div>
-            <Badge variant='outline'>1D</Badge>
+            <div
+              className='flex items-center rounded-full border bg-background/50 p-0.5'
+              aria-label='Chart interval'
+            >
+              {chartIntervals.map((interval) => (
+                <Button
+                  key={interval}
+                  type='button'
+                  variant={chartInterval === interval ? 'secondary' : 'ghost'}
+                  size='sm'
+                  className='h-6 rounded-full px-2.5 text-xs'
+                  onClick={() => setChartInterval(interval)}
+                >
+                  {interval}
+                </Button>
+              ))}
+            </div>
             <Badge variant='secondary'>Binance</Badge>
             <Badge variant='outline'>{strategy}</Badge>
           </div>
@@ -795,187 +941,22 @@ function StrategyTradeChart({
             </span>
           </div>
         </div>
-        <div className='flex flex-wrap gap-2 text-xs'>
+        <div className='flex flex-wrap items-center gap-2 text-xs'>
           <Badge variant='secondary'>Indicators</Badge>
           <Badge variant='outline'>SMA proxy</Badge>
           <Badge variant='outline'>Volume</Badge>
         </div>
       </div>
       <div className='relative bg-background'>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className='h-[520px] w-full 2xl:aspect-[1120/520] 2xl:h-auto'
-          role='img'
-        >
-          <title>{strategy} decision replay with volume</title>
-          <defs>
-            <linearGradient id='tradeVolumeGradient' x1='0' x2='0' y1='0' y2='1'>
-              <stop offset='0%' stopColor='currentColor' stopOpacity='0.7' />
-              <stop offset='100%' stopColor='currentColor' stopOpacity='0.16' />
-            </linearGradient>
-          </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-            const y = padding.top + tick * priceHeight;
-            const value = maxPrice - tick * priceRange;
-            return (
-              <g key={tick}>
-                <line
-                  x1={padding.left}
-                  x2={width - padding.right}
-                  y1={y}
-                  y2={y}
-                  className='stroke-border'
-                  strokeDasharray='5 7'
-                  opacity='0.8'
-                />
-                <text
-                  x={width - padding.right + 12}
-                  y={y + 4}
-                  className='fill-muted-foreground text-[11px]'
-                >
-                  {money(value)}
-                </text>
-              </g>
-            );
-          })}
-          <text x={padding.left} y={volumeTop - 10} className='fill-muted-foreground text-[11px]'>
-            Volume
-          </text>
-          {visibleCandles.map((candle, index) => {
-            const x = xForIndex(index);
-            const barWidth = Math.max(3, plotWidth / Math.max(visibleCandles.length, 1) - 2);
-            const barHeight = Math.max(2, (candle.quoteVolume / maxChartVolume) * volumeHeight);
-            const isUp = candle.close >= candle.open;
-            return (
-              <g key={candle.time}>
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={yForPrice(candle.high || candle.close)}
-                  y2={yForPrice(candle.low || candle.close)}
-                  className={isUp ? 'stroke-primary/60' : 'stroke-destructive/60'}
-                />
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={yForPrice(candle.open || candle.close)}
-                  y2={yForPrice(candle.close)}
-                  className={isUp ? 'stroke-primary' : 'stroke-destructive'}
-                  strokeLinecap='round'
-                  strokeWidth={Math.max(3, barWidth * 0.65)}
-                />
-                <rect
-                  x={x - barWidth / 2}
-                  y={volumeTop + volumeHeight - barHeight}
-                  width={barWidth}
-                  height={barHeight}
-                  rx='2'
-                  className='fill-primary'
-                  opacity={isUp ? 0.45 : 0.25}
-                />
-              </g>
-            );
-          })}
-          <polyline
-            points={smaPoints}
-            fill='none'
-            className='stroke-primary/50'
-            strokeWidth='1.7'
-          />
-          <polyline
-            points={closePoints}
-            fill='none'
-            className='stroke-foreground/75'
-            strokeWidth='1.25'
-          />
-          {visibleTrades.map((trade) => {
-            const index = candleIndex.get(trade.time) ?? 0;
-            const x = xForIndex(index);
-            const y = yForPrice(trade.price);
-            const buy = trade.side === 'buy';
-            const tradeKey = getTradeDecisionKey(strategyKey, trade);
-            const selected = selectedTradeKey === tradeKey;
-            return (
-              <g
-                key={`${trade.time}-${trade.side}-${trade.price}`}
-                role='button'
-                tabIndex={0}
-                aria-label={`Select ${trade.side} decision on ${dateLabel(trade.time)}`}
-                onClick={() => onSelectTrade(trade)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onSelectTrade(trade);
-                  }
-                }}
-                onMouseEnter={() => onHoverTrade({ trade, x, y })}
-                onMouseLeave={() => onHoverTrade(undefined)}
-                className='cursor-pointer outline-none'
-              >
-                <circle
-                  cx={x}
-                  cy={y}
-                  r='18'
-                  className={buy ? 'fill-primary' : 'fill-destructive'}
-                  opacity='0'
-                />
-                {selected ? (
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r='18'
-                    fill='none'
-                    className={buy ? 'stroke-primary' : 'stroke-destructive'}
-                    strokeWidth='2.5'
-                    opacity='0.55'
-                  />
-                ) : null}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={selected ? '14' : '11'}
-                  className={buy ? 'fill-primary' : 'fill-destructive'}
-                  opacity={selected ? '0.28' : '0.18'}
-                />
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={selected ? '6.5' : '5'}
-                  className={buy ? 'fill-primary' : 'fill-destructive'}
-                  stroke='currentColor'
-                  strokeWidth={selected ? '3' : '2'}
-                />
-                <text
-                  x={x}
-                  y={buy ? y - 15 : y + 25}
-                  textAnchor='middle'
-                  className={
-                    buy
-                      ? 'fill-primary text-[10px] font-bold'
-                      : 'fill-destructive text-[10px] font-bold'
-                  }
-                >
-                  {buy ? 'BUY' : 'SELL'}
-                </text>
-              </g>
-            );
-          })}
-          {firstCandle ? (
-            <text x={padding.left} y={height - 14} className='fill-muted-foreground text-[11px]'>
-              {dateLabel(firstCandle.time)}
-            </text>
-          ) : null}
-          {lastCandle ? (
-            <text
-              x={width - padding.right}
-              y={height - 14}
-              textAnchor='end'
-              className='fill-muted-foreground text-[11px]'
-            >
-              {dateLabel(lastCandle.time)}
-            </text>
-          ) : null}
-        </svg>
+        <TradingViewDecisionChart
+          candles={chartCandles}
+          trades={visibleTrades}
+          strategyKey={strategyKey}
+          interval={chartInterval}
+          selectedTradeKey={selectedTradeKey}
+          onHoverTrade={onHoverTrade}
+          onSelectTrade={onSelectTrade}
+        />
         {hoveredTrade ? (
           <div
             className='pointer-events-none absolute z-10 w-72 rounded-xl border bg-popover p-3 text-xs text-popover-foreground shadow-xl'
@@ -997,13 +978,248 @@ function StrategyTradeChart({
             </div>
           </div>
         ) : null}
-        {visibleCandles.length === 0 ? (
+        {chartCandles.length === 0 ? (
           <div className='absolute inset-x-0 top-1/2 text-center text-sm text-muted-foreground'>
-            No candles available for the selected replay.
+            No candles available for the selected chart.
           </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function TradingViewDecisionChart({
+  candles,
+  trades,
+  strategyKey,
+  interval,
+  selectedTradeKey,
+  onHoverTrade,
+  onSelectTrade
+}: {
+  candles: Candle[];
+  trades: Trade[];
+  strategyKey: TradingStrategy;
+  interval: ChartInterval;
+  selectedTradeKey?: string;
+  onHoverTrade: (trade?: HoveredTrade) => void;
+  onSelectTrade: (trade: Trade) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const onHoverTradeRef = useRef(onHoverTrade);
+  const onSelectTradeRef = useRef(onSelectTrade);
+  const visibleLogicalRangeRef = useRef<LogicalRange | null>(null);
+  const previousDataViewKeyRef = useRef<string | null>(null);
+  const [themeVersion, setThemeVersion] = useState(0);
+
+  useEffect(() => {
+    onHoverTradeRef.current = onHoverTrade;
+    onSelectTradeRef.current = onSelectTrade;
+  }, [onHoverTrade, onSelectTrade]);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setThemeVersion((version) => version + 1);
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme', 'style']
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const firstCandle = candles.at(0);
+    const lastCandle = candles.at(-1);
+    const dataViewKey = [
+      interval,
+      themeVersion,
+      candles.length,
+      firstCandle?.time ?? 'empty',
+      lastCandle?.time ?? 'empty'
+    ].join(':');
+    const shouldFitContent =
+      previousDataViewKeyRef.current !== dataViewKey || !visibleLogicalRangeRef.current;
+
+    // Lightweight Charts needs canvas-safe colors, so theme tokens are resolved to sRGB.
+    const background = chartTokenColor(container, '--card', '#020817');
+    const mutedForeground = chartTokenColor(container, '--muted-foreground', '#8aa0bb');
+    const border = chartTokenColor(container, '--border', '#223047');
+    const upCandle = chartTokenColor(container, '--chart-2', '#67e8f9');
+    const downCandle = chartTokenColor(container, '--destructive', '#f87171');
+    const smaLine = chartTokenColor(container, '--primary', '#67e8f9');
+    const buyMarker = chartTokenColor(container, '--chart-1', '#a3e635');
+    const sellMarker = chartTokenColor(container, '--chart-4', '#f59e0b');
+
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: 520,
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: background },
+        textColor: mutedForeground
+      },
+      grid: {
+        vertLines: { color: border, visible: false },
+        horzLines: { color: border }
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal
+      },
+      localization: {
+        priceFormatter: (price: number) => money(price)
+      },
+      rightPriceScale: {
+        borderColor: border,
+        scaleMargins: { top: 0.08, bottom: 0.25 }
+      },
+      timeScale: {
+        borderColor: border,
+        timeVisible: true,
+        secondsVisible: false
+      }
+    });
+
+    const priceSeries = chart.addSeries(CandlestickSeries, {
+      upColor: upCandle,
+      downColor: downCandle,
+      borderVisible: false,
+      wickUpColor: upCandle,
+      wickDownColor: downCandle
+    });
+
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: ''
+    });
+
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.78, bottom: 0 }
+    });
+
+    const smaSeries = chart.addSeries(LineSeries, {
+      color: smaLine,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+
+    const candleData: CandlestickData<Time>[] = candles.map((candle) => ({
+      time: toChartTime(candle.time),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close
+    }));
+
+    const volumeData: HistogramData<Time>[] = candles.map((candle) => ({
+      time: toChartTime(candle.time),
+      value: candle.quoteVolume,
+      color: candle.close >= candle.open ? upCandle : downCandle
+    }));
+
+    const smaData: LineData<Time>[] = candles.map((_, index) => {
+      const slice = candles.slice(Math.max(0, index - 19), index + 1);
+      return {
+        time: toChartTime(candles[index].time),
+        value: average(slice.map((candle) => candle.close))
+      };
+    });
+
+    const tradeById = new Map<string, Trade>();
+    const tradeByTime = new Map<number, Trade>();
+    const markers: SeriesMarker<Time>[] = trades.map((trade) => {
+      const tradeKey = getTradeDecisionKey(strategyKey, trade);
+      const buy = trade.side === 'buy';
+      const selected = selectedTradeKey === tradeKey;
+      const markerTime = toChartTime(trade.time);
+      tradeById.set(tradeKey, trade);
+      tradeByTime.set(markerTime as number, trade);
+
+      return {
+        id: tradeKey,
+        time: markerTime,
+        position: buy ? 'belowBar' : 'aboveBar',
+        color: buy ? buyMarker : sellMarker,
+        shape: buy ? 'arrowUp' : 'arrowDown',
+        text: buy ? 'BUY' : 'SELL',
+        size: selected ? 2.5 : 1.8
+      };
+    });
+
+    priceSeries.setData(candleData);
+    volumeSeries.setData(volumeData);
+    smaSeries.setData(smaData);
+    createSeriesMarkers(priceSeries, markers, { autoScale: true });
+
+    if (shouldFitContent) {
+      const targetBars = chartRangeBars(interval, candles.length);
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, candles.length - targetBars),
+        to: Math.max(candles.length - 1, 0) + 3
+      });
+    } else if (visibleLogicalRangeRef.current) {
+      chart.timeScale().setVisibleLogicalRange(visibleLogicalRangeRef.current);
+    }
+
+    previousDataViewKeyRef.current = dataViewKey;
+
+    const handleCrosshairMove = (param: MouseEventParams<Time>) => {
+      if (!param.point || !param.time) {
+        onHoverTradeRef.current(undefined);
+        return;
+      }
+
+      const objectId =
+        typeof param.hoveredObjectId === 'string' ? param.hoveredObjectId : undefined;
+      const hoveredTrade =
+        (objectId ? tradeById.get(objectId) : undefined) ??
+        (typeof param.time === 'number' ? tradeByTime.get(param.time) : undefined);
+
+      if (!hoveredTrade) {
+        onHoverTradeRef.current(undefined);
+        return;
+      }
+
+      onHoverTradeRef.current({
+        trade: hoveredTrade,
+        x: param.point.x,
+        y: param.point.y
+      });
+    };
+
+    const handleClick = (param: MouseEventParams<Time>) => {
+      const objectId =
+        typeof param.hoveredObjectId === 'string' ? param.hoveredObjectId : undefined;
+      const selectedTrade =
+        (objectId ? tradeById.get(objectId) : undefined) ??
+        (typeof param.time === 'number' ? tradeByTime.get(param.time) : undefined);
+
+      if (selectedTrade) onSelectTradeRef.current(selectedTrade);
+    };
+
+    chart.subscribeCrosshairMove(handleCrosshairMove);
+    chart.subscribeClick(handleClick);
+
+    return () => {
+      visibleLogicalRangeRef.current = chart.timeScale().getVisibleLogicalRange();
+      chart.unsubscribeCrosshairMove(handleCrosshairMove);
+      chart.unsubscribeClick(handleClick);
+      chart.remove();
+    };
+  }, [candles, interval, selectedTradeKey, strategyKey, themeVersion, trades]);
+
+  return (
+    <div
+      ref={containerRef}
+      className='h-[520px] w-full overflow-hidden bg-card 2xl:aspect-[1120/520] 2xl:h-auto'
+      aria-label='BTC/USDT TradingView chart with strategy trade markers'
+    />
   );
 }
 
@@ -1119,35 +1335,32 @@ function timelineActionTone(action: ReplayEvent['action']) {
 
   if (normalized === 'buy') {
     return {
-      dot: 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.7)]',
-      text: 'text-cyan-300',
-      selected:
-        'border-cyan-400/40 bg-cyan-400/8 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_8px_30px_rgba(34,211,238,0.10)]'
+      dot: 'bg-chart-2 shadow-sm',
+      text: 'text-chart-2',
+      selected: 'border-chart-2/50 bg-chart-2/10'
     };
   }
 
   if (normalized === 'sell') {
     return {
-      dot: 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]',
-      text: 'text-rose-300',
-      selected:
-        'border-rose-400/40 bg-rose-400/8 shadow-[0_0_0_1px_rgba(251,113,133,0.08),0_8px_30px_rgba(251,113,133,0.10)]'
+      dot: 'bg-destructive shadow-sm',
+      text: 'text-destructive',
+      selected: 'border-destructive/50 bg-destructive/10'
     };
   }
 
   if (normalized === 'hold') {
     return {
-      dot: 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]',
-      text: 'text-amber-300',
-      selected:
-        'border-amber-400/40 bg-amber-400/8 shadow-[0_0_0_1px_rgba(251,191,36,0.08),0_8px_30px_rgba(251,191,36,0.10)]'
+      dot: 'bg-chart-1 shadow-sm',
+      text: 'text-chart-1',
+      selected: 'border-chart-1/50 bg-chart-1/10'
     };
   }
 
   return {
-    dot: 'bg-slate-400',
-    text: 'text-slate-300',
-    selected: 'border-slate-500/40 bg-slate-500/8 shadow-[0_0_0_1px_rgba(148,163,184,0.08)]'
+    dot: 'bg-muted-foreground',
+    text: 'text-muted-foreground',
+    selected: 'border-border bg-muted/50'
   };
 }
 
@@ -1187,14 +1400,14 @@ function DecisionTimeline({
   const hasEvents = events.length > 0;
 
   return (
-    <Card className='relative h-[196px] shrink-0 gap-0 overflow-hidden rounded-3xl border border-white/10 bg-[#020817] py-0 text-white shadow-none'>
+    <Card className='relative h-[196px] shrink-0 gap-0 overflow-hidden rounded-3xl border bg-card py-0 text-card-foreground shadow-none'>
       <CardHeader className='shrink-0 px-6 pb-0 pt-6'>
         <div className='flex items-center gap-2'>
-          <CardTitle className='text-[15px] font-semibold leading-none tracking-tight text-white'>
+          <CardTitle className='text-[15px] font-semibold leading-none tracking-tight'>
             Decision timeline
           </CardTitle>
 
-          <span className='flex h-4 w-4 items-center justify-center rounded-full border border-white/15 text-[10px] leading-none text-slate-400'>
+          <span className='flex h-4 w-4 items-center justify-center rounded-full border text-[10px] leading-none text-muted-foreground'>
             i
           </span>
         </div>
@@ -1207,7 +1420,7 @@ function DecisionTimeline({
               type='button'
               onClick={() => scrollByAmount(-260)}
               aria-label='Scroll left'
-              className='absolute left-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#06101f]/95 text-slate-400 transition hover:border-white/20 hover:text-white'
+              className='absolute left-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground transition hover:bg-muted hover:text-foreground'
             >
               &lsaquo;
             </button>
@@ -1216,16 +1429,16 @@ function DecisionTimeline({
               type='button'
               onClick={() => scrollByAmount(260)}
               aria-label='Scroll right'
-              className='absolute right-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#06101f]/95 text-slate-400 transition hover:border-white/20 hover:text-white'
+              className='absolute right-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground transition hover:bg-muted hover:text-foreground'
             >
               &rsaquo;
             </button>
 
-            <div className='pointer-events-none absolute left-12 right-12 top-[36px] h-px bg-white/10' />
+            <div className='pointer-events-none absolute left-12 right-12 top-[36px] h-px bg-border' />
 
             <div
               ref={scrollRef}
-              className='no-scrollbar h-full overflow-x-auto overflow-y-visible px-12'
+              className='h-full overflow-x-auto overflow-y-hidden px-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
             >
               <div className='flex h-full min-w-full items-start gap-5'>
                 {events.map((event) => {
@@ -1240,14 +1453,14 @@ function DecisionTimeline({
                       onClick={() => onSelect(event)}
                       className={cn(
                         'relative flex h-[112px] min-w-[92px] flex-col items-center rounded-2xl border border-transparent px-2 pt-[29px] text-center transition-all duration-200',
-                        'hover:bg-white/[0.035]',
-                        selected &&
-                          'border-white/25 bg-white/[0.035] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
+                        'hover:bg-muted/50',
+                        selected && 'border-border bg-muted/60 shadow-sm',
+                        selected && tone.selected
                       )}
                     >
                       <span
                         className={cn(
-                          'absolute left-1/2 top-[29px] z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full ring-4 ring-[#020817]',
+                          'absolute left-1/2 top-[29px] z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full ring-4 ring-card',
                           tone.dot
                         )}
                       />
@@ -1262,11 +1475,11 @@ function DecisionTimeline({
                           {String(event.action).toUpperCase()}
                         </div>
 
-                        <div className='mt-2 text-[10px] font-medium leading-none text-slate-300'>
+                        <div className='mt-2 text-[10px] font-medium leading-none text-foreground'>
                           {dateLabel(event.time)}
                         </div>
 
-                        <div className='mt-2 text-[10px] leading-none text-slate-500'>
+                        <div className='mt-2 text-[10px] leading-none text-muted-foreground'>
                           {moneyPrecise(event.price)}
                         </div>
                       </div>
@@ -1277,7 +1490,7 @@ function DecisionTimeline({
             </div>
           </div>
         ) : (
-          <div className='w-full rounded-2xl border border-dashed border-white/10 p-4 text-sm text-slate-400'>
+          <div className='w-full rounded-2xl border border-dashed p-4 text-sm text-muted-foreground'>
             No decisions available for this strategy yet.
           </div>
         )}
@@ -1447,36 +1660,6 @@ function LindaAnalystBrief({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PaperTradeControls({
-  onBuy,
-  onSell,
-  onReset
-}: {
-  onBuy: () => void;
-  onSell: () => void;
-  onReset: () => void;
-}) {
-  return (
-    <Card className='rounded-2xl'>
-      <CardHeader className='pb-3'>
-        <CardTitle>Paper controls</CardTitle>
-        <CardDescription>Local paper actions for the current portfolio.</CardDescription>
-      </CardHeader>
-      <CardContent className='grid grid-cols-3 gap-2'>
-        <Button type='button' variant='secondary' size='sm' onClick={onBuy}>
-          Buy
-        </Button>
-        <Button type='button' variant='secondary' size='sm' onClick={onSell}>
-          Sell
-        </Button>
-        <Button type='button' variant='outline' size='sm' onClick={onReset}>
-          Reset
-        </Button>
       </CardContent>
     </Card>
   );
@@ -1914,70 +2097,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     }
   }
 
-  async function logManualDecision(
-    action: 'buy' | 'sell' | 'reset',
-    nextPortfolio: PaperPortfolio,
-    reason: string
-  ) {
-    const response = await fetch('/api/trading/journal', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        kind: 'manual',
-        action,
-        price,
-        cash: nextPortfolio.cash,
-        btc: nextPortfolio.btc,
-        equity: nextPortfolio.cash + nextPortfolio.btc * price,
-        reason
-      })
-    });
-    const payload = (await response.json()) as {
-      decision?: TradingLabPayload['journal']['decisions'][number];
-      briefDecision?: TradingLabPayload['journal']['decisions'][number];
-    };
-    const newDecisions = [payload.decision, payload.briefDecision].filter(
-      (decision): decision is TradingLabPayload['journal']['decisions'][number] =>
-        decision !== undefined
-    );
-    if (newDecisions.length > 0) {
-      setData((current) => ({
-        ...current,
-        journal: {
-          ...current.journal,
-          decisions: [...current.journal.decisions, ...newDecisions]
-        }
-      }));
-    }
-  }
-
-  function paperBuy() {
-    if (portfolio.cash <= 0) return;
-    const quantity = portfolio.cash / price;
-    const nextPortfolio = { ...portfolio, cash: 0, btc: portfolio.btc + quantity };
-    setPortfolio(nextPortfolio);
-    void logManualDecision('buy', nextPortfolio, 'Manual LocalStorage paper buy').catch(
-      () => undefined
-    );
-  }
-
-  function paperSell() {
-    if (portfolio.btc <= 0) return;
-    const nextPortfolio = { ...portfolio, cash: portfolio.cash + portfolio.btc * price, btc: 0 };
-    setPortfolio(nextPortfolio);
-    void logManualDecision('sell', nextPortfolio, 'Manual LocalStorage paper sell').catch(
-      () => undefined
-    );
-  }
-
-  function paperReset() {
-    const nextPortfolio = defaultPortfolio();
-    setPortfolio(nextPortfolio);
-    void logManualDecision('reset', nextPortfolio, 'Manual LocalStorage paper reset').catch(
-      () => undefined
-    );
-  }
-
   function selectReplayEvent(event: ReplayEvent) {
     setSelectedReplayEventId(event.id);
     if (event.trade) {
@@ -2012,7 +2131,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
           selectedBacktest={selectedBacktest}
         />
-        <PaperTradeControls onBuy={paperBuy} onSell={paperSell} onReset={paperReset} />
         <LindaAnalystBrief
           activeLindaDecision={activeLindaDecision}
           latestLindaAction={latestLindaAction}
