@@ -1047,14 +1047,14 @@ function TradingViewDecisionChart({
       previousDataViewKeyRef.current !== dataViewKey || !visibleLogicalRangeRef.current;
 
     // Lightweight Charts needs canvas-safe colors, so theme tokens are resolved to sRGB.
-    const background = chartTokenColor(container, '--card', '#020817');
-    const mutedForeground = chartTokenColor(container, '--muted-foreground', '#8aa0bb');
-    const border = chartTokenColor(container, '--border', '#223047');
-    const upCandle = chartTokenColor(container, '--chart-2', '#67e8f9');
-    const downCandle = chartTokenColor(container, '--destructive', '#f87171');
-    const smaLine = chartTokenColor(container, '--primary', '#67e8f9');
-    const buyMarker = chartTokenColor(container, '--chart-1', '#a3e635');
-    const sellMarker = chartTokenColor(container, '--chart-4', '#f59e0b');
+    const background = chartTokenColor(container, '--card', '#020817'); // theme-guard-ignore-line -- chart/canvas color
+    const mutedForeground = chartTokenColor(container, '--muted-foreground', '#8aa0bb'); // theme-guard-ignore-line -- chart/canvas color
+    const border = chartTokenColor(container, '--border', '#223047'); // theme-guard-ignore-line -- chart/canvas color
+    const upCandle = chartTokenColor(container, '--chart-2', '#67e8f9'); // theme-guard-ignore-line -- chart/canvas color
+    const downCandle = chartTokenColor(container, '--destructive', '#f87171'); // theme-guard-ignore-line -- chart/canvas color
+    const smaLine = chartTokenColor(container, '--primary', '#67e8f9'); // theme-guard-ignore-line -- chart/canvas color
+    const buyMarker = chartTokenColor(container, '--chart-1', '#a3e635'); // theme-guard-ignore-line -- chart/canvas color
+    const sellMarker = chartTokenColor(container, '--chart-4', '#f59e0b'); // theme-guard-ignore-line -- chart/canvas color
 
     const chart = createChart(container, {
       width: container.clientWidth,
