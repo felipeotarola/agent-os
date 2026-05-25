@@ -598,17 +598,23 @@ function TradingContextBar({
 function StrategyTradeChart({
   candles,
   trades,
+  strategyKey,
   strategy,
   ohlc,
+  selectedTradeKey,
   hoveredTrade,
-  onHoverTrade
+  onHoverTrade,
+  onSelectTrade
 }: {
   candles: Candle[];
   trades: Trade[];
+  strategyKey: TradingStrategy;
   strategy: string;
   ohlc: ReturnType<typeof currentOhlc>;
+  selectedTradeKey?: string;
   hoveredTrade?: HoveredTrade;
   onHoverTrade: (trade?: HoveredTrade) => void;
+  onSelectTrade: (trade: Trade) => void;
 }) {
   const visibleCandles = candles.filter((candle) => candle.close > 0).slice(-95);
   const width = 1120;
@@ -761,27 +767,57 @@ function StrategyTradeChart({
             const x = xForIndex(index);
             const y = yForPrice(trade.price);
             const buy = trade.side === 'buy';
+            const tradeKey = getTradeDecisionKey(strategyKey, trade);
+            const selected = selectedTradeKey === tradeKey;
             return (
               <g
                 key={`${trade.time}-${trade.side}-${trade.price}`}
+                role='button'
+                tabIndex={0}
+                aria-label={`Select ${trade.side} decision on ${dateLabel(trade.time)}`}
+                onClick={() => onSelectTrade(trade)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onSelectTrade(trade);
+                  }
+                }}
                 onMouseEnter={() => onHoverTrade({ trade, x, y })}
                 onMouseLeave={() => onHoverTrade(undefined)}
-                className='cursor-pointer'
+                className='cursor-pointer outline-none'
               >
                 <circle
                   cx={x}
                   cy={y}
-                  r='11'
+                  r='18'
                   className={buy ? 'fill-primary' : 'fill-destructive'}
-                  opacity='0.18'
+                  opacity='0'
+                />
+                {selected ? (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r='18'
+                    fill='none'
+                    className={buy ? 'stroke-primary' : 'stroke-destructive'}
+                    strokeWidth='2.5'
+                    opacity='0.55'
+                  />
+                ) : null}
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={selected ? '14' : '11'}
+                  className={buy ? 'fill-primary' : 'fill-destructive'}
+                  opacity={selected ? '0.28' : '0.18'}
                 />
                 <circle
                   cx={x}
                   cy={y}
-                  r='5'
+                  r={selected ? '6.5' : '5'}
                   className={buy ? 'fill-primary' : 'fill-destructive'}
                   stroke='currentColor'
-                  strokeWidth='2'
+                  strokeWidth={selected ? '3' : '2'}
                 />
                 <text
                   x={x}
@@ -1000,6 +1036,21 @@ function DecisionTimeline({
 }) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !selectedId) return;
+
+    const selectedNode = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-replay-event-id]')
+    ).find((node) => node.dataset.replayEventId === selectedId);
+
+    selectedNode?.scrollIntoView({
+      block: 'nearest',
+      inline: 'center',
+      behavior: 'smooth'
+    });
+  }, [selectedId]);
+
   const scrollByAmount = (amount: number) => {
     scrollRef.current?.scrollBy({
       left: amount,
@@ -1059,6 +1110,7 @@ function DecisionTimeline({
                     <button
                       key={event.id}
                       type='button'
+                      data-replay-event-id={event.id}
                       onClick={() => onSelect(event)}
                       className={cn(
                         'relative flex h-[112px] min-w-[92px] flex-col items-center rounded-2xl border border-transparent px-2 pt-[29px] text-center transition-all duration-200',
@@ -1712,8 +1764,12 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         decision?: TradingLabPayload['journal']['decisions'][number];
       };
       if (payload.decision) {
+        const tradeKey = isPaperBotDecision(payload.decision)
+          ? payload.decision.evidence.trade?.key
+          : undefined;
         setSelectedJournalId(payload.decision.id);
-        setSelectedReplayEventId(payload.decision.id);
+        setSelectedTradeKey(tradeKey);
+        setSelectedReplayEventId(tradeKey ?? payload.decision.id);
         setData((current) => ({
           ...current,
           journal: {
@@ -1850,11 +1906,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   }
 
   function selectJournalDecision(decision: PaperJournalEntry) {
+    const tradeKey = isPaperBotDecision(decision) ? decision.evidence.trade?.key : undefined;
     setSelectedJournalId(decision.id);
-    setSelectedReplayEventId(decision.id);
-    if (isPaperBotDecision(decision)) {
-      setSelectedTradeKey(decision.evidence.trade?.key);
-    }
+    setSelectedTradeKey(tradeKey);
+    setSelectedReplayEventId(tradeKey ?? decision.id);
   }
 
   return (
@@ -1889,10 +1944,13 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           <StrategyTradeChart
             candles={data.snapshot.candles}
             trades={selectedBacktest?.trades ?? []}
+            strategyKey={selectedBacktest?.strategy ?? selectedStrategy}
             strategy={strategyLabels[selectedBacktest?.strategy ?? selectedStrategy]}
             ohlc={ohlc}
+            selectedTradeKey={selectedTradeKey}
             hoveredTrade={hoveredTrade}
             onHoverTrade={setHoveredTrade}
+            onSelectTrade={(trade) => void openTradeBrief(trade)}
           />
           <DecisionTimeline
             events={replayEvents}
