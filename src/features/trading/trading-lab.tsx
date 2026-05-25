@@ -499,108 +499,54 @@ function getPositionRisk(diagnostics: RegimeDiagnostics, selectedBacktest?: Back
 }
 
 function createReplayEvents({
-  selectedBacktest,
   decisions,
   selectedStrategy
 }: {
-  selectedBacktest?: BacktestResult;
   decisions: PaperJournalEntry[];
   selectedStrategy: TradingStrategy;
 }): ReplayEvent[] {
-  const trades = selectedBacktest?.trades ?? [];
-  const tradeEvents = trades.map((trade) => ({
-    id: getTradeDecisionKey(selectedStrategy, trade),
-    action: trade.side,
-    time: trade.time,
-    price: trade.price,
-    label: trade.side.toUpperCase(),
-    reason: trade.reason,
-    trade
-  }));
-  const holdEvents = decisions
+  return decisions
     .filter(isPaperBotDecision)
-    .filter((decision) => decision.action === 'hold' && decision.strategy === selectedStrategy)
+    .filter((decision) => decision.strategy === selectedStrategy)
     .map((decision) => ({
       id: decision.id,
-      action: 'hold' as const,
+      action: decision.action,
       time: new Date(decision.createdAt).getTime(),
       price: decision.price,
-      label: 'HOLD',
+      label: decision.action.toUpperCase(),
       reason: decision.reason,
       decision
-    }));
-
-  if (holdEvents.length === 0 && tradeEvents.length > 1) {
-    const syntheticHolds = tradeEvents
-      .slice(0, -1)
-      .slice(0, 3)
-      .map((event, index) => {
-        const next = tradeEvents[index + 1];
-        return {
-          id: `synthetic-hold-${event.id}`,
-          action: 'hold' as const,
-          time: Math.round((event.time + next.time) / 2),
-          price: (event.price + next.price) / 2,
-          label: 'HOLD',
-          reason: 'Synthetic replay checkpoint between strategy decisions',
-          synthetic: true
-        };
-      });
-    return [...tradeEvents, ...syntheticHolds].toSorted((left, right) => left.time - right.time);
-  }
-
-  return [...tradeEvents, ...holdEvents].toSorted((left, right) => left.time - right.time);
+    }))
+    .toSorted((left, right) => left.time - right.time);
 }
 
 function createJournalRows({
-  selectedBacktest,
   decisions,
   selectedStrategy,
   candles
 }: {
-  selectedBacktest?: BacktestResult;
   decisions: PaperJournalEntry[];
   selectedStrategy: TradingStrategy;
   candles: Candle[];
 }): JournalReplayRow[] {
-  const botTradeKeys = new Set(
-    decisions
-      .filter(isPaperBotDecision)
-      .flatMap((decision) => (decision.evidence.trade?.key ? [decision.evidence.trade.key] : []))
-  );
-  const decisionRows: JournalReplayRow[] = decisions.map((decision) => {
-    const strategy = isPaperBotDecision(decision)
-      ? strategyLabels[decision.strategy]
-      : strategyLabels[selectedStrategy];
-    return {
-      id: decision.id,
-      action: decision.action,
-      time: decision.createdAt,
-      confidence: isPaperBotDecision(decision) ? decision.confidence : undefined,
-      price: decision.price,
-      reason: decision.reason,
-      strategy,
-      strategyKey: isPaperBotDecision(decision) ? decision.strategy : selectedStrategy,
-      decision,
-      forward: getForwardPerformance(candles, decision.createdAt, decision.price, decision.action)
-    };
-  });
-  const tradeRows: JournalReplayRow[] = (selectedBacktest?.trades ?? [])
-    .filter((trade) => !botTradeKeys.has(getTradeDecisionKey(selectedStrategy, trade)))
-    .map((trade) => ({
-      id: getTradeDecisionKey(selectedStrategy, trade),
-      action: trade.side,
-      time: trade.time,
-      confidence: undefined,
-      price: trade.price,
-      reason: trade.reason,
-      strategy: strategyLabels[selectedStrategy],
-      strategyKey: selectedStrategy,
-      trade,
-      forward: getForwardPerformance(candles, trade.time, trade.price, trade.side)
-    }));
-
-  return [...decisionRows, ...tradeRows]
+  return decisions
+    .map((decision) => {
+      const strategy = isPaperBotDecision(decision)
+        ? strategyLabels[decision.strategy]
+        : strategyLabels[selectedStrategy];
+      return {
+        id: decision.id,
+        action: decision.action,
+        time: decision.createdAt,
+        confidence: isPaperBotDecision(decision) ? decision.confidence : undefined,
+        price: decision.price,
+        reason: decision.reason,
+        strategy,
+        strategyKey: isPaperBotDecision(decision) ? decision.strategy : selectedStrategy,
+        decision,
+        forward: getForwardPerformance(candles, decision.createdAt, decision.price, decision.action)
+      };
+    })
     .toSorted((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime())
     .slice(0, 12);
 }
@@ -1975,11 +1921,10 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const replayEvents = useMemo(
     () =>
       createReplayEvents({
-        selectedBacktest,
         decisions: data.journal.decisions,
         selectedStrategy
       }),
-    [data.journal.decisions, selectedBacktest, selectedStrategy]
+    [data.journal.decisions, selectedStrategy]
   );
   const selectedReplayEvent = replayEvents.find((event) => event.id === selectedReplayEventId);
   const selectedReplayDecision = selectedReplayEvent?.decision;
@@ -2022,12 +1967,11 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   const journalRows = useMemo(
     () =>
       createJournalRows({
-        selectedBacktest,
         decisions: data.journal.decisions,
         selectedStrategy,
         candles: data.snapshot.candles
       }),
-    [data.journal.decisions, data.snapshot.candles, selectedBacktest, selectedStrategy]
+    [data.journal.decisions, data.snapshot.candles, selectedStrategy]
   );
 
   async function refresh() {
