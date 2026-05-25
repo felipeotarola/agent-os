@@ -461,6 +461,149 @@ function SourceInspector({ source }: { source?: KnowledgeSource }) {
   );
 }
 
+function KnowledgeRightRail({
+  nextSource,
+  dbOnline
+}: {
+  nextSource?: KnowledgeSource;
+  dbOnline: boolean;
+}) {
+  return (
+    <>
+      <SourceInspector source={nextSource} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Knowledge drill-downs</CardTitle>
+          <CardDescription>
+            Related subviews without keeping them in the main sidebar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='grid grid-cols-1 gap-2'>
+          {knowledgeDrilldowns.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className='hover:bg-muted/50 rounded-xl border bg-background/40 p-3 transition-colors'
+            >
+              <div className='text-sm font-medium'>{item.title}</div>
+              <div className='text-muted-foreground mt-1 text-xs'>{item.detail}</div>
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent session harvester</CardTitle>
+          <CardDescription>
+            Importerar långa/högsignal-sessioner från Cai, Charles och Sladdis som reviewbara
+            Knowledge-källor. Inget promoteras automatiskt.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action='/api/knowledge/sessions/harvest' method='post' className='space-y-4'>
+            <div className='grid grid-cols-2 gap-3'>
+              <div className='space-y-2'>
+                <Label htmlFor='session-limit'>Max</Label>
+                <Input
+                  id='session-limit'
+                  name='limit'
+                  type='number'
+                  defaultValue={5}
+                  min={1}
+                  max={20}
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='session-score'>Min score</Label>
+                <Input id='session-score' name='minScore' type='number' defaultValue={35} min={1} />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='session-signals'>Signals/session</Label>
+                <Input
+                  id='session-signals'
+                  name='signalsPerSession'
+                  type='number'
+                  defaultValue={8}
+                  min={1}
+                  max={12}
+                />
+              </div>
+            </div>
+            <div className='text-muted-foreground text-xs leading-5'>
+              Skapar status <code>extracted</code> med rå transcript-excerpt och separata reviewbara
+              decision/TODO/preference-items. Review/Wikify/Promote görs separat.
+            </div>
+            <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Skördar...'>
+              Harvest sessions to inbox
+            </SubmitButton>
+          </form>
+          <Button asChild variant='outline' className='mt-3 w-full'>
+            <Link href='/api/knowledge/sessions/inventory' target='_blank'>
+              Preview inventory JSON
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Session retention policy</CardTitle>
+          <CardDescription>
+            V1-policy: extrahera först, arkivera hellre än radera, ingen automatisk hard delete.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='text-muted-foreground space-y-3 text-sm leading-6'>
+          <ul className='list-disc space-y-1 pl-4'>
+            <li>
+              Behåll sessioner med promoted/reviewed knowledge, audit trail eller aktivt
+              projektvärde.
+            </li>
+            <li>Reviewa högsignal-sessioner innan arkiv/delete.</li>
+            <li>Delete kräver dry-run, dependency checks och explicit confirm.</li>
+          </ul>
+          <Button asChild variant='outline' className='w-full'>
+            <Link
+              href='https://github.com/felipeotarola/agent-os/blob/main/docs/SESSION_RETENTION_POLICY.md'
+              target='_blank'
+            >
+              Open policy
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Lägg till rådata</CardTitle>
+          <CardDescription>Text/URL först. Fil/PDF kommer senare.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action='/api/knowledge/sources' method='post' className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='title'>Titel</Label>
+              <Input id='title' name='title' placeholder='Ex. Karpathy LLM wiki' required />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='sourceUrl'>URL</Label>
+              <Input id='sourceUrl' name='sourceUrl' type='url' placeholder='https://...' />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='rawContent'>Råtext</Label>
+              <Textarea
+                id='rawContent'
+                name='rawContent'
+                placeholder='Klistra in anteckningar, transkript, research, lösa tankar...'
+                className='min-h-32'
+              />
+            </div>
+            <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Sparar...'>
+              Spara till raw inbox
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 export default async function KnowledgePage({
   searchParams
 }: {
@@ -485,7 +628,11 @@ export default async function KnowledgePage({
   const nextSource = activeSources.find((source) => nextAction(source)) ?? activeSources[0];
 
   return (
-    <PageContainer>
+    <PageContainer
+      rightRailTitle='Knowledge context'
+      rightRailDescription='Queue, drill-downs, and capture actions.'
+      rightRail={<KnowledgeRightRail nextSource={nextSource} dbOnline={snapshot.dbOnline} />}
+    >
       <div className='flex flex-1 flex-col gap-6'>
         <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
           <div className='space-y-2'>
@@ -571,8 +718,8 @@ export default async function KnowledgePage({
 
         <ReviewQueue sources={snapshot.sources} />
 
-        <div className='grid grid-cols-1 gap-4 xl:grid-cols-12'>
-          <Card className='xl:col-span-8'>
+        <div className='grid grid-cols-1 gap-4'>
+          <Card>
             <CardHeader>
               <CardTitle>Kunskapskö</CardTitle>
               <CardDescription>
@@ -617,154 +764,6 @@ export default async function KnowledgePage({
               )}
             </CardContent>
           </Card>
-
-          <div className='space-y-4 xl:col-span-4'>
-            <SourceInspector source={nextSource} />
-            <Card>
-              <CardHeader>
-                <CardTitle>Knowledge drill-downs</CardTitle>
-                <CardDescription>
-                  Related subviews without keeping them in the main sidebar.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1'>
-                {knowledgeDrilldowns.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className='hover:bg-muted/50 rounded-xl border bg-background/40 p-3 transition-colors'
-                  >
-                    <div className='text-sm font-medium'>{item.title}</div>
-                    <div className='text-muted-foreground mt-1 text-xs'>{item.detail}</div>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Agent session harvester</CardTitle>
-                <CardDescription>
-                  Importerar långa/högsignal-sessioner från Cai, Charles och Sladdis som reviewbara
-                  Knowledge-källor. Inget promoteras automatiskt.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form action='/api/knowledge/sessions/harvest' method='post' className='space-y-4'>
-                  <div className='grid grid-cols-2 gap-3'>
-                    <div className='space-y-2'>
-                      <Label htmlFor='session-limit'>Max</Label>
-                      <Input
-                        id='session-limit'
-                        name='limit'
-                        type='number'
-                        defaultValue={5}
-                        min={1}
-                        max={20}
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <Label htmlFor='session-score'>Min score</Label>
-                      <Input
-                        id='session-score'
-                        name='minScore'
-                        type='number'
-                        defaultValue={35}
-                        min={1}
-                      />
-                    </div>
-                    <div className='space-y-2'>
-                      <Label htmlFor='session-signals'>Signals/session</Label>
-                      <Input
-                        id='session-signals'
-                        name='signalsPerSession'
-                        type='number'
-                        defaultValue={8}
-                        min={1}
-                        max={12}
-                      />
-                    </div>
-                  </div>
-                  <div className='text-muted-foreground text-xs leading-5'>
-                    Skapar status <code>extracted</code> med rå transcript-excerpt och separata
-                    reviewbara decision/TODO/preference-items. Review/Wikify/Promote görs separat.
-                  </div>
-                  <SubmitButton
-                    className='w-full'
-                    disabled={!snapshot.dbOnline}
-                    pendingText='Skördar…'
-                  >
-                    Harvest sessions to inbox
-                  </SubmitButton>
-                </form>
-                <Button asChild variant='outline' className='mt-3 w-full'>
-                  <Link href='/api/knowledge/sessions/inventory' target='_blank'>
-                    Preview inventory JSON
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Session retention policy</CardTitle>
-                <CardDescription>
-                  V1-policy: extrahera först, arkivera hellre än radera, ingen automatisk hard
-                  delete.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='text-muted-foreground space-y-3 text-sm leading-6'>
-                <ul className='list-disc space-y-1 pl-4'>
-                  <li>
-                    Behåll sessioner med promoted/reviewed knowledge, audit trail eller aktivt
-                    projektvärde.
-                  </li>
-                  <li>Reviewa högsignal-sessioner innan arkiv/delete.</li>
-                  <li>Delete kräver dry-run, dependency checks och explicit confirm.</li>
-                </ul>
-                <Button asChild variant='outline' className='w-full'>
-                  <Link
-                    href='https://github.com/felipeotarola/agent-os/blob/main/docs/SESSION_RETENTION_POLICY.md'
-                    target='_blank'
-                  >
-                    Open policy
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Lägg till rådata</CardTitle>
-                <CardDescription>Text/URL först. Fil/PDF kommer senare.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form action='/api/knowledge/sources' method='post' className='space-y-4'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='title'>Titel</Label>
-                    <Input id='title' name='title' placeholder='Ex. Karpathy LLM wiki' required />
-                  </div>
-                  <div className='space-y-2'>
-                    <Label htmlFor='sourceUrl'>URL</Label>
-                    <Input id='sourceUrl' name='sourceUrl' type='url' placeholder='https://...' />
-                  </div>
-                  <div className='space-y-2'>
-                    <Label htmlFor='rawContent'>Råtext</Label>
-                    <Textarea
-                      id='rawContent'
-                      name='rawContent'
-                      placeholder='Klistra in anteckningar, transkript, research, lösa tankar...'
-                      className='min-h-32'
-                    />
-                  </div>
-                  <SubmitButton
-                    className='w-full'
-                    disabled={!snapshot.dbOnline}
-                    pendingText='Sparar…'
-                  >
-                    Spara till raw inbox
-                  </SubmitButton>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
         </div>
 
         <Card>
