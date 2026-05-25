@@ -144,7 +144,7 @@ function RightContextSidebarBody() {
   const description = content.description ?? 'Context for the current workspace';
 
   return (
-    <div className='flex h-full min-h-0 flex-col'>
+    <div className='flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden'>
       <div className='flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3'>
         <div className='min-w-0'>
           <div className='truncate text-sm font-semibold'>{title}</div>
@@ -154,8 +154,10 @@ function RightContextSidebarBody() {
           Context
         </Badge>
       </div>
-      <div className='min-h-0 flex-1 overflow-y-auto p-3'>
-        {content.content ?? <DefaultRightContextContent />}
+      <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3'>
+        <div className='flex min-w-0 max-w-full flex-col gap-3'>
+          {content.content ?? <DefaultRightContextContent />}
+        </div>
       </div>
     </div>
   );

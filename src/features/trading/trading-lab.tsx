@@ -1,8 +1,10 @@
 'use client';
 
+import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
@@ -55,6 +57,8 @@ type RegimeDiagnostics = {
   movingAverage: number;
   volatilityHigh: boolean;
 };
+
+type StatusTone = 'default' | 'positive' | 'negative' | 'warning';
 
 type WatchLevels = {
   upside: number;
@@ -477,33 +481,151 @@ function MetricItem({
 function StatusPill({
   label,
   value,
-  tone = 'default'
+  tone = 'default',
+  icon: Icon
 }: {
   label: string;
   value: string;
-  tone?: 'default' | 'positive' | 'negative' | 'warning';
+  tone?: StatusTone;
+  icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <div
       className={cn(
-        'rounded-xl border bg-muted/30 p-3',
+        'flex min-h-[56px] items-center gap-3 rounded-xl border bg-muted/30 px-3 py-2',
         tone === 'positive' && 'border-primary/40 bg-primary/10',
         tone === 'negative' && 'border-destructive/40 bg-destructive/10',
-        tone === 'warning' && 'border-muted-foreground/30 bg-muted/50'
+        tone === 'warning' && 'border-chart-4/40 bg-chart-4/10'
       )}
     >
-      <div className='text-muted-foreground text-[11px]'>{label}</div>
       <div
         className={cn(
-          'mt-1 text-sm font-semibold',
-          tone === 'positive' && 'text-primary',
-          tone === 'negative' && 'text-destructive',
-          tone === 'warning' && 'text-foreground'
+          'flex size-7 shrink-0 items-center justify-center rounded-lg border bg-background/50',
+          tone === 'positive' && 'border-primary/30 text-primary',
+          tone === 'negative' && 'border-destructive/30 text-destructive',
+          tone === 'warning' && 'border-chart-4/40 text-chart-4',
+          tone === 'default' && 'text-muted-foreground'
         )}
       >
-        {value}
+        <Icon className='size-3.5' />
+      </div>
+      <div className='min-w-0'>
+        <div className='text-[10px] leading-none text-muted-foreground'>{label}</div>
+        <div
+          className={cn(
+            'mt-1 truncate text-sm font-semibold leading-tight',
+            tone === 'positive' && 'text-primary',
+            tone === 'negative' && 'text-destructive',
+            tone === 'warning' && 'text-chart-4',
+            tone === 'default' && 'text-foreground'
+          )}
+        >
+          {value}
+        </div>
       </div>
     </div>
+  );
+}
+
+function diagnosticTone(value: string): StatusTone {
+  if (
+    value === 'Uptrend' ||
+    value === 'Volume rising' ||
+    value === 'Above MA proxy' ||
+    value === 'Expansion' ||
+    value === 'Healthy'
+  ) {
+    return 'positive';
+  }
+
+  if (
+    value === 'Downtrend' ||
+    value === 'Volume falling' ||
+    value === 'Below MA proxy' ||
+    value === 'Risk-off' ||
+    value === 'Thin'
+  ) {
+    return 'negative';
+  }
+
+  if (value === 'High volatility' || value === 'Range' || value === 'Compression') {
+    return 'warning';
+  }
+
+  return 'default';
+}
+
+function TrendIcon({ trend }: { trend: RegimeDiagnostics['trend'] }) {
+  const Icon = trend === 'Downtrend' ? Icons.trendingDown : Icons.trendingUp;
+  return Icon;
+}
+
+function MarketRegimeIcon({ regime }: { regime: string }) {
+  if (regime === 'Risk-off') return Icons.warning;
+  if (regime === 'Expansion') return Icons.trendingUp;
+  return Icons.activity;
+}
+
+function StrategyRowIcon({ strategy }: { strategy: TradingStrategy }) {
+  if (strategy === 'sma-cross') return Icons.activity;
+  if (strategy === 'rsi-reversion') return Icons.circleDot;
+  return Icons.database;
+}
+
+function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics }) {
+  const TrendStatusIcon = TrendIcon({ trend: diagnostics.trend });
+  const RegimeIcon = MarketRegimeIcon({ regime: diagnostics.marketRegime });
+
+  return (
+    <Card className='gap-0 rounded-2xl py-2.5'>
+      <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
+        <div className='flex items-center gap-2'>
+          <CardTitle>Regime / Diagnostics</CardTitle>
+          <Icons.info className='size-3.5 text-muted-foreground' />
+        </div>
+        <CardDescription className='mt-[-2px] leading-[1.2]'>
+          Derived from candles, volume trend, moving averages, and liquidity.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='grid gap-3 pt-0 sm:grid-cols-3'>
+        <StatusPill
+          label='Trend'
+          value={diagnostics.trend}
+          tone={diagnosticTone(diagnostics.trend)}
+          icon={TrendStatusIcon}
+        />
+        <StatusPill
+          label='Volatility'
+          value={diagnostics.volatility}
+          tone={diagnosticTone(diagnostics.volatility)}
+          icon={Icons.activity}
+        />
+        <StatusPill
+          label='Volume'
+          value={diagnostics.volume}
+          tone={diagnosticTone(diagnostics.volume)}
+          icon={Icons.adjustments}
+        />
+        <StatusPill
+          label='Price vs 200 SMA'
+          value={diagnostics.priceVsAverage}
+          tone={diagnosticTone(diagnostics.priceVsAverage)}
+          icon={Icons.trendingUp}
+        />
+        <StatusPill
+          label='Market regime'
+          value={diagnostics.marketRegime}
+          tone={diagnosticTone(diagnostics.marketRegime)}
+          icon={RegimeIcon}
+        />
+        <StatusPill
+          label='Liquidity'
+          value={diagnostics.liquidity}
+          tone={diagnosticTone(diagnostics.liquidity)}
+          icon={Icons.database}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -680,7 +802,11 @@ function StrategyTradeChart({
         </div>
       </div>
       <div className='relative bg-background'>
-        <svg viewBox={`0 0 ${width} ${height}`} className='h-[520px] w-full' role='img'>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className='h-[520px] w-full 2xl:aspect-[1120/520] 2xl:h-auto'
+          role='img'
+        >
           <title>{strategy} decision replay with volume</title>
           <defs>
             <linearGradient id='tradeVolumeGradient' x1='0' x2='0' y1='0' y2='1'>
@@ -1170,24 +1296,24 @@ function StrategyComparison({
   onSelectStrategy: (strategy: TradingStrategy) => void;
 }) {
   return (
-    <Card className='gap-1.5 rounded-2xl py-2.5'>
-      <CardHeader className='gap-1 px-6 pb-0'>
+    <Card className='gap-0 rounded-2xl py-2.5'>
+      <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
         <CardTitle>Strategy comparison</CardTitle>
         <CardDescription className='mt-[-2px] leading-[1.2]'>
           Compare replay outcomes across available strategy runs.
         </CardDescription>
       </CardHeader>
-      <CardContent className='pt-4'>
+      <CardContent className='pt-0'>
         <div className='overflow-x-auto'>
-          <table className='mt-[-0.5rem] w-full min-w-[620px] text-sm'>
+          <table className='w-full min-w-[620px] table-fixed border-collapse text-sm'>
             <thead className='text-muted-foreground'>
               <tr className='border-b'>
-                <th className='py-1 text-left'>Strategy</th>
-                <th className='py-0.5 text-right'>Return</th>
-                <th className='py-0.5 text-right'>Max drawdown</th>
-                <th className='py-0.5 text-right'>Win rate</th>
-                <th className='py-0.5 text-right'>Trades</th>
-                <th className='py-1 text-left'>Best regime</th>
+                <th className='w-[25%] py-3 text-left'>Strategy</th>
+                <th className='w-[12%] py-3 text-right'>Return</th>
+                <th className='w-[18%] py-3 text-right'>Max drawdown</th>
+                <th className='w-[15%] py-3 text-right'>Win rate</th>
+                <th className='w-[13%] py-3 pr-6 text-right'>Trades</th>
+                <th className='w-[17%] py-3 pl-3 text-left'>Best regime</th>
               </tr>
             </thead>
             <tbody>
@@ -1197,15 +1323,24 @@ function StrategyComparison({
                   <tr
                     key={backtest.strategy}
                     className={cn(
-                      'cursor-pointer border-b transition hover:bg-muted/30',
+                      'cursor-pointer border-t transition hover:bg-muted/30',
                       selected && 'bg-primary/10'
                     )}
                     onClick={() => onSelectStrategy(backtest.strategy)}
                   >
-                    <td className='py-3 font-medium'>
-                      <div className='flex items-center gap-2'>
-                        {strategyLabels[backtest.strategy]}
-                        {selected ? <Badge variant='outline'>Active</Badge> : null}
+                    <td className='py-3 text-left font-medium'>
+                      <div className='flex min-w-0 items-center gap-2'>
+                        <span className='flex size-5 shrink-0 items-center justify-center rounded-full border bg-background/50 text-muted-foreground'>
+                          {React.createElement(StrategyRowIcon({ strategy: backtest.strategy }), {
+                            className: 'size-3'
+                          })}
+                        </span>
+                        <span className='min-w-0 truncate'>
+                          {strategyLabels[backtest.strategy]}
+                        </span>
+                        {selected ? (
+                          <Icons.exclusive className='size-3.5 shrink-0 text-primary' />
+                        ) : null}
                       </div>
                     </td>
                     <td
@@ -1220,9 +1355,11 @@ function StrategyComparison({
                       {percent(-backtest.maxDrawdownPct)}
                     </td>
                     <td className='py-3 text-right'>{percent(backtest.winRatePct)}</td>
-                    <td className='py-3 text-right'>{backtest.trades.length}</td>
-                    <td className='py-3 text-muted-foreground'>
-                      {bestRegimeByStrategy[backtest.strategy]}
+                    <td className='py-3 pr-6 text-right'>{backtest.trades.length}</td>
+                    <td className='py-3 pl-3 text-left text-muted-foreground'>
+                      <span className='block truncate'>
+                        {bestRegimeByStrategy[backtest.strategy]}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -1230,55 +1367,6 @@ function StrategyComparison({
             </tbody>
           </table>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics }) {
-  return (
-    <Card className='gap-1.5 rounded-2xl py-2.5'>
-      <CardHeader className='gap-1 px-6 pb-0'>
-        <CardTitle>Regime / Diagnostics</CardTitle>
-        <CardDescription className='mt-[-2px] leading-[1.2]'>
-          Derived market state for the replay window.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className='mt-auto grid gap-3 pt-4 sm:grid-cols-3'>
-        <StatusPill
-          label='Trend'
-          value={diagnostics.trend}
-          tone={
-            diagnostics.trend === 'Uptrend'
-              ? 'positive'
-              : diagnostics.trend === 'Downtrend'
-                ? 'negative'
-                : 'warning'
-          }
-        />
-        <StatusPill
-          label='Volatility'
-          value={diagnostics.volatility}
-          tone={diagnostics.volatilityHigh ? 'warning' : 'positive'}
-        />
-        <StatusPill
-          label='Volume'
-          value={diagnostics.volume}
-          tone={
-            diagnostics.volume === 'Volume rising'
-              ? 'positive'
-              : diagnostics.volume === 'Volume falling'
-                ? 'negative'
-                : 'warning'
-          }
-        />
-        <StatusPill label='Price vs 200 SMA' value={diagnostics.priceVsAverage} tone='positive' />
-        <StatusPill label='Market regime' value={diagnostics.marketRegime} />
-        <StatusPill
-          label='Liquidity'
-          value={diagnostics.liquidity}
-          tone={diagnostics.liquidity === 'Healthy' ? 'positive' : 'warning'}
-        />
       </CardContent>
     </Card>
   );
@@ -1914,6 +2002,26 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
   return (
     <div className='flex flex-col gap-6'>
+      <RightContextSidebarRegistration
+        title='Trading context'
+        description='Decision, portfolio, and analyst brief.'
+      >
+        <SelectedDecisionInspector
+          decision={selectedDecision}
+          forwardPerformance={forwardPerformance}
+          positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
+          selectedBacktest={selectedBacktest}
+        />
+        <PaperTradeControls onBuy={paperBuy} onSell={paperSell} onReset={paperReset} />
+        <LindaAnalystBrief
+          activeLindaDecision={activeLindaDecision}
+          latestLindaAction={latestLindaAction}
+          watchLevels={watchLevels}
+          botRunning={botRunning}
+          onRunPaperBot={() => void runPaperBot()}
+        />
+      </RightContextSidebarRegistration>
+
       <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
         <div>
           <h1 className='text-3xl font-semibold tracking-tight'>Trading Lab</h1>
@@ -1926,80 +2034,58 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         </Button>
       </div>
 
-      <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
-        <TradingContextBar
-          selectedBacktest={selectedBacktest}
+      <TradingContextBar
+        selectedBacktest={selectedBacktest}
+        candles={data.snapshot.candles}
+        portfolio={portfolio}
+        paperEquity={paperEquity}
+        paperReturnPct={paperReturnPct}
+        lastSignal={lastSignal}
+        latestLindaAction={latestLindaAction}
+      />
+
+      <div className='flex flex-col gap-6'>
+        <StrategyTradeChart
           candles={data.snapshot.candles}
-          portfolio={portfolio}
-          paperEquity={paperEquity}
-          paperReturnPct={paperReturnPct}
-          lastSignal={lastSignal}
-          latestLindaAction={latestLindaAction}
+          trades={selectedBacktest?.trades ?? []}
+          strategyKey={selectedBacktest?.strategy ?? selectedStrategy}
+          strategy={strategyLabels[selectedBacktest?.strategy ?? selectedStrategy]}
+          ohlc={ohlc}
+          selectedTradeKey={selectedTradeKey}
+          hoveredTrade={hoveredTrade}
+          onHoverTrade={setHoveredTrade}
+          onSelectTrade={(trade) => void openTradeBrief(trade)}
         />
-        <div className='hidden xl:block' />
-      </div>
-
-      <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
-        <div className='flex flex-col gap-6'>
-          <StrategyTradeChart
-            candles={data.snapshot.candles}
-            trades={selectedBacktest?.trades ?? []}
-            strategyKey={selectedBacktest?.strategy ?? selectedStrategy}
-            strategy={strategyLabels[selectedBacktest?.strategy ?? selectedStrategy]}
-            ohlc={ohlc}
-            selectedTradeKey={selectedTradeKey}
-            hoveredTrade={hoveredTrade}
-            onHoverTrade={setHoveredTrade}
-            onSelectTrade={(trade) => void openTradeBrief(trade)}
+        <DecisionTimeline
+          events={replayEvents}
+          selectedId={selectedReplayEventId ?? selectedTradeKey ?? selectedJournalId}
+          onSelect={selectReplayEvent}
+        />
+        <div className='grid gap-6 2xl:grid-cols-2'>
+          <StrategyComparison
+            backtests={data.backtests}
+            selectedStrategy={selectedStrategy}
+            onSelectStrategy={(strategy) => {
+              setSelectedStrategy(strategy);
+              setSelectedTradeKey(undefined);
+              setSelectedReplayEventId(undefined);
+            }}
           />
-          <DecisionTimeline
-            events={replayEvents}
-            selectedId={selectedReplayEventId ?? selectedTradeKey ?? selectedJournalId}
-            onSelect={selectReplayEvent}
-          />
-          <div className='grid gap-6 2xl:grid-cols-2'>
-            <StrategyComparison
-              backtests={data.backtests}
-              selectedStrategy={selectedStrategy}
-              onSelectStrategy={(strategy) => {
-                setSelectedStrategy(strategy);
-                setSelectedTradeKey(undefined);
-                setSelectedReplayEventId(undefined);
-              }}
-            />
-            <RegimeDiagnosticsCard diagnostics={diagnostics} />
-          </div>
-
-          <PaperBotJournal
-            rows={journalRows}
-            selectedRowId={selectedReplayEventId}
-            selectedJournalEntry={selectedJournalEntry}
-            selectedTradeKey={selectedTradeKey}
-            onSelectDecision={selectJournalDecision}
-            onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
-            botRunning={botRunning}
-            onRunPaperBot={() => void runPaperBot()}
-            tradeBriefRunningKey={tradeBriefRunningKey}
-            watchLevels={watchLevels}
-          />
+          <RegimeDiagnosticsCard diagnostics={diagnostics} />
         </div>
 
-        <div className='flex flex-col gap-6'>
-          <SelectedDecisionInspector
-            decision={selectedDecision}
-            forwardPerformance={forwardPerformance}
-            positionRisk={getPositionRisk(diagnostics, selectedBacktest)}
-            selectedBacktest={selectedBacktest}
-          />
-          <PaperTradeControls onBuy={paperBuy} onSell={paperSell} onReset={paperReset} />
-          <LindaAnalystBrief
-            activeLindaDecision={activeLindaDecision}
-            latestLindaAction={latestLindaAction}
-            watchLevels={watchLevels}
-            botRunning={botRunning}
-            onRunPaperBot={() => void runPaperBot()}
-          />
-        </div>
+        <PaperBotJournal
+          rows={journalRows}
+          selectedRowId={selectedReplayEventId}
+          selectedJournalEntry={selectedJournalEntry}
+          selectedTradeKey={selectedTradeKey}
+          onSelectDecision={selectJournalDecision}
+          onOpenTradeBrief={(trade) => void openTradeBrief(trade)}
+          botRunning={botRunning}
+          onRunPaperBot={() => void runPaperBot()}
+          tradeBriefRunningKey={tradeBriefRunningKey}
+          watchLevels={watchLevels}
+        />
       </div>
 
       <div className='text-muted-foreground text-xs'>

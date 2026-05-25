@@ -6,7 +6,6 @@ import {
   BuildActivityResumeItem,
   type BuildActivitySnapshot
 } from '@/components/build-activity-indicator';
-import { ContextRailLayout } from '@/components/context-rail-layout';
 import { InteractiveCalendarOverviewCard } from '@/components/interactive-calendar-overview-card';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
 import { MotionCard } from '@/components/motion-card';
@@ -429,765 +428,756 @@ export default async function OverviewPage() {
     actionCenter.items.find((item) => item.priority === 'high') ?? actionCenter.items[0];
 
   return (
-    <PageContainer>
-      <div className='flex flex-1 flex-col gap-4 md:gap-5'>
-        <ContextRailLayout
-          rail={
-            <>
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-start justify-between gap-3'>
-                  <div>
-                    <div className='text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground'>
-                      Daily context
-                    </div>
-                    <div className='mt-1 text-sm text-muted-foreground'>Today, status, action.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    RAIL
-                  </Badge>
+    <PageContainer
+      rightRailTitle='Daily context'
+      rightRailDescription='Today, status, action.'
+      rightRail={
+        <>
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-start justify-between gap-3'>
+              <div>
+                <div className='text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground'>
+                  Daily context
                 </div>
-                <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
-                  <div className='rounded-2xl border bg-background/45 p-3'>
-                    <div className='flex items-center justify-between gap-2'>
-                      <span>Uppsala</span>
-                      <span className='text-lg'>{weatherMoodIcon(weather)}</span>
-                    </div>
-                    <div className='mt-1 text-2xl font-semibold text-foreground'>
-                      {weather.temperature}
-                    </div>
-                  </div>
-                  <div className='rounded-2xl border bg-background/45 p-3'>
-                    <div>Agenda</div>
-                    <div className='mt-1 text-2xl font-semibold text-foreground'>
-                      {calendar.counts.next24h}
-                    </div>
-                  </div>
+                <div className='mt-1 text-sm text-muted-foreground'>Today, status, action.</div>
+              </div>
+              <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                RAIL
+              </Badge>
+            </div>
+            <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
+              <div className='rounded-2xl border bg-background/45 p-3'>
+                <div className='flex items-center justify-between gap-2'>
+                  <span>Uppsala</span>
+                  <span className='text-lg'>{weatherMoodIcon(weather)}</span>
+                </div>
+                <div className='mt-1 text-2xl font-semibold text-foreground'>
+                  {weather.temperature}
                 </div>
               </div>
-
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Action</div>
-                    <div className='text-xs text-muted-foreground'>Quick routes.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    LIVE
-                  </Badge>
-                </div>
-                <div className='space-y-2'>
-                  <BuildActivityResumeItem initial={buildActivity} />
-                  {resumeItems.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                    >
-                      <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
-                        {item.icon}
-                      </span>
-                      <span className='min-w-0 flex-1'>
-                        <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
-                          {item.label}
-                        </span>
-                        <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
-                          {item.value}
-                        </span>
-                      </span>
-                      <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                        →
-                      </span>
-                    </Link>
-                  ))}
-                  <div className='grid grid-cols-2 gap-2 pt-1'>
-                    <Button asChild variant='outline' size='sm' className='rounded-full'>
-                      <Link href='/dashboard/kanban'>Add task</Link>
-                    </Button>
-                    <Button asChild variant='outline' size='sm' className='rounded-full'>
-                      <Link href='/dashboard/chat'>Ask Cai</Link>
-                    </Button>
-                  </div>
+              <div className='rounded-2xl border bg-background/45 p-3'>
+                <div>Agenda</div>
+                <div className='mt-1 text-2xl font-semibold text-foreground'>
+                  {calendar.counts.next24h}
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Cai Briefing</div>
-                    <div className='text-xs text-muted-foreground'>Digest first.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    {latestCaiRun?.label ?? 'brief'}
-                  </Badge>
-                </div>
-                <div className='max-h-44 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
-                  <p className='whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
-                    {latestCaiMessage}
-                  </p>
-                </div>
-                <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
-                  {latestCaiRun
-                    ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
-                    : latestCaiTime}
-                </div>
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>Action</div>
+                <div className='text-xs text-muted-foreground'>Quick routes.</div>
               </div>
-
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Markets</div>
-                    <div className='text-xs text-muted-foreground'>My holdings + watchlist.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    {briefing.markets.ok ? 'live' : 'watch'}
-                  </Badge>
-                </div>
-                <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
-                        My holdings
-                      </div>
-                      <div className='mt-1 font-semibold text-foreground'>
-                        {holdingDirection(holdingChange24h)}
-                      </div>
-                      <div className='mt-0.5 text-xs text-muted-foreground'>
-                        {briefing.markets.holdings.liveCount}/{briefing.markets.holdings.count} live
-                        instruments
-                      </div>
-                    </div>
-                    <div
-                      className={`text-right text-lg font-semibold ${marketTone(holdingChange24h)}`}
-                    >
-                      {percent(holdingChange24h)}
-                    </div>
-                  </div>
-                </div>
-                <div className='max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
-                  {marketAssets.map((asset) => (
-                    <div key={asset.id} className='rounded-2xl border bg-background/45 p-3 text-sm'>
-                      <div className='flex items-start justify-between gap-3'>
-                        <div className='min-w-0'>
-                          <div className='flex min-w-0 items-center gap-2'>
-                            <div className='truncate font-medium text-foreground'>
-                              {asset.label}
-                            </div>
-                            {asset.holding ? (
-                              <Badge variant='secondary' className='shrink-0 text-[10px]'>
-                                holding
-                              </Badge>
-                            ) : null}
-                          </div>
-                          <div className='mt-0.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
-                            <span>{asset.symbol}</span>
-                            <span>·</span>
-                            <span>{asset.kind}</span>
-                            {asset.quantity ? (
-                              <>
-                                <span>·</span>
-                                <span>{asset.quantity}</span>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className='shrink-0 text-right'>
-                          <div className='font-semibold text-foreground'>{marketPrice(asset)}</div>
-                          <div className={`text-xs ${marketTone(asset.change24h)}`}>
-                            {asset.change24h === null ? '—' : `${percent(asset.change24h)} 24h`}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <InteractiveCalendarOverviewCard calendar={calendar} />
-
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>News signals</div>
-                    <div className='text-xs text-muted-foreground'>High-signal headlines.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
-                    {briefing.news.ok ? 'live' : 'degraded'}
-                  </Badge>
-                </div>
-                {newsSignals.length === 0 ? (
-                  <div className='rounded-2xl border border-dashed bg-background/35 p-3 text-sm text-muted-foreground'>
-                    No news signals available.
-                  </div>
-                ) : (
-                  <div className='max-h-64 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
-                    {newsSignals.map((item) => (
-                      <a
-                        key={`${item.source}-${item.url}`}
-                        href={item.url}
-                        target='_blank'
-                        rel='noreferrer'
-                        className='group block rounded-2xl border bg-background/45 p-2.5 transition hover:border-primary/40 hover:bg-primary/10'
-                      >
-                        <div className='flex items-start gap-3'>
-                          {item.imageUrl ? (
-                            <div
-                              className='h-14 w-16 shrink-0 rounded-xl border bg-muted bg-cover bg-center shadow-inner'
-                              style={{ backgroundImage: `url(${item.imageUrl})` }}
-                              aria-hidden='true'
-                            />
-                          ) : (
-                            <div className='flex h-14 w-16 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-lg text-muted-foreground'>
-                              ◌
-                            </div>
-                          )}
-                          <div className='min-w-0 flex-1'>
-                            <div className='line-clamp-2 text-sm font-medium leading-5 text-foreground group-hover:text-primary'>
-                              {item.title}
-                            </div>
-                            <div className='mt-1 flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
-                              <span className='truncate'>{item.source}</span>
-                              <span className='shrink-0 transition group-hover:translate-x-0.5 group-hover:text-primary'>
-                                →
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Status</div>
-                    <div className='text-xs text-muted-foreground'>Signals, not logs.</div>
-                  </div>
-                  <Badge variant='outline' className='border-border bg-muted/40'>
-                    ops
-                  </Badge>
-                </div>
-                <div className='grid gap-2 text-sm text-muted-foreground'>
-                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                    <StatusDot ok={snapshot.dbOnline} />
-                    <span>db online</span>
-                  </div>
-                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                    <StatusDot ok={Boolean(subagents?.ok)} />
-                    <span>OpenClaw bridge connected</span>
-                  </div>
-                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                    <StatusDot ok />
-                    <span>Memory index healthy</span>
-                  </div>
-                  <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
-                    <StatusDot ok={buildActivity.activeCount > 0} />
-                    <span>
-                      {buildActivity.activeCount
-                        ? `${buildActivity.activeCount} build running`
-                        : 'Build idle'}
+              <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                LIVE
+              </Badge>
+            </div>
+            <div className='space-y-2'>
+              <BuildActivityResumeItem initial={buildActivity} />
+              {resumeItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className='mobile-feed-row group flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                >
+                  <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-card-foreground'>
+                    {item.icon}
+                  </span>
+                  <span className='min-w-0 flex-1'>
+                    <span className='block text-[10px] uppercase tracking-wide text-muted-foreground'>
+                      {item.label}
                     </span>
+                    <span className='mt-0.5 block truncate text-sm font-medium text-card-foreground'>
+                      {item.value}
+                    </span>
+                  </span>
+                  <span className='text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                    →
+                  </span>
+                </Link>
+              ))}
+              <div className='grid grid-cols-2 gap-2 pt-1'>
+                <Button asChild variant='outline' size='sm' className='rounded-full'>
+                  <Link href='/dashboard/kanban'>Add task</Link>
+                </Button>
+                <Button asChild variant='outline' size='sm' className='rounded-full'>
+                  <Link href='/dashboard/chat'>Ask Cai</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>Cai Briefing</div>
+                <div className='text-xs text-muted-foreground'>Digest first.</div>
+              </div>
+              <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                {latestCaiRun?.label ?? 'brief'}
+              </Badge>
+            </div>
+            <div className='max-h-44 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+              <p className='whitespace-pre-line text-sm leading-6 text-card-foreground/90'>
+                {latestCaiMessage}
+              </p>
+            </div>
+            <div className='mt-3 border-t pt-3 text-[11px] text-muted-foreground'>
+              {latestCaiRun
+                ? `${latestCaiTime} · ${latestCaiRun.deliveryStatus ?? 'unknown'}`
+                : latestCaiTime}
+            </div>
+          </div>
+
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>Markets</div>
+                <div className='text-xs text-muted-foreground'>My holdings + watchlist.</div>
+              </div>
+              <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                {briefing.markets.ok ? 'live' : 'watch'}
+              </Badge>
+            </div>
+            <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <div className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+                    My holdings
                   </div>
+                  <div className='mt-1 font-semibold text-foreground'>
+                    {holdingDirection(holdingChange24h)}
+                  </div>
+                  <div className='mt-0.5 text-xs text-muted-foreground'>
+                    {briefing.markets.holdings.liveCount}/{briefing.markets.holdings.count} live
+                    instruments
+                  </div>
+                </div>
+                <div className={`text-right text-lg font-semibold ${marketTone(holdingChange24h)}`}>
+                  {percent(holdingChange24h)}
                 </div>
               </div>
-
-              <div className='rounded-3xl border bg-card/70 p-4 text-card-foreground shadow-sm'>
-                <div className='mb-3 flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='font-semibold text-foreground'>Weather</div>
-                    <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-3xl leading-none'>{weatherMoodIcon(weather)}</span>
-                    <Badge variant='outline' className='border-border bg-muted/40'>
-                      {weather.ok ? 'live' : 'degraded'}
-                    </Badge>
-                  </div>
-                </div>
-                <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
-                  <div className='text-xs text-muted-foreground'>{weather.location}</div>
-                  <div className='mt-1 flex items-end justify-between gap-3'>
-                    <div className='text-3xl font-semibold tracking-tight text-foreground'>
-                      {weather.temperature}
-                    </div>
-                    <div className='text-sm text-muted-foreground'>{weather.condition}</div>
-                  </div>
-                </div>
-                <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
-                  <div className='rounded-xl border bg-background/35 p-2'>
-                    Feels {weather.feelsLike}
-                  </div>
-                  <div className='rounded-xl border bg-background/35 p-2'>Wind {weather.wind}</div>
-                  <div className='rounded-xl border bg-background/35 p-2'>
-                    Humidity {weather.humidity}
-                  </div>
-                  <div className='rounded-xl border bg-background/35 p-2'>
-                    Rain {weather.precipitation}
-                  </div>
-                </div>
-              </div>
-            </>
-          }
-        >
-          <main className='min-w-0 space-y-4'>
-            <section className='space-y-4'>
-              <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
-                <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,330px)] lg:items-start'>
-                  <div className='min-w-0 space-y-4'>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <Badge className='rounded-full'>Today Command</Badge>
-                      <Badge
-                        variant='outline'
-                        className='border-border bg-muted/40 text-card-foreground'
-                      >
-                        <StatusDot ok={snapshot.dbOnline} /> live cockpit
-                      </Badge>
-                      <Badge
-                        variant='outline'
-                        className='border-border bg-muted/40 text-card-foreground'
-                      >
-                        {actionCenter.counts.high} high · {actionCenter.counts.total} queued
-                      </Badge>
-                      {buildActivity.activeCount ? (
-                        <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
-                        Good evening Felipe
-                      </h1>
-                      <p className='mt-2 text-sm text-muted-foreground md:text-base'>
-                        {stockholmDate(liveAt)} · Uppsala time {stockholmTime(liveAt)}
-                      </p>
-                    </div>
-
-                    <div className='rounded-2xl border bg-background/45 p-4'>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <Badge variant='outline' className='border-border bg-muted/40'>
-                          Resume where we left off
-                        </Badge>
-                        {nextAction ? (
-                          <Badge
-                            variant='outline'
-                            className={actionPriorityTone(nextAction.priority)}
-                          >
-                            {nextAction.priority}
+            </div>
+            <div className='max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+              {marketAssets.map((asset) => (
+                <div key={asset.id} className='rounded-2xl border bg-background/45 p-3 text-sm'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <div className='flex min-w-0 items-center gap-2'>
+                        <div className='truncate font-medium text-foreground'>{asset.label}</div>
+                        {asset.holding ? (
+                          <Badge variant='secondary' className='shrink-0 text-[10px]'>
+                            holding
                           </Badge>
                         ) : null}
                       </div>
-                      <h2 className='mt-3 line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
-                        {nextAction?.title ?? overviewTasks[0]?.title ?? 'Decision queue is clear'}
-                      </h2>
-                      <p className='mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground'>
-                        {nextAction?.detail ??
-                          overviewTasks[0]?.detail ??
-                          'No high-signal cockpit item needs attention right now.'}
-                      </p>
-                      <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
-                        <Button asChild className='rounded-full'>
-                          <Link href='/dashboard/action-center'>Open Action Center →</Link>
-                        </Button>
-                        {nextAction ? (
-                          <Button asChild variant='outline' className='rounded-full'>
-                            <Link href={nextAction.href}>{nextAction.primaryLabel}</Link>
-                          </Button>
+                      <div className='mt-0.5 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
+                        <span>{asset.symbol}</span>
+                        <span>·</span>
+                        <span>{asset.kind}</span>
+                        {asset.quantity ? (
+                          <>
+                            <span>·</span>
+                            <span>{asset.quantity}</span>
+                          </>
                         ) : null}
                       </div>
                     </div>
-                  </div>
-
-                  <div className='grid grid-cols-3 gap-2'>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Queued
-                      </div>
-                    </div>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{activeRunCount}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Runs
-                      </div>
-                    </div>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Builds
+                    <div className='shrink-0 text-right'>
+                      <div className='font-semibold text-foreground'>{marketPrice(asset)}</div>
+                      <div className={`text-xs ${marketTone(asset.change24h)}`}>
+                        {asset.change24h === null ? '—' : `${percent(asset.change24h)} 24h`}
                       </div>
                     </div>
                   </div>
                 </div>
-              </section>
+              ))}
+            </div>
+          </div>
 
-              <section className='columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid'>
-                <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
-                  <CardHeader>
-                    <div className='flex items-start justify-between gap-3'>
-                      <div>
-                        <CardTitle>Focus Queue</CardTitle>
-                        <CardDescription>
-                          Max fem saker. Det här är nästa arbetsyta.
-                        </CardDescription>
-                      </div>
-                      <Link
-                        href='/dashboard/kanban'
-                        className='text-primary text-xs hover:underline'
-                      >
-                        Tasks →
-                      </Link>
-                    </div>
-                  </CardHeader>
-                  <CardContent className='space-y-2'>
-                    {overviewTasks.slice(0, 5).length === 0 ? (
-                      <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
-                        Inga prioriterade tasks hittades.
-                      </div>
-                    ) : (
-                      overviewTasks.slice(0, 5).map((task, index) => (
-                        <Link
-                          key={`${task.title}-${task.status}-${index}`}
-                          href='/dashboard/kanban'
-                          className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                        >
-                          <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
-                            {index + 1}
-                          </div>
-                          <div className='min-w-0 flex-1'>
-                            <div className='flex flex-wrap items-start justify-between gap-2'>
-                              <div className='line-clamp-1 font-medium'>{task.title}</div>
-                              <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
-                            </div>
-                            <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                              {task.detail}
-                            </div>
-                          </div>
-                        </Link>
-                      ))
-                    )}
-                  </CardContent>
-                </MotionCard>
-              </section>
-            </section>
+          <InteractiveCalendarOverviewCard calendar={calendar} />
 
-            <section className='grid grid-cols-2 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 2xl:grid-cols-6'>
-              {snapshot.stats.map((stat, index) => {
-                const accent = statAccents[index % statAccents.length];
-                return (
-                  <Card
-                    key={stat.label}
-                    className={`mobile-compact-stat overflow-hidden border ${accent.classes}`}
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>News signals</div>
+                <div className='text-xs text-muted-foreground'>High-signal headlines.</div>
+              </div>
+              <Badge variant='outline' className='border-border bg-muted/40 text-[10px]'>
+                {briefing.news.ok ? 'live' : 'degraded'}
+              </Badge>
+            </div>
+            {newsSignals.length === 0 ? (
+              <div className='rounded-2xl border border-dashed bg-background/35 p-3 text-sm text-muted-foreground'>
+                No news signals available.
+              </div>
+            ) : (
+              <div className='max-h-64 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]'>
+                {newsSignals.map((item) => (
+                  <a
+                    key={`${item.source}-${item.url}`}
+                    href={item.url}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='group block rounded-2xl border bg-background/45 p-2.5 transition hover:border-primary/40 hover:bg-primary/10'
                   >
-                    <CardContent className='p-3 md:p-4'>
-                      <div className='flex items-start justify-between gap-2 md:gap-3'>
-                        <div className='rounded-xl border border-white/10 bg-background/50 px-2 py-1 text-xs md:px-2.5 md:py-1.5 md:text-sm'>
-                          {accent.icon}
+                    <div className='flex items-start gap-3'>
+                      {item.imageUrl ? (
+                        <div
+                          className='h-14 w-16 shrink-0 rounded-xl border bg-muted bg-cover bg-center shadow-inner'
+                          style={{ backgroundImage: `url(${item.imageUrl})` }}
+                          aria-hidden='true'
+                        />
+                      ) : (
+                        <div className='flex h-14 w-16 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-lg text-muted-foreground'>
+                          ◌
                         </div>
+                      )}
+                      <div className='min-w-0 flex-1'>
+                        <div className='line-clamp-2 text-sm font-medium leading-5 text-foreground group-hover:text-primary'>
+                          {item.title}
+                        </div>
+                        <div className='mt-1 flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-muted-foreground'>
+                          <span className='truncate'>{item.source}</span>
+                          <span className='shrink-0 transition group-hover:translate-x-0.5 group-hover:text-primary'>
+                            →
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>Status</div>
+                <div className='text-xs text-muted-foreground'>Signals, not logs.</div>
+              </div>
+              <Badge variant='outline' className='border-border bg-muted/40'>
+                ops
+              </Badge>
+            </div>
+            <div className='grid gap-2 text-sm text-muted-foreground'>
+              <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                <StatusDot ok={snapshot.dbOnline} />
+                <span>db online</span>
+              </div>
+              <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                <StatusDot ok={Boolean(subagents?.ok)} />
+                <span>OpenClaw bridge connected</span>
+              </div>
+              <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                <StatusDot ok />
+                <span>Memory index healthy</span>
+              </div>
+              <div className='flex items-center gap-3 rounded-xl border bg-background/35 p-2.5'>
+                <StatusDot ok={buildActivity.activeCount > 0} />
+                <span>
+                  {buildActivity.activeCount
+                    ? `${buildActivity.activeCount} build running`
+                    : 'Build idle'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className='rounded-3xl border bg-card/70 p-4 text-card-foreground shadow-sm'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <div>
+                <div className='font-semibold text-foreground'>Weather</div>
+                <div className='text-xs text-muted-foreground'>Live from wttr.in</div>
+              </div>
+              <div className='flex items-center gap-2'>
+                <span className='text-3xl leading-none'>{weatherMoodIcon(weather)}</span>
+                <Badge variant='outline' className='border-border bg-muted/40'>
+                  {weather.ok ? 'live' : 'degraded'}
+                </Badge>
+              </div>
+            </div>
+            <div className='mb-3 rounded-2xl border bg-background/45 p-3'>
+              <div className='text-xs text-muted-foreground'>{weather.location}</div>
+              <div className='mt-1 flex items-end justify-between gap-3'>
+                <div className='text-3xl font-semibold tracking-tight text-foreground'>
+                  {weather.temperature}
+                </div>
+                <div className='text-sm text-muted-foreground'>{weather.condition}</div>
+              </div>
+            </div>
+            <div className='grid grid-cols-2 gap-2 text-xs text-muted-foreground'>
+              <div className='rounded-xl border bg-background/35 p-2'>
+                Feels {weather.feelsLike}
+              </div>
+              <div className='rounded-xl border bg-background/35 p-2'>Wind {weather.wind}</div>
+              <div className='rounded-xl border bg-background/35 p-2'>
+                Humidity {weather.humidity}
+              </div>
+              <div className='rounded-xl border bg-background/35 p-2'>
+                Rain {weather.precipitation}
+              </div>
+            </div>
+          </div>
+        </>
+      }
+    >
+      <div className='flex flex-1 flex-col gap-4 md:gap-5'>
+        <main className='min-w-0 space-y-4'>
+          <section className='space-y-4'>
+            <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
+              <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,330px)] lg:items-start'>
+                <div className='min-w-0 space-y-4'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Badge className='rounded-full'>Today Command</Badge>
+                    <Badge
+                      variant='outline'
+                      className='border-border bg-muted/40 text-card-foreground'
+                    >
+                      <StatusDot ok={snapshot.dbOnline} /> live cockpit
+                    </Badge>
+                    <Badge
+                      variant='outline'
+                      className='border-border bg-muted/40 text-card-foreground'
+                    >
+                      {actionCenter.counts.high} high · {actionCenter.counts.total} queued
+                    </Badge>
+                    {buildActivity.activeCount ? (
+                      <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
+                      Good evening Felipe
+                    </h1>
+                    <p className='mt-2 text-sm text-muted-foreground md:text-base'>
+                      {stockholmDate(liveAt)} · Uppsala time {stockholmTime(liveAt)}
+                    </p>
+                  </div>
+
+                  <div className='rounded-2xl border bg-background/45 p-4'>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Badge variant='outline' className='border-border bg-muted/40'>
+                        Resume where we left off
+                      </Badge>
+                      {nextAction ? (
                         <Badge
                           variant='outline'
-                          className='border-white/10 bg-background/40 text-[10px]'
+                          className={actionPriorityTone(nextAction.priority)}
                         >
-                          {stat.tone}
+                          {nextAction.priority}
                         </Badge>
-                      </div>
-                      <div className='mt-3 text-muted-foreground text-[11px] md:mt-4 md:text-xs'>
-                        {stat.label}
-                      </div>
-                      <div className='mt-1 text-2xl font-semibold text-card-foreground md:text-3xl'>
-                        {stat.value}
-                      </div>
-                      <div className='text-muted-foreground mt-1 line-clamp-2 min-h-7 text-[11px] md:mt-2 md:min-h-8 md:text-xs'>
-                        {stat.detail}
-                      </div>
-                      <div className='mt-1.5 md:mt-2'>
-                        <MiniSpark color={accent.color} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      ) : null}
+                    </div>
+                    <h2 className='mt-3 line-clamp-2 text-xl font-semibold tracking-tight text-foreground md:text-2xl'>
+                      {nextAction?.title ?? overviewTasks[0]?.title ?? 'Decision queue is clear'}
+                    </h2>
+                    <p className='mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground'>
+                      {nextAction?.detail ??
+                        overviewTasks[0]?.detail ??
+                        'No high-signal cockpit item needs attention right now.'}
+                    </p>
+                    <div className='mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
+                      <Button asChild className='rounded-full'>
+                        <Link href='/dashboard/action-center'>Open Action Center →</Link>
+                      </Button>
+                      {nextAction ? (
+                        <Button asChild variant='outline' className='rounded-full'>
+                          <Link href={nextAction.href}>{nextAction.primaryLabel}</Link>
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-3 gap-2'>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Queued
+                    </div>
+                  </div>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{activeRunCount}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Runs
+                    </div>
+                  </div>
+                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                    <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
+                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                      Builds
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
 
-            <LiveActivitySurface
-              subagents={subagents}
-              href='/dashboard/kanban'
-              className='rounded-3xl'
-            />
-
-            <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
-              <Card className='mobile-feed-card 2xl:col-span-5'>
-                <CardHeader className='pb-3'>
+            <section className='columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid'>
+              <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
+                <CardHeader>
                   <div className='flex items-start justify-between gap-3'>
                     <div>
-                      <CardTitle>Prioriterade tasks</CardTitle>
-                      <CardDescription>Det här är kön att titta på först.</CardDescription>
+                      <CardTitle>Focus Queue</CardTitle>
+                      <CardDescription>Max fem saker. Det här är nästa arbetsyta.</CardDescription>
                     </div>
                     <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
-                      Visa alla →
+                      Tasks →
                     </Link>
                   </div>
                 </CardHeader>
                 <CardContent className='space-y-2'>
-                  {overviewTasks.length === 0 ? (
+                  {overviewTasks.slice(0, 5).length === 0 ? (
                     <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
                       Inga prioriterade tasks hittades.
                     </div>
                   ) : (
-                    overviewTasks.slice(0, 5).map((task, index) => {
-                      const progress = taskProgress(task.status);
-                      const rawData = taskRawData(task);
+                    overviewTasks.slice(0, 5).map((task, index) => (
+                      <Link
+                        key={`${task.title}-${task.status}-${index}`}
+                        href='/dashboard/kanban'
+                        className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+                      >
+                        <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
+                          {index + 1}
+                        </div>
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex flex-wrap items-start justify-between gap-2'>
+                            <div className='line-clamp-1 font-medium'>{task.title}</div>
+                            <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
+                          </div>
+                          <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                            {task.detail}
+                          </div>
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </CardContent>
+              </MotionCard>
+            </section>
+          </section>
+
+          <section className='grid grid-cols-2 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 2xl:grid-cols-6'>
+            {snapshot.stats.map((stat, index) => {
+              const accent = statAccents[index % statAccents.length];
+              return (
+                <Card
+                  key={stat.label}
+                  className={`mobile-compact-stat overflow-hidden border ${accent.classes}`}
+                >
+                  <CardContent className='p-3 md:p-4'>
+                    <div className='flex items-start justify-between gap-2 md:gap-3'>
+                      <div className='rounded-xl border border-white/10 bg-background/50 px-2 py-1 text-xs md:px-2.5 md:py-1.5 md:text-sm'>
+                        {accent.icon}
+                      </div>
+                      <Badge
+                        variant='outline'
+                        className='border-white/10 bg-background/40 text-[10px]'
+                      >
+                        {stat.tone}
+                      </Badge>
+                    </div>
+                    <div className='mt-3 text-muted-foreground text-[11px] md:mt-4 md:text-xs'>
+                      {stat.label}
+                    </div>
+                    <div className='mt-1 text-2xl font-semibold text-card-foreground md:text-3xl'>
+                      {stat.value}
+                    </div>
+                    <div className='text-muted-foreground mt-1 line-clamp-2 min-h-7 text-[11px] md:mt-2 md:min-h-8 md:text-xs'>
+                      {stat.detail}
+                    </div>
+                    <div className='mt-1.5 md:mt-2'>
+                      <MiniSpark color={accent.color} />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
+
+          <LiveActivitySurface
+            subagents={subagents}
+            href='/dashboard/kanban'
+            className='rounded-3xl'
+          />
+
+          <section className='grid grid-cols-1 gap-4 2xl:grid-cols-12'>
+            <Card className='mobile-feed-card 2xl:col-span-5'>
+              <CardHeader className='pb-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Prioriterade tasks</CardTitle>
+                    <CardDescription>Det här är kön att titta på först.</CardDescription>
+                  </div>
+                  <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
+                    Visa alla →
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                {overviewTasks.length === 0 ? (
+                  <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+                    Inga prioriterade tasks hittades.
+                  </div>
+                ) : (
+                  overviewTasks.slice(0, 5).map((task, index) => {
+                    const progress = taskProgress(task.status);
+                    const rawData = taskRawData(task);
+                    return (
+                      <div
+                        key={`${task.title}-${task.status}`}
+                        className='mobile-feed-row rounded-xl border bg-background/40 p-3'
+                      >
+                        <div className='flex gap-3'>
+                          <div
+                            className='mt-1 size-3 rounded-sm'
+                            style={{ backgroundColor: taskColors[index % taskColors.length] }}
+                          />
+                          <div className='min-w-0 flex-1'>
+                            <div className='flex flex-wrap items-start justify-between gap-2'>
+                              <div className='min-w-0 font-medium'>{task.title}</div>
+                              <div className='flex shrink-0 gap-1'>
+                                <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
+                                {task.priority && (
+                                  <Badge variant='secondary'>{task.priority}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className='text-muted-foreground mt-1 line-clamp-1 text-xs'>
+                              {task.detail}
+                            </div>
+                            {rawData ? (
+                              <div className='mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground max-md:border-0 max-md:bg-transparent max-md:px-0'>
+                                rådata · {rawData}
+                              </div>
+                            ) : null}
+                            <div className='mt-3 flex items-center gap-2'>
+                              <Progress value={progress} className='h-1.5' />
+                              <span className='text-muted-foreground w-8 text-right text-[10px]'>
+                                {progress}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className='mobile-feed-card 2xl:col-span-4'>
+              <CardHeader className='pb-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Agenter</CardTitle>
+                    <CardDescription>Roller och driftstatus.</CardDescription>
+                  </div>
+                  <Link href='/dashboard/agents' className='text-primary text-xs hover:underline'>
+                    Hantera →
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                {snapshot.agents.length === 0 ? (
+                  <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+                    Inga agenter hittades i snapshoten.
+                  </div>
+                ) : (
+                  snapshot.agents.slice(0, 5).map((agent, index) => (
+                    <div
+                      key={agent.name}
+                      className='mobile-feed-row rounded-xl border bg-background/40 p-3'
+                    >
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='flex min-w-0 gap-3'>
+                          <div
+                            className={`flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-lg ${
+                              agentAvatarPalettes[index % agentAvatarPalettes.length]
+                            }`}
+                          >
+                            {agent.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className='min-w-0'>
+                            <div className='font-medium'>{agent.name}</div>
+                            <div className='text-sm'>{agent.role}</div>
+                            <div className='text-muted-foreground mt-1 line-clamp-1 text-xs'>
+                              {agent.detail}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className='mobile-feed-card 2xl:col-span-3 2xl:row-span-2'>
+              <CardHeader className='pb-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Recent events</CardTitle>
+                    <CardDescription>Senaste audit-spår.</CardDescription>
+                  </div>
+                  <span className='text-primary text-xs'>Live</span>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-0'>
+                {events.length === 0 ? (
+                  <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+                    Inga events.
+                  </div>
+                ) : (
+                  events.slice(0, 9).map((event, index) => (
+                    <div
+                      key={`${event.createdAt}-${event.kind}`}
+                      className='border-b py-3 last:border-b-0'
+                    >
+                      <div className='flex gap-3'>
+                        <div
+                          className='mt-1 size-2 rounded-full'
+                          style={{ backgroundColor: taskColors[index % taskColors.length] }}
+                        />
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className='truncate text-sm font-medium'>{event.kind}</div>
+                            <span className='text-muted-foreground shrink-0 text-[10px]'>
+                              {timeLabel(event.createdAt)}
+                            </span>
+                          </div>
+                          <div className='text-muted-foreground mt-1 line-clamp-2 text-xs'>
+                            {event.message}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className='mobile-feed-card 2xl:col-span-5'>
+              <CardHeader className='pb-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Knowledge pipeline</CardTitle>
+                    <CardDescription>Raw input → reviewed context.</CardDescription>
+                  </div>
+                  <Link
+                    href='/dashboard/knowledge'
+                    className='text-primary text-xs hover:underline'
+                  >
+                    Öppna Knowledge inbox →
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-5'>
+                <div className='mobile-chart-shell rounded-2xl border border-border bg-muted/40 p-4'>
+                  <div className='relative grid grid-cols-3 gap-3 sm:grid-cols-6 sm:gap-2'>
+                    <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent' />
+                    {knowledgeStages.map((stage) => {
+                      const count = knowledgeCounts[stage.key] ?? 0;
+                      const active = count > 0;
                       return (
                         <div
-                          key={`${task.title}-${task.status}`}
-                          className='mobile-feed-row rounded-xl border bg-background/40 p-3'
+                          key={stage.key}
+                          className='relative flex flex-col items-center gap-2 text-center'
                         >
-                          <div className='flex gap-3'>
-                            <div
-                              className='mt-1 size-3 rounded-sm'
-                              style={{ backgroundColor: taskColors[index % taskColors.length] }}
-                            />
-                            <div className='min-w-0 flex-1'>
-                              <div className='flex flex-wrap items-start justify-between gap-2'>
-                                <div className='min-w-0 font-medium'>{task.title}</div>
-                                <div className='flex shrink-0 gap-1'>
-                                  <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
-                                  {task.priority && (
-                                    <Badge variant='secondary'>{task.priority}</Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <div className='text-muted-foreground mt-1 line-clamp-1 text-xs'>
-                                {task.detail}
-                              </div>
-                              {rawData ? (
-                                <div className='mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground max-md:border-0 max-md:bg-transparent max-md:px-0'>
-                                  rådata · {rawData}
-                                </div>
-                              ) : null}
-                              <div className='mt-3 flex items-center gap-2'>
-                                <Progress value={progress} className='h-1.5' />
-                                <span className='text-muted-foreground w-8 text-right text-[10px]'>
-                                  {progress}%
-                                </span>
-                              </div>
+                          <div
+                            className={`z-10 flex size-8 items-center justify-center rounded-full border border-white/15 ${
+                              stage.dot
+                            } ${active ? 'shadow-lg shadow-primary/20 ring-4 ring-primary/10' : 'opacity-55'}`}
+                          >
+                            <span className='size-2 rounded-full bg-background' />
+                          </div>
+                          <div className='min-w-0'>
+                            <div className='truncate text-[11px] font-medium text-card-foreground'>
+                              {stage.label}
+                            </div>
+                            <div className='text-muted-foreground truncate text-[10px]'>
+                              {stage.detail}
                             </div>
                           </div>
                         </div>
                       );
-                    })
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className='mobile-feed-card 2xl:col-span-4'>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Agenter</CardTitle>
-                      <CardDescription>Roller och driftstatus.</CardDescription>
-                    </div>
-                    <Link href='/dashboard/agents' className='text-primary text-xs hover:underline'>
-                      Hantera →
-                    </Link>
+                    })}
                   </div>
-                </CardHeader>
-                <CardContent className='space-y-2'>
-                  {snapshot.agents.length === 0 ? (
-                    <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
-                      Inga agenter hittades i snapshoten.
-                    </div>
-                  ) : (
-                    snapshot.agents.slice(0, 5).map((agent, index) => (
-                      <div
-                        key={agent.name}
-                        className='mobile-feed-row rounded-xl border bg-background/40 p-3'
-                      >
-                        <div className='flex items-start justify-between gap-3'>
-                          <div className='flex min-w-0 gap-3'>
-                            <div
-                              className={`flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-lg ${
-                                agentAvatarPalettes[index % agentAvatarPalettes.length]
-                              }`}
-                            >
-                              {agent.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className='min-w-0'>
-                              <div className='font-medium'>{agent.name}</div>
-                              <div className='text-sm'>{agent.role}</div>
-                              <div className='text-muted-foreground mt-1 line-clamp-1 text-xs'>
-                                {agent.detail}
-                              </div>
-                            </div>
-                          </div>
-                          <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                </div>
 
-              <Card className='mobile-feed-card 2xl:col-span-3 2xl:row-span-2'>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Recent events</CardTitle>
-                      <CardDescription>Senaste audit-spår.</CardDescription>
-                    </div>
-                    <span className='text-primary text-xs'>Live</span>
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-0'>
-                  {events.length === 0 ? (
-                    <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
-                      Inga events.
-                    </div>
-                  ) : (
-                    events.slice(0, 9).map((event, index) => (
-                      <div
-                        key={`${event.createdAt}-${event.kind}`}
-                        className='border-b py-3 last:border-b-0'
-                      >
-                        <div className='flex gap-3'>
-                          <div
-                            className='mt-1 size-2 rounded-full'
-                            style={{ backgroundColor: taskColors[index % taskColors.length] }}
-                          />
-                          <div className='min-w-0 flex-1'>
-                            <div className='flex items-start justify-between gap-2'>
-                              <div className='truncate text-sm font-medium'>{event.kind}</div>
-                              <span className='text-muted-foreground shrink-0 text-[10px]'>
-                                {timeLabel(event.createdAt)}
-                              </span>
-                            </div>
-                            <div className='text-muted-foreground mt-1 line-clamp-2 text-xs'>
-                              {event.message}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className='mobile-feed-card 2xl:col-span-5'>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Knowledge pipeline</CardTitle>
-                      <CardDescription>Raw input → reviewed context.</CardDescription>
-                    </div>
-                    <Link
-                      href='/dashboard/knowledge'
-                      className='text-primary text-xs hover:underline'
+                <div className='grid grid-cols-3 gap-2 text-center text-sm md:grid-cols-3 2xl:grid-cols-6'>
+                  {knowledgeStages.map((stage) => (
+                    <div
+                      key={stage.key}
+                      className={`mobile-compact-stat rounded-xl border p-2 md:p-3 ${stage.card}`}
                     >
-                      Öppna Knowledge inbox →
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-5'>
-                  <div className='mobile-chart-shell rounded-2xl border border-border bg-muted/40 p-4'>
-                    <div className='relative grid grid-cols-3 gap-3 sm:grid-cols-6 sm:gap-2'>
-                      <div className='absolute left-[8%] right-[8%] top-4 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent' />
-                      {knowledgeStages.map((stage) => {
-                        const count = knowledgeCounts[stage.key] ?? 0;
-                        const active = count > 0;
-                        return (
-                          <div
-                            key={stage.key}
-                            className='relative flex flex-col items-center gap-2 text-center'
-                          >
-                            <div
-                              className={`z-10 flex size-8 items-center justify-center rounded-full border border-white/15 ${
-                                stage.dot
-                              } ${active ? 'shadow-lg shadow-primary/20 ring-4 ring-primary/10' : 'opacity-55'}`}
-                            >
-                              <span className='size-2 rounded-full bg-background' />
-                            </div>
-                            <div className='min-w-0'>
-                              <div className='truncate text-[11px] font-medium text-card-foreground'>
-                                {stage.label}
-                              </div>
-                              <div className='text-muted-foreground truncate text-[10px]'>
-                                {stage.detail}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <div className='text-xl font-semibold md:text-2xl'>
+                        {knowledgeCounts[stage.key] ?? 0}
+                      </div>
+                      <div className='mt-1 text-[11px]'>{stage.label}</div>
                     </div>
-                  </div>
+                  ))}
+                </div>
 
-                  <div className='grid grid-cols-3 gap-2 text-center text-sm md:grid-cols-3 2xl:grid-cols-6'>
-                    {knowledgeStages.map((stage) => (
-                      <div
-                        key={stage.key}
-                        className={`mobile-compact-stat rounded-xl border p-2 md:p-3 ${stage.card}`}
-                      >
-                        <div className='text-xl font-semibold md:text-2xl'>
-                          {knowledgeCounts[stage.key] ?? 0}
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between text-xs'>
+                    <span className='text-muted-foreground'>Pipeline maturity</span>
+                    <span className='font-mono text-primary'>{knowledge.progress}%</span>
+                  </div>
+                  <Progress value={knowledge.progress} className='h-1.5' />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className='mobile-feed-card 2xl:col-span-4'>
+              <CardHeader className='pb-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Task flow</CardTitle>
+                    <CardDescription>Statusfördelning från boarden.</CardDescription>
+                  </div>
+                  <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
+                    Öppna Tasks →
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {taskEntries.length === 0 ? (
+                  <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                    Ingen task-statusdata.
+                  </div>
+                ) : (
+                  <div className='flex flex-col gap-5 sm:flex-row sm:items-center'>
+                    <Donut entries={taskEntries} />
+                    <div className='min-w-0 flex-1 space-y-2'>
+                      {taskEntries.map(([status, count], index) => (
+                        <div
+                          key={status}
+                          className='flex items-center justify-between gap-2 text-sm'
+                        >
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <span
+                              className='size-2 rounded-full'
+                              style={{ backgroundColor: taskColors[index % taskColors.length] }}
+                            />
+                            <span className='truncate'>{status}</span>
+                          </div>
+                          <Badge variant='secondary'>{count}</Badge>
                         </div>
-                        <div className='mt-1 text-[11px]'>{stage.label}</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-
-                  <div className='space-y-2'>
-                    <div className='flex items-center justify-between text-xs'>
-                      <span className='text-muted-foreground'>Pipeline maturity</span>
-                      <span className='font-mono text-primary'>{knowledge.progress}%</span>
-                    </div>
-                    <Progress value={knowledge.progress} className='h-1.5' />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className='mobile-feed-card 2xl:col-span-4'>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Task flow</CardTitle>
-                      <CardDescription>Statusfördelning från boarden.</CardDescription>
-                    </div>
-                    <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
-                      Öppna Tasks →
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {taskEntries.length === 0 ? (
-                    <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
-                      Ingen task-statusdata.
-                    </div>
-                  ) : (
-                    <div className='flex flex-col gap-5 sm:flex-row sm:items-center'>
-                      <Donut entries={taskEntries} />
-                      <div className='min-w-0 flex-1 space-y-2'>
-                        {taskEntries.map(([status, count], index) => (
-                          <div
-                            key={status}
-                            className='flex items-center justify-between gap-2 text-sm'
-                          >
-                            <div className='flex min-w-0 items-center gap-2'>
-                              <span
-                                className='size-2 rounded-full'
-                                style={{ backgroundColor: taskColors[index % taskColors.length] }}
-                              />
-                              <span className='truncate'>{status}</span>
-                            </div>
-                            <Badge variant='secondary'>{count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          </main>
-        </ContextRailLayout>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </main>
 
         <section className='mobile-status-strip mobile-feed-card flex flex-col gap-2 rounded-2xl border bg-card/70 px-4 py-3 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between'>
           <div className='flex flex-wrap items-center gap-3'>
