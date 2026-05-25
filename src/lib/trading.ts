@@ -163,8 +163,10 @@ export type TradingJournal = {
 };
 
 const BINANCE_REST = 'https://api.binance.com';
+const BINANCE_US_REST = 'https://api.binance.us';
 const BINANCE_FUTURES = 'https://fapi.binance.com';
 const COINGECKO = 'https://api.coingecko.com/api/v3';
+const YAHOO_CHART = 'https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD';
 const DAILY_CANDLE_HISTORY_LIMIT = 4_000;
 const BINANCE_KLINE_PAGE_LIMIT = 1_000;
 
@@ -187,7 +189,11 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getDailyCandles(symbol = 'BTCUSDT', limit = 120): Promise<Candle[]> {
+async function getBinanceDailyCandles(
+  baseUrl: string,
+  symbol = 'BTCUSDT',
+  limit = 120
+): Promise<Candle[]> {
   let remaining = Math.max(1, limit);
   let endTime = Date.now();
   const candles: Candle[] = [];
@@ -195,7 +201,7 @@ export async function getDailyCandles(symbol = 'BTCUSDT', limit = 120): Promise<
   while (remaining > 0) {
     const pageLimit = Math.min(BINANCE_KLINE_PAGE_LIMIT, remaining);
     const rows = await fetchJson<unknown[][]>(
-      `${BINANCE_REST}/api/v3/klines?symbol=${encodeURIComponent(
+      `${baseUrl}/api/v3/klines?symbol=${encodeURIComponent(
         symbol
       )}&interval=1d&limit=${pageLimit}&endTime=${endTime}`
     );
@@ -225,6 +231,70 @@ export async function getDailyCandles(symbol = 'BTCUSDT', limit = 120): Promise<
     .slice(-limit);
 }
 
+type YahooChartResponse = {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        quote?: Array<{
+          open?: Array<number | null>;
+          high?: Array<number | null>;
+          low?: Array<number | null>;
+          close?: Array<number | null>;
+          volume?: Array<number | null>;
+        }>;
+      };
+    }>;
+  };
+};
+
+async function getYahooDailyCandles(limit = 120): Promise<Candle[]> {
+  const daySeconds = 24 * 60 * 60;
+  const period2 = Math.floor(Date.now() / 1000) + daySeconds;
+  const period1 = period2 - (limit + 30) * daySeconds;
+  const chart = await fetchJson<YahooChartResponse>(
+    `${YAHOO_CHART}?period1=${period1}&period2=${period2}&interval=1d`
+  );
+  const result = chart.chart?.result?.[0];
+  const quote = result?.indicators?.quote?.[0];
+  const timestamps = result?.timestamp ?? [];
+  const opens = quote?.open ?? [];
+  const highs = quote?.high ?? [];
+  const lows = quote?.low ?? [];
+  const closes = quote?.close ?? [];
+  const volumes = quote?.volume ?? [];
+
+  return timestamps
+    .map((timestamp, index) => {
+      const close = toNumber(closes[index]);
+      const volume = toNumber(volumes[index]);
+      return {
+        time: timestamp * 1000,
+        open: toNumber(opens[index] ?? close),
+        high: toNumber(highs[index] ?? close),
+        low: toNumber(lows[index] ?? close),
+        close,
+        volume,
+        quoteVolume: volume * close
+      };
+    })
+    .filter((candle) => candle.close > 0)
+    .toSorted((left, right) => left.time - right.time)
+    .slice(-limit);
+}
+
+export async function getDailyCandles(symbol = 'BTCUSDT', limit = 120): Promise<Candle[]> {
+  try {
+    return await getBinanceDailyCandles(BINANCE_REST, symbol, limit);
+  } catch {
+    try {
+      return await getBinanceDailyCandles(BINANCE_US_REST, symbol, limit);
+    } catch {
+      return getYahooDailyCandles(limit);
+    }
+  }
+}
+
 type BinanceTicker = {
   lastPrice?: string;
   priceChangePercent?: string;
@@ -239,32 +309,6 @@ type CoinGeckoSimple = {
   };
 };
 
-type CoinGeckoMarketChart = {
-  prices?: Array<[number, number]>;
-  total_volumes?: Array<[number, number]>;
-};
-
-async function getCoinGeckoCandles(days = 90): Promise<Candle[]> {
-  const chart = await fetchJson<CoinGeckoMarketChart>(
-    `${COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`
-  );
-  const prices = chart.prices ?? [];
-  const volumes = new Map((chart.total_volumes ?? []).map(([time, volume]) => [time, volume]));
-
-  return prices.map(([time, close], index) => {
-    const previousClose = prices[index - 1]?.[1] ?? close;
-    return {
-      time,
-      open: previousClose,
-      high: Math.max(previousClose, close),
-      low: Math.min(previousClose, close),
-      close,
-      volume: 0,
-      quoteVolume: volumes.get(time) ?? 0
-    };
-  });
-}
-
 async function getCoinGeckoSimple() {
   return fetchJson<CoinGeckoSimple>(
     `${COINGECKO}/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true`
@@ -272,25 +316,19 @@ async function getCoinGeckoSimple() {
 }
 
 export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnapshot> {
-  const [binanceCandles, coingeckoCandles, spotTicker, futuresTicker, coinGecko] =
-    await Promise.allSettled([
-      getDailyCandles(symbol, DAILY_CANDLE_HISTORY_LIMIT),
-      getCoinGeckoCandles(DAILY_CANDLE_HISTORY_LIMIT),
-      fetchJson<BinanceTicker>(
-        `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-      ),
-      fetchJson<BinanceTicker>(
-        `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-      ),
-      getCoinGeckoSimple()
-    ]);
+  const [dailyCandles, spotTicker, futuresTicker, coinGecko] = await Promise.allSettled([
+    getDailyCandles(symbol, DAILY_CANDLE_HISTORY_LIMIT),
+    fetchJson<BinanceTicker>(
+      `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+    ),
+    fetchJson<BinanceTicker>(
+      `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+    ),
+    getCoinGeckoSimple()
+  ]);
 
   const candles =
-    binanceCandles.status === 'fulfilled' && binanceCandles.value.length > 0
-      ? binanceCandles.value
-      : coingeckoCandles.status === 'fulfilled'
-        ? coingeckoCandles.value
-        : [];
+    dailyCandles.status === 'fulfilled' && dailyCandles.value.length > 0 ? dailyCandles.value : [];
   const spot = spotTicker.status === 'fulfilled' ? spotTicker.value : undefined;
   const futures = futuresTicker.status === 'fulfilled' ? futuresTicker.value : undefined;
   const gecko = coinGecko.status === 'fulfilled' ? coinGecko.value.bitcoin : undefined;
