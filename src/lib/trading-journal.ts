@@ -78,6 +78,10 @@ function fileJournalEnabled() {
   return process.env.TRADING_JOURNAL_FILE_FALLBACK === '1';
 }
 
+function persistenceEnabled() {
+  return databaseEnabled() || fileJournalEnabled();
+}
+
 function toDate(value: string) {
   return new Date(value);
 }
@@ -248,20 +252,22 @@ async function readFileJournal(): Promise<TradingJournal> {
 }
 
 async function writeJournal(journal: TradingJournal) {
+  if (!persistenceEnabled()) {
+    throw new Error('Trading journal persistence is not configured');
+  }
+
   if (databaseEnabled()) {
     try {
       await writeDbJournal(journal);
       return;
     } catch (error) {
       if (!fileJournalEnabled()) {
-        console.error('Trading DB journal write failed; skipping file fallback', error);
-        return;
+        console.error('Trading DB journal write failed', error);
+        throw error;
       }
       console.error('Trading DB journal write failed; falling back to file', error);
     }
   }
-
-  if (!fileJournalEnabled()) return;
 
   await mkdir(DATA_DIR, { recursive: true });
   const temporaryPath = `${JOURNAL_PATH}.${process.pid}.${Date.now()}.tmp`;
