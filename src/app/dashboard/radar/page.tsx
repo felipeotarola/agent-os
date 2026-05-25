@@ -304,16 +304,18 @@ export default async function RadarPage({
                       key={view.value}
                       asChild
                       variant={active ? 'secondary' : 'ghost'}
-                      className='h-auto w-full justify-between gap-3 rounded-xl p-3 text-left'
+                      className='grid h-auto w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl p-3 text-left'
                     >
                       <Link href={`/dashboard/radar?view=${view.value}`}>
-                        <span>
+                        <span className='min-w-0'>
                           <span className='block font-medium'>{view.label}</span>
-                          <span className='text-muted-foreground block text-xs'>
+                          <span className='text-muted-foreground block truncate text-xs'>
                             {view.description}
                           </span>
                         </span>
-                        <Badge variant='outline'>{count}</Badge>
+                        <Badge variant='outline' className='justify-self-end'>
+                          {count}
+                        </Badge>
                       </Link>
                     </Button>
                   );
