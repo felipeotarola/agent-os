@@ -1,2 +1,7 @@
 # Exclude cleanup/reference files from Vercel build
 __CLEANUP__
+
+# Never upload local secrets/env via Vercel CLI deploys.
+.env
+.env.*
+.env*.local
