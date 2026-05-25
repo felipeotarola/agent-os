@@ -1665,6 +1665,79 @@ function LindaAnalystBrief({
   );
 }
 
+function JournalDecisionDetail({
+  decision,
+  watchLevels
+}: {
+  decision: JournalEntry;
+  watchLevels: WatchLevels;
+}) {
+  return (
+    <div className='grid gap-4 rounded-2xl border bg-muted/20 p-4 lg:grid-cols-4'>
+      <div>
+        <div className='mb-1 text-sm font-semibold'>Why this decision?</div>
+        <p className='text-sm text-muted-foreground'>{decision.reason}</p>
+      </div>
+      <div>
+        <div className='mb-1 text-sm font-semibold'>Evidence</div>
+        <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
+          {isPaperBotDecision(decision) ? (
+            <>
+              <span>Return {percent(decision.evidence.returnPct)}</span>
+              <span>Win rate {percent(decision.evidence.winRatePct)}</span>
+              <span>Volume {decision.evidence.volumeVerdict}</span>
+            </>
+          ) : (
+            <>
+              <span>Manual paper action</span>
+              <span>Portfolio equity {money(decision.portfolio.equity)}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div>
+        <div className='mb-1 text-sm font-semibold'>Risk / invalidations</div>
+        <p className='text-sm text-muted-foreground'>
+          {isPaperBotDecision(decision)
+            ? decision.risk
+            : 'Manual paper action with no automated risk pack.'}
+        </p>
+      </div>
+      <div>
+        <div className='mb-1 text-sm font-semibold'>Next check</div>
+        <p className='text-sm text-muted-foreground'>
+          {isPaperBotDecision(decision)
+            ? decision.nextCheck
+            : 'Review at the next replay checkpoint.'}
+        </p>
+        <div className='mt-2 text-xs text-muted-foreground'>
+          Watch {money(watchLevels.upside)} / {money(watchLevels.downside)}
+        </div>
+      </div>
+      {isPaperBotDecision(decision) && decision.research ? (
+        <div className='lg:col-span-4'>
+          <div className='mb-2 text-sm font-semibold'>Research used</div>
+          <p className='text-sm text-muted-foreground'>{decision.research.thesis}</p>
+          <div className='mt-3 flex flex-wrap gap-2'>
+            {decision.research.links.map((link) => (
+              <a
+                key={link.url}
+                href={link.url}
+                target='_blank'
+                rel='noreferrer'
+                className='rounded-full border px-3 py-1 text-xs hover:text-foreground'
+              >
+                {link.source ? `${link.source}: ` : ''}
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PaperBotJournal({
   rows,
   selectedRowId,
@@ -1688,8 +1761,6 @@ function PaperBotJournal({
   tradeBriefRunningKey?: string;
   watchLevels: WatchLevels;
 }) {
-  const expandedDecision = selectedJournalEntry;
-
   return (
     <Card className='rounded-2xl'>
       <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
@@ -1746,64 +1817,76 @@ function PaperBotJournal({
                   ? getTradeDecisionKey(row.strategyKey, row.trade)
                   : undefined;
                 const selected =
-                  selectedRowId === row.id ||
+                  (selectedRowId !== undefined && selectedRowId === row.id) ||
                   selectedJournalEntry?.id === row.decision?.id ||
-                  selectedTradeKey === row.id ||
-                  selectedTradeKey === tradeKey;
+                  (selectedTradeKey !== undefined &&
+                    (selectedTradeKey === row.id || selectedTradeKey === tradeKey));
+                const expandedDecision = selected && row.decision ? row.decision : undefined;
                 const creating = tradeKey !== undefined && tradeBriefRunningKey === tradeKey;
 
                 return (
-                  <tr
-                    key={row.id}
-                    className={cn(
-                      'border-t transition hover:bg-muted/30',
-                      selected && 'bg-primary/10'
-                    )}
-                    onClick={() => {
-                      if (row.decision) onSelectDecision(row.decision);
-                      else if (row.trade) onOpenTradeBrief(row.trade);
-                    }}
-                  >
-                    <td className='p-3'>{dateTimeLabel(row.time)}</td>
-                    <td className='p-3'>
-                      <Badge variant={actionBadgeVariant(row.action)}>
-                        {row.action.toUpperCase()}
-                      </Badge>
-                    </td>
-                    <td className='p-3 text-right'>
-                      {row.confidence !== undefined ? `${row.confidence.toFixed(0)}%` : '--'}
-                    </td>
-                    <td className='p-3 text-right'>{moneyPrecise(row.price)}</td>
-                    <td className='max-w-80 truncate p-3 text-muted-foreground'>{row.reason}</td>
-                    <td className='p-3'>{row.strategy}</td>
-                    {row.forward.map((item) => (
-                      <td
-                        key={item.label}
-                        className={cn(
-                          'p-3 text-right',
-                          (item.value ?? 0) > 0 && 'text-primary',
-                          (item.value ?? 0) < 0 && 'text-destructive'
-                        )}
-                      >
-                        {item.value === undefined ? '--' : percent(item.value)}
+                  <React.Fragment key={row.id}>
+                    <tr
+                      className={cn(
+                        'cursor-pointer border-t transition hover:bg-muted/30',
+                        selected && 'bg-primary/10'
+                      )}
+                      onClick={() => {
+                        if (row.decision) onSelectDecision(row.decision);
+                        else if (row.trade) onOpenTradeBrief(row.trade);
+                      }}
+                    >
+                      <td className='p-3'>{dateTimeLabel(row.time)}</td>
+                      <td className='p-3'>
+                        <Badge variant={actionBadgeVariant(row.action)}>
+                          {row.action.toUpperCase()}
+                        </Badge>
                       </td>
-                    ))}
-                    <td className='p-3 text-right'>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant={selected ? 'default' : 'outline'}
-                        isLoading={creating}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (row.decision) onSelectDecision(row.decision);
-                          else if (row.trade) onOpenTradeBrief(row.trade);
-                        }}
-                      >
-                        {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
-                      </Button>
-                    </td>
-                  </tr>
+                      <td className='p-3 text-right'>
+                        {row.confidence !== undefined ? `${row.confidence.toFixed(0)}%` : '--'}
+                      </td>
+                      <td className='p-3 text-right'>{moneyPrecise(row.price)}</td>
+                      <td className='max-w-80 truncate p-3 text-muted-foreground'>{row.reason}</td>
+                      <td className='p-3'>{row.strategy}</td>
+                      {row.forward.map((item) => (
+                        <td
+                          key={item.label}
+                          className={cn(
+                            'p-3 text-right',
+                            (item.value ?? 0) > 0 && 'text-primary',
+                            (item.value ?? 0) < 0 && 'text-destructive'
+                          )}
+                        >
+                          {item.value === undefined ? '--' : percent(item.value)}
+                        </td>
+                      ))}
+                      <td className='p-3 text-right'>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant={selected ? 'default' : 'outline'}
+                          isLoading={creating}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (row.decision) onSelectDecision(row.decision);
+                            else if (row.trade) onOpenTradeBrief(row.trade);
+                          }}
+                        >
+                          {selected ? 'Viewing' : row.decision ? 'View' : 'Create brief'}
+                        </Button>
+                      </td>
+                    </tr>
+                    {expandedDecision ? (
+                      <tr className='border-t bg-muted/10'>
+                        <td colSpan={10} className='p-4'>
+                          <JournalDecisionDetail
+                            decision={expandedDecision}
+                            watchLevels={watchLevels}
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
                 );
               })}
               {rows.length === 0 ? (
@@ -1816,71 +1899,6 @@ function PaperBotJournal({
             </tbody>
           </table>
         </div>
-
-        {expandedDecision ? (
-          <div className='grid gap-4 rounded-2xl border bg-muted/20 p-4 lg:grid-cols-4'>
-            <div>
-              <div className='mb-1 text-sm font-semibold'>Why this decision?</div>
-              <p className='text-sm text-muted-foreground'>{expandedDecision.reason}</p>
-            </div>
-            <div>
-              <div className='mb-1 text-sm font-semibold'>Evidence</div>
-              <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
-                {isPaperBotDecision(expandedDecision) ? (
-                  <>
-                    <span>Return {percent(expandedDecision.evidence.returnPct)}</span>
-                    <span>Win rate {percent(expandedDecision.evidence.winRatePct)}</span>
-                    <span>Volume {expandedDecision.evidence.volumeVerdict}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Manual paper action</span>
-                    <span>Portfolio equity {money(expandedDecision.portfolio.equity)}</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className='mb-1 text-sm font-semibold'>Risk / invalidations</div>
-              <p className='text-sm text-muted-foreground'>
-                {isPaperBotDecision(expandedDecision)
-                  ? expandedDecision.risk
-                  : 'Manual paper action with no automated risk pack.'}
-              </p>
-            </div>
-            <div>
-              <div className='mb-1 text-sm font-semibold'>Next check</div>
-              <p className='text-sm text-muted-foreground'>
-                {isPaperBotDecision(expandedDecision)
-                  ? expandedDecision.nextCheck
-                  : 'Review at the next replay checkpoint.'}
-              </p>
-              <div className='mt-2 text-xs text-muted-foreground'>
-                Watch {money(watchLevels.upside)} / {money(watchLevels.downside)}
-              </div>
-            </div>
-            {isPaperBotDecision(expandedDecision) && expandedDecision.research ? (
-              <div className='lg:col-span-4'>
-                <div className='mb-2 text-sm font-semibold'>Research used</div>
-                <p className='text-sm text-muted-foreground'>{expandedDecision.research.thesis}</p>
-                <div className='mt-3 flex flex-wrap gap-2'>
-                  {expandedDecision.research.links.map((link) => (
-                    <a
-                      key={link.url}
-                      href={link.url}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='rounded-full border px-3 py-1 text-xs hover:text-foreground'
-                    >
-                      {link.source ? `${link.source}: ` : ''}
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );
