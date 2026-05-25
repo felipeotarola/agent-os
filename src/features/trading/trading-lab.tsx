@@ -1264,11 +1264,29 @@ function SelectedDecisionInspector({
   positionRisk,
   selectedBacktest
 }: {
-  decision: DecisionViewModel;
+  decision?: DecisionViewModel;
   forwardPerformance: ForwardPerformance[];
   positionRisk: string;
   selectedBacktest?: BacktestResult;
 }) {
+  if (!decision) {
+    return (
+      <Card className='rounded-2xl'>
+        <CardHeader className='flex flex-row items-start justify-between gap-3'>
+          <div>
+            <CardTitle>Selected decision</CardTitle>
+            <CardDescription>No persisted trade or Linda decision selected.</CardDescription>
+          </div>
+          <Badge variant='secondary'>EMPTY</Badge>
+        </CardHeader>
+        <CardContent className='text-sm text-muted-foreground'>
+          Strategy comparison is only a backtest summary. It no longer creates or selects a trade
+          decision. Run Linda or open a saved journal decision to populate this panel.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className='rounded-2xl'>
       <CardHeader className='flex flex-row items-start justify-between gap-3'>
@@ -2012,13 +2030,6 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     () => createPersistedChartTrades(data.journal.decisions, selectedStrategy),
     [data.journal.decisions, selectedStrategy]
   );
-  const selectedTrade = useMemo(() => {
-    if (!selectedTradeKey || !selectedBacktest) return undefined;
-
-    return chartTrades.find(
-      (trade) => getTradeDecisionKey(selectedBacktest.strategy, trade) === selectedTradeKey
-    );
-  }, [chartTrades, selectedBacktest, selectedTradeKey]);
   const selectedTradeDecision = selectedTradeKey
     ? tradeDecisionMap.get(selectedTradeKey)
     : undefined;
@@ -2045,42 +2056,42 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   );
   const selectedReplayEvent = replayEvents.find((event) => event.id === selectedReplayEventId);
   const selectedReplayDecision = selectedReplayEvent?.decision;
-  const activeLindaDecision = selectedTradeDecision ?? selectedReplayDecision ?? latestBotDecision;
-  const primaryTrade = selectedTrade ?? selectedReplayEvent?.trade ?? lastSignal;
-  const decisionPrice = activeLindaDecision?.price ?? primaryTrade?.price ?? data.snapshot.price;
+  const activeLindaDecision = selectedTradeDecision ?? selectedReplayDecision;
+  const decisionPrice = activeLindaDecision?.price ?? data.snapshot.price;
   const watchLevels = useMemo(
     () => getWatchLevels(data.snapshot.candles, decisionPrice),
     [data.snapshot.candles, decisionPrice]
   );
-  const evidence = getEvidenceBullets({
-    decision: activeLindaDecision,
-    selectedBacktest,
-    diagnostics,
-    lastSignal
-  });
-  const selectedDecision: DecisionViewModel = {
-    action: activeLindaDecision?.action ?? primaryTrade?.side ?? 'hold',
-    time: activeLindaDecision?.createdAt ?? primaryTrade?.time ?? selectedReplayEvent?.time,
-    confidence: activeLindaDecision?.confidence,
-    strategy:
-      strategyLabels[
-        activeLindaDecision?.strategy ?? selectedBacktest?.strategy ?? selectedStrategy
-      ],
-    price: decisionPrice,
-    reason: activeLindaDecision?.reason ?? primaryTrade?.reason ?? 'No selected decision yet.',
-    risk:
-      activeLindaDecision?.risk ??
-      `${getPositionRisk(diagnostics, selectedBacktest)} position risk based on volatility and drawdown.`,
-    nextCheck: activeLindaDecision?.nextCheck ?? 'Review again at the next daily candle close.',
-    evidence,
-    watchLevels
-  };
-  const forwardPerformance = getForwardPerformance(
-    data.snapshot.candles,
-    selectedDecision.time,
-    selectedDecision.price,
-    selectedDecision.action
-  );
+  const evidence = activeLindaDecision
+    ? getEvidenceBullets({
+        decision: activeLindaDecision,
+        selectedBacktest,
+        diagnostics,
+        lastSignal
+      })
+    : [];
+  const selectedDecision: DecisionViewModel | undefined = activeLindaDecision
+    ? {
+        action: activeLindaDecision.action,
+        time: activeLindaDecision.createdAt,
+        confidence: activeLindaDecision.confidence,
+        strategy: strategyLabels[activeLindaDecision.strategy],
+        price: activeLindaDecision.price,
+        reason: activeLindaDecision.reason,
+        risk: activeLindaDecision.risk,
+        nextCheck: activeLindaDecision.nextCheck,
+        evidence,
+        watchLevels
+      }
+    : undefined;
+  const forwardPerformance = selectedDecision
+    ? getForwardPerformance(
+        data.snapshot.candles,
+        selectedDecision.time,
+        selectedDecision.price,
+        selectedDecision.action
+      )
+    : [];
   const journalRows = useMemo(
     () =>
       createJournalRows({
@@ -2283,6 +2294,8 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
               setSelectedStrategy(strategy);
               setSelectedTradeKey(undefined);
               setSelectedReplayEventId(undefined);
+              setSelectedJournalId(undefined);
+              setHoveredTrade(undefined);
             }}
           />
           <RegimeDiagnosticsCard diagnostics={diagnostics} />
