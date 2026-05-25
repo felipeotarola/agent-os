@@ -124,6 +124,7 @@ type JournalReplayRow = {
 };
 
 const paperKey = 'agent-os:trading-lab:paper-portfolio:v1';
+const tradingResetKey = 'agent-os:trading-lab:local-reset:v2';
 
 const strategyLabels: Record<string, string> = {
   'sma-cross': 'SMA cross',
@@ -1865,6 +1866,15 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
   );
 
   useEffect(() => {
+    if (window.localStorage.getItem(tradingResetKey) !== 'done') {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.toLowerCase().includes('trading-lab')) window.localStorage.removeItem(key);
+      }
+      window.localStorage.setItem(tradingResetKey, 'done');
+      setPortfolio(defaultPortfolio());
+      return;
+    }
+
     const stored = window.localStorage.getItem(paperKey);
     if (stored) setPortfolio(JSON.parse(stored) as PaperPortfolio);
   }, []);
