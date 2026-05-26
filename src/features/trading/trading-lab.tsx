@@ -2323,12 +2323,45 @@ function ResearchSourceRow({ link }: { link: ResearchLink }) {
   );
 }
 
+function JournalFlowStep({
+  label,
+  title,
+  detail,
+  meta,
+  tone = 'default'
+}: {
+  label: string;
+  title: React.ReactNode;
+  detail: React.ReactNode;
+  meta: React.ReactNode;
+  tone?: 'default' | 'positive' | 'warning';
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl border bg-background p-4 text-sm shadow-xs',
+        tone === 'positive' && 'border-chart-2/30 bg-chart-2/5',
+        tone === 'warning' && 'border-chart-4/30 bg-chart-4/5'
+      )}
+    >
+      <div className='text-muted-foreground text-[11px] font-medium uppercase tracking-wide'>
+        {label}
+      </div>
+      <div className='mt-1 font-semibold'>{title}</div>
+      <div className='mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground'>{detail}</div>
+      <div className='mt-3 text-[11px] text-muted-foreground'>{meta}</div>
+    </div>
+  );
+}
+
 function JournalDecisionDetail({
   decision,
-  watchLevels
+  watchLevels,
+  execution
 }: {
   decision: JournalEntry;
   watchLevels: WatchLevels;
+  execution?: PaperPortfolio['executions'][number];
 }) {
   const botDecision = isPaperBotDecision(decision) ? decision : undefined;
   const researchLinks = botDecision?.research?.links ?? [];
@@ -2431,6 +2464,79 @@ function JournalDecisionDetail({
         </DetailStat>
       </div>
 
+      {botDecision ? (
+        <div className='grid gap-3 border-t p-5 xl:grid-cols-4'>
+          <JournalFlowStep
+            label='1. Signal'
+            title={
+              botDecision.evidence.lastSignal?.side.toUpperCase() ??
+              botDecision.action.toUpperCase()
+            }
+            detail={botDecision.evidence.lastSignal?.reason ?? botDecision.reason}
+            meta={
+              botDecision.evidence.lastSignal?.time
+                ? dateTimeLabel(botDecision.evidence.lastSignal.time)
+                : dateTimeLabel(botDecision.createdAt)
+            }
+          />
+          <JournalFlowStep
+            label='2. Regime / strategy'
+            title={botDecision.evidence.regime?.selectedStrategy ?? botDecision.strategy}
+            detail={
+              botDecision.evidence.regime?.rationale ??
+              'No persisted regime selector data for this decision.'
+            }
+            meta={botDecision.evidence.regime?.noTrade ? 'no-trade guard' : 'strategy accepted'}
+            tone={botDecision.evidence.regime?.noTrade ? 'warning' : 'default'}
+          />
+          <JournalFlowStep
+            label='3. Risk / execution'
+            title={
+              execution
+                ? `${execution.action.toUpperCase()} executed`
+                : (botDecision.evidence.risk?.executableAction.toUpperCase() ??
+                  botDecision.action.toUpperCase())
+            }
+            detail={
+              execution
+                ? `${execution.quantity.toFixed(6)} BTC at ${moneyPrecise(execution.price)} · equity ${money(execution.equityAfter)}`
+                : botDecision.evidence.risk
+                  ? `${botDecision.evidence.risk.allowed ? 'Allowed' : 'Blocked'} · ${money(botDecision.evidence.risk.positionCash)} notional`
+                  : 'No execution attached.'
+            }
+            meta={execution ? 'wallet audit linked' : 'no wallet execution'}
+            tone={execution ? 'positive' : botDecision.action === 'hold' ? 'warning' : 'default'}
+          />
+          <JournalFlowStep
+            label='4. Review'
+            title={
+              botDecision.evidence.review?.checkpoints.some((checkpoint) => checkpoint.available)
+                ? botDecision.evidence.review.checkpoints
+                    .filter((checkpoint) => checkpoint.available)
+                    .map((checkpoint) => `${checkpoint.label} ${percent(checkpoint.returnPct)}`)
+                    .join(' · ')
+                : 'Pending'
+            }
+            detail={
+              botDecision.evidence.review?.checkpoints.find((checkpoint) => checkpoint.available)
+                ?.lesson ?? 'Await enough completed candles before judging this decision.'
+            }
+            meta={
+              botDecision.evidence.review
+                ? dateTimeLabel(botDecision.evidence.review.generatedAt)
+                : 'not generated yet'
+            }
+            tone={
+              botDecision.evidence.review?.checkpoints.some(
+                (checkpoint) => checkpoint.available && (checkpoint.returnPct ?? 0) > 0
+              )
+                ? 'positive'
+                : 'default'
+            }
+          />
+        </div>
+      ) : null}
+
       {botDecision?.research ? (
         <div className='border-t p-5'>
           <div className='mb-4 flex flex-wrap items-center gap-2'>
@@ -2476,7 +2582,8 @@ function PaperBotJournal({
   onSelectDecision,
   onDeleteSignal,
   signalDeletingId,
-  watchLevels
+  watchLevels,
+  portfolio
 }: {
   rows: JournalReplayRow[];
   selectedRowId?: string;
@@ -2486,6 +2593,7 @@ function PaperBotJournal({
   onDeleteSignal: (signalId: string) => Promise<void>;
   signalDeletingId?: string;
   watchLevels: WatchLevels;
+  portfolio: PaperPortfolio;
 }) {
   const [checkedRowIds, setCheckedRowIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -2516,6 +2624,11 @@ function PaperBotJournal({
   const allVisibleChecked =
     visibleRowIds.length > 0 && checkedVisibleIds.length === visibleRowIds.length;
   const someVisibleChecked = checkedVisibleIds.length > 0;
+
+  const executionByDecisionId = useMemo(
+    () => new Map(portfolio.executions.map((execution) => [execution.decisionId, execution])),
+    [portfolio.executions]
+  );
 
   useEffect(() => {
     setCheckedRowIds((current) => current.filter((id) => visibleRowIds.includes(id)));
@@ -2692,7 +2805,11 @@ function PaperBotJournal({
                 </div>
                 {selected && row.decision ? (
                   <div className='mt-4 border-t pt-4'>
-                    <JournalDecisionDetail decision={row.decision} watchLevels={watchLevels} />
+                    <JournalDecisionDetail
+                      decision={row.decision}
+                      watchLevels={watchLevels}
+                      execution={executionByDecisionId.get(row.decision.id)}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -2819,6 +2936,7 @@ function PaperBotJournal({
                           <JournalDecisionDetail
                             decision={expandedDecision}
                             watchLevels={watchLevels}
+                            execution={executionByDecisionId.get(expandedDecision.id)}
                           />
                         </td>
                       </tr>
@@ -3117,6 +3235,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
           onDeleteSignal={deleteSignal}
           signalDeletingId={signalDeletingId}
           watchLevels={watchLevels}
+          portfolio={portfolio}
         />
       </div>
 
