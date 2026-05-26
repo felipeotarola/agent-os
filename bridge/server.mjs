@@ -921,13 +921,45 @@ async function openclawStatus() {
 async function subagentRunsSnapshot(options = {}) {
   const source = 'openclaw-cli:tasks-list+sessions-active';
   const timeout = options.timeout ?? 12000;
+  const [taskResult, sessionResult] = await Promise.allSettled([
+    openclawJson(['tasks', 'list', '--json'], { timeout }),
+    openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], {
+      timeout
+    })
+  ]);
+  if (taskResult.status === 'rejected' && sessionResult.status === 'rejected') {
+    const error = [taskResult.reason?.message, sessionResult.reason?.message]
+      .filter(Boolean)
+      .join(' · ');
+    await auditEvent(
+      'subagent_snapshot_failed',
+      'Subagent/background run snapshot failed',
+      { source, error },
+      30
+    );
+    return {
+      ok: false,
+      source,
+      available: false,
+      runningCount: 0,
+      activeTaskRunCount: 0,
+      activeSessionCount: 0,
+      recent: [],
+      activeSessions: [],
+      error,
+      checkedAt: new Date().toISOString()
+    };
+  }
+
   try {
-    const [taskPayload, sessionPayload] = await Promise.all([
-      openclawJson(['tasks', 'list', '--json'], { timeout }),
-      openclawJson(['sessions', '--all-agents', '--active', '30', '--json', '--limit', '25'], {
-        timeout
-      })
-    ]);
+    const taskPayload = taskResult.status === 'fulfilled' ? taskResult.value : { tasks: [] };
+    const sessionPayload =
+      sessionResult.status === 'fulfilled' ? sessionResult.value : { sessions: [] };
+    const partialErrors = [
+      taskResult.status === 'rejected' ? `tasks: ${taskResult.reason?.message}` : null,
+      sessionResult.status === 'rejected' ? `sessions: ${sessionResult.reason?.message}` : null
+    ].filter(Boolean);
+
     const rows = Array.isArray(taskPayload.tasks) ? taskPayload.tasks : [];
     const runs = rows.slice(0, 12).map((task) => {
       const status = normalizeRunStatus(task.status);
@@ -982,13 +1014,13 @@ async function subagentRunsSnapshot(options = {}) {
     return {
       ok: true,
       source,
-      available: true,
+      available: partialErrors.length === 0,
       runningCount: activeTaskRuns.length + activeSessions.length,
       activeTaskRunCount: activeTaskRuns.length,
       activeSessionCount: activeSessions.length,
       recent,
       activeSessions,
-      error: null,
+      error: partialErrors.join(' · ') || null,
       checkedAt: new Date().toISOString()
     };
   } catch (error) {
