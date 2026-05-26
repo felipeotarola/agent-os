@@ -2000,14 +2000,82 @@ function notificationAction(id, label, href) {
   return { id, label, type: 'redirect', style: 'primary', href };
 }
 
+const ROUTINE_NOTIFICATION_EVENT_KINDS = new Set(['moved', 'updated', 'board_reordered']);
+
+function eventLooksActionable(event) {
+  const kind = String(event.kind ?? '').toLowerCase();
+  const message = String(event.message ?? '').toLowerCase();
+  if (ROUTINE_NOTIFICATION_EVENT_KINDS.has(kind)) return false;
+  return (
+    /fail|failed|error|unavailable|timeout|timed out|rejected|blocked/.test(kind) ||
+    /fail|failed|error|unavailable|timeout|timed out|rejected|blocked/.test(message) ||
+    kind.startsWith('knowledge_') ||
+    kind.startsWith('mail_') ||
+    kind.startsWith('github_') ||
+    kind === 'created' ||
+    kind === 'comment'
+  );
+}
+
+function eventNotificationStatus(event) {
+  const haystack = `${event.kind ?? ''} ${event.message ?? ''}`.toLowerCase();
+  return /fail|failed|error|unavailable|timeout|timed out|rejected|blocked/.test(haystack)
+    ? 'unread'
+    : 'read';
+}
+
+function eventNotificationKind(event) {
+  const kind = String(event.kind ?? '').toLowerCase();
+  if (/fail|failed|error|unavailable|timeout|timed out|rejected|blocked/.test(kind)) {
+    return 'system';
+  }
+  if (kind.startsWith('knowledge_') || kind.startsWith('mail_')) return 'knowledge';
+  if (kind.startsWith('github_')) return 'github';
+  return event.taskId ? 'task' : 'event';
+}
+
+function eventNotificationAction(event) {
+  const kind = String(event.kind ?? '').toLowerCase();
+  if (kind.startsWith('knowledge_') || kind.startsWith('mail_')) {
+    return notificationAction('open-knowledge', 'Open knowledge', '/dashboard/knowledge');
+  }
+  if (kind.startsWith('github_')) {
+    return notificationAction('open-github', 'Open GitHub', '/dashboard/github');
+  }
+  if (event.taskId) {
+    return notificationAction('open-tasks', 'Open task board', '/dashboard/kanban');
+  }
+  return notificationAction('open-overview', 'Open overview', '/dashboard/overview');
+}
+
 async function notificationsSnapshot() {
-  const [waitingTasks, rawKnowledge, recentEvents, memory] = await Promise.all([
+  const [waitingTasks, overdueTasks, staleTasks, rawKnowledge, recentEvents, memory] =
+    await Promise.all([
     sql`
       select t.id, t.title, t.description, t.status, t.updated_at as "updatedAt", p.name as "projectName"
       from tasks t
       left join projects p on p.id = t.project_id
       where t.status in ('waiting', 'review')
       order by t.updated_at desc
+      limit 8
+    `,
+    sql`
+      select t.id, t.title, t.description, t.status, t.due_at as "dueAt", p.name as "projectName"
+      from tasks t
+      left join projects p on p.id = t.project_id
+      where t.due_at is not null
+        and t.due_at < now()
+        and t.status not in ('done', 'cancelled')
+      order by t.due_at asc
+      limit 8
+    `,
+    sql`
+      select t.id, t.title, t.description, t.status, t.priority, t.updated_at as "updatedAt", p.name as "projectName"
+      from tasks t
+      left join projects p on p.id = t.project_id
+      where t.status in ('in_progress', 'review', 'waiting')
+        and t.updated_at < now() - interval '3 days'
+      order by t.priority desc, t.updated_at asc
       limit 8
     `,
     sql`
@@ -2018,10 +2086,10 @@ async function notificationsSnapshot() {
       limit 8
     `,
     sql`
-      select id, kind, message, created_at as "createdAt"
+      select id, task_id as "taskId", kind, message, metadata, created_at as "createdAt"
       from task_events
       order by created_at desc
-      limit 8
+      limit 30
     `,
     memoryStatus()
   ]);
@@ -2034,6 +2102,30 @@ async function notificationsSnapshot() {
       title: task.status === 'review' ? 'Task redo för review' : 'Task väntar på input',
       body: `${task.title}${task.projectName ? ` · ${task.projectName}` : ''}`,
       status: 'unread',
+      kind: 'task',
+      createdAt: new Date(task.updatedAt).toISOString(),
+      actions: [notificationAction('open-tasks', 'Open tasks', '/dashboard/kanban')]
+    });
+  }
+
+  for (const task of overdueTasks) {
+    notifications.push({
+      id: `task:${task.id}:overdue`,
+      title: 'Task är overdue',
+      body: `${task.title}${task.projectName ? ` · ${task.projectName}` : ''}`,
+      status: 'unread',
+      kind: 'task',
+      createdAt: new Date(task.dueAt).toISOString(),
+      actions: [notificationAction('open-tasks', 'Open tasks', '/dashboard/kanban')]
+    });
+  }
+
+  for (const task of staleTasks) {
+    notifications.push({
+      id: `task:${task.id}:stale:${task.status}`,
+      title: 'Task verkar stale',
+      body: `${task.title} · ${task.status}${task.projectName ? ` · ${task.projectName}` : ''}`,
+      status: Number(task.priority ?? 0) >= 80 ? 'unread' : 'read',
       kind: 'task',
       createdAt: new Date(task.updatedAt).toISOString(),
       actions: [notificationAction('open-tasks', 'Open tasks', '/dashboard/kanban')]
@@ -2081,15 +2173,15 @@ async function notificationsSnapshot() {
     });
   }
 
-  for (const event of recentEvents.slice(0, 5)) {
+  for (const event of recentEvents.filter(eventLooksActionable).slice(0, 10)) {
     notifications.push({
       id: `event:${event.id}`,
-      title: `Task event: ${event.kind}`,
+      title: event.taskId ? `Task event: ${event.kind}` : `System event: ${event.kind}`,
       body: event.message,
-      status: 'read',
-      kind: 'event',
+      status: eventNotificationStatus(event),
+      kind: eventNotificationKind(event),
       createdAt: new Date(event.createdAt).toISOString(),
-      actions: [notificationAction('open-overview', 'Open overview', '/dashboard/overview')]
+      actions: [eventNotificationAction(event)]
     });
   }
 
