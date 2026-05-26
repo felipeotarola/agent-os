@@ -151,9 +151,13 @@ async function main() {
   ]).onConflictDoUpdate({
     target: tasks.id,
     set: {
+      projectId: dsql`excluded.project_id`,
+      title: dsql`excluded.title`,
       description: dsql`excluded.description`,
       status: dsql`excluded.status`,
       priority: dsql`excluded.priority`,
+      ownerAgentId: dsql`excluded.owner_agent_id`,
+      source: dsql`excluded.source`,
       updatedAt: dsql`now()`
     }
   });
