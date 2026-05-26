@@ -15,6 +15,7 @@ Date: 2026-05-18
   - Postgres-backed task board.
   - Supports task creation and reorder persistence.
   - Uses the Agent OS task model instead of template product data.
+  - Task descriptions can include fenced Mermaid diagrams; see `docs/TASKS.md`.
 
 - **Agents** (`/dashboard/agents`)
   - Reads OpenClaw agent inventory/config via local data layer.

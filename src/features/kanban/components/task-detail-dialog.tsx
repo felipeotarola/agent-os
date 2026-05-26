@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icons } from '@/components/icons';
+import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,6 +67,12 @@ function editableKey(editable: EditableTask) {
   return JSON.stringify(editable);
 }
 
+function extractMermaidBlocks(value: string) {
+  return [...value.matchAll(/```mermaid\s*([\s\S]*?)```/gi)]
+    .map((match) => match[1].trim())
+    .filter(Boolean);
+}
+
 export function TaskDetailDialog({
   task,
   open,
@@ -88,6 +95,7 @@ export function TaskDetailDialog({
   const [form, setForm] = useState(initial);
 
   const formKey = useMemo(() => editableKey(form), [form]);
+  const mermaidBlocks = useMemo(() => extractMermaidBlocks(form.description), [form.description]);
 
   useEffect(() => {
     if (!open) return;
@@ -338,7 +346,15 @@ export function TaskDetailDialog({
             </div>
 
             <div className='space-y-2'>
-              <Label htmlFor='task-description'>Full ticket</Label>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <Label htmlFor='task-description'>Full ticket</Label>
+                {mermaidBlocks.length > 0 && (
+                  <Badge variant='outline' className='gap-1'>
+                    <Icons.chartBar className='size-3' />
+                    {mermaidBlocks.length} diagram{mermaidBlocks.length === 1 ? '' : 's'}
+                  </Badge>
+                )}
+              </div>
               <Textarea
                 id='task-description'
                 value={form.description}
@@ -347,6 +363,18 @@ export function TaskDetailDialog({
                 placeholder='Beskriv ticketen, acceptance criteria, notes, beslut…'
               />
             </div>
+
+            {mermaidBlocks.length > 0 && (
+              <div className='space-y-3'>
+                {mermaidBlocks.map((chart, index) => (
+                  <MermaidDiagram
+                    key={`${task.id}-diagram-${index}-${chart.slice(0, 24)}`}
+                    title={`${form.title || 'Task'} diagram ${index + 1}`}
+                    chart={chart}
+                  />
+                ))}
+              </div>
+            )}
 
             <div className='grid gap-2 rounded-xl border bg-muted/30 p-3 text-xs md:grid-cols-2'>
               <div className='flex min-w-0 items-center gap-2'>

@@ -15,8 +15,13 @@ function shortTaskId(id: string) {
   return id.length > 12 ? id.slice(0, 8) : id;
 }
 
+function hasMermaidDiagram(value?: string) {
+  return Boolean(value?.match(/```mermaid\s*[\s\S]*?```/i));
+}
+
 export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
   const [copied, setCopied] = useState(false);
+  const hasDiagram = hasMermaidDiagram(task.description);
 
   async function copyTaskId(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -86,7 +91,21 @@ export function TaskCard({ task, onOpen, ...props }: TaskCardProps) {
           {(task.projectName || task.source) && (
             <div className='text-muted-foreground flex items-center justify-between gap-2 text-[10px]'>
               <span className='line-clamp-1'>{task.projectName}</span>
-              <span className='rounded-sm bg-muted px-1.5 py-0.5'>{task.source}</span>
+              <div className='flex shrink-0 items-center gap-1'>
+                {hasDiagram && (
+                  <span className='inline-flex items-center gap-1 rounded-sm border bg-muted px-1.5 py-0.5 text-foreground'>
+                    <Icons.chartBar className='size-3' />
+                    diagram
+                  </span>
+                )}
+                <span className='rounded-sm bg-muted px-1.5 py-0.5'>{task.source}</span>
+              </div>
+            </div>
+          )}
+          {hasDiagram && !task.projectName && !task.source && (
+            <div className='text-muted-foreground flex items-center gap-1 text-[10px]'>
+              <Icons.chartBar className='size-3' />
+              <span>diagram</span>
             </div>
           )}
           {task.description && (
