@@ -266,6 +266,7 @@ export type PaperWallet = {
   startingCash: number;
   cashBalance: number;
   assetBalance: number;
+  averageEntryPrice?: number;
   realizedPnl: number;
   updatedAt: string;
   executions: PaperWalletExecution[];

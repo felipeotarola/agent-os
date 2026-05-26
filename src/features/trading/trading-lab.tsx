@@ -52,6 +52,7 @@ type PaperPortfolio = {
   cash: number;
   btc: number;
   startingCash: number;
+  averageEntryPrice?: number;
   realizedPnl: number;
   updatedAt: string;
   executions: Array<{
@@ -405,6 +406,7 @@ function defaultPortfolio(): PaperPortfolio {
     cash: 10_000,
     btc: 0,
     startingCash: 10_000,
+    averageEntryPrice: undefined,
     realizedPnl: 0,
     updatedAt: new Date().toISOString(),
     executions: []
@@ -417,6 +419,7 @@ function normalizePortfolio(journal: TradingJournal): PaperPortfolio {
     cash: journal.wallet.cashBalance,
     btc: journal.wallet.assetBalance,
     startingCash: journal.wallet.startingCash,
+    averageEntryPrice: journal.wallet.averageEntryPrice,
     realizedPnl: journal.wallet.realizedPnl,
     updatedAt: journal.wallet.updatedAt,
     executions: journal.wallet.executions
@@ -1124,6 +1127,12 @@ function PaperWalletCard({
 }) {
   const latestExecution = portfolio.executions.at(-1);
   const position = portfolio.btc > 0 ? 'LONG BTC' : 'FLAT USDC';
+  const exposurePct = paperEquity > 0 ? ((portfolio.btc * price) / paperEquity) * 100 : 0;
+  const unrealizedPnl =
+    portfolio.averageEntryPrice && portfolio.btc > 0
+      ? (price - portfolio.averageEntryPrice) * portfolio.btc
+      : 0;
+  const recentExecutions = portfolio.executions.slice(-3).toReversed();
 
   return (
     <Card>
@@ -1137,28 +1146,66 @@ function PaperWalletCard({
         </div>
         <Badge variant={portfolio.btc > 0 ? 'default' : 'secondary'}>{position}</Badge>
       </CardHeader>
-      <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-6'>
-        <MetricItem label='USDC balance' value={money(portfolio.cash)} />
-        <MetricItem label='BTC balance' value={portfolio.btc.toFixed(6)} />
-        <MetricItem label='BTC price' value={moneyPrecise(price)} />
-        <MetricItem
-          label='Total equity'
-          value={money(paperEquity)}
-          tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
-        />
-        <MetricItem
-          label='PnL'
-          value={`${money(paperEquity - portfolio.startingCash)} / ${percent(paperReturnPct)}`}
-          tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
-        />
-        <MetricItem
-          label='Executions'
-          value={
-            latestExecution
-              ? `${portfolio.executions.length} · ${latestExecution.action.toUpperCase()}`
-              : '0'
-          }
-        />
+      <CardContent className='grid gap-4'>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-6'>
+          <MetricItem label='USDC balance' value={money(portfolio.cash)} />
+          <MetricItem label='BTC balance' value={portfolio.btc.toFixed(6)} />
+          <MetricItem label='Avg entry' value={moneyPrecise(portfolio.averageEntryPrice)} />
+          <MetricItem
+            label='Exposure'
+            value={percent(exposurePct)}
+            tone={exposurePct > 50 ? 'warning' : undefined}
+          />
+          <MetricItem
+            label='Realized PnL'
+            value={money(portfolio.realizedPnl)}
+            tone={portfolio.realizedPnl >= 0 ? 'positive' : 'negative'}
+          />
+          <MetricItem
+            label='Unrealized PnL'
+            value={money(unrealizedPnl)}
+            tone={unrealizedPnl >= 0 ? 'positive' : 'negative'}
+          />
+          <MetricItem label='BTC price' value={moneyPrecise(price)} />
+          <MetricItem
+            label='Total equity'
+            value={money(paperEquity)}
+            tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
+          />
+          <MetricItem
+            label='Total PnL'
+            value={`${money(paperEquity - portfolio.startingCash)} / ${percent(paperReturnPct)}`}
+            tone={paperReturnPct >= 0 ? 'positive' : 'negative'}
+          />
+          <MetricItem
+            label='Lifecycle'
+            value={portfolio.btc > 0 ? 'open' : latestExecution ? 'closed' : 'not started'}
+          />
+          <MetricItem
+            label='Executions'
+            value={
+              latestExecution
+                ? `${portfolio.executions.length} · ${latestExecution.action.toUpperCase()}`
+                : '0'
+            }
+          />
+        </div>
+        {recentExecutions.length > 0 ? (
+          <div className='rounded-xl border bg-muted/20 p-3 text-xs'>
+            <div className='mb-2 font-medium'>Recent execution audit</div>
+            <div className='grid gap-2'>
+              {recentExecutions.map((execution) => (
+                <div key={execution.id} className='grid gap-2 sm:grid-cols-5'>
+                  <span>{dateTimeLabel(execution.createdAt)}</span>
+                  <span className='font-semibold'>{execution.action.toUpperCase()}</span>
+                  <span>{execution.quantity.toFixed(6)} BTC</span>
+                  <span>{moneyPrecise(execution.price)}</span>
+                  <span>{money(execution.equityAfter)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

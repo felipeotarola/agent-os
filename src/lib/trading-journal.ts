@@ -262,10 +262,30 @@ function emptyPaperWallet(): PaperWallet {
     startingCash: PAPER_WALLET_STARTING_CASH,
     cashBalance: PAPER_WALLET_STARTING_CASH,
     assetBalance: 0,
+    averageEntryPrice: undefined,
     realizedPnl: 0,
     updatedAt: new Date().toISOString(),
     executions: []
   };
+}
+
+function averageEntryFromExecutions(executions: PaperWallet['executions']) {
+  let quantity = 0;
+  let costBasis = 0;
+
+  for (const execution of executions) {
+    if (execution.action === 'buy') {
+      quantity += execution.quantity;
+      costBasis += Math.abs(execution.cashDelta);
+    } else if (quantity > 0) {
+      const sold = Math.min(quantity, execution.quantity);
+      const averageEntry = costBasis / quantity;
+      quantity -= sold;
+      costBasis -= averageEntry * sold;
+    }
+  }
+
+  return quantity > 0 ? costBasis / quantity : undefined;
 }
 
 function walletEquityAtPrice(wallet: PaperWallet, price: number) {
@@ -367,6 +387,21 @@ function rowToWallet(
   wallet: typeof tradingWallets.$inferSelect,
   executions: Array<typeof tradingExecutions.$inferSelect>
 ): PaperWallet {
+  const mappedExecutions = executions.map((execution) => ({
+    id: execution.id,
+    walletId: execution.walletId,
+    decisionId: execution.decisionId,
+    action: execution.action as 'buy' | 'sell',
+    price: execution.price,
+    quantity: execution.quantity,
+    cashDelta: execution.cashDelta,
+    assetDelta: execution.assetDelta,
+    fee: execution.fee,
+    equityAfter: execution.equityAfter,
+    reason: execution.reason,
+    createdAt: fromDate(execution.createdAt)
+  }));
+
   return {
     id: wallet.id,
     agent: 'Linda',
@@ -376,22 +411,10 @@ function rowToWallet(
     startingCash: wallet.startingCash,
     cashBalance: wallet.cashBalance,
     assetBalance: wallet.assetBalance,
+    averageEntryPrice: averageEntryFromExecutions(mappedExecutions),
     realizedPnl: wallet.realizedPnl,
     updatedAt: fromDate(wallet.updatedAt),
-    executions: executions.map((execution) => ({
-      id: execution.id,
-      walletId: execution.walletId,
-      decisionId: execution.decisionId,
-      action: execution.action as 'buy' | 'sell',
-      price: execution.price,
-      quantity: execution.quantity,
-      cashDelta: execution.cashDelta,
-      assetDelta: execution.assetDelta,
-      fee: execution.fee,
-      equityAfter: execution.equityAfter,
-      reason: execution.reason,
-      createdAt: fromDate(execution.createdAt)
-    }))
+    executions: mappedExecutions
   };
 }
 
@@ -419,6 +442,7 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
   let cash = PAPER_WALLET_STARTING_CASH;
   let btc = 0;
   let realizedPnl = 0;
+  let costBasis = 0;
   const executions: Array<typeof tradingExecutions.$inferInsert> = [];
 
   for (const decision of decisions.toSorted(
@@ -438,6 +462,7 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
       const quantity = (grossCash - fee) / decision.price;
       cash -= grossCash;
       btc += quantity;
+      costBasis += grossCash;
       executions.push({
         id: randomUUID(),
         walletId: PAPER_WALLET_ID,
@@ -460,9 +485,11 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
       const grossCash = quantity * decision.price;
       const fee = grossCash * PAPER_WALLET_FEE_RATE;
       const proceeds = grossCash - fee;
+      const averageEntry = btc > 0 ? costBasis / btc : 0;
       btc -= quantity;
+      costBasis -= averageEntry * quantity;
       cash += proceeds;
-      realizedPnl = cash + btc * decision.price - PAPER_WALLET_STARTING_CASH;
+      realizedPnl += proceeds - averageEntry * quantity;
       executions.push({
         id: randomUUID(),
         walletId: PAPER_WALLET_ID,
