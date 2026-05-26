@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -1665,15 +1666,15 @@ function DecisionTimeline({
   const hasEvents = events.length > 0;
 
   return (
-    <Card className='relative h-[196px] shrink-0 gap-0 overflow-hidden rounded-3xl border bg-card py-0 text-card-foreground shadow-none'>
+    <Card className='relative h-[196px] shrink-0 gap-0 overflow-hidden rounded-2xl border bg-card py-0 text-card-foreground shadow-none'>
       <CardHeader className='shrink-0 px-6 pb-0 pt-6'>
         <div className='flex items-center gap-2'>
           <CardTitle className='text-[15px] font-semibold leading-none tracking-tight'>
             Decision timeline
           </CardTitle>
 
-          <span className='flex h-4 w-4 items-center justify-center rounded-full border text-[10px] leading-none text-muted-foreground'>
-            i
+          <span className='flex h-4 w-4 items-center justify-center rounded-full border text-muted-foreground'>
+            <Icons.info className='size-3' />
           </span>
         </div>
       </CardHeader>
@@ -1685,18 +1686,18 @@ function DecisionTimeline({
               type='button'
               onClick={() => scrollByAmount(-260)}
               aria-label='Scroll left'
-              className='absolute left-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground transition hover:bg-muted hover:text-foreground'
+              className='absolute left-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground shadow-xs transition hover:bg-muted hover:text-foreground'
             >
-              &lsaquo;
+              <Icons.chevronLeft className='size-4' />
             </button>
 
             <button
               type='button'
               onClick={() => scrollByAmount(260)}
               aria-label='Scroll right'
-              className='absolute right-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground transition hover:bg-muted hover:text-foreground'
+              className='absolute right-0 top-[36px] z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border bg-background/95 text-muted-foreground shadow-xs transition hover:bg-muted hover:text-foreground'
             >
-              &rsaquo;
+              <Icons.chevronRight className='size-4' />
             </button>
 
             <div className='pointer-events-none absolute left-12 right-12 top-[36px] h-px bg-border' />
@@ -1719,7 +1720,7 @@ function DecisionTimeline({
                       className={cn(
                         'relative flex h-[112px] min-w-[92px] flex-col items-center rounded-2xl border border-transparent px-2 pt-[29px] text-center transition-all duration-200',
                         'hover:bg-muted/50',
-                        selected && 'border-border bg-muted/60 shadow-sm',
+                        selected && 'border-border bg-background shadow-sm',
                         selected && tone.selected
                       )}
                     >
@@ -2003,6 +2004,172 @@ function LindaAnalystBrief({
   );
 }
 
+type ResearchLink = NonNullable<PaperBotDecision['research']>['links'][number];
+type ResearchSourceTone = 'market' | 'chart' | 'news' | 'research';
+
+function actionPillClass(action: TradeAction | string) {
+  const normalized = String(action).toLowerCase();
+  if (normalized === 'buy') return 'border-chart-2/30 bg-chart-2/15 text-chart-2';
+  if (normalized === 'sell') return 'border-destructive/30 bg-destructive/10 text-destructive';
+  if (normalized === 'hold') return 'border-chart-1/30 bg-chart-1/15 text-chart-1';
+  return 'border-border bg-muted text-muted-foreground';
+}
+
+function isKeyDecisionRow(row: JournalReplayRow) {
+  return (
+    row.action !== 'hold' ||
+    (row.confidence ?? 0) >= 70 ||
+    row.forward.some((item) => Math.abs(item.value ?? 0) >= 2)
+  );
+}
+
+function sourceTone(source?: string): ResearchSourceTone {
+  const normalized = source?.toLowerCase() ?? '';
+  if (normalized.includes('binance') || normalized.includes('coingecko')) return 'market';
+  if (normalized.includes('tradingview')) return 'chart';
+  if (
+    normalized.includes('desk') ||
+    normalized.includes('telegraph') ||
+    normalized.includes('decrypt')
+  ) {
+    return 'news';
+  }
+  return 'research';
+}
+
+function sourceBadgeLabel(source?: string) {
+  const tone = sourceTone(source);
+  if (tone === 'market') return 'Market data';
+  if (tone === 'chart') return 'Chart';
+  if (tone === 'news') return 'News';
+  return 'Research';
+}
+
+function sourceBadgeClass(source?: string) {
+  const tone = sourceTone(source);
+  if (tone === 'market') return 'border-chart-2/20 bg-chart-2/10 text-chart-2';
+  if (tone === 'chart') return 'border-chart-1/20 bg-chart-1/10 text-chart-1';
+  if (tone === 'news') return 'border-primary/20 bg-primary/10 text-primary';
+  return 'border-muted-foreground/20 bg-muted text-muted-foreground';
+}
+
+function SourceAvatar({ source }: { source?: string }) {
+  const normalized = source?.toLowerCase() ?? '';
+  const Icon = normalized.includes('binance')
+    ? Icons.binance
+    : normalized.includes('tradingview')
+      ? Icons.chartCandle
+      : normalized.includes('coingecko')
+        ? Icons.databaseSearch
+        : sourceTone(source) === 'news'
+          ? Icons.news
+          : Icons.library;
+
+  return (
+    <span className='flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background shadow-xs'>
+      <Icon className='size-5 text-foreground' />
+    </span>
+  );
+}
+
+function DetailStat({
+  icon: Icon,
+  label,
+  children
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className='min-w-0 border-b p-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0'>
+      <div className='mb-3 flex items-center gap-3'>
+        <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-primary shadow-xs'>
+          <Icon className='size-4' />
+        </span>
+        <div className='font-semibold leading-none'>{label}</div>
+      </div>
+      <div className='text-sm leading-6 text-muted-foreground'>{children}</div>
+    </div>
+  );
+}
+
+function EvidenceMetric({
+  label,
+  value,
+  tone
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: 'positive' | 'negative';
+}) {
+  return (
+    <div className='flex items-center gap-2'>
+      <Icons.chevronRight className='size-3.5 text-muted-foreground' />
+      <span>{label}</span>
+      <span
+        className={cn(
+          'font-semibold text-foreground',
+          tone === 'positive' && 'text-chart-2',
+          tone === 'negative' && 'text-destructive'
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ResearchSourceCard({ link }: { link: ResearchLink }) {
+  return (
+    <a
+      href={link.url}
+      target='_blank'
+      rel='noreferrer'
+      className='group flex min-w-0 gap-3 rounded-lg border bg-background p-4 shadow-xs transition hover:border-primary/40 hover:bg-muted/20'
+    >
+      <SourceAvatar source={link.source} />
+      <div className='min-w-0 flex-1'>
+        <div className='mb-1 flex items-start justify-between gap-2'>
+          <div className='min-w-0'>
+            <Badge
+              variant='outline'
+              className={cn('mb-2 h-5 px-2 text-[10px]', sourceBadgeClass(link.source))}
+            >
+              {sourceBadgeLabel(link.source)}
+            </Badge>
+            <div className='text-xs font-semibold leading-none text-muted-foreground'>
+              {link.source ?? 'Research'}
+            </div>
+          </div>
+          <Icons.externalLink className='size-4 shrink-0 text-muted-foreground transition group-hover:text-foreground' />
+        </div>
+        <div className='line-clamp-1 text-sm font-semibold'>{link.label}</div>
+        <p className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>{link.note}</p>
+      </div>
+    </a>
+  );
+}
+
+function ResearchSourceRow({ link }: { link: ResearchLink }) {
+  return (
+    <a
+      href={link.url}
+      target='_blank'
+      rel='noreferrer'
+      className='grid min-w-[760px] grid-cols-[44px_120px_minmax(220px,1.2fr)_minmax(240px,1fr)_32px] items-center border-b px-3 py-2 text-sm transition last:border-b-0 hover:bg-muted/30'
+    >
+      <SourceAvatar source={link.source} />
+      <Badge variant='outline' className={cn('w-fit text-[10px]', sourceBadgeClass(link.source))}>
+        {sourceBadgeLabel(link.source)}
+      </Badge>
+      <div className='truncate font-medium'>{link.source ?? 'Research source'}</div>
+      <div className='truncate text-muted-foreground'>{link.label}</div>
+      <Icons.externalLink className='size-4 justify-self-end text-muted-foreground' />
+    </a>
+  );
+}
+
 function JournalDecisionDetail({
   decision,
   watchLevels
@@ -2010,66 +2177,83 @@ function JournalDecisionDetail({
   decision: JournalEntry;
   watchLevels: WatchLevels;
 }) {
+  const botDecision = isPaperBotDecision(decision) ? decision : undefined;
+  const researchLinks = botDecision?.research?.links ?? [];
+  const primaryLinks = researchLinks.slice(0, 3);
+  const contextLinks = researchLinks.slice(3);
+
   return (
-    <div className='grid gap-4 rounded-2xl border bg-muted/20 p-4 lg:grid-cols-4'>
-      <div>
-        <div className='mb-1 text-sm font-semibold'>Why this decision?</div>
-        <p className='text-sm text-muted-foreground'>{decision.reason}</p>
-      </div>
-      <div>
-        <div className='mb-1 text-sm font-semibold'>Evidence</div>
-        <div className='flex flex-col gap-1 text-xs text-muted-foreground'>
-          {isPaperBotDecision(decision) ? (
-            <>
-              <span>Return {percent(decision.evidence.returnPct)}</span>
-              <span>Win rate {percent(decision.evidence.winRatePct)}</span>
-              <span>Volume {decision.evidence.volumeVerdict}</span>
-            </>
+    <div className='overflow-hidden rounded-xl border bg-card shadow-sm'>
+      <div className='grid md:grid-cols-2 xl:grid-cols-4'>
+        <DetailStat icon={Icons.bulb} label='Why this decision?'>
+          {decision.reason}
+        </DetailStat>
+
+        <DetailStat icon={Icons.chartBar} label='Evidence'>
+          {botDecision ? (
+            <div className='grid gap-1'>
+              <EvidenceMetric
+                label='Return'
+                value={percent(botDecision.evidence.returnPct)}
+                tone={botDecision.evidence.returnPct >= 0 ? 'positive' : 'negative'}
+              />
+              <EvidenceMetric label='Win rate' value={percent(botDecision.evidence.winRatePct)} />
+              <EvidenceMetric label='Volume trend' value={botDecision.evidence.volumeVerdict} />
+            </div>
           ) : (
-            <>
-              <span>Manual paper action</span>
-              <span>Portfolio equity {money(decision.portfolio.equity)}</span>
-            </>
+            <div className='grid gap-1'>
+              <EvidenceMetric label='Action' value='Manual paper action' />
+              <EvidenceMetric
+                label='Portfolio equity'
+                value={decision.kind === 'manual' ? money(decision.portfolio.equity) : '--'}
+              />
+            </div>
           )}
-        </div>
-      </div>
-      <div>
-        <div className='mb-1 text-sm font-semibold'>Risk / invalidations</div>
-        <p className='text-sm text-muted-foreground'>
-          {isPaperBotDecision(decision)
-            ? decision.risk
-            : 'Manual paper action with no automated risk pack.'}
-        </p>
-      </div>
-      <div>
-        <div className='mb-1 text-sm font-semibold'>Next check</div>
-        <p className='text-sm text-muted-foreground'>
-          {isPaperBotDecision(decision)
-            ? decision.nextCheck
-            : 'Review at the next replay checkpoint.'}
-        </p>
-        <div className='mt-2 text-xs text-muted-foreground'>
-          Watch {money(watchLevels.upside)} / {money(watchLevels.downside)}
-        </div>
-      </div>
-      {isPaperBotDecision(decision) && decision.research ? (
-        <div className='lg:col-span-4'>
-          <div className='mb-2 text-sm font-semibold'>Research used</div>
-          <p className='text-sm text-muted-foreground'>{decision.research.thesis}</p>
-          <div className='mt-3 flex flex-wrap gap-2'>
-            {decision.research.links.map((link) => (
-              <a
-                key={link.url}
-                href={link.url}
-                target='_blank'
-                rel='noreferrer'
-                className='rounded-full border px-3 py-1 text-xs hover:text-foreground'
-              >
-                {link.source ? `${link.source}: ` : ''}
-                {link.label}
-              </a>
-            ))}
+        </DetailStat>
+
+        <DetailStat icon={Icons.shieldCheck} label='Risk / invalidations'>
+          {botDecision ? botDecision.risk : 'Manual paper action with no automated risk pack.'}
+        </DetailStat>
+
+        <DetailStat icon={Icons.calendarStats} label='Next check'>
+          <div>{botDecision ? botDecision.nextCheck : 'Review at the next replay checkpoint.'}</div>
+          <div className='mt-2 text-xs'>
+            Watch {money(watchLevels.upside)} / {money(watchLevels.downside)}
           </div>
+        </DetailStat>
+      </div>
+
+      {botDecision?.research ? (
+        <div className='border-t p-5'>
+          <div className='mb-4 flex flex-wrap items-center gap-2'>
+            <h3 className='text-base font-semibold'>Research used</h3>
+            <Badge variant='outline'>{researchLinks.length} sources</Badge>
+          </div>
+          <p className='mb-4 max-w-5xl text-sm leading-6 text-muted-foreground'>
+            {botDecision.research.thesis}
+          </p>
+
+          {primaryLinks.length > 0 ? (
+            <>
+              <div className='mb-2 text-sm font-medium'>Primary evidence</div>
+              <div className='mb-5 grid gap-3 xl:grid-cols-3'>
+                {primaryLinks.map((link) => (
+                  <ResearchSourceCard key={link.url} link={link} />
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {contextLinks.length > 0 ? (
+            <>
+              <div className='mb-2 text-sm font-medium'>Context sources</div>
+              <div className='overflow-x-auto rounded-lg border'>
+                {contextLinks.map((link) => (
+                  <ResearchSourceRow key={link.url} link={link} />
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -2097,9 +2281,32 @@ function PaperBotJournal({
 }) {
   const [checkedRowIds, setCheckedRowIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showKeyOnly, setShowKeyOnly] = useState(false);
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (showKeyOnly && !isKeyDecisionRow(row)) return false;
+      if (!normalizedQuery) return true;
+
+      return [
+        dateTimeLabel(row.time),
+        row.action,
+        row.strategy,
+        row.reason,
+        row.confidence?.toFixed(0),
+        moneyPrecise(row.price)
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery);
+    });
+  }, [rows, searchQuery, showKeyOnly]);
+  const visibleRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows]);
   const checkedVisibleIds = checkedRowIds.filter((id) => visibleRowIds.includes(id));
-  const allVisibleChecked = visibleRowIds.length > 0 && checkedVisibleIds.length === rows.length;
+  const allVisibleChecked =
+    visibleRowIds.length > 0 && checkedVisibleIds.length === visibleRowIds.length;
   const someVisibleChecked = checkedVisibleIds.length > 0;
 
   useEffect(() => {
@@ -2130,7 +2337,7 @@ function PaperBotJournal({
   };
 
   return (
-    <Card className='rounded-2xl'>
+    <Card className='rounded-2xl shadow-none'>
       <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
         <div>
           <CardTitle>Linda trade journal</CardTitle>
@@ -2139,12 +2346,12 @@ function PaperBotJournal({
           </CardDescription>
         </div>
         <div className='flex flex-wrap items-center gap-2'>
-          <div className='flex h-9 items-center gap-2 rounded-xl border px-3 text-sm text-muted-foreground'>
+          <div className='flex h-9 items-center gap-2 rounded-lg border bg-background px-3 text-sm text-muted-foreground shadow-xs'>
             <Checkbox
               checked={allVisibleChecked}
               onCheckedChange={(checked) => toggleAllVisible(checked === true)}
               aria-label='Select all visible journal rows'
-              disabled={rows.length === 0 || bulkDeleting}
+              disabled={visibleRowIds.length === 0 || bulkDeleting}
             />
             <span>Select all visible</span>
           </div>
@@ -2173,17 +2380,30 @@ function PaperBotJournal({
           <Button type='button' variant='outline' size='sm' disabled>
             More filters
           </Button>
-          <div className='flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto'>
-            <Button type='button' variant='outline' size='sm' disabled>
-              Search decisions...
-            </Button>
-            <Button type='button' variant='outline' size='sm' disabled>
-              Show only key decisions
+          <div className='flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto sm:flex-nowrap'>
+            <div className='relative min-w-[220px] flex-1 sm:w-[280px] sm:flex-none'>
+              <Icons.search className='pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder='Search decisions...'
+                className='pl-9'
+              />
+            </div>
+            <Button
+              type='button'
+              variant={showKeyOnly ? 'default' : 'outline'}
+              size='sm'
+              onClick={() => setShowKeyOnly((current) => !current)}
+              aria-pressed={showKeyOnly}
+            >
+              <Icons.filter className='size-4' />
+              Key decisions
             </Button>
           </div>
         </div>
         <div className='grid gap-3 md:hidden'>
-          {rows.map((row) => {
+          {filteredRows.map((row) => {
             const tradeKey = row.trade
               ? getTradeDecisionKey(row.strategyKey, row.trade)
               : undefined;
@@ -2198,8 +2418,8 @@ function PaperBotJournal({
               <div
                 key={row.id}
                 className={cn(
-                  'rounded-2xl border p-4',
-                  selected && 'border-primary/40 bg-primary/10'
+                  'rounded-xl border bg-card p-4 shadow-xs',
+                  selected && 'border-chart-2/30 bg-chart-2/5 shadow-sm'
                 )}
               >
                 <div className='mb-3 flex items-start justify-between gap-3'>
@@ -2214,7 +2434,9 @@ function PaperBotJournal({
                       <div className='mt-1 text-xs text-muted-foreground'>{row.strategy}</div>
                     </div>
                   </div>
-                  <Badge variant={actionBadgeVariant(row.action)}>{row.action.toUpperCase()}</Badge>
+                  <Badge variant='outline' className={actionPillClass(row.action)}>
+                    {row.action.toUpperCase()}
+                  </Badge>
                 </div>
                 <button
                   type='button'
@@ -2268,30 +2490,32 @@ function PaperBotJournal({
               </div>
             );
           })}
-          {rows.length === 0 ? (
-            <div className='rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground'>
-              No Linda trades yet. Trades are created by Linda, not from this UI.
+          {filteredRows.length === 0 ? (
+            <div className='rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground'>
+              {rows.length === 0
+                ? 'No Linda trades yet. Trades are created by Linda, not from this UI.'
+                : 'No decisions match the current journal filters.'}
             </div>
           ) : null}
         </div>
-        <div className='hidden overflow-x-auto rounded-xl border md:block'>
+        <div className='hidden overflow-x-auto rounded-xl border bg-card md:block'>
           <table className='w-full min-w-[980px] text-sm'>
-            <thead className='bg-muted/40 text-muted-foreground'>
+            <thead className='bg-muted/30 text-xs text-muted-foreground'>
               <tr>
-                <th className='p-3 text-left'>Date / Time</th>
-                <th className='p-3 text-left'>Action</th>
-                <th className='p-3 text-right'>Confidence</th>
-                <th className='p-3 text-right'>Price</th>
-                <th className='p-3 text-left'>Reason short</th>
-                <th className='p-3 text-left'>Strategy</th>
-                <th className='p-3 text-right'>Result 1D</th>
-                <th className='p-3 text-right'>Result 3D</th>
-                <th className='p-3 text-right'>Result 7D</th>
-                <th className='p-3 text-right'>Details</th>
+                <th className='px-4 py-3 text-left font-semibold'>Date / Time</th>
+                <th className='px-4 py-3 text-left font-semibold'>Action</th>
+                <th className='px-4 py-3 text-right font-semibold'>Confidence</th>
+                <th className='px-4 py-3 text-right font-semibold'>Price</th>
+                <th className='px-4 py-3 text-left font-semibold'>Reason short</th>
+                <th className='px-4 py-3 text-left font-semibold'>Strategy</th>
+                <th className='px-4 py-3 text-right font-semibold'>Result 1D</th>
+                <th className='px-4 py-3 text-right font-semibold'>Result 3D</th>
+                <th className='px-4 py-3 text-right font-semibold'>Result 7D</th>
+                <th className='px-4 py-3 text-right font-semibold'>Details</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {filteredRows.map((row) => {
                 const tradeKey = row.trade
                   ? getTradeDecisionKey(row.strategyKey, row.trade)
                   : undefined;
@@ -2309,13 +2533,13 @@ function PaperBotJournal({
                     <tr
                       className={cn(
                         'cursor-pointer border-t transition hover:bg-muted/30',
-                        selected && 'bg-primary/10'
+                        selected && 'bg-chart-2/5'
                       )}
                       onClick={() => {
                         if (row.decision) onSelectDecision(row.decision);
                       }}
                     >
-                      <td className='p-3'>
+                      <td className='px-4 py-3'>
                         <div className='flex items-center gap-3'>
                           <Checkbox
                             checked={checked}
@@ -2328,30 +2552,32 @@ function PaperBotJournal({
                           <span>{dateTimeLabel(row.time)}</span>
                         </div>
                       </td>
-                      <td className='p-3'>
-                        <Badge variant={actionBadgeVariant(row.action)}>
+                      <td className='px-4 py-3'>
+                        <Badge variant='outline' className={actionPillClass(row.action)}>
                           {row.action.toUpperCase()}
                         </Badge>
                       </td>
-                      <td className='p-3 text-right'>
+                      <td className='px-4 py-3 text-right'>
                         {row.confidence !== undefined ? `${row.confidence.toFixed(0)}%` : '--'}
                       </td>
-                      <td className='p-3 text-right'>{moneyPrecise(row.price)}</td>
-                      <td className='max-w-80 truncate p-3 text-muted-foreground'>{row.reason}</td>
-                      <td className='p-3'>{row.strategy}</td>
+                      <td className='px-4 py-3 text-right'>{moneyPrecise(row.price)}</td>
+                      <td className='max-w-80 truncate px-4 py-3 text-muted-foreground'>
+                        {row.reason}
+                      </td>
+                      <td className='px-4 py-3'>{row.strategy}</td>
                       {row.forward.map((item) => (
                         <td
                           key={item.label}
                           className={cn(
-                            'p-3 text-right',
-                            (item.value ?? 0) > 0 && 'text-primary',
+                            'px-4 py-3 text-right',
+                            (item.value ?? 0) > 0 && 'text-chart-2',
                             (item.value ?? 0) < 0 && 'text-destructive'
                           )}
                         >
                           {item.value === undefined ? '--' : percent(item.value)}
                         </td>
                       ))}
-                      <td className='p-3 text-right'>
+                      <td className='px-4 py-3 text-right'>
                         <div className='flex justify-end gap-2'>
                           <Button
                             type='button'
@@ -2381,7 +2607,7 @@ function PaperBotJournal({
                     </tr>
                     {expandedDecision ? (
                       <tr className='border-t bg-muted/10'>
-                        <td colSpan={10} className='p-4'>
+                        <td colSpan={10} className='p-3'>
                           <JournalDecisionDetail
                             decision={expandedDecision}
                             watchLevels={watchLevels}
@@ -2392,10 +2618,12 @@ function PaperBotJournal({
                   </React.Fragment>
                 );
               })}
-              {rows.length === 0 ? (
+              {filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={10} className='p-6 text-center text-muted-foreground'>
-                    No Linda trades yet. Trades are created by Linda, not from this UI.
+                    {rows.length === 0
+                      ? 'No Linda trades yet. Trades are created by Linda, not from this UI.'
+                      : 'No decisions match the current journal filters.'}
                   </td>
                 </tr>
               ) : null}
