@@ -712,9 +712,13 @@ export default async function KnowledgePage({
               {params.memory === 'harvested' &&
                 'Memory/dreaming-filer synkade till Knowledge Inbox för review.'}
               {params.memory === 'previewed' && 'Memory harvester preview körd.'}
+              {params.memory === 'use-form' &&
+                'Memory harvest körs från formuläret här på Knowledge-sidan, inte som en fristående API-sida.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
               {params.error === 'missing' && 'Titel och antingen URL eller råtext krävs.'}
+              {params.error === 'memory-harvest' &&
+                'Memory harvest misslyckades mot bridgen. Försök igen om en stund eller kolla bridge-status.'}
             </CardContent>
           </Card>
         )}
