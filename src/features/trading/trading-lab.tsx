@@ -36,6 +36,7 @@ import {
   type PaperBotDecision,
   type PaperJournalEntry,
   type PaperRiskAssessment,
+  type StrategyLearningScorecard,
   type Trade,
   type TradingJournal,
   type TradingSignal
@@ -2543,6 +2544,118 @@ function StrategyComparison({
   );
 }
 
+function LearningScorecard({
+  learning,
+  selectedStrategy,
+  compact = false
+}: {
+  learning?: StrategyLearningScorecard;
+  selectedStrategy: TradingStrategy;
+  compact?: boolean;
+}) {
+  const rows = learning?.strategies ?? [];
+  return (
+    <Card className='gap-0 rounded-2xl py-2.5'>
+      <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
+        <div className='flex items-center justify-between gap-3'>
+          <div>
+            <CardTitle>Linda learning scorecard</CardTitle>
+            <CardDescription className='mt-[-2px] leading-[1.2]'>
+              What post-trade reviews are teaching Linda before any strategy tuning.
+            </CardDescription>
+          </div>
+          <Badge variant='outline'>{learning?.totalReviewedTrades ?? 0} reviewed</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className='grid gap-3 pt-0'>
+        {rows.length === 0 ? (
+          <div className='rounded-xl border border-dashed p-4 text-sm text-muted-foreground'>
+            No reviewed trades yet. Linda needs 1D/3D/7D outcomes before she can learn.
+          </div>
+        ) : (
+          rows.map((row) => {
+            const selected = row.strategy === selectedStrategy;
+            return (
+              <div
+                key={row.strategy}
+                className={cn(
+                  'rounded-xl border bg-background p-4 text-sm shadow-xs',
+                  selected && 'border-primary/40 bg-primary/5',
+                  compact && 'p-3'
+                )}
+              >
+                <div className='mb-3 flex items-start justify-between gap-3'>
+                  <div className='min-w-0'>
+                    <div className='flex items-center gap-2 font-semibold'>
+                      <span>{strategyLabels[row.strategy]}</span>
+                      {selected ? <Badge variant='outline'>selected</Badge> : null}
+                    </div>
+                    <div className='mt-1 text-xs text-muted-foreground'>{row.recommendation}</div>
+                  </div>
+                  <Badge
+                    variant='outline'
+                    className={cn(
+                      row.status === 'promising' && 'border-chart-2/30 bg-chart-2/10 text-chart-2',
+                      row.status === 'caution' &&
+                        'border-destructive/30 bg-destructive/10 text-destructive'
+                    )}
+                  >
+                    {row.status.replace('-', ' ')}
+                  </Badge>
+                </div>
+                <div className='grid grid-cols-2 gap-3 text-xs md:grid-cols-4'>
+                  <StrategyMetric label='Reviewed' value={row.reviewedTrades} />
+                  <StrategyMetric label='3D avg' value={percent(row.avgReturnPct.threeDay)} />
+                  <StrategyMetric
+                    label='Works / fails'
+                    value={`${row.working}/${row.failed}`}
+                    tone={
+                      row.failed > row.working
+                        ? 'negative'
+                        : row.working > row.failed
+                          ? 'positive'
+                          : 'default'
+                    }
+                  />
+                  <StrategyMetric
+                    label='Confidence adj.'
+                    value={`${row.confidenceAdjustment > 0 ? '+' : ''}${row.confidenceAdjustment}`}
+                    tone={
+                      row.confidenceAdjustment > 0
+                        ? 'positive'
+                        : row.confidenceAdjustment < 0
+                          ? 'negative'
+                          : 'default'
+                    }
+                  />
+                </div>
+                <div className='mt-3 grid gap-2 text-xs text-muted-foreground'>
+                  <div>
+                    <span className='font-medium text-foreground'>Lesson:</span>{' '}
+                    {row.lessons[0] ?? 'Await more completed review checkpoints.'}
+                  </div>
+                  {row.failurePatterns.length > 0 ? (
+                    <div>
+                      <span className='font-medium text-foreground'>Failure pattern:</span>{' '}
+                      {row.failurePatterns.join(' · ')}
+                    </div>
+                  ) : null}
+                  {row.regimeNotes[0] ? (
+                    <div>
+                      <span className='font-medium text-foreground'>Regime note:</span>{' '}
+                      {row.regimeNotes[0]}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function StrategyMetric({
   label,
   value,
@@ -2904,6 +3017,19 @@ function JournalDecisionDetail({
                     .filter((checkpoint) => checkpoint.available)
                     .map((checkpoint) => `${checkpoint.label} ${percent(checkpoint.returnPct)}`)
                     .join(' · ')}
+                />
+              ) : null}
+              {botDecision.evidence.learning ? (
+                <EvidenceMetric
+                  label='Learning'
+                  value={`${botDecision.evidence.learning.status.replace('-', ' ')} (${botDecision.evidence.learning.confidenceAdjustment > 0 ? '+' : ''}${botDecision.evidence.learning.confidenceAdjustment})`}
+                  tone={
+                    botDecision.evidence.learning.confidenceAdjustment > 0
+                      ? 'positive'
+                      : botDecision.evidence.learning.confidenceAdjustment < 0
+                        ? 'negative'
+                        : undefined
+                  }
                 />
               ) : null}
             </div>
@@ -3686,6 +3812,11 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
             setHoveredTrade(undefined);
           }}
         />
+        <LearningScorecard
+          learning={data.journal.learning}
+          selectedStrategy={selectedStrategy}
+          compact
+        />
         <RegimeDiagnosticsCard diagnostics={diagnostics} />
         <LindaAnalystBrief
           activeLindaDecision={activeLindaDecision}
@@ -3732,6 +3863,8 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         paperEquity={paperEquity}
         paperReturnPct={paperReturnPct}
       />
+
+      <LearningScorecard learning={data.journal.learning} selectedStrategy={selectedStrategy} />
 
       <div className='flex flex-col gap-6'>
         <StrategyTradeChart

@@ -11,6 +11,7 @@ import {
   type PaperTradeReview,
   type PaperRiskAssessment,
   type PaperWallet,
+  type StrategyLearningScorecard,
   type Trade,
   type TradingSignal,
   type TradingStrategy
@@ -87,6 +88,135 @@ function buildTradingSignals(decisions: PaperJournalEntry[]): TradingSignal[] {
     trade: decision.kind === 'bot' ? decision.evidence.trade : undefined,
     decision
   }));
+}
+
+function averageOrUndefined(items: number[]) {
+  if (items.length === 0) return undefined;
+  return items.reduce((sum, value) => sum + value, 0) / items.length;
+}
+
+function uniqueCompact(items: Array<string | undefined>, limit = 4) {
+  return [...new Set(items.filter((item): item is string => Boolean(item)))].slice(0, limit);
+}
+
+export function buildStrategyLearningScorecard(
+  decisions: PaperJournalEntry[]
+): StrategyLearningScorecard {
+  const botDecisions = decisions.filter(
+    (decision): decision is PaperBotDecision =>
+      decision.kind === 'bot' &&
+      decision.action !== 'hold' &&
+      decision.evidence.review !== undefined
+  );
+
+  const strategies = (['sma-cross', 'rsi-reversion', 'volume-breakout'] as const).map(
+    (strategy) => {
+      const strategyDecisions = botDecisions.filter((decision) => decision.strategy === strategy);
+      const checkpoints = strategyDecisions.flatMap((decision) =>
+        (decision.evidence.review?.checkpoints ?? [])
+          .filter((checkpoint) => checkpoint.available)
+          .map((checkpoint) => ({ decision, checkpoint }))
+      );
+      const oneDay = checkpoints
+        .filter((item) => item.checkpoint.days === 1 && item.checkpoint.returnPct !== undefined)
+        .map((item) => item.checkpoint.returnPct as number);
+      const threeDay = checkpoints
+        .filter((item) => item.checkpoint.days === 3 && item.checkpoint.returnPct !== undefined)
+        .map((item) => item.checkpoint.returnPct as number);
+      const sevenDay = checkpoints
+        .filter((item) => item.checkpoint.days === 7 && item.checkpoint.returnPct !== undefined)
+        .map((item) => item.checkpoint.returnPct as number);
+      const latestReturn =
+        averageOrUndefined(threeDay) ?? averageOrUndefined(oneDay) ?? averageOrUndefined(sevenDay);
+      const working = checkpoints.filter(
+        (item) => item.checkpoint.thesisOutcome === 'working'
+      ).length;
+      const failed = checkpoints.filter(
+        (item) => item.checkpoint.thesisOutcome === 'failed'
+      ).length;
+      const pending = checkpoints.filter(
+        (item) => item.checkpoint.thesisOutcome === 'pending'
+      ).length;
+      const reviewedTrades = strategyDecisions.filter((decision) =>
+        decision.evidence.review?.checkpoints.some((checkpoint) => checkpoint.available)
+      ).length;
+      const confidenceAdjustment =
+        reviewedTrades < 2 || latestReturn === undefined
+          ? 0
+          : latestReturn > 1.5 && working > failed
+            ? 5
+            : latestReturn < -1 || failed > working
+              ? -7
+              : 0;
+      const status: StrategyLearningScorecard['strategies'][number]['status'] =
+        reviewedTrades === 0
+          ? 'insufficient-data'
+          : confidenceAdjustment > 0
+            ? 'promising'
+            : confidenceAdjustment < 0
+              ? 'caution'
+              : 'learning';
+      const failurePatterns = uniqueCompact(
+        checkpoints.flatMap((item) => [
+          item.checkpoint.thesisOutcome === 'failed'
+            ? `${item.checkpoint.label} failed: ${item.checkpoint.returnPct?.toFixed(2)}%`
+            : undefined,
+          ...item.checkpoint.ruleViolations,
+          item.decision.evidence.regime?.noTrade
+            ? 'Regime marked similar setup as no-trade.'
+            : undefined,
+          item.decision.evidence.volumeVerdict === 'falling'
+            ? 'Falling volume reduced follow-through quality.'
+            : undefined
+        ])
+      );
+      const regimeNotes = uniqueCompact(
+        strategyDecisions.map((decision) => decision.evidence.regime?.rationale),
+        3
+      );
+      const lessons = uniqueCompact(
+        checkpoints
+          .toSorted((left, right) =>
+            right.decision.createdAt.localeCompare(left.decision.createdAt)
+          )
+          .map((item) => item.checkpoint.lesson),
+        3
+      );
+      const recommendation =
+        status === 'insufficient-data'
+          ? 'Collect more reviewed paper trades before changing this strategy.'
+          : status === 'promising'
+            ? 'Keep current guardrails; modestly trust this setup when regime and risk agree.'
+            : status === 'caution'
+              ? 'Reduce confidence in similar setups until fresh evidence or a better regime appears.'
+              : 'Keep observing; outcome is mixed, so do not tune parameters yet.';
+
+      return {
+        strategy,
+        reviewedTrades,
+        working,
+        failed,
+        pending,
+        avgReturnPct: {
+          oneDay: averageOrUndefined(oneDay),
+          threeDay: averageOrUndefined(threeDay),
+          sevenDay: averageOrUndefined(sevenDay)
+        },
+        confidenceAdjustment,
+        status,
+        regimeNotes,
+        failurePatterns,
+        lessons,
+        recommendation
+      };
+    }
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totalReviewedTrades: strategies.reduce((sum, item) => sum + item.reviewedTrades, 0),
+    strategies
+  };
 }
 
 function databaseEnabled() {
@@ -672,7 +802,8 @@ export async function getTradingJournal() {
     backtestRuns: journal.backtestRuns.slice(-MAX_BACKTEST_RUNS),
     decisions,
     signals: buildTradingSignals(decisions),
-    wallet: journal.wallet ?? emptyPaperWallet()
+    wallet: journal.wallet ?? emptyPaperWallet(),
+    learning: buildStrategyLearningScorecard(decisions)
   };
 }
 
@@ -1113,6 +1244,12 @@ export async function buildPaperBotDecision(
   const latestTime = latestCompleteCandleTime(snapshot);
   const recentTrade = activeRecentTrade(backtest, latestTime);
   const score = scoreBacktest(backtest, snapshot);
+  const priorJournal = targetTrade ? undefined : await readJournal();
+  const learning = priorJournal
+    ? buildStrategyLearningScorecard(priorJournal.decisions).strategies.find(
+        (item) => item.strategy === selectedStrategy
+      )
+    : undefined;
   const latestSignalIsFresh =
     lastTrade !== undefined && latestTime !== undefined && lastTrade.time === latestTime;
   const requestedAction = targetTrade
@@ -1125,7 +1262,10 @@ export async function buildPaperBotDecision(
           ? recentTrade.side
           : 'hold';
   const activeSignalConfidenceBonus = !targetTrade && !latestSignalIsFresh && recentTrade ? 8 : 0;
-  const confidence = Math.max(5, Math.min(95, 50 + score + activeSignalConfidenceBonus));
+  const confidence = Math.max(
+    5,
+    Math.min(95, 50 + score + activeSignalConfidenceBonus + (learning?.confidenceAdjustment ?? 0))
+  );
   const wallet = targetTrade ? emptyPaperWallet() : await readDbWallet();
   const riskAssessment = targetTrade
     ? undefined
@@ -1210,6 +1350,7 @@ export async function buildPaperBotDecision(
       volumeVsSevenDayPct: snapshot.volumeTrend.changeVsSevenDayPct,
       marketData: snapshot.marketData,
       regime,
+      learning,
       lastSignal: targetTrade
         ? { side: targetTrade.side, time: targetTrade.time, reason: targetTrade.reason }
         : recentTrade

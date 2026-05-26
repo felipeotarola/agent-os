@@ -95,6 +95,29 @@ export type BacktestResult = {
 
 export type TradingStrategy = 'sma-cross' | 'rsi-reversion' | 'volume-breakout';
 
+export type StrategyLearningScorecard = {
+  generatedAt: string;
+  totalReviewedTrades: number;
+  strategies: Array<{
+    strategy: TradingStrategy;
+    reviewedTrades: number;
+    working: number;
+    failed: number;
+    pending: number;
+    avgReturnPct: {
+      oneDay?: number;
+      threeDay?: number;
+      sevenDay?: number;
+    };
+    confidenceAdjustment: number;
+    status: 'learning' | 'promising' | 'caution' | 'insufficient-data';
+    regimeNotes: string[];
+    failurePatterns: string[];
+    lessons: string[];
+    recommendation: string;
+  }>;
+};
+
 export type PaperBotDecision = {
   id: string;
   kind: 'bot';
@@ -121,6 +144,7 @@ export type PaperBotDecision = {
     marketData?: MarketDataInputs;
     regime?: MarketRegime;
     review?: PaperTradeReview;
+    learning?: StrategyLearningScorecard['strategies'][number];
   };
   research?: {
     summary: string;
@@ -240,6 +264,7 @@ export type TradingJournal = {
   decisions: PaperJournalEntry[];
   signals: TradingSignal[];
   wallet?: PaperWallet;
+  learning?: StrategyLearningScorecard;
 };
 
 export type PaperWalletExecution = {
