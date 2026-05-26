@@ -165,3 +165,5 @@ Highest-leverage next step: wire producers into the new bridge-backed `inbox_ite
 Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`) and Inbox Radar now reads active persisted items alongside derived signals. Producers now have a local bridge CLI helper at `scripts/create-inbox-item.mjs` for idempotently creating review/approval/task items without adding new dashboard surfaces.
 
 New build candidate from 2026-05-25 scan: add a tiny memory/proactivity regression harness inspired by STATE-Bench, using local Agent OS fixtures and scoring outcome/reliability/cost/safety instead of retrieval accuracy.
+
+Operational note from 2026-05-26 proactive loop: Cai upserted this as persistent Inbox Radar task `cai-memory-proactivity-regression-harness`. The bridge now skips optional Inbox Radar index creation when the runtime DB role is not the table owner, avoiding the prior `must be owner of table inbox_items` failure.

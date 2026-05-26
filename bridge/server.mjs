@@ -1549,6 +1549,19 @@ async function transitionRadarSignal(input) {
   return { ok: true, id, action, state: mapRadarSignalState(rows[0]) };
 }
 
+function isPostgresPermissionError(error) {
+  return error?.code === '42501' || String(error?.message ?? '').includes('must be owner of table');
+}
+
+async function createIndexIfAllowed(query, name) {
+  try {
+    await query;
+  } catch (error) {
+    if (!isPostgresPermissionError(error)) throw error;
+    console.warn(`Skipping optional Inbox Radar index ${name}: ${error.message ?? error}`);
+  }
+}
+
 async function ensureInboxItemsTable() {
   await sql`
     create table if not exists inbox_items (
@@ -1569,8 +1582,14 @@ async function ensureInboxItemsTable() {
       updated_at timestamptz not null default now()
     )
   `;
-  await sql`create index if not exists inbox_items_status_priority_idx on inbox_items (status, priority desc, updated_at desc)`;
-  await sql`create index if not exists inbox_items_source_idx on inbox_items (source, source_id)`;
+  await createIndexIfAllowed(
+    sql`create index if not exists inbox_items_status_priority_idx on inbox_items (status, priority desc, updated_at desc)`,
+    'inbox_items_status_priority_idx'
+  );
+  await createIndexIfAllowed(
+    sql`create index if not exists inbox_items_source_idx on inbox_items (source, source_id)`,
+    'inbox_items_source_idx'
+  );
 }
 
 function normalizeInboxKind(kind) {
