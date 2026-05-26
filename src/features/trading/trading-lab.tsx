@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   CandlestickSeries,
@@ -166,6 +167,367 @@ const bestRegimeByStrategy: Record<string, string> = {
   'sma-cross': 'Uptrend, Low-Med Vol',
   'rsi-reversion': 'Range, Low Vol',
   'volume-breakout': 'High Vol, Breakout'
+};
+
+const tradingHelp: Record<string, { title: string; explanation: string; why: string }> = {
+  'Trading Lab': {
+    title: 'Trading Lab',
+    explanation:
+      'This is a practice cockpit. Linda tests rules, records paper decisions, and shows what would have happened without placing real orders.',
+    why: 'It lets you learn market language and review decisions before risking real money.'
+  },
+  'Learning tips': {
+    title: 'Learning tips',
+    explanation:
+      'Hover the dotted labels and small info icons to get plain-language trading explanations.',
+    why: 'The goal is to teach the why behind each number, not just show another dashboard metric.'
+  },
+  Strategy: {
+    title: 'Strategy',
+    explanation:
+      'A strategy is the rulebook Linda is following. For example, RSI reversion looks for price being stretched too far and possibly snapping back.',
+    why: 'You want to judge the rule, not just one lucky or unlucky trade.'
+  },
+  'Date range': {
+    title: 'Date range',
+    explanation: 'The time window used for the candles and backtest summary.',
+    why: 'A rule that worked for two weeks may fail over years. Longer ranges give more context.'
+  },
+  'Date / Time': {
+    title: 'Date and time',
+    explanation: 'When Linda recorded the paper decision.',
+    why: 'Timing matters because the same idea can be good at one price and poor at another.'
+  },
+  Return: {
+    title: 'Return',
+    explanation:
+      'The percent gain or loss the strategy produced in the saved paper results. +10% means $100 would become about $110 before fees and limits.',
+    why: 'Return tells you reward, but it must be read together with drawdown and win rate.'
+  },
+  'Max drawdown': {
+    title: 'Max drawdown',
+    explanation:
+      'The biggest drop from a high point to a later low point. If equity went from $10,000 to $8,000, drawdown is 20%.',
+    why: 'This is the pain number. Big drawdowns can make a strategy hard to hold even if it later recovers.'
+  },
+  'Max DD': {
+    title: 'Max drawdown',
+    explanation:
+      'Short for max drawdown: the largest peak-to-trough loss during the saved strategy run.',
+    why: 'It shows how bad the ride got, not only where it ended.'
+  },
+  'Win rate': {
+    title: 'Win rate',
+    explanation:
+      'The share of completed trades that ended better than the previous one. A 60% win rate means 6 out of 10 won.',
+    why: 'A high win rate can still lose money if losses are huge, so compare it with return and drawdown.'
+  },
+  Trades: {
+    title: 'Trades',
+    explanation: 'How many buy or sell decisions are counted for this strategy.',
+    why: 'One trade is a clue. Many trades give better evidence that the rule may be reliable.'
+  },
+  'Position / signal': {
+    title: 'Position / signal',
+    explanation:
+      'Position is what the paper wallet currently holds. Signal is Linda’s latest strategy instruction, like BUY, SELL, or HOLD.',
+    why: 'This separates what you own now from what the strategy is currently saying.'
+  },
+  'Paper portfolio': {
+    title: 'Paper portfolio',
+    explanation:
+      'A fake-money account used for practice. It behaves like a wallet, but no real BTC or USDC is moved.',
+    why: 'Paper trading helps you learn execution and risk without turning beginner mistakes into real losses.'
+  },
+  Cash: {
+    title: 'Cash',
+    explanation: 'The uninvested USDC-like balance in the paper wallet.',
+    why: 'Cash is your dry powder. If it is low, most of the portfolio is already exposed to price moves.'
+  },
+  BTC: {
+    title: 'BTC',
+    explanation: 'The amount of Bitcoin the paper wallet currently holds.',
+    why: 'More BTC means your account moves more when Bitcoin price moves.'
+  },
+  'USDC balance': {
+    title: 'USDC balance',
+    explanation: 'The cash side of the paper wallet.',
+    why: 'It tells you how much buying power remains after Linda’s simulated trades.'
+  },
+  'BTC balance': {
+    title: 'BTC balance',
+    explanation: 'How much Bitcoin the paper wallet currently owns.',
+    why: 'This shows your exposure. If BTC drops, this part loses value.'
+  },
+  'BTC price': {
+    title: 'BTC price',
+    explanation: 'The current reference price used to value the paper wallet.',
+    why: 'Your BTC balance is multiplied by this price to estimate total equity.'
+  },
+  'Total equity': {
+    title: 'Total equity',
+    explanation: 'Cash plus the current value of the BTC position.',
+    why: 'This is the main account value number. It answers: what is the paper wallet worth now?'
+  },
+  PnL: {
+    title: 'PnL',
+    explanation: 'Profit and loss. It compares current paper equity with the starting balance.',
+    why: 'It quickly shows whether the wallet is up or down overall.'
+  },
+  Executions: {
+    title: 'Executions',
+    explanation: 'The simulated buy or sell fills that changed the paper wallet.',
+    why: 'Signals are advice. Executions are what actually changed the fake portfolio.'
+  },
+  Trend: {
+    title: 'Trend',
+    explanation: 'The broad direction price appears to be moving: uptrend, range, or downtrend.',
+    why: 'Many strategies work better when they match the market direction.'
+  },
+  Volatility: {
+    title: 'Volatility',
+    explanation: 'How jumpy price has been. High volatility means bigger, faster moves.',
+    why: 'More volatility can create opportunity, but it also makes stop-outs and emotional decisions more likely.'
+  },
+  Volume: {
+    title: 'Volume',
+    explanation: 'How much trading activity happened. Rising volume means more participation.',
+    why: 'Moves with volume are often more meaningful than moves on quiet trading.'
+  },
+  'Price vs 200 SMA': {
+    title: 'Price vs 200 SMA',
+    explanation:
+      'Compares price with a long moving-average proxy. Above it often means healthier long-term trend; below it can mean weakness.',
+    why: 'It is a simple market weather check before trusting a buy signal.'
+  },
+  'Market regime': {
+    title: 'Market regime',
+    explanation:
+      'A plain-language summary of market conditions, like expansion, compression, or risk-off.',
+    why: 'A strategy can be good in one regime and bad in another.'
+  },
+  Liquidity: {
+    title: 'Liquidity',
+    explanation:
+      'How easy it should be to buy or sell without moving price too much. Healthy liquidity means there is activity on both sides.',
+    why: 'Thin liquidity can make real trades fill at worse prices than expected.'
+  },
+  'Chart interval': {
+    title: 'Chart interval',
+    explanation:
+      'Controls how each candle is grouped. 1D means each candle is one day; 1W means each candle is one week.',
+    why: 'Zooming out helps you see the big story. Zooming in helps you inspect the exact trade area.'
+  },
+  Binance: {
+    title: 'Binance',
+    explanation: 'The exchange/source used for the BTC/USDT market reference.',
+    why: 'Different venues can have slightly different prices and volume.'
+  },
+  Indicators: {
+    title: 'Indicators',
+    explanation: 'Helper lines or stats drawn from price and volume.',
+    why: 'Indicators simplify noisy charts, but they are tools, not guarantees.'
+  },
+  'SMA proxy': {
+    title: 'SMA proxy',
+    explanation:
+      'A simple moving average style line that smooths price so the trend is easier to see.',
+    why: 'It helps you avoid reacting to every tiny candle.'
+  },
+  'trade marker': {
+    title: 'Trade marker',
+    explanation: 'A BUY or SELL label placed on the chart at the decision price/time.',
+    why: 'It shows whether Linda bought near support, chased after a move, or sold into weakness.'
+  },
+  Open: {
+    title: 'Open',
+    explanation: 'The price at the start of the selected candle.',
+    why: 'Comparing open and close shows whether buyers or sellers won that candle.'
+  },
+  High: {
+    title: 'High',
+    explanation: 'The highest price reached during the selected candle.',
+    why: 'Highs show where price met resistance or excitement faded.'
+  },
+  Low: {
+    title: 'Low',
+    explanation: 'The lowest price reached during the selected candle.',
+    why: 'Lows show where buyers stepped in or fear peaked.'
+  },
+  Close: {
+    title: 'Close',
+    explanation: 'The final price of the selected candle.',
+    why: 'Close is often treated as the most important candle price because it shows where the market settled.'
+  },
+  Confidence: {
+    title: 'Confidence',
+    explanation: 'Linda’s score for how strong the decision looks based on the available evidence.',
+    why: 'Low confidence should usually mean smaller size or no trade.'
+  },
+  'Entry price (ref)': {
+    title: 'Entry price',
+    explanation: 'The reference price Linda used for the paper decision.',
+    why: 'Your result depends heavily on where you enter, even when the direction is right.'
+  },
+  'Forward performance': {
+    title: 'Forward performance',
+    explanation: 'What happened after the decision over the next 1, 3, and 7 days.',
+    why: 'It helps you check whether the decision worked after it was made, not just in hindsight.'
+  },
+  'After 1D': {
+    title: 'After 1 day',
+    explanation: 'The price change one day after Linda made the decision.',
+    why: 'It shows whether the trade got quick confirmation or immediately struggled.'
+  },
+  'After 3D': {
+    title: 'After 3 days',
+    explanation: 'The price change three days after the decision.',
+    why: 'It gives the setup a little time to work without waiting too long.'
+  },
+  'After 7D': {
+    title: 'After 7 days',
+    explanation: 'The price change one week after the decision.',
+    why: 'It helps you learn whether Linda’s ideas usually need patience or fade quickly.'
+  },
+  'Drawdown to date': {
+    title: 'Drawdown to date',
+    explanation: 'How deep the strategy has fallen from its previous high in the current backtest.',
+    why: 'It tells you how much stress the strategy has already shown.'
+  },
+  'Position risk': {
+    title: 'Position risk',
+    explanation: 'A quick risk label based on volatility, drawdown, and strategy behavior.',
+    why: 'It reminds you that a good idea can still be too risky at the wrong size.'
+  },
+  'Risk manager': {
+    title: 'Risk manager',
+    explanation: 'The guardrail that can approve a trade or force HOLD if the setup is too risky.',
+    why: 'Risk controls stop one bad trade from becoming a portfolio problem.'
+  },
+  'Risk action': {
+    title: 'Risk action',
+    explanation:
+      'The final action after risk rules are applied. It may be HOLD even if the signal wanted BUY.',
+    why: 'The risk manager can override excitement when the setup is too dangerous.'
+  },
+  'Position size': {
+    title: 'Position size',
+    explanation: 'How much paper cash the risk manager allows for the trade.',
+    why: 'Sizing decides how much a right or wrong idea actually affects the wallet.'
+  },
+  'Target exposure': {
+    title: 'Target exposure',
+    explanation: 'The intended percentage of the wallet to put into the trade.',
+    why: 'Smaller exposure means smaller wins but also smaller mistakes.'
+  },
+  'Max position': {
+    title: 'Max position',
+    explanation: 'The largest percentage of the wallet the risk rules allow in one position.',
+    why: 'This prevents overbetting on a single idea.'
+  },
+  'Min confidence': {
+    title: 'Minimum confidence',
+    explanation: 'The confidence score Linda must clear before the risk manager allows action.',
+    why: 'It filters out weak trades where the evidence is not strong enough.'
+  },
+  'Loss cooldown': {
+    title: 'Loss cooldown',
+    explanation: 'A waiting period after losses before taking more risk.',
+    why: 'It prevents revenge trading, which is when you trade emotionally after losing.'
+  },
+  Evidence: {
+    title: 'Evidence',
+    explanation:
+      'The facts Linda used: backtest stats, volume, recent signal, research, and risk notes.',
+    why: 'Good trading decisions should be explainable, not just vibes.'
+  },
+  'Why this decision?': {
+    title: 'Why this decision?',
+    explanation: 'The plain-language reason Linda made this call.',
+    why: 'If you cannot explain a trade simply, it is usually too fuzzy to trust.'
+  },
+  'Risk / invalidations': {
+    title: 'Risk and invalidations',
+    explanation: 'The conditions that would weaken or cancel the idea.',
+    why: 'This teaches you what would prove the trade wrong before the loss grows.'
+  },
+  'Volume trend': {
+    title: 'Volume trend',
+    explanation:
+      'Whether trading activity is rising, falling, or flat compared with recent volume.',
+    why: 'Rising volume can add weight to a move; falling volume can make it less convincing.'
+  },
+  'Portfolio equity': {
+    title: 'Portfolio equity',
+    explanation: 'The full paper account value after combining cash and BTC.',
+    why: 'It is the scoreboard for the wallet, not just one asset balance.'
+  },
+  Risk: {
+    title: 'Risk',
+    explanation: 'What could make the trade wrong or dangerous.',
+    why: 'Knowing the invalidation point helps you exit instead of hoping.'
+  },
+  'Next check': {
+    title: 'Next check',
+    explanation: 'When Linda should review the decision again.',
+    why: 'Markets change. A good trade can become a bad hold if the evidence changes.'
+  },
+  'Watch levels': {
+    title: 'Watch levels',
+    explanation: 'Important upside and downside prices to monitor after the decision.',
+    why: 'They give you reference points instead of reacting randomly.'
+  },
+  'Strategy comparison': {
+    title: 'Strategy comparison',
+    explanation: 'Side-by-side results for the saved strategy types.',
+    why: 'It helps you see which rule is behaving best in the current market.'
+  },
+  'Regime / Diagnostics': {
+    title: 'Regime diagnostics',
+    explanation:
+      'A simple market health panel built from trend, volume, volatility, and liquidity.',
+    why: 'It gives beginner-friendly context before looking at a trade signal.'
+  },
+  'Linda trade journal': {
+    title: 'Trade journal',
+    explanation: 'The log of Linda’s saved paper decisions and the reasoning behind them.',
+    why: 'A journal is how traders learn. It shows patterns in decisions, not just outcomes.'
+  },
+  Action: {
+    title: 'Action',
+    explanation: 'The decision type: BUY, SELL, HOLD, or reset.',
+    why: 'It tells you whether Linda wanted to add risk, remove risk, or wait.'
+  },
+  Price: {
+    title: 'Price',
+    explanation: 'The BTC/USDT reference price when the decision was recorded.',
+    why: 'Small price differences can matter a lot once position size grows.'
+  },
+  'Reason short': {
+    title: 'Reason short',
+    explanation: 'A compressed version of why Linda made the decision.',
+    why: 'It lets you scan the journal quickly before opening the full detail.'
+  },
+  Details: {
+    title: 'Details',
+    explanation: 'Open the full decision pack: evidence, risk, research, and next check.',
+    why: 'Never judge a trade only by the headline number.'
+  },
+  'Result 1D': {
+    title: 'Result after 1 day',
+    explanation: 'How price moved one day after the decision.',
+    why: 'This checks the immediate follow-through.'
+  },
+  'Result 3D': {
+    title: 'Result after 3 days',
+    explanation: 'How price moved three days after the decision.',
+    why: 'This shows whether the idea had short-term staying power.'
+  },
+  'Result 7D': {
+    title: 'Result after 7 days',
+    explanation: 'How price moved one week after the decision.',
+    why: 'This gives a broader early outcome without waiting months.'
+  }
 };
 
 function isPaperBotDecision(decision: PaperJournalEntry): decision is PaperBotDecision {
@@ -424,6 +786,49 @@ function normalizePortfolio(journal: TradingJournal): PaperPortfolio {
     updatedAt: journal.wallet.updatedAt,
     executions: journal.wallet.executions
   };
+}
+
+function LearningTooltip({
+  term,
+  children,
+  className,
+  icon = true
+}: {
+  term: string;
+  children: React.ReactNode;
+  className?: string;
+  icon?: boolean;
+}) {
+  const help = tradingHelp[term];
+  if (!help) return <>{children}</>;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            'inline-flex min-w-0 items-center gap-1 rounded-sm underline decoration-dotted underline-offset-4 hover:text-foreground',
+            className
+          )}
+        >
+          {children}
+          {icon ? <Icons.info className='size-3 shrink-0 opacity-70' /> : null}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side='top'
+        align='start'
+        sideOffset={8}
+        className='max-w-80 border bg-popover p-3 text-left text-popover-foreground shadow-xl'
+      >
+        <div className='text-sm font-semibold'>{help.title}</div>
+        <p className='mt-1 text-xs leading-5 text-muted-foreground'>{help.explanation}</p>
+        <p className='mt-2 border-t pt-2 text-xs leading-5 text-muted-foreground'>
+          <span className='font-semibold text-foreground'>Why it matters:</span> {help.why}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function latestItem<T>(items: T[]) {
@@ -849,7 +1254,9 @@ function MetricItem({
 }) {
   return (
     <div className='flex h-16 min-w-0 flex-col justify-center overflow-hidden border-l px-4 py-2 first:border-l-0'>
-      <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>{label}</div>
+      <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>
+        <LearningTooltip term={label}>{label}</LearningTooltip>
+      </div>
       <div
         className={cn(
           'truncate text-sm font-semibold leading-tight',
@@ -899,7 +1306,9 @@ function StatusPill({
         <Icon className='size-3.5' />
       </div>
       <div className='min-w-0'>
-        <div className='text-[10px] leading-none text-muted-foreground'>{label}</div>
+        <div className='text-[10px] leading-none text-muted-foreground'>
+          <LearningTooltip term={label}>{label}</LearningTooltip>
+        </div>
         <div
           className={cn(
             'mt-1 truncate text-sm font-semibold leading-tight',
@@ -969,8 +1378,9 @@ function RegimeDiagnosticsCard({ diagnostics }: { diagnostics: RegimeDiagnostics
     <Card className='@container gap-0 rounded-2xl py-2.5'>
       <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
         <div className='flex items-center gap-2'>
-          <CardTitle>Regime / Diagnostics</CardTitle>
-          <Icons.info className='size-3.5 text-muted-foreground' />
+          <CardTitle>
+            <LearningTooltip term='Regime / Diagnostics'>Regime / Diagnostics</LearningTooltip>
+          </CardTitle>
         </div>
         <CardDescription className='mt-[-2px] leading-[1.2]'>
           Derived from candles, volume trend, moving averages, and liquidity.
@@ -1083,7 +1493,7 @@ function TradingContextBar({
           <div className='flex h-16 min-w-0 items-center justify-between gap-4 overflow-hidden border-l px-4 py-2'>
             <div className='min-w-0'>
               <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>
-                Paper portfolio
+                <LearningTooltip term='Paper portfolio'>Paper portfolio</LearningTooltip>
               </div>
               <div className='truncate text-sm font-semibold leading-tight'>
                 {money(paperEquity)}
@@ -1099,11 +1509,15 @@ function TradingContextBar({
             </div>
             <div className='grid shrink-0 grid-cols-2 gap-x-5 text-right text-xs'>
               <div>
-                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>Cash</div>
+                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>
+                  <LearningTooltip term='Cash'>Cash</LearningTooltip>
+                </div>
                 <div className='font-semibold leading-tight'>{money(portfolio.cash)}</div>
               </div>
               <div>
-                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>BTC</div>
+                <div className='mb-0.5 text-[10px] leading-none text-muted-foreground'>
+                  <LearningTooltip term='BTC'>BTC</LearningTooltip>
+                </div>
                 <div className='font-semibold leading-tight'>{portfolio.btc.toFixed(6)}</div>
               </div>
             </div>
@@ -1138,7 +1552,9 @@ function PaperWalletCard({
     <Card>
       <CardHeader className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
         <div>
-          <CardTitle>Linda paper wallet</CardTitle>
+          <CardTitle>
+            <LearningTooltip term='Paper portfolio'>Linda paper wallet</LearningTooltip>
+          </CardTitle>
           <CardDescription>
             Starts with 10,000 USDC. Backend simulates BTC/USDC paper executions from Linda
             decisions.
@@ -1211,6 +1627,22 @@ function PaperWalletCard({
   );
 }
 
+function ChartStat({
+  term,
+  label,
+  value
+}: {
+  term: string;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <span>
+      <LearningTooltip term={term}>{label}</LearningTooltip> {value}
+    </span>
+  );
+}
+
 function StrategyTradeChart({
   candles,
   trades,
@@ -1251,11 +1683,16 @@ function StrategyTradeChart({
       <div className='flex flex-col gap-3 border-b bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between'>
         <div>
           <div className='flex flex-wrap items-center gap-2'>
-            <div className='font-semibold'>BTC/USDT</div>
+            <div className='font-semibold'>
+              <LearningTooltip term='BTC price'>BTC/USDT</LearningTooltip>
+            </div>
             <div
               className='flex items-center rounded-full border bg-background/50 p-0.5'
               aria-label='Chart interval'
             >
+              <LearningTooltip term='Chart interval'>
+                <span className='px-2 text-[10px] text-muted-foreground'>Range</span>
+              </LearningTooltip>
               {chartIntervals.map((interval) => (
                 <Button
                   key={interval}
@@ -1269,26 +1706,48 @@ function StrategyTradeChart({
                 </Button>
               ))}
             </div>
-            <Badge variant='secondary'>Binance</Badge>
-            <Badge variant='outline'>{strategy}</Badge>
+            <Badge variant='secondary'>
+              <LearningTooltip term='Binance' icon={false}>
+                Binance
+              </LearningTooltip>
+            </Badge>
+            <Badge variant='outline'>
+              <LearningTooltip term='Strategy' icon={false}>
+                {strategy}
+              </LearningTooltip>
+            </Badge>
             <Badge variant={visibleTrades.length > 0 ? 'default' : 'secondary'}>
-              {visibleTrades.length} trade {visibleTrades.length === 1 ? 'marker' : 'markers'}
+              <LearningTooltip term='trade marker' icon={false}>
+                {visibleTrades.length} trade {visibleTrades.length === 1 ? 'marker' : 'markers'}
+              </LearningTooltip>
             </Badge>
           </div>
           <div className='text-muted-foreground mt-2 flex flex-wrap gap-3 text-xs'>
-            <span>O {moneyPrecise(chartOhlc.open)}</span>
-            <span>H {moneyPrecise(chartOhlc.high)}</span>
-            <span>L {moneyPrecise(chartOhlc.low)}</span>
-            <span>C {moneyPrecise(chartOhlc.close)}</span>
+            <ChartStat term='Open' label='O' value={moneyPrecise(chartOhlc.open)} />
+            <ChartStat term='High' label='H' value={moneyPrecise(chartOhlc.high)} />
+            <ChartStat term='Low' label='L' value={moneyPrecise(chartOhlc.low)} />
+            <ChartStat term='Close' label='C' value={moneyPrecise(chartOhlc.close)} />
             <span className={chartOhlc.change >= 0 ? 'text-primary' : 'text-destructive'}>
               {moneyPrecise(chartOhlc.change)} ({percent(chartOhlc.changePct)})
             </span>
           </div>
         </div>
         <div className='flex flex-wrap items-center gap-2 text-xs'>
-          <Badge variant='secondary'>Indicators</Badge>
-          <Badge variant='outline'>SMA proxy</Badge>
-          <Badge variant='outline'>Volume</Badge>
+          <Badge variant='secondary'>
+            <LearningTooltip term='Indicators' icon={false}>
+              Indicators
+            </LearningTooltip>
+          </Badge>
+          <Badge variant='outline'>
+            <LearningTooltip term='SMA proxy' icon={false}>
+              SMA proxy
+            </LearningTooltip>
+          </Badge>
+          <Badge variant='outline'>
+            <LearningTooltip term='Volume' icon={false}>
+              Volume
+            </LearningTooltip>
+          </Badge>
         </div>
       </div>
       <div className='relative bg-background'>
@@ -1600,7 +2059,9 @@ function SelectedDecisionInspector({
       <Card className='rounded-2xl'>
         <CardHeader className='flex flex-row items-start justify-between gap-3'>
           <div>
-            <CardTitle>Selected decision</CardTitle>
+            <CardTitle>
+              <LearningTooltip term='Details'>Selected decision</LearningTooltip>
+            </CardTitle>
             <CardDescription>No persisted trade or Linda decision selected.</CardDescription>
           </div>
           <Badge variant='secondary'>EMPTY</Badge>
@@ -1617,7 +2078,9 @@ function SelectedDecisionInspector({
     <Card className='rounded-2xl'>
       <CardHeader className='flex flex-row items-start justify-between gap-3'>
         <div>
-          <CardTitle>Selected decision</CardTitle>
+          <CardTitle>
+            <LearningTooltip term='Details'>Selected decision</LearningTooltip>
+          </CardTitle>
           <CardDescription>{decision.action.toUpperCase()} replay context</CardDescription>
         </div>
         <Badge variant={actionBadgeVariant(decision.action)}>{decision.action.toUpperCase()}</Badge>
@@ -1635,7 +2098,9 @@ function SelectedDecisionInspector({
         </div>
 
         <div className='border-t pt-4'>
-          <div className='mb-3 text-sm font-semibold'>Forward performance</div>
+          <div className='mb-3 text-sm font-semibold'>
+            <LearningTooltip term='Forward performance'>Forward performance</LearningTooltip>
+          </div>
           <div className='grid grid-cols-3 gap-3'>
             {forwardPerformance.map((item) => (
               <div key={item.label} className='rounded-xl border bg-muted/20 p-3'>
@@ -1656,13 +2121,17 @@ function SelectedDecisionInspector({
 
         <div className='grid grid-cols-2 gap-3 border-t pt-4 text-sm'>
           <div>
-            <div className='text-muted-foreground text-xs'>Drawdown to date</div>
+            <div className='text-muted-foreground text-xs'>
+              <LearningTooltip term='Drawdown to date'>Drawdown to date</LearningTooltip>
+            </div>
             <div className='font-semibold text-destructive'>
               {percent(-(selectedBacktest?.maxDrawdownPct ?? 0))}
             </div>
           </div>
           <div>
-            <div className='text-muted-foreground text-xs'>Position risk</div>
+            <div className='text-muted-foreground text-xs'>
+              <LearningTooltip term='Position risk'>Position risk</LearningTooltip>
+            </div>
             <div className={cn('font-semibold', positionRisk === 'High' && 'text-destructive')}>
               {positionRisk}
             </div>
@@ -1673,7 +2142,9 @@ function SelectedDecisionInspector({
           <div className='grid gap-3 border-t pt-4 text-sm'>
             <div className='flex items-center justify-between gap-3'>
               <div>
-                <div className='text-muted-foreground text-xs'>Risk manager</div>
+                <div className='text-muted-foreground text-xs'>
+                  <LearningTooltip term='Risk manager'>Risk manager</LearningTooltip>
+                </div>
                 <div className='font-semibold'>
                   {decision.riskAssessment.allowed ? 'Approved' : 'Forced HOLD'} ·{' '}
                   {decision.riskAssessment.executableAction.toUpperCase()}
@@ -1710,7 +2181,9 @@ function SelectedDecisionInspector({
         ) : null}
 
         <div className='border-t pt-4'>
-          <div className='mb-2 text-sm font-semibold'>Evidence</div>
+          <div className='mb-2 text-sm font-semibold'>
+            <LearningTooltip term='Evidence'>Evidence</LearningTooltip>
+          </div>
           <div className='flex flex-col gap-2 text-xs text-muted-foreground'>
             {decision.evidence.slice(0, 5).map((item) => (
               <div key={item}>- {item}</div>
@@ -1720,11 +2193,15 @@ function SelectedDecisionInspector({
 
         <div className='grid gap-3 border-t pt-4 text-sm'>
           <div>
-            <div className='text-muted-foreground text-xs'>Risk</div>
+            <div className='text-muted-foreground text-xs'>
+              <LearningTooltip term='Risk'>Risk</LearningTooltip>
+            </div>
             <div>{decision.risk}</div>
           </div>
           <div>
-            <div className='text-muted-foreground text-xs'>Next check</div>
+            <div className='text-muted-foreground text-xs'>
+              <LearningTooltip term='Next check'>Next check</LearningTooltip>
+            </div>
             <div>{decision.nextCheck}</div>
           </div>
           <div>
@@ -1743,7 +2220,9 @@ function SelectedDecisionInspector({
 function InspectorRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className='flex items-center justify-between gap-3'>
-      <span className='text-muted-foreground'>{label}</span>
+      <span className='text-muted-foreground'>
+        <LearningTooltip term={label}>{label}</LearningTooltip>
+      </span>
       <span className='text-right font-medium'>{value}</span>
     </div>
   );
@@ -1823,7 +2302,7 @@ function DecisionTimeline({
       <CardHeader className='shrink-0 px-6 pb-0 pt-6'>
         <div className='flex items-center gap-2'>
           <CardTitle className='text-[15px] font-semibold leading-none tracking-tight'>
-            Decision timeline
+            <LearningTooltip term='Linda trade journal'>Decision timeline</LearningTooltip>
           </CardTitle>
 
           <span className='flex h-4 w-4 items-center justify-center rounded-full border text-muted-foreground'>
@@ -1932,7 +2411,9 @@ function StrategyComparison({
   return (
     <Card className='gap-0 rounded-2xl py-2.5'>
       <CardHeader className='mb-3 gap-1 border-b px-6 pb-4'>
-        <CardTitle>Strategy comparison</CardTitle>
+        <CardTitle>
+          <LearningTooltip term='Strategy comparison'>Strategy comparison</LearningTooltip>
+        </CardTitle>
         <CardDescription className='mt-[-2px] leading-[1.2]'>
           Compare persisted paper trade outcomes by strategy.
         </CardDescription>
@@ -2073,7 +2554,9 @@ function StrategyMetric({
 }) {
   return (
     <div className='min-w-0'>
-      <div className='text-[10px] leading-none text-muted-foreground'>{label}</div>
+      <div className='text-[10px] leading-none text-muted-foreground'>
+        <LearningTooltip term={label}>{label}</LearningTooltip>
+      </div>
       <div
         className={cn(
           'mt-1 truncate font-semibold leading-tight',
@@ -2240,7 +2723,9 @@ function DetailStat({
         <span className='flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-primary shadow-xs'>
           <Icon className='size-4' />
         </span>
-        <div className='font-semibold leading-none'>{label}</div>
+        <div className='font-semibold leading-none'>
+          <LearningTooltip term={label}>{label}</LearningTooltip>
+        </div>
       </div>
       <div className='text-sm leading-6 text-muted-foreground'>{children}</div>
     </div>
@@ -2259,7 +2744,7 @@ function EvidenceMetric({
   return (
     <div className='flex items-center gap-2'>
       <Icons.chevronRight className='size-3.5 text-muted-foreground' />
-      <span>{label}</span>
+      <LearningTooltip term={label}>{label}</LearningTooltip>
       <span
         className={cn(
           'font-semibold text-foreground',
@@ -2661,7 +3146,9 @@ function PaperBotJournal({
     <Card className='rounded-2xl shadow-none'>
       <CardHeader className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
         <div>
-          <CardTitle>Linda trade journal</CardTitle>
+          <CardTitle>
+            <LearningTooltip term='Linda trade journal'>Linda trade journal</LearningTooltip>
+          </CardTitle>
           <CardDescription>
             Review Linda's persisted paper trades. Creation happens agent-side.
           </CardDescription>
@@ -2690,13 +3177,19 @@ function PaperBotJournal({
       <CardContent className='flex flex-col gap-4'>
         <div className='flex flex-wrap items-center gap-2'>
           <Button type='button' variant='outline' size='sm' disabled>
-            All decisions
+            <LearningTooltip term='Linda trade journal' icon={false}>
+              All decisions
+            </LearningTooltip>
           </Button>
           <Button type='button' variant='outline' size='sm' disabled>
-            All actions
+            <LearningTooltip term='Action' icon={false}>
+              All actions
+            </LearningTooltip>
           </Button>
           <Button type='button' variant='outline' size='sm' disabled>
-            Date range
+            <LearningTooltip term='Date range' icon={false}>
+              Date range
+            </LearningTooltip>
           </Button>
           <Button type='button' variant='outline' size='sm' disabled>
             More filters
@@ -2719,7 +3212,9 @@ function PaperBotJournal({
               aria-pressed={showKeyOnly}
             >
               <Icons.filter className='size-4' />
-              Key decisions
+              <LearningTooltip term='Confidence' icon={false}>
+                Key decisions
+              </LearningTooltip>
             </Button>
           </div>
         </div>
@@ -2827,16 +3322,36 @@ function PaperBotJournal({
           <table className='w-full min-w-[980px] text-sm'>
             <thead className='bg-muted/30 text-xs text-muted-foreground'>
               <tr>
-                <th className='px-4 py-3 text-left font-semibold'>Date / Time</th>
-                <th className='px-4 py-3 text-left font-semibold'>Action</th>
-                <th className='px-4 py-3 text-right font-semibold'>Confidence</th>
-                <th className='px-4 py-3 text-right font-semibold'>Price</th>
-                <th className='px-4 py-3 text-left font-semibold'>Reason short</th>
-                <th className='px-4 py-3 text-left font-semibold'>Strategy</th>
-                <th className='px-4 py-3 text-right font-semibold'>Result 1D</th>
-                <th className='px-4 py-3 text-right font-semibold'>Result 3D</th>
-                <th className='px-4 py-3 text-right font-semibold'>Result 7D</th>
-                <th className='px-4 py-3 text-right font-semibold'>Details</th>
+                <th className='px-4 py-3 text-left font-semibold'>
+                  <LearningTooltip term='Date / Time'>Date / Time</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-left font-semibold'>
+                  <LearningTooltip term='Action'>Action</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Confidence'>Confidence</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Price'>Price</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-left font-semibold'>
+                  <LearningTooltip term='Reason short'>Reason short</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-left font-semibold'>
+                  <LearningTooltip term='Strategy'>Strategy</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Result 1D'>Result 1D</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Result 3D'>Result 3D</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Result 7D'>Result 7D</LearningTooltip>
+                </th>
+                <th className='px-4 py-3 text-right font-semibold'>
+                  <LearningTooltip term='Details'>Details</LearningTooltip>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -3181,7 +3696,17 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
 
       <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
         <div>
-          <h1 className='text-3xl font-semibold tracking-tight'>Trading Lab</h1>
+          <div className='flex flex-wrap items-center gap-3'>
+            <h1 className='text-3xl font-semibold tracking-tight'>
+              <LearningTooltip term='Trading Lab'>Trading Lab</LearningTooltip>
+            </h1>
+            <Badge variant='outline' className='gap-1'>
+              <LearningTooltip term='Learning tips' icon={false}>
+                <Icons.info className='size-3' />
+                Learning tips
+              </LearningTooltip>
+            </Badge>
+          </div>
           <p className='text-muted-foreground'>
             Decision replay cockpit for backtesting and paper trading
           </p>

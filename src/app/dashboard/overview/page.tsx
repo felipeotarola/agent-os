@@ -8,7 +8,6 @@ import {
 } from '@/components/build-activity-indicator';
 import { InteractiveCalendarOverviewCard } from '@/components/interactive-calendar-overview-card';
 import { LiveActivitySurface } from '@/components/live-activity-surface';
-import { MotionCard } from '@/components/motion-card';
 import { Progress } from '@/components/ui/progress';
 import { getCalendarSignals } from '@/db/external-signals';
 import { getVercelSnapshot, type VercelDeployment, type VercelSnapshot } from '@/db/vercel';
@@ -363,6 +362,68 @@ function Donut({ entries }: { entries: Array<[string, number]> }) {
   );
 }
 
+function FocusQueueCard({
+  tasks,
+  compact = false
+}: {
+  tasks: Array<{ title: string; status: string; detail?: string | null }>;
+  compact?: boolean;
+}) {
+  const visibleTasks = tasks.slice(0, 5);
+
+  return (
+    <Card
+      className={
+        compact
+          ? 'rounded-3xl border bg-card/80 py-0 text-card-foreground shadow-sm'
+          : 'mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'
+      }
+    >
+      <CardHeader className={compact ? 'px-4 pt-4 pb-3' : undefined}>
+        <div className='flex items-start justify-between gap-3'>
+          <div>
+            <CardTitle className='text-base'>Focus Queue</CardTitle>
+            <CardDescription>
+              Max fem saker. Det h&auml;r &auml;r n&auml;sta arbetsyta.
+            </CardDescription>
+          </div>
+          <Link href='/dashboard/kanban' className='text-primary shrink-0 text-xs hover:underline'>
+            Open board
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className={compact ? 'space-y-2 px-4 pb-4' : 'space-y-2'}>
+        {visibleTasks.length === 0 ? (
+          <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
+            Inga prioriterade tasks hittades.
+          </div>
+        ) : (
+          visibleTasks.map((task, index) => (
+            <Link
+              key={`${task.title}-${task.status}-${index}`}
+              href='/dashboard/kanban'
+              className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
+            >
+              <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
+                {index + 1}
+              </div>
+              <div className='min-w-0 flex-1'>
+                <div className='flex flex-wrap items-start justify-between gap-2'>
+                  <div className='line-clamp-1 font-medium'>{task.title}</div>
+                  <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
+                </div>
+                <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                  {task.detail}
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function OverviewPage() {
   const [briefing, actionCenter, calendar, vercel, weather] = await Promise.all([
     getCaiBriefing(),
@@ -508,6 +569,8 @@ export default async function OverviewPage() {
               </div>
             </div>
           </div>
+
+          <FocusQueueCard tasks={overviewTasks} compact />
 
           <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
             <div className='mb-3 flex items-center justify-between gap-3'>
@@ -815,50 +878,6 @@ export default async function OverviewPage() {
                   </div>
                 </div>
               </div>
-            </section>
-
-            <section className='columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid'>
-              <MotionCard className='mobile-feed-card rounded-3xl border bg-card py-6 text-card-foreground shadow-sm max-sm:py-4'>
-                <CardHeader>
-                  <div className='flex items-start justify-between gap-3'>
-                    <div>
-                      <CardTitle>Focus Queue</CardTitle>
-                      <CardDescription>Max fem saker. Det här är nästa arbetsyta.</CardDescription>
-                    </div>
-                    <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>
-                      Tasks →
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-2'>
-                  {overviewTasks.slice(0, 5).length === 0 ? (
-                    <div className='text-muted-foreground rounded-xl border border-dashed p-5 text-sm'>
-                      Inga prioriterade tasks hittades.
-                    </div>
-                  ) : (
-                    overviewTasks.slice(0, 5).map((task, index) => (
-                      <Link
-                        key={`${task.title}-${task.status}-${index}`}
-                        href='/dashboard/kanban'
-                        className='mobile-feed-row group flex gap-3 rounded-xl border bg-background/40 p-3 transition hover:border-primary/40 hover:bg-primary/10'
-                      >
-                        <div className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-xs font-semibold'>
-                          {index + 1}
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                          <div className='flex flex-wrap items-start justify-between gap-2'>
-                            <div className='line-clamp-1 font-medium'>{task.title}</div>
-                            <Badge variant={statusVariant(task.status)}>{task.status}</Badge>
-                          </div>
-                          <div className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                            {task.detail}
-                          </div>
-                        </div>
-                      </Link>
-                    ))
-                  )}
-                </CardContent>
-              </MotionCard>
             </section>
           </section>
 
