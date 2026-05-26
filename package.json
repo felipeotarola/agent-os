@@ -24,6 +24,7 @@
     "db:seed": "tsx scripts/db-seed.ts",
     "db:studio": "drizzle-kit studio",
     "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs",
+    "check:proactivity": "node scripts/proactivity-regression-harness.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
     "verify": "npm run check:runtime-mocks && npm run lint && npm run typecheck"

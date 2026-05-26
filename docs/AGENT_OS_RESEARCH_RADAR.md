@@ -166,4 +166,6 @@ Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`)
 
 New build candidate from 2026-05-25 scan: add a tiny memory/proactivity regression harness inspired by STATE-Bench, using local Agent OS fixtures and scoring outcome/reliability/cost/safety instead of retrieval accuracy.
 
+Progress: V0 exists as `scripts/proactivity-regression-harness.mjs` with `npm run check:proactivity`. It uses deterministic local fixtures for safe doc follow-up, external outreach approval, noise control, and token-rotation sensitivity. This is a baseline guardrail, not a full agent evaluator yet.
+
 Operational note from 2026-05-26 proactive loop: Cai upserted this as persistent Inbox Radar task `cai-memory-proactivity-regression-harness`. The bridge now skips optional Inbox Radar index creation when the runtime DB role is not the table owner, avoiding the prior `must be owner of table inbox_items` failure.
