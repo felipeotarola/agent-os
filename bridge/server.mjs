@@ -4248,6 +4248,11 @@ function rawMarkdown(source) {
     .join('\n');
 }
 
+function vaultMemoryAgentFromPath(path) {
+  const match = String(path ?? '').match(/^knowledge\/memory\/([^/]+)\//);
+  return match?.[1] ?? null;
+}
+
 function buildVaultSnapshot(sources) {
   const seen = new Set();
   const uniquePath = (path) => {
@@ -4266,10 +4271,17 @@ function buildVaultSnapshot(sources) {
   };
   const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
   const activeSources = sources.filter((source) => source.status !== 'archived');
+  const memoryAgents = [
+    ...new Set(
+      activeSources.map((source) => vaultMemoryAgentFromPath(source.rawPath)).filter(Boolean)
+    )
+  ].toSorted((a, b) => a.localeCompare(b));
   const wikified = activeSources.filter(
     (source) => wikiStatuses.has(source.status) && source.wikiPath
   );
-  const raw = activeSources.filter((source) => !wikiStatuses.has(source.status));
+  const raw = activeSources.filter(
+    (source) => !wikiStatuses.has(source.status) && !vaultMemoryAgentFromPath(source.rawPath)
+  );
   const agentsMd = [
     '# agents.md',
     '',
@@ -4301,6 +4313,12 @@ function buildVaultSnapshot(sources) {
       ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
       : ['- No raw sources waiting.']),
     '',
+    '## Agent memory islands',
+    '',
+    ...(memoryAgents.length
+      ? memoryAgents.map((agent) => `- [[knowledge/memory/${agent}/index.md]] — ${agent}`)
+      : ['- No agent memory imports yet.']),
+    '',
     '## Root files',
     '',
     '- [[agents.md]]',
@@ -4319,7 +4337,24 @@ function buildVaultSnapshot(sources) {
   const files = [
     { path: uniquePath('agents.md'), content: agentsMd },
     { path: uniquePath('index.md'), content: indexMd },
-    { path: uniquePath('log.md'), content: logMd }
+    { path: uniquePath('log.md'), content: logMd },
+    ...memoryAgents.map((agent) => ({
+      path: uniquePath(`knowledge/memory/${agent}/index.md`),
+      content: [
+        `# ${agent} memory island`,
+        '',
+        `Memory and dreaming sources imported from ${agent}.`,
+        '',
+        'These are reviewable sources, not automatically promoted context.',
+        '',
+        '## Sources',
+        '',
+        ...activeSources
+          .filter((source) => vaultMemoryAgentFromPath(source.rawPath) === agent)
+          .map((source) => `- [[${source.rawPath}]] — ${source.title}`),
+        ''
+      ].join('\n')
+    }))
   ];
   for (const source of activeSources) {
     files.push({ path: uniquePath(source.rawPath), content: rawMarkdown(source) });

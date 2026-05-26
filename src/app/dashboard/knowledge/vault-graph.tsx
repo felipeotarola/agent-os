@@ -78,6 +78,11 @@ function readTheme(): GraphTheme {
 }
 
 function colorFor(folder: string, theme: GraphTheme) {
+  if (folder.includes('/memory/charles')) return '#60a5fa'; // theme-guard-ignore-line -- canvas agent island color
+  if (folder.includes('/memory/sladdis')) return '#f472b6'; // theme-guard-ignore-line -- canvas agent island color
+  if (folder.includes('/memory/linda')) return '#a78bfa'; // theme-guard-ignore-line -- canvas agent island color
+  if (folder.includes('/memory/main')) return theme.chart2;
+  if (folder.includes('/memory/')) return '#2dd4bf'; // theme-guard-ignore-line -- canvas agent island color
   if (folder.includes('/wiki')) return theme.primary;
   if (folder.includes('/raw')) return theme.mutedForeground;
   if (folder.includes('journal')) return theme.chart3;
@@ -101,6 +106,11 @@ function resolveLink(link: string, pathSet: Set<string>) {
     `knowledge/raw/${clean}.md`
   ];
   return candidates.find((candidate) => pathSet.has(candidate));
+}
+
+function memoryAgentForPath(path: string) {
+  const match = path.match(/^knowledge\/memory\/([^/]+)\//);
+  return match?.[1] ?? null;
 }
 
 function buildGraph(files: VaultFile[]) {
@@ -131,9 +141,22 @@ function buildGraph(files: VaultFile[]) {
     }
   }
 
-  // Keep the graph useful before deep cross-linking exists, but only with real vault files.
+  // Keep the graph useful before deep cross-linking exists, but avoid flattening agent memory
+  // into one hairball. Memory imports should form their own review islands per agent.
   if (pathSet.has('index.md')) {
-    for (const file of sorted) if (file.path !== 'index.md') addEdge('index.md', file.path);
+    for (const file of sorted) {
+      if (file.path === 'index.md') continue;
+      const agent = memoryAgentForPath(file.path);
+      if (agent && file.path !== `knowledge/memory/${agent}/index.md`) continue;
+      addEdge('index.md', file.path);
+    }
+  }
+
+  for (const file of sorted) {
+    const agent = memoryAgentForPath(file.path);
+    if (!agent) continue;
+    const hub = `knowledge/memory/${agent}/index.md`;
+    if (pathSet.has(hub) && file.path !== hub) addEdge(hub, file.path);
   }
 
   for (const file of sorted) {

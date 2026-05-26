@@ -73,7 +73,16 @@ function buildIndex(sources: VaultSource[]) {
   const wikified = activeSources.filter(
     (source) => wikiStatuses.has(source.status) && source.wikiPath
   );
-  const raw = activeSources.filter((source) => !wikiStatuses.has(source.status));
+  const raw = activeSources.filter(
+    (source) => !wikiStatuses.has(source.status) && !memoryAgentFromPath(source.rawPath)
+  );
+  const memoryAgents = [
+    ...new Set(
+      activeSources
+        .map((source) => memoryAgentFromPath(source.rawPath))
+        .filter((agent): agent is string => Boolean(agent))
+    )
+  ].toSorted((a, b) => a.localeCompare(b));
 
   return [
     '# Agent OS Vault Index',
@@ -92,10 +101,37 @@ function buildIndex(sources: VaultSource[]) {
       ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
       : ['- No raw sources waiting.']),
     '',
+    '## Agent memory islands',
+    '',
+    ...(memoryAgents.length
+      ? memoryAgents.map((agent) => `- [[knowledge/memory/${agent}/index.md]] — ${agent}`)
+      : ['- No agent memory imports yet.']),
+    '',
     '## Root files',
     '',
     '- [[agents.md]]',
     '- [[log.md]]',
+    ''
+  ].join('\n');
+}
+
+function memoryAgentFromPath(path: string | null | undefined) {
+  const match = String(path ?? '').match(/^knowledge\/memory\/([^/]+)\//);
+  return match?.[1] ?? null;
+}
+
+function buildMemoryIsland(agent: string, sources: VaultSource[]) {
+  const agentSources = sources.filter((source) => memoryAgentFromPath(source.rawPath) === agent);
+  return [
+    `# ${agent} memory island`,
+    '',
+    `Memory and dreaming sources imported from ${agent}.`,
+    '',
+    'These are reviewable sources, not automatically promoted context.',
+    '',
+    '## Sources',
+    '',
+    ...agentSources.map((source) => `- [[${source.rawPath}]] — ${source.title}`),
     ''
   ].join('\n');
 }
@@ -140,14 +176,25 @@ function buildAgentsMd() {
 
 export function buildVaultSnapshot(sources: VaultSource[]): VaultSnapshot {
   const seen = new Set<string>();
+  const activeSources = sources.filter((source) => source.status !== 'archived');
+  const memoryAgents = [
+    ...new Set(
+      activeSources
+        .map((source) => memoryAgentFromPath(source.rawPath))
+        .filter((agent): agent is string => Boolean(agent))
+    )
+  ].toSorted((a, b) => a.localeCompare(b));
   const files: VaultFile[] = [
     { path: uniquePath('agents.md', seen), content: buildAgentsMd() },
     { path: uniquePath('index.md', seen), content: buildIndex(sources) },
-    { path: uniquePath('log.md', seen), content: buildLog(sources) }
+    { path: uniquePath('log.md', seen), content: buildLog(sources) },
+    ...memoryAgents.map((agent) => ({
+      path: uniquePath(`knowledge/memory/${agent}/index.md`, seen),
+      content: buildMemoryIsland(agent, activeSources)
+    }))
   ];
 
   const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
-  const activeSources = sources.filter((source) => source.status !== 'archived');
 
   for (const source of activeSources) {
     files.push({ path: uniquePath(source.rawPath, seen), content: rawMarkdown(source) });
