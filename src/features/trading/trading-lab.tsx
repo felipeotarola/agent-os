@@ -688,20 +688,59 @@ function createJournalRows({
     .slice(0, 12);
 }
 
+function createChartTradeFromSignal(signal: TradingSignal): Trade | undefined {
+  if (signal.trade) {
+    return {
+      ...signal.trade,
+      id: signal.id,
+      decisionId: signal.decisionId,
+      reason: signal.reason
+    };
+  }
+
+  if (signal.action !== 'buy' && signal.action !== 'sell') return undefined;
+
+  return {
+    id: signal.id,
+    decisionId: signal.decisionId,
+    side: signal.action,
+    time: new Date(signal.time).getTime(),
+    price: signal.price,
+    quantity: 0,
+    equity: signal.decision.kind === 'manual' ? signal.decision.portfolio.equity : signal.price,
+    reason: signal.reason
+  };
+}
+
 function createPersistedChartTrades(signals: TradingSignal[], selectedStrategy: TradingStrategy) {
   return signals
-    .filter((signal) => signal.strategy === selectedStrategy)
+    .filter((signal) => signal.strategy === selectedStrategy || !signal.strategy)
     .flatMap((signal): Trade[] => {
-      if (!signal.trade) return [];
-      return [
-        {
-          ...signal.trade,
-          id: signal.id,
-          decisionId: signal.decisionId,
-          reason: signal.reason
-        }
-      ];
+      const trade = createChartTradeFromSignal(signal);
+      return trade ? [trade] : [];
     });
+}
+
+function resolveTradeMarkerTime(trade: Trade, candles: Candle[], interval: ChartInterval) {
+  const bucketTime = candleBucketTime(trade.time, interval);
+  if (candles.length === 0) return bucketTime;
+
+  if (interval !== '1D' && candles.some((candle) => candle.time === bucketTime)) {
+    return bucketTime;
+  }
+
+  let nearest = candles[0].time;
+  let nearestDistance = Math.abs(nearest - trade.time);
+
+  for (const candle of candles) {
+    const distance = Math.abs(candle.time - trade.time);
+    if (distance < nearestDistance) {
+      nearest = candle.time;
+      nearestDistance = distance;
+    }
+  }
+
+  return nearest;
 }
 
 function createPersistedStrategySummaries(
@@ -1106,8 +1145,11 @@ function StrategyTradeChart({
     [chartCandles]
   );
   const visibleTrades = useMemo(
-    () => trades.filter((trade) => visibleCandleTimes.has(trade.time)),
-    [trades, visibleCandleTimes]
+    () =>
+      trades.filter((trade) =>
+        visibleCandleTimes.has(resolveTradeMarkerTime(trade, chartCandles, chartInterval))
+      ),
+    [chartCandles, chartInterval, trades, visibleCandleTimes]
   );
 
   return (
@@ -1342,7 +1384,7 @@ function TradingViewDecisionChart({
       const tradeKey = trade.id ?? getTradeDecisionKey(strategyKey, trade);
       const buy = trade.side === 'buy';
       const selected = selectedTradeKey === tradeKey;
-      const markerTime = toChartTime(candleBucketTime(trade.time, interval));
+      const markerTime = toChartTime(resolveTradeMarkerTime(trade, candles, interval));
       tradeById.set(tradeKey, trade);
       tradeByTime.set(markerTime as number, trade);
 
@@ -2544,6 +2586,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
     const signal =
       data.journal.signals.find((item) => item.decisionId === decision.id) ??
       signalFromDecision(decision);
+    if (decision.kind === 'bot') setSelectedStrategy(decision.strategy);
     setSelectedJournalId(decision.id);
     setSelectedTradeKey(signal.id);
     setSelectedReplayEventId(signal.id);
