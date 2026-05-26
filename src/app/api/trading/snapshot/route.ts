@@ -1,5 +1,9 @@
 import { backtestStrategy, getMarketSnapshot, type TradingStrategy } from '@/lib/trading';
-import { getTradingJournal, runPaperBotDecision } from '@/lib/trading-journal';
+import {
+  getTradingJournal,
+  runPaperBotDecision,
+  updatePaperDecisionReviews
+} from '@/lib/trading-journal';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -12,6 +16,7 @@ export async function GET() {
   try {
     const snapshot = await getMarketSnapshot('BTCUSDT');
     const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
+    await updatePaperDecisionReviews(snapshot);
     const journal = await getTradingJournal();
 
     return NextResponse.json({ snapshot, backtests, journal }, { headers: noStoreHeaders });
@@ -32,6 +37,7 @@ export async function POST(request: Request) {
     const decision = await runPaperBotDecision(selectedStrategy);
     const snapshot = await getMarketSnapshot('BTCUSDT');
     const backtests = strategies.map((strategy) => backtestStrategy(snapshot.candles, strategy));
+    await updatePaperDecisionReviews(snapshot);
     const journal = await getTradingJournal();
 
     return NextResponse.json(

@@ -609,6 +609,12 @@ function getEvidenceBullets({
       ...(decision.evidence.regime?.rejectedStrategies.map(
         (item) => `Rejected ${item.strategy}: ${item.reason}`
       ) ?? []),
+      decision.evidence.review
+        ? `Post-trade review: ${decision.evidence.review.checkpoints
+            .filter((checkpoint) => checkpoint.available)
+            .map((checkpoint) => `${checkpoint.label} ${percent(checkpoint.returnPct)}`)
+            .join(', ')}`
+        : undefined,
       decision.evidence.marketData?.fundingRatePct !== undefined
         ? `Funding ${decision.evidence.marketData.fundingRatePct.toFixed(4)}%`
         : undefined,
@@ -2322,6 +2328,17 @@ function JournalDecisionDetail({
                 <EvidenceMetric
                   label='ATR14'
                   value={percent(botDecision.evidence.marketData.atr14Pct)}
+                />
+              ) : null}
+              {botDecision.evidence.review?.checkpoints.some(
+                (checkpoint) => checkpoint.available
+              ) ? (
+                <EvidenceMetric
+                  label='Review'
+                  value={botDecision.evidence.review.checkpoints
+                    .filter((checkpoint) => checkpoint.available)
+                    .map((checkpoint) => `${checkpoint.label} ${percent(checkpoint.returnPct)}`)
+                    .join(' · ')}
                 />
               ) : null}
             </div>

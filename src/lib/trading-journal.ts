@@ -8,6 +8,7 @@ import {
   type MarketRegime,
   type PaperBotDecision,
   type PaperJournalEntry,
+  type PaperTradeReview,
   type PaperRiskAssessment,
   type PaperWallet,
   type Trade,
@@ -126,6 +127,66 @@ function decisionToRow(entry: PaperJournalEntry) {
     portfolio: entry.kind === 'manual' ? entry.portfolio : null,
     disclaimer: entry.disclaimer,
     createdAt: toDate(entry.createdAt)
+  };
+}
+
+function buildDecisionReview(
+  decision: PaperBotDecision,
+  snapshot: MarketSnapshot
+): PaperTradeReview {
+  const action = decision.action;
+  const eventTime = Date.parse(decision.createdAt);
+  const startIndex = snapshot.candles.findIndex((candle) => candle.time >= eventTime);
+  const quantity = decision.evidence.risk?.positionCash
+    ? decision.evidence.risk.positionCash / decision.price
+    : (decision.evidence.trade?.quantity ?? 0);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    checkpoints: ([1, 3, 7] as const).map((days) => {
+      const future = startIndex >= 0 ? snapshot.candles[startIndex + days] : undefined;
+      if (!future || action === 'hold' || decision.price <= 0) {
+        return {
+          days,
+          label: `${days}D` as '1D' | '3D' | '7D',
+          available: false,
+          thesisOutcome: 'pending',
+          ruleViolations: [],
+          lesson: 'Await enough completed candles before judging this paper decision.'
+        };
+      }
+
+      const rawReturnPct = ((future.close - decision.price) / decision.price) * 100;
+      const returnPct = action === 'sell' ? -rawReturnPct : rawReturnPct;
+      const pnlUsd =
+        quantity > 0
+          ? (future.close - decision.price) * quantity * (action === 'sell' ? -1 : 1)
+          : undefined;
+      const thesisOutcome = returnPct > 1 ? 'working' : returnPct < -1 ? 'failed' : 'pending';
+      const ruleViolations = [
+        decision.evidence.risk && !decision.evidence.risk.allowed
+          ? 'Risk manager did not allow execution.'
+          : undefined,
+        decision.evidence.regime?.noTrade ? 'Regime selector marked this as no-trade.' : undefined
+      ].filter((item): item is string => item !== undefined);
+
+      return {
+        days,
+        label: `${days}D` as '1D' | '3D' | '7D',
+        available: true,
+        price: future.close,
+        returnPct,
+        pnlUsd,
+        thesisOutcome,
+        ruleViolations,
+        lesson:
+          thesisOutcome === 'working'
+            ? 'Thesis is working so far; keep the same guardrails and avoid increasing size just because one checkpoint worked.'
+            : thesisOutcome === 'failed'
+              ? 'Thesis failed at this checkpoint; reduce confidence in similar setups until regime or evidence improves.'
+              : 'Outcome is inconclusive; wait for stronger follow-through before updating the playbook.'
+      };
+    })
   };
 }
 
@@ -586,6 +647,54 @@ export async function getTradingJournal() {
     signals: buildTradingSignals(decisions),
     wallet: journal.wallet ?? emptyPaperWallet()
   };
+}
+
+export async function updatePaperDecisionReviews(snapshot: MarketSnapshot) {
+  const journal = await readJournal();
+  const reviewedDecisions = journal.decisions.map((decision) => {
+    if (decision.kind !== 'bot') return decision;
+    if (decision.action === 'hold') return decision;
+
+    const review = buildDecisionReview(decision, snapshot);
+    const hasAvailableReview = review.checkpoints.some((checkpoint) => checkpoint.available);
+    if (!hasAvailableReview) return decision;
+
+    return {
+      ...decision,
+      evidence: {
+        ...decision.evidence,
+        review
+      }
+    };
+  });
+  const changed = reviewedDecisions.some(
+    (decision, index) =>
+      decision.kind === 'bot' &&
+      JSON.stringify(decision.evidence.review) !==
+        JSON.stringify((journal.decisions[index] as PaperBotDecision | undefined)?.evidence?.review)
+  );
+
+  if (!changed) return journal;
+
+  journal.decisions = reviewedDecisions;
+
+  if (databaseEnabled()) {
+    await Promise.all(
+      reviewedDecisions.flatMap((decision) =>
+        decision.kind === 'bot'
+          ? [
+              db
+                .update(tradingDecisions)
+                .set({ evidence: decision.evidence })
+                .where(eq(tradingDecisions.id, decision.id))
+            ]
+          : []
+      )
+    );
+  }
+
+  if (fileJournalEnabled()) await writeJournal(journal);
+  return journal;
 }
 
 export async function clearTradingJournal() {

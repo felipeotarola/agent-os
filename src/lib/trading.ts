@@ -66,6 +66,21 @@ export type MarketRegime = {
   rejectedStrategies: Array<{ strategy: TradingStrategy; reason: string }>;
 };
 
+export type PaperTradeReview = {
+  generatedAt: string;
+  checkpoints: Array<{
+    days: 1 | 3 | 7;
+    label: '1D' | '3D' | '7D';
+    available: boolean;
+    price?: number;
+    returnPct?: number;
+    pnlUsd?: number;
+    thesisOutcome: 'pending' | 'working' | 'failed';
+    ruleViolations: string[];
+    lesson: string;
+  }>;
+};
+
 export type BacktestResult = {
   strategy: TradingStrategy;
   symbol: string;
@@ -105,6 +120,7 @@ export type PaperBotDecision = {
     risk?: PaperRiskAssessment;
     marketData?: MarketDataInputs;
     regime?: MarketRegime;
+    review?: PaperTradeReview;
   };
   research?: {
     summary: string;
