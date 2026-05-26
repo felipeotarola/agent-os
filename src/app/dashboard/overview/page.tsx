@@ -789,29 +789,29 @@ export default async function OverviewPage() {
       <div className='flex flex-1 flex-col gap-4 md:gap-5'>
         <main className='min-w-0 space-y-4'>
           <section className='space-y-4'>
-            <section className='mobile-feed-section rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
-              <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,330px)] lg:items-start'>
-                <div className='min-w-0 space-y-4'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <Badge className='rounded-full'>Today Command</Badge>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
-                    >
-                      <StatusDot ok={snapshot.dbOnline} /> live cockpit
-                    </Badge>
-                    <Badge
-                      variant='outline'
-                      className='border-border bg-muted/40 text-card-foreground'
-                    >
-                      {actionCenter.counts.high} high · {actionCenter.counts.total} queued
-                    </Badge>
-                    {buildActivity.activeCount ? (
-                      <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
-                    ) : null}
-                  </div>
+            <section className='space-y-4'>
+              <div className='mobile-feed-section space-y-5 rounded-3xl border bg-card p-5 text-card-foreground shadow-sm md:p-6'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge className='rounded-full'>Today Command</Badge>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-muted/40 text-card-foreground'
+                  >
+                    <StatusDot ok={snapshot.dbOnline} /> live cockpit
+                  </Badge>
+                  <Badge
+                    variant='outline'
+                    className='border-border bg-muted/40 text-card-foreground'
+                  >
+                    {actionCenter.counts.high} high · {actionCenter.counts.total} queued
+                  </Badge>
+                  {buildActivity.activeCount ? (
+                    <Badge variant='default'>▲ {buildActivity.activeCount} build live</Badge>
+                  ) : null}
+                </div>
 
-                  <div>
+                <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                  <div className='min-w-0'>
                     <h1 className='text-[1.85rem] font-semibold tracking-tight text-foreground min-[390px]:text-3xl md:text-5xl'>
                       Good evening Felipe
                     </h1>
@@ -820,6 +820,31 @@ export default async function OverviewPage() {
                     </p>
                   </div>
 
+                  <div className='grid w-full grid-cols-3 gap-2 sm:max-w-sm lg:w-auto lg:min-w-[330px]'>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Queued
+                      </div>
+                    </div>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{activeRunCount}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Runs
+                      </div>
+                    </div>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Builds
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] xl:items-start'>
+                <div className='space-y-4'>
                   <div className='rounded-2xl border bg-background/45 p-4'>
                     <div className='flex flex-wrap items-center gap-2'>
                       <Badge variant='outline' className='border-border bg-muted/40'>
@@ -853,71 +878,47 @@ export default async function OverviewPage() {
                       ) : null}
                     </div>
                   </div>
+                  <section className='grid grid-cols-2 gap-2 md:gap-3 2xl:grid-cols-4'>
+                    {snapshot.stats.map((stat, index) => {
+                      const accent = statAccents[index % statAccents.length];
+                      return (
+                        <Card
+                          key={stat.label}
+                          className={`mobile-compact-stat overflow-hidden border ${accent.classes}`}
+                        >
+                          <CardContent className='p-3 md:p-4'>
+                            <div className='flex items-start justify-between gap-2 md:gap-3'>
+                              <div className='rounded-xl border border-white/10 bg-background/50 px-2 py-1 text-xs md:px-2.5 md:py-1.5 md:text-sm'>
+                                {accent.icon}
+                              </div>
+                              <Badge
+                                variant='outline'
+                                className='border-white/10 bg-background/40 text-[10px]'
+                              >
+                                {stat.tone}
+                              </Badge>
+                            </div>
+                            <div className='mt-3 text-muted-foreground text-[11px] md:mt-4 md:text-xs'>
+                              {stat.label}
+                            </div>
+                            <div className='mt-1 text-2xl font-semibold text-card-foreground md:text-3xl'>
+                              {stat.value}
+                            </div>
+                            <div className='text-muted-foreground mt-1 line-clamp-2 min-h-7 text-[11px] md:mt-2 md:min-h-8 md:text-xs'>
+                              {stat.detail}
+                            </div>
+                            <div className='mt-1.5 md:mt-2'>
+                              <MiniSpark color={accent.color} />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </section>
                 </div>
-
-                <div className='space-y-3'>
-                  <div className='grid grid-cols-3 gap-2'>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Queued
-                      </div>
-                    </div>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{activeRunCount}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Runs
-                      </div>
-                    </div>
-                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                      <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
-                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                        Builds
-                      </div>
-                    </div>
-                  </div>
-                  <InteractiveCalendarOverviewCard calendar={calendar} />
-                </div>
+                <InteractiveCalendarOverviewCard calendar={calendar} />
               </div>
             </section>
-          </section>
-
-          <section className='grid grid-cols-2 gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 2xl:grid-cols-6'>
-            {snapshot.stats.map((stat, index) => {
-              const accent = statAccents[index % statAccents.length];
-              return (
-                <Card
-                  key={stat.label}
-                  className={`mobile-compact-stat overflow-hidden border ${accent.classes}`}
-                >
-                  <CardContent className='p-3 md:p-4'>
-                    <div className='flex items-start justify-between gap-2 md:gap-3'>
-                      <div className='rounded-xl border border-white/10 bg-background/50 px-2 py-1 text-xs md:px-2.5 md:py-1.5 md:text-sm'>
-                        {accent.icon}
-                      </div>
-                      <Badge
-                        variant='outline'
-                        className='border-white/10 bg-background/40 text-[10px]'
-                      >
-                        {stat.tone}
-                      </Badge>
-                    </div>
-                    <div className='mt-3 text-muted-foreground text-[11px] md:mt-4 md:text-xs'>
-                      {stat.label}
-                    </div>
-                    <div className='mt-1 text-2xl font-semibold text-card-foreground md:text-3xl'>
-                      {stat.value}
-                    </div>
-                    <div className='text-muted-foreground mt-1 line-clamp-2 min-h-7 text-[11px] md:mt-2 md:min-h-8 md:text-xs'>
-                      {stat.detail}
-                    </div>
-                    <div className='mt-1.5 md:mt-2'>
-                      <MiniSpark color={accent.color} />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
           </section>
 
           <LiveActivitySurface
