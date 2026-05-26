@@ -26,6 +26,24 @@ export type TradeDecisionLink = Pick<
   key: string;
 };
 
+export type PaperRiskAssessment = {
+  requestedAction: 'buy' | 'sell' | 'hold';
+  executableAction: 'buy' | 'sell' | 'hold';
+  allowed: boolean;
+  blockedReasons: string[];
+  positionCash: number;
+  positionPct: number;
+  maxPositionPct: number;
+  confidenceThreshold: number;
+  maxBacktestDrawdownPct: number;
+  maxPaperLossPct: number;
+  cooldownDays: number;
+  cooldownActive: boolean;
+  confidenceGuardActive: boolean;
+  drawdownGuardActive: boolean;
+  paperLossGuardActive: boolean;
+};
+
 export type BacktestResult = {
   strategy: TradingStrategy;
   symbol: string;
@@ -62,6 +80,7 @@ export type PaperBotDecision = {
     volumeVsSevenDayPct: number;
     lastSignal?: Pick<Trade, 'side' | 'time' | 'reason'>;
     trade?: TradeDecisionLink;
+    risk?: PaperRiskAssessment;
   };
   research?: {
     summary: string;

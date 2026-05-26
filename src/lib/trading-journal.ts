@@ -7,6 +7,7 @@ import {
   type MarketSnapshot,
   type PaperBotDecision,
   type PaperJournalEntry,
+  type PaperRiskAssessment,
   type PaperWallet,
   type Trade,
   type TradingSignal,
@@ -33,6 +34,12 @@ const MAX_DECISIONS = 120;
 const PAPER_WALLET_ID = 'linda-btcusdc-paper';
 const PAPER_WALLET_STARTING_CASH = 10_000;
 const PAPER_WALLET_FEE_RATE = 0.001;
+const RISK_CONFIDENCE_THRESHOLD = 65;
+const RISK_MAX_POSITION_PCT = 25;
+const RISK_MIN_POSITION_PCT = 10;
+const RISK_MAX_BACKTEST_DRAWDOWN_PCT = 18;
+const RISK_MAX_PAPER_LOSS_PCT = 8;
+const RISK_COOLDOWN_DAYS = 2;
 
 type TradingJournal = {
   version: 1;
@@ -199,6 +206,101 @@ function emptyPaperWallet(): PaperWallet {
   };
 }
 
+function walletEquityAtPrice(wallet: PaperWallet, price: number) {
+  return wallet.cashBalance + wallet.assetBalance * price;
+}
+
+function lastExecutionWasLoss(wallet: PaperWallet, latestTime: number) {
+  const latestExecution = wallet.executions.at(-1);
+  if (!latestExecution) return false;
+
+  const previousEquity = wallet.executions.at(-2)?.equityAfter ?? wallet.startingCash;
+  const ageDays = (latestTime - Date.parse(latestExecution.createdAt)) / DAY_MS;
+
+  return (
+    latestExecution.equityAfter < previousEquity && ageDays >= 0 && ageDays <= RISK_COOLDOWN_DAYS
+  );
+}
+
+function buildRiskAssessment({
+  requestedAction,
+  confidence,
+  backtest,
+  wallet,
+  price,
+  latestTime
+}: {
+  requestedAction: 'buy' | 'sell' | 'hold';
+  confidence: number;
+  backtest: BacktestResult;
+  wallet: PaperWallet;
+  price: number;
+  latestTime?: number;
+}): PaperRiskAssessment {
+  const equity = walletEquityAtPrice(wallet, price);
+  const currentExposureCash = wallet.assetBalance * price;
+  const confidenceGuardActive =
+    requestedAction !== 'hold' && confidence < RISK_CONFIDENCE_THRESHOLD;
+  const drawdownGuardActive =
+    requestedAction !== 'hold' && backtest.maxDrawdownPct > RISK_MAX_BACKTEST_DRAWDOWN_PCT;
+  const paperLossPct =
+    equity > 0 ? ((wallet.startingCash - equity) / wallet.startingCash) * 100 : 0;
+  const paperLossGuardActive = requestedAction !== 'hold' && paperLossPct > RISK_MAX_PAPER_LOSS_PCT;
+  const cooldownActive =
+    requestedAction !== 'hold' &&
+    latestTime !== undefined &&
+    lastExecutionWasLoss(wallet, latestTime);
+  const blockedReasons = [
+    confidenceGuardActive
+      ? `Confidence ${confidence.toFixed(0)}% below ${RISK_CONFIDENCE_THRESHOLD}% threshold`
+      : undefined,
+    drawdownGuardActive
+      ? `Backtest drawdown ${backtest.maxDrawdownPct.toFixed(2)}% above ${RISK_MAX_BACKTEST_DRAWDOWN_PCT}% cap`
+      : undefined,
+    paperLossGuardActive
+      ? `Paper wallet loss ${paperLossPct.toFixed(2)}% above ${RISK_MAX_PAPER_LOSS_PCT}% guard`
+      : undefined,
+    cooldownActive ? `${RISK_COOLDOWN_DAYS}D cooldown active after losing execution` : undefined
+  ].filter((item): item is string => item !== undefined);
+  const allowed = requestedAction !== 'hold' && blockedReasons.length === 0;
+  const maxPositionCash = equity * (RISK_MAX_POSITION_PCT / 100);
+  const confidenceScale = Math.max(
+    0,
+    Math.min(1, (confidence - RISK_CONFIDENCE_THRESHOLD) / (95 - RISK_CONFIDENCE_THRESHOLD))
+  );
+  const positionPct = allowed
+    ? RISK_MIN_POSITION_PCT + (RISK_MAX_POSITION_PCT - RISK_MIN_POSITION_PCT) * confidenceScale
+    : 0;
+  const targetPositionCash = equity * (positionPct / 100);
+  const positionCash =
+    requestedAction === 'buy'
+      ? Math.max(0, Math.min(wallet.cashBalance, targetPositionCash - currentExposureCash))
+      : requestedAction === 'sell'
+        ? Math.max(0, Math.min(currentExposureCash, targetPositionCash || maxPositionCash))
+        : 0;
+
+  return {
+    requestedAction,
+    executableAction: allowed && positionCash > 0 ? requestedAction : 'hold',
+    allowed: allowed && positionCash > 0,
+    blockedReasons:
+      allowed && positionCash <= 0
+        ? ['No position size available under risk limits']
+        : blockedReasons,
+    positionCash,
+    positionPct: allowed ? positionPct : 0,
+    maxPositionPct: RISK_MAX_POSITION_PCT,
+    confidenceThreshold: RISK_CONFIDENCE_THRESHOLD,
+    maxBacktestDrawdownPct: RISK_MAX_BACKTEST_DRAWDOWN_PCT,
+    maxPaperLossPct: RISK_MAX_PAPER_LOSS_PCT,
+    cooldownDays: RISK_COOLDOWN_DAYS,
+    cooldownActive,
+    confidenceGuardActive,
+    drawdownGuardActive,
+    paperLossGuardActive
+  };
+}
+
 function rowToWallet(
   wallet: typeof tradingWallets.$inferSelect,
   executions: Array<typeof tradingExecutions.$inferSelect>
@@ -262,13 +364,17 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
   )) {
     if (decision.action !== 'buy' && decision.action !== 'sell') continue;
     if (!Number.isFinite(decision.price) || decision.price <= 0) continue;
+    const risk = decision.kind === 'bot' ? decision.evidence.risk : undefined;
+    if (risk && risk.executableAction !== decision.action) continue;
 
     if (decision.action === 'buy') {
       if (cash <= 0) continue;
-      const grossCash = cash;
+      const requestedCash = risk?.positionCash ?? cash;
+      const grossCash = Math.max(0, Math.min(cash, requestedCash));
+      if (grossCash <= 0) continue;
       const fee = grossCash * PAPER_WALLET_FEE_RATE;
       const quantity = (grossCash - fee) / decision.price;
-      cash = 0;
+      cash -= grossCash;
       btc += quantity;
       executions.push({
         id: randomUUID(),
@@ -286,13 +392,15 @@ async function rebuildPaperWallet(decisions: PaperJournalEntry[]) {
       });
     } else {
       if (btc <= 0) continue;
-      const quantity = btc;
+      const requestedCash = risk?.positionCash ?? btc * decision.price;
+      const quantity = Math.max(0, Math.min(btc, requestedCash / decision.price));
+      if (quantity <= 0) continue;
       const grossCash = quantity * decision.price;
       const fee = grossCash * PAPER_WALLET_FEE_RATE;
       const proceeds = grossCash - fee;
-      btc = 0;
+      btc -= quantity;
       cash += proceeds;
-      realizedPnl = cash - PAPER_WALLET_STARTING_CASH;
+      realizedPnl = cash + btc * decision.price - PAPER_WALLET_STARTING_CASH;
       executions.push({
         id: randomUUID(),
         walletId: PAPER_WALLET_ID,
@@ -774,7 +882,7 @@ export async function buildPaperBotDecision(
   const score = scoreBacktest(backtest, snapshot);
   const latestSignalIsFresh =
     lastTrade !== undefined && latestTime !== undefined && lastTrade.time === latestTime;
-  const action = targetTrade
+  const requestedAction = targetTrade
     ? targetTrade.side
     : latestSignalIsFresh
       ? lastTrade.side
@@ -783,20 +891,40 @@ export async function buildPaperBotDecision(
         : 'hold';
   const activeSignalConfidenceBonus = !targetTrade && !latestSignalIsFresh && recentTrade ? 8 : 0;
   const confidence = Math.max(5, Math.min(95, 50 + score + activeSignalConfidenceBonus));
+  const wallet = targetTrade ? emptyPaperWallet() : await readDbWallet();
+  const riskAssessment = targetTrade
+    ? undefined
+    : buildRiskAssessment({
+        requestedAction,
+        confidence,
+        backtest,
+        wallet,
+        price: snapshot.price,
+        latestTime
+      });
+  const action = riskAssessment?.executableAction ?? requestedAction;
   const reason = targetTrade
     ? `${targetTrade.side.toUpperCase()} signal from ${selectedStrategy} on ${new Date(targetTrade.time).toISOString().slice(0, 10)}: ${targetTrade.reason}`
     : latestSignalIsFresh
-      ? `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
+      ? action === 'hold' && requestedAction !== 'hold'
+        ? `Risk manager blocked ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal: ${lastTrade.reason}`
+        : `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
       : recentTrade
-        ? `Recent ${recentTrade.side.toUpperCase()} signal from ${selectedStrategy} remains active (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
+        ? action === 'hold' && requestedAction !== 'hold'
+          ? `Risk manager blocked active ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
+          : `Recent ${recentTrade.side.toUpperCase()} signal from ${selectedStrategy} remains active (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
         : `No fresh or active ${selectedStrategy} signal on the latest completed candle; observe only.`;
-  const risk = targetTrade
-    ? `Historical ${selectedStrategy} trade can fail if the next candles invalidate ${targetTrade.reason}, liquidity fades, or the strategy regime changes before exit.`
-    : action === 'hold'
-      ? 'No fresh edge. Main risk is overtrading stale signals or acting on incomplete candles.'
-      : recentTrade && !latestSignalIsFresh
-        ? `Active ${selectedStrategy} signal is ${Math.round(((latestTime ?? recentTrade.time) - recentTrade.time) / DAY_MS)} completed candle(s) old; reduce conviction if price action fails to confirm or volume keeps fading.`
-        : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
+  const risk = riskAssessment
+    ? riskAssessment.allowed
+      ? `Risk manager approved ${riskAssessment.executableAction.toUpperCase()} with ${riskAssessment.positionPct.toFixed(1)}% target exposure (${riskAssessment.positionCash.toFixed(2)} USDC notional). Limits: max ${riskAssessment.maxPositionPct}% position, confidence >= ${riskAssessment.confidenceThreshold}%, drawdown <= ${riskAssessment.maxBacktestDrawdownPct}%, paper loss <= ${riskAssessment.maxPaperLossPct}%, ${riskAssessment.cooldownDays}D loss cooldown.`
+      : `Risk manager forced HOLD. ${riskAssessment.blockedReasons.join('; ') || 'No executable size under risk limits'}. Limits: max ${riskAssessment.maxPositionPct}% position, confidence >= ${riskAssessment.confidenceThreshold}%, drawdown <= ${riskAssessment.maxBacktestDrawdownPct}%, paper loss <= ${riskAssessment.maxPaperLossPct}%, ${riskAssessment.cooldownDays}D loss cooldown.`
+    : targetTrade
+      ? `Historical ${selectedStrategy} trade can fail if the next candles invalidate ${targetTrade.reason}, liquidity fades, or the strategy regime changes before exit.`
+      : action === 'hold'
+        ? 'No fresh edge. Main risk is overtrading stale signals or acting on incomplete candles.'
+        : recentTrade && !latestSignalIsFresh
+          ? `Active ${selectedStrategy} signal is ${Math.round(((latestTime ?? recentTrade.time) - recentTrade.time) / DAY_MS)} completed candle(s) old; reduce conviction if price action fails to confirm or volume keeps fading.`
+          : `Signal can fail if BTC rejects the current move, volume dries up, or the ${selectedStrategy} backtest regime stops matching current market structure.`;
   const research = await buildResearchBrief(
     snapshot,
     backtest,
@@ -832,7 +960,9 @@ export async function buildPaperBotDecision(
     risk,
     nextCheck: targetTrade
       ? 'Follow the next completed candle after this trade and compare the strategy exit rule before repeating the setup.'
-      : 'Re-evaluate after the next completed daily candle or a major volume regime change.',
+      : riskAssessment?.cooldownActive
+        ? `Wait for the ${riskAssessment.cooldownDays}D loss cooldown to clear, then re-check the next completed candle.`
+        : 'Re-evaluate after the next completed daily candle or a major volume regime change.',
     evidence: {
       returnPct: backtest.returnPct,
       maxDrawdownPct: backtest.maxDrawdownPct,
@@ -847,7 +977,8 @@ export async function buildPaperBotDecision(
           : lastTrade
             ? { side: lastTrade.side, time: lastTrade.time, reason: lastTrade.reason }
             : undefined,
-      trade: evidenceTrade
+      trade: evidenceTrade,
+      risk: riskAssessment
     },
     research,
     disclaimer: 'Paper-only decision. No exchange keys, no real orders, no execution.'

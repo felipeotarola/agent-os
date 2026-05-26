@@ -34,6 +34,7 @@ import {
   type MarketSnapshot,
   type PaperBotDecision,
   type PaperJournalEntry,
+  type PaperRiskAssessment,
   type Trade,
   type TradingJournal,
   type TradingSignal
@@ -122,6 +123,7 @@ type DecisionViewModel = {
   price?: number;
   reason: string;
   risk: string;
+  riskAssessment?: PaperRiskAssessment;
   nextCheck: string;
   evidence: string[];
   watchLevels: WatchLevels;
@@ -592,13 +594,20 @@ function getEvidenceBullets({
   lastSignal?: Trade;
 }) {
   if (decision) {
+    const risk = decision.evidence.risk;
     return [
       decision.reason,
+      risk
+        ? `Risk manager: ${risk.executableAction.toUpperCase()} ${money(risk.positionCash)} (${risk.positionPct.toFixed(1)}% target)`
+        : undefined,
+      risk && risk.blockedReasons.length > 0
+        ? `Blocked: ${risk.blockedReasons.join('; ')}`
+        : undefined,
       `Volume ${decision.evidence.volumeVerdict}`,
       `Backtest return ${percent(decision.evidence.returnPct)}`,
       `Win rate ${percent(decision.evidence.winRatePct)}`,
       ...(decision.research?.factors ?? [])
-    ].filter(Boolean);
+    ].filter((item): item is string => Boolean(item));
   }
 
   // Mocked for decision replay UI; replace with persisted metric later.
@@ -1592,6 +1601,46 @@ function SelectedDecisionInspector({
           </div>
         </div>
 
+        {decision.riskAssessment ? (
+          <div className='grid gap-3 border-t pt-4 text-sm'>
+            <div className='flex items-center justify-between gap-3'>
+              <div>
+                <div className='text-muted-foreground text-xs'>Risk manager</div>
+                <div className='font-semibold'>
+                  {decision.riskAssessment.allowed ? 'Approved' : 'Forced HOLD'} ·{' '}
+                  {decision.riskAssessment.executableAction.toUpperCase()}
+                </div>
+              </div>
+              <Badge variant={decision.riskAssessment.allowed ? 'default' : 'secondary'}>
+                {money(decision.riskAssessment.positionCash)}
+              </Badge>
+            </div>
+            <div className='grid grid-cols-2 gap-3'>
+              <InspectorRow
+                label='Target exposure'
+                value={`${decision.riskAssessment.positionPct.toFixed(1)}%`}
+              />
+              <InspectorRow
+                label='Max position'
+                value={`${decision.riskAssessment.maxPositionPct.toFixed(0)}%`}
+              />
+              <InspectorRow
+                label='Min confidence'
+                value={`${decision.riskAssessment.confidenceThreshold.toFixed(0)}%`}
+              />
+              <InspectorRow
+                label='Loss cooldown'
+                value={`${decision.riskAssessment.cooldownDays}D`}
+              />
+            </div>
+            {decision.riskAssessment.blockedReasons.length > 0 ? (
+              <div className='rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground'>
+                {decision.riskAssessment.blockedReasons.join('; ')}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className='border-t pt-4'>
           <div className='mb-2 text-sm font-semibold'>Evidence</div>
           <div className='flex flex-col gap-2 text-xs text-muted-foreground'>
@@ -2248,7 +2297,26 @@ function JournalDecisionDetail({
         </DetailStat>
 
         <DetailStat icon={Icons.shieldCheck} label='Risk / invalidations'>
-          {botDecision ? botDecision.risk : 'Manual paper action with no automated risk pack.'}
+          {botDecision ? (
+            <div className='grid gap-2'>
+              <div>{botDecision.risk}</div>
+              {botDecision.evidence.risk ? (
+                <div className='grid gap-1 rounded-lg border bg-muted/20 p-2 text-xs'>
+                  <EvidenceMetric
+                    label='Risk action'
+                    value={botDecision.evidence.risk.executableAction.toUpperCase()}
+                    tone={botDecision.evidence.risk.allowed ? 'positive' : 'negative'}
+                  />
+                  <EvidenceMetric
+                    label='Position size'
+                    value={money(botDecision.evidence.risk.positionCash)}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            'Manual paper action with no automated risk pack.'
+          )}
         </DetailStat>
 
         <DetailStat icon={Icons.calendarStats} label='Next check'>
@@ -2765,6 +2833,7 @@ export function TradingLab({ initialData }: { initialData: TradingLabPayload }) 
         price: activeLindaDecision.price,
         reason: activeLindaDecision.reason,
         risk: activeLindaDecision.risk,
+        riskAssessment: activeLindaDecision.evidence.risk,
         nextCheck: activeLindaDecision.nextCheck,
         evidence,
         watchLevels
