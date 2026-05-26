@@ -603,6 +603,15 @@ function getEvidenceBullets({
       risk && risk.blockedReasons.length > 0
         ? `Blocked: ${risk.blockedReasons.join('; ')}`
         : undefined,
+      decision.evidence.marketData?.fundingRatePct !== undefined
+        ? `Funding ${decision.evidence.marketData.fundingRatePct.toFixed(4)}%`
+        : undefined,
+      decision.evidence.marketData?.openInterestUsd !== undefined
+        ? `Open interest ${money(decision.evidence.marketData.openInterestUsd)}`
+        : undefined,
+      decision.evidence.marketData?.atr14Pct !== undefined
+        ? `ATR14 ${percent(decision.evidence.marketData.atr14Pct)}`
+        : undefined,
       `Volume ${decision.evidence.volumeVerdict}`,
       `Backtest return ${percent(decision.evidence.returnPct)}`,
       `Win rate ${percent(decision.evidence.winRatePct)}`,
@@ -2284,6 +2293,24 @@ function JournalDecisionDetail({
               />
               <EvidenceMetric label='Win rate' value={percent(botDecision.evidence.winRatePct)} />
               <EvidenceMetric label='Volume trend' value={botDecision.evidence.volumeVerdict} />
+              {botDecision.evidence.marketData?.fundingRatePct !== undefined ? (
+                <EvidenceMetric
+                  label='Funding'
+                  value={percent(botDecision.evidence.marketData.fundingRatePct)}
+                />
+              ) : null}
+              {botDecision.evidence.marketData?.openInterestUsd !== undefined ? (
+                <EvidenceMetric
+                  label='Open interest'
+                  value={money(botDecision.evidence.marketData.openInterestUsd)}
+                />
+              ) : null}
+              {botDecision.evidence.marketData?.atr14Pct !== undefined ? (
+                <EvidenceMetric
+                  label='ATR14'
+                  value={percent(botDecision.evidence.marketData.atr14Pct)}
+                />
+              ) : null}
             </div>
           ) : (
             <div className='grid gap-1'>

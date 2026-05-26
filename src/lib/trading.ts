@@ -44,6 +44,17 @@ export type PaperRiskAssessment = {
   paperLossGuardActive: boolean;
 };
 
+export type MarketDataInputs = {
+  fundingRatePct?: number;
+  openInterestUsd?: number;
+  atr14?: number;
+  atr14Pct?: number;
+  spreadPct?: number;
+  topBookDepthUsd?: number;
+  sources: string[];
+  missing: string[];
+};
+
 export type BacktestResult = {
   strategy: TradingStrategy;
   symbol: string;
@@ -81,6 +92,7 @@ export type PaperBotDecision = {
     lastSignal?: Pick<Trade, 'side' | 'time' | 'reason'>;
     trade?: TradeDecisionLink;
     risk?: PaperRiskAssessment;
+    marketData?: MarketDataInputs;
   };
   research?: {
     summary: string;
@@ -146,6 +158,7 @@ export type MarketSnapshot = {
     changeVsSevenDayPct: number;
     verdict: 'rising' | 'flat' | 'falling';
   };
+  marketData: MarketDataInputs;
   candles: Candle[];
   updatedAt: string;
 };
@@ -188,6 +201,7 @@ export function getFallbackMarketSnapshot(symbol = 'BTCUSDT'): MarketSnapshot {
       changeVsSevenDayPct: 0,
       verdict: 'flat'
     },
+    marketData: { sources: [], missing: ['fallback snapshot'] },
     candles,
     updatedAt: new Date().toISOString()
   };
@@ -368,6 +382,19 @@ type BinanceTicker = {
   quoteVolume?: string;
 };
 
+type BinancePremiumIndex = {
+  lastFundingRate?: string;
+};
+
+type BinanceOpenInterest = {
+  openInterest?: string;
+};
+
+type BinanceDepth = {
+  bids?: Array<[string, string]>;
+  asks?: Array<[string, string]>;
+};
+
 type CoinGeckoSimple = {
   bitcoin?: {
     usd?: number;
@@ -382,23 +409,69 @@ async function getCoinGeckoSimple() {
   );
 }
 
+function atr(candles: Candle[], period = 14) {
+  const completed = candles.filter((candle) => candle.close > 0).slice(0, -1);
+  if (completed.length < period + 1) return undefined;
+
+  const trueRanges = completed.slice(1).map((candle, index) => {
+    const previousClose = completed[index].close;
+    return Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose)
+    );
+  });
+
+  const sample = trueRanges.slice(-period);
+  return sample.reduce((sum, value) => sum + value, 0) / sample.length;
+}
+
+function depthMetrics(depth?: BinanceDepth) {
+  const bestBid = depth?.bids?.[0];
+  const bestAsk = depth?.asks?.[0];
+  const bid = bestBid ? toNumber(bestBid[0]) : 0;
+  const ask = bestAsk ? toNumber(bestAsk[0]) : 0;
+  const mid = bid > 0 && ask > 0 ? (bid + ask) / 2 : 0;
+  const topBookDepthUsd = [...(depth?.bids ?? []), ...(depth?.asks ?? [])]
+    .slice(0, 10)
+    .reduce((sum, [price, quantity]) => sum + toNumber(price) * toNumber(quantity), 0);
+
+  return {
+    spreadPct: mid > 0 ? ((ask - bid) / mid) * 100 : undefined,
+    topBookDepthUsd: topBookDepthUsd > 0 ? topBookDepthUsd : undefined
+  };
+}
+
 export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnapshot> {
-  const [dailyCandles, spotTicker, futuresTicker, coinGecko] = await Promise.allSettled([
-    getDailyCandles(symbol, DAILY_CANDLE_HISTORY_LIMIT),
-    fetchJson<BinanceTicker>(
-      `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-    ),
-    fetchJson<BinanceTicker>(
-      `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
-    ),
-    getCoinGeckoSimple()
-  ]);
+  const [dailyCandles, spotTicker, futuresTicker, coinGecko, premiumIndex, openInterest, depth] =
+    await Promise.allSettled([
+      getDailyCandles(symbol, DAILY_CANDLE_HISTORY_LIMIT),
+      fetchJson<BinanceTicker>(
+        `${BINANCE_REST}/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+      ),
+      fetchJson<BinanceTicker>(
+        `${BINANCE_FUTURES}/fapi/v1/ticker/24hr?symbol=${encodeURIComponent(symbol)}`
+      ),
+      getCoinGeckoSimple(),
+      fetchJson<BinancePremiumIndex>(
+        `${BINANCE_FUTURES}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`
+      ),
+      fetchJson<BinanceOpenInterest>(
+        `${BINANCE_FUTURES}/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`
+      ),
+      fetchJson<BinanceDepth>(
+        `${BINANCE_REST}/api/v3/depth?symbol=${encodeURIComponent(symbol)}&limit=5`
+      )
+    ]);
 
   const candles =
     dailyCandles.status === 'fulfilled' && dailyCandles.value.length > 0 ? dailyCandles.value : [];
   const spot = spotTicker.status === 'fulfilled' ? spotTicker.value : undefined;
   const futures = futuresTicker.status === 'fulfilled' ? futuresTicker.value : undefined;
   const gecko = coinGecko.status === 'fulfilled' ? coinGecko.value.bitcoin : undefined;
+  const premium = premiumIndex.status === 'fulfilled' ? premiumIndex.value : undefined;
+  const interest = openInterest.status === 'fulfilled' ? openInterest.value : undefined;
+  const book = depth.status === 'fulfilled' ? depth.value : undefined;
 
   const completeCandles = candles.slice(0, -1);
   const recent = completeCandles.slice(-8);
@@ -413,10 +486,39 @@ export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnaps
     : 0;
   const verdict =
     changeVsSevenDayPct > 12 ? 'rising' : changeVsSevenDayPct < -12 ? 'falling' : 'flat';
+  const currentPrice = toNumber(spot?.lastPrice ?? gecko?.usd);
+  const atr14 = atr(candles);
+  const { spreadPct, topBookDepthUsd } = depthMetrics(book);
+  const fundingRatePct = premium?.lastFundingRate
+    ? toNumber(premium.lastFundingRate) * 100
+    : undefined;
+  const openInterestUsd = interest?.openInterest
+    ? toNumber(interest.openInterest) * currentPrice
+    : undefined;
+  const marketData: MarketDataInputs = {
+    fundingRatePct,
+    openInterestUsd,
+    atr14,
+    atr14Pct: atr14 && currentPrice ? (atr14 / currentPrice) * 100 : undefined,
+    spreadPct,
+    topBookDepthUsd,
+    sources: [
+      premium ? 'Binance futures funding' : undefined,
+      interest ? 'Binance futures open interest' : undefined,
+      book ? 'Binance spot order book' : undefined,
+      atr14 ? 'Daily candle ATR14' : undefined
+    ].filter((item): item is string => item !== undefined),
+    missing: [
+      premium ? undefined : 'funding rate',
+      interest ? undefined : 'open interest',
+      book ? undefined : 'order book depth',
+      atr14 ? undefined : 'ATR14 volatility'
+    ].filter((item): item is string => item !== undefined)
+  };
 
   return {
     symbol,
-    price: toNumber(spot?.lastPrice ?? gecko?.usd),
+    price: currentPrice,
     priceChangePct24h: toNumber(spot?.priceChangePercent ?? gecko?.usd_24h_change),
     spotQuoteVolume24h: toNumber(spot?.quoteVolume ?? gecko?.usd_24h_vol),
     futuresQuoteVolume24h: toNumber(futures?.quoteVolume),
@@ -429,6 +531,7 @@ export async function getMarketSnapshot(symbol = 'BTCUSDT'): Promise<MarketSnaps
       changeVsSevenDayPct,
       verdict
     },
+    marketData,
     candles,
     updatedAt: new Date().toISOString()
   };

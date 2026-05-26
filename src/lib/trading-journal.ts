@@ -812,6 +812,21 @@ async function buildResearchBrief(
 ): Promise<PaperBotDecision['research']> {
   const performanceLabel = `${backtest.returnPct.toFixed(2)}% return, ${backtest.maxDrawdownPct.toFixed(2)}% max drawdown, ${backtest.winRatePct.toFixed(2)}% win rate`;
   const volumeLabel = `${snapshot.volumeTrend.verdict} volume, ${snapshot.volumeTrend.changeVsSevenDayPct.toFixed(2)}% vs 7D average`;
+  const marketData = snapshot.marketData;
+  const marketDataLabel = [
+    marketData.fundingRatePct !== undefined
+      ? `funding ${marketData.fundingRatePct.toFixed(4)}%`
+      : undefined,
+    marketData.openInterestUsd !== undefined
+      ? `open interest ${marketData.openInterestUsd.toLocaleString('en-US', {
+          maximumFractionDigits: 0
+        })} USD`
+      : undefined,
+    marketData.atr14Pct !== undefined ? `ATR14 ${marketData.atr14Pct.toFixed(2)}%` : undefined,
+    marketData.spreadPct !== undefined ? `spread ${marketData.spreadPct.toFixed(4)}%` : undefined
+  ]
+    .filter(Boolean)
+    .join(', ');
   const liveLinks = targetTrade ? [] : await fetchLiveResearchLinks();
   const tradeLabel = targetTrade
     ? `${new Date(targetTrade.time).toISOString().slice(0, 10)} ${targetTrade.side.toUpperCase()} at ${targetTrade.price.toFixed(2)}`
@@ -834,12 +849,19 @@ async function buildResearchBrief(
       `Backtest: ${performanceLabel}`,
       `Exposure: ${backtest.exposurePct.toFixed(2)}% of completed daily candles`,
       `Volume regime: ${volumeLabel}`,
+      marketDataLabel
+        ? `Market data inputs: ${marketDataLabel}`
+        : 'Market data inputs: unavailable; decision handled missing sources gracefully',
+      `Market data sources: ${marketData.sources.length ? marketData.sources.join(', ') : 'none'}`,
+      marketData.missing.length
+        ? `Missing market data: ${marketData.missing.join(', ')}`
+        : undefined,
       `Live research links captured: ${liveLinks.length}`,
       ...(targetTrade ? [`Selected trade: ${tradeLabel} — ${targetTrade.reason}`] : []),
       backtest.trades.at(-1)
         ? `Latest backtest signal: ${backtest.trades.at(-1)?.side} — ${backtest.trades.at(-1)?.reason}`
         : 'Latest backtest signal: none in this window'
-    ],
+    ].filter((item): item is string => item !== undefined),
     links: [
       ...liveLinks,
       {
@@ -970,6 +992,7 @@ export async function buildPaperBotDecision(
       exposurePct: backtest.exposurePct,
       volumeVerdict: snapshot.volumeTrend.verdict,
       volumeVsSevenDayPct: snapshot.volumeTrend.changeVsSevenDayPct,
+      marketData: snapshot.marketData,
       lastSignal: targetTrade
         ? { side: targetTrade.side, time: targetTrade.time, reason: targetTrade.reason }
         : recentTrade
