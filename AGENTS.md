@@ -1,24 +1,31 @@
-# AGENTS.md - AI Coding Agent Reference
+# AGENTS.md - Agent OS Coding Reference
 
-This file provides essential information for AI coding agents working on this project. It contains project-specific details, conventions, and guidelines that complement the README.
+This file gives coding agents the current project-specific rules. Treat it as the local contract for this repo, alongside `README.md` and `docs/COPILOT_INVENTORY.md`.
 
 ---
 
 ## Project Overview
 
-**Next.js Admin Dashboard Starter** is a production-ready admin dashboard template built with:
+**Agent OS** is Felipe × Cai's local-first cockpit, not a generic SaaS template. It is built on a Next.js dashboard starter, but runtime surfaces must be real Agent OS/OpenClaw/Postgres/local-file integrations.
+
+Current real surfaces include:
+
+- Cockpit overview, Radar, Tasks/Kanban, Agents, Command diagnostics, Settings, Topology/Architecture.
+- Knowledge Inbox, Wiki, Journal, Memory, session/knowledge review flows.
+- Mail/GitHub/external-signal radar where configured.
+- Read-only observability/runway/trading/content surfaces with explicit guardrails.
+
+Do **not** reintroduce template/demo SaaS data or fake runtime APIs. If a screen needs data, connect it to OpenClaw runtime/config, the Agent OS bridge, Postgres, local knowledge/memory files, or explicit user input. See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
+
+Core stack:
 
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript 5.7
 - **Styling**: Tailwind CSS v4
 - **UI Components**: shadcn/ui (New York style)
-- **Authentication**: Clerk (with Organizations/Billing support)
-- **Error Tracking**: Sentry
-- **Charts**: Recharts
-- **Containerization**: Docker (Node.js & Bun Dockerfiles)
-- **Package Manager**: Bun (preferred) or npm
-
-The project follows a feature-based folder structure designed for scalability in SaaS applications, internal tools, and admin panels.
+- **Auth shell**: Clerk code still exists, but Agent OS features should degrade safely when auth/env is unavailable locally.
+- **Data**: Postgres/Drizzle plus local bridge/file-backed integrations.
+- **Validation**: `npm run check:runtime-mocks`, `npm run lint`, `npm run typecheck`, or `npm run verify` depending on change size.
 
 ---
 

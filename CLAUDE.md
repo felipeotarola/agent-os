@@ -1,14 +1,16 @@
 # CLAUDE.md
 
-This is a Next.js 16 + shadcn/ui admin dashboard starter kit.
+This is Agent OS: Felipe × Cai's local-first OpenClaw cockpit built on Next.js 16 + shadcn/ui. It is no longer a generic dashboard starter.
 
 ## Key References
 
-- **[AGENTS.md](./AGENTS.md)** — Full project overview, tech stack, structure, conventions, data fetching patterns, deployment
+- **[AGENTS.md](./AGENTS.md)** — Current coding-agent contract, stack, structure, conventions, validation
+- **[README.md](./README.md)** — Active product surfaces and build stance
+- **[docs/COPILOT_INVENTORY.md](./docs/COPILOT_INVENTORY.md)** — Real/removed surfaces, missing pieces, no-mock guardrail
+- **[docs/BRIDGE_CONTRACTS.md](./docs/BRIDGE_CONTRACTS.md)** — Bridge/API contracts
 - **[docs/forms.md](./docs/forms.md)** — Form system: TanStack Form + Zod, composable fields, validation, multi-step, sheet/dialog forms
 - **[docs/themes.md](./docs/themes.md)** — Theme system: OKLCH colors, adding themes, font config
-- **[docs/nav-rbac.md](./docs/nav-rbac.md)** — Navigation RBAC: access control, Clerk integration
-- **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup: organizations, billing, environment variables
+- **[docs/nav-rbac.md](./docs/nav-rbac.md)** — Navigation RBAC and visibility rules
 
 ## Critical Conventions
 
