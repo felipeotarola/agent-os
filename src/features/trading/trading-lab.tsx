@@ -14,6 +14,7 @@ import {
   ColorType,
   CrosshairMode,
   HistogramSeries,
+  LineStyle,
   LineSeries,
   createChart,
   createSeriesMarkers,
@@ -701,11 +702,16 @@ function createChartTradeFromSignal(signal: TradingSignal): Trade | undefined {
 
   if (signal.action !== 'buy' && signal.action !== 'sell') return undefined;
 
+  const signalTime =
+    signal.decision.kind === 'bot' && signal.decision.evidence.lastSignal
+      ? signal.decision.evidence.lastSignal.time
+      : signal.time;
+
   return {
     id: signal.id,
     decisionId: signal.decisionId,
     side: signal.action,
-    time: new Date(signal.time).getTime(),
+    time: new Date(signalTime).getTime(),
     price: signal.price,
     quantity: 0,
     equity: signal.decision.kind === 'manual' ? signal.decision.portfolio.equity : signal.price,
@@ -749,14 +755,30 @@ function createPersistedStrategySummaries(
   strategies: TradingStrategy[]
 ): PersistedStrategySummary[] {
   return strategies.map((strategy) => {
-    const trades = signals
-      .filter((signal) => signal.strategy === strategy && signal.trade)
-      .map((signal) => signal.trade!)
+    const strategySignals = signals.filter((signal) => signal.strategy === strategy);
+    const latestEvidenceDecision = newestFirst(strategySignals)
+      .map((signal) => signal.decision)
+      .find(isPaperBotDecision);
+    const trades = strategySignals
+      .flatMap((signal): Trade[] => {
+        const trade = createChartTradeFromSignal(signal);
+        return trade ? [trade] : [];
+      })
       .toSorted((left, right) => left.time - right.time);
 
-    if (trades.length === 0) return { strategy, tradeCount: 0 };
+    if (trades.length === 0) {
+      return latestEvidenceDecision
+        ? {
+            strategy,
+            returnPct: latestEvidenceDecision.evidence.returnPct,
+            maxDrawdownPct: latestEvidenceDecision.evidence.maxDrawdownPct,
+            winRatePct: latestEvidenceDecision.evidence.winRatePct,
+            tradeCount: 0
+          }
+        : { strategy, tradeCount: 0 };
+    }
 
-    const firstEquity = trades[0].equity || 10_000;
+    const firstEquity = trades[0].equity || trades[0].price || 10_000;
     const lastEquity = trades.at(-1)?.equity ?? firstEquity;
     let peak = firstEquity;
     let maxDrawdownPct = 0;
@@ -771,9 +793,13 @@ function createPersistedStrategySummaries(
 
     return {
       strategy,
-      returnPct: firstEquity ? ((lastEquity - firstEquity) / firstEquity) * 100 : undefined,
-      maxDrawdownPct,
-      winRatePct: trades.length > 1 ? (wins / (trades.length - 1)) * 100 : undefined,
+      returnPct:
+        latestEvidenceDecision?.evidence.returnPct ??
+        (firstEquity ? ((lastEquity - firstEquity) / firstEquity) * 100 : undefined),
+      maxDrawdownPct: latestEvidenceDecision?.evidence.maxDrawdownPct ?? maxDrawdownPct,
+      winRatePct:
+        latestEvidenceDecision?.evidence.winRatePct ??
+        (trades.length > 1 ? (wins / (trades.length - 1)) * 100 : undefined),
       tradeCount: trades.length
     };
   });
@@ -1141,17 +1167,7 @@ function StrategyTradeChart({
   );
   const width = 1120;
   const height = 520;
-  const visibleCandleTimes = useMemo(
-    () => new Set(chartCandles.map((candle) => candle.time)),
-    [chartCandles]
-  );
-  const visibleTrades = useMemo(
-    () =>
-      trades.filter((trade) =>
-        visibleCandleTimes.has(resolveTradeMarkerTime(trade, chartCandles, chartInterval))
-      ),
-    [chartCandles, chartInterval, trades, visibleCandleTimes]
-  );
+  const visibleTrades = trades;
 
   return (
     <div className='overflow-hidden rounded-2xl border bg-card'>
@@ -1178,6 +1194,9 @@ function StrategyTradeChart({
             </div>
             <Badge variant='secondary'>Binance</Badge>
             <Badge variant='outline'>{strategy}</Badge>
+            <Badge variant={visibleTrades.length > 0 ? 'default' : 'secondary'}>
+              {visibleTrades.length} trade {visibleTrades.length === 1 ? 'marker' : 'markers'}
+            </Badge>
           </div>
           <div className='text-muted-foreground mt-2 flex flex-wrap gap-3 text-xs'>
             <span>O {moneyPrecise(chartOhlc.open)}</span>
@@ -1301,8 +1320,8 @@ function TradingViewDecisionChart({
     const upCandle = chartTokenColor(container, '--chart-2', '#67e8f9'); // theme-guard-ignore-line -- chart/canvas color
     const downCandle = chartTokenColor(container, '--destructive', '#f87171'); // theme-guard-ignore-line -- chart/canvas color
     const smaLine = chartTokenColor(container, '--primary', '#67e8f9'); // theme-guard-ignore-line -- chart/canvas color
-    const buyMarker = chartTokenColor(container, '--chart-1', '#a3e635'); // theme-guard-ignore-line -- chart/canvas color
-    const sellMarker = chartTokenColor(container, '--chart-4', '#f59e0b'); // theme-guard-ignore-line -- chart/canvas color
+    const buyMarker = chartTokenColor(container, '--chart-2', '#22d3ee'); // theme-guard-ignore-line -- chart/canvas color
+    const sellMarker = chartTokenColor(container, '--destructive', '#f87171'); // theme-guard-ignore-line -- chart/canvas color
 
     const chart = createChart(container, {
       width: container.clientWidth,
@@ -1386,6 +1405,7 @@ function TradingViewDecisionChart({
       const buy = trade.side === 'buy';
       const selected = selectedTradeKey === tradeKey;
       const markerTime = toChartTime(resolveTradeMarkerTime(trade, candles, interval));
+      const markerColor = buy ? buyMarker : sellMarker;
       tradeById.set(tradeKey, trade);
       tradeByTime.set(markerTime as number, trade);
 
@@ -1393,10 +1413,10 @@ function TradingViewDecisionChart({
         id: tradeKey,
         time: markerTime,
         position: buy ? 'belowBar' : 'aboveBar',
-        color: buy ? buyMarker : sellMarker,
+        color: markerColor,
         shape: buy ? 'arrowUp' : 'arrowDown',
-        text: buy ? 'BUY' : 'SELL',
-        size: selected ? 2.5 : 1.8
+        text: `${buy ? 'BUY' : 'SELL'} ${money(trade.price)}`,
+        size: selected ? 3.5 : 3
       };
     });
 
@@ -1404,6 +1424,22 @@ function TradingViewDecisionChart({
     volumeSeries.setData(volumeData);
     smaSeries.setData(smaData);
     createSeriesMarkers(priceSeries, markers, { autoScale: true });
+    trades.slice(-8).forEach((trade) => {
+      const buy = trade.side === 'buy';
+      const color = buy ? buyMarker : sellMarker;
+      priceSeries.createPriceLine({
+        id: trade.id ?? getTradeDecisionKey(strategyKey, trade),
+        price: trade.price,
+        color,
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        lineVisible: true,
+        axisLabelVisible: true,
+        axisLabelColor: color,
+        axisLabelTextColor: background,
+        title: `${buy ? 'BUY' : 'SELL'} ${dateLabel(trade.time)}`
+      });
+    });
 
     if (shouldFitContent) {
       const targetBars = chartRangeBars(interval, candles.length);

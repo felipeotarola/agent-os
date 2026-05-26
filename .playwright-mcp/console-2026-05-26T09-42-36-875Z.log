@@ -1,0 +1,20 @@
+[   11138ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rJ (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:70617)
+    at rK (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:71650)
+    at https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:165998
+    at um (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:171159)
+    at uf (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:162409)
+    at https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:157234
+    at ue (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:157335)
+    at uW (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:183899)
+    at MessagePort.N (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_DRXKrscztCw4axcKeQeyUbQq4pKD:489:32057)
+[  765969ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rJ (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:70617)
+    at rK (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:71650)
+    at https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:165998
+    at um (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:171159)
+    at uf (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:162409)
+    at https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:157234
+    at ue (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:157335)
+    at uW (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:183899)
+    at MessagePort.N (https://www.felipeotarola.com/_next/static/chunks/160z7h7waz9uo.js?dpl=dpl_NExEjGLBDYW4ZV2b9rwJ7vdKBY6C:489:32057)
