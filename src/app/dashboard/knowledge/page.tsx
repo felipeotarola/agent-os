@@ -206,6 +206,49 @@ function rawSourceRows(source: KnowledgeSource) {
   ].filter(([, value]) => Boolean(value));
 }
 
+function parseJson(value: string) {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function contentText(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const parts = value.map(contentText).filter(Boolean);
+    return parts.length ? parts.join('\n\n') : null;
+  }
+  if (typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.text === 'string') return record.text;
+  if (typeof record.content === 'string') return record.content;
+  if (record.content) return contentText(record.content);
+  if (record.message) return contentText(record.message);
+  return null;
+}
+
+function readableSourceContent(source: KnowledgeSource) {
+  const parsedSummary = source.summary ? parseJson(source.summary) : null;
+  return (
+    contentText(parsedSummary) ??
+    source.wikiContent ??
+    source.summary ??
+    source.sourceUrl ??
+    source.rawPath ??
+    'Ingen läsbar content hittades för den här källan.'
+  );
+}
+
+function rawSourceContent(source: KnowledgeSource) {
+  const parsedSummary = source.summary ? parseJson(source.summary) : null;
+  if (parsedSummary) return JSON.stringify(parsedSummary, null, 2);
+  return source.summary || source.wikiContent || source.rawPath || '';
+}
+
 function ProgressRail({ status }: { status: string }) {
   const current = statusIndex(status);
   return (
@@ -304,6 +347,8 @@ function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
             const action = nextAction(source);
             const meta = statusMeta(source.status);
             const showArchive = action?.label !== 'Archive';
+            const readable = readableSourceContent(source);
+            const raw = rawSourceContent(source);
             return (
               <div key={source.id} className='rounded-xl border bg-background/40 p-3'>
                 <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
@@ -339,6 +384,47 @@ function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
                     )}
                   </div>
                 </div>
+                <details className='group mt-3 rounded-lg border bg-muted/20'>
+                  <summary className='flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium marker:hidden'>
+                    <span>Läs innehåll och metadata</span>
+                    <span className='text-muted-foreground group-open:hidden'>Expandera</span>
+                    <span className='text-muted-foreground hidden group-open:inline'>Stäng</span>
+                  </summary>
+                  <div className='space-y-3 border-t p-3'>
+                    <div>
+                      <div className='mb-1 text-xs font-medium'>Läsbar content</div>
+                      <pre className='max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-background/70 p-3 text-xs leading-5 text-muted-foreground'>
+                        {readable}
+                      </pre>
+                    </div>
+                    <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]'>
+                      <div>
+                        <div className='mb-1 text-xs font-medium'>Rådata</div>
+                        <pre className='max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-background/70 p-3 font-mono text-[10px] leading-4 text-muted-foreground'>
+                          {raw}
+                        </pre>
+                      </div>
+                      <div>
+                        <div className='mb-1 text-xs font-medium'>Metadata</div>
+                        <div className='space-y-1 rounded-lg bg-background/70 p-3 font-mono text-[10px] text-muted-foreground'>
+                          {rawSourceRows(source).map(([label, value]) => (
+                            <div key={label} className='grid grid-cols-[4.5rem_1fr] gap-2'>
+                              <span className='uppercase tracking-wide'>{label}</span>
+                              <span className='break-all'>{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {source.sourceUrl && (
+                          <Button asChild variant='outline' size='sm' className='mt-3 w-full'>
+                            <Link href={source.sourceUrl} target='_blank'>
+                              Öppna källa
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </div>
             );
           })
