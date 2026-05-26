@@ -660,8 +660,6 @@ export default async function OverviewPage() {
             </div>
           </div>
 
-          <InteractiveCalendarOverviewCard calendar={calendar} />
-
           <div className='rounded-3xl border bg-card/80 p-4 text-card-foreground shadow-sm'>
             <div className='mb-3 flex items-center justify-between gap-3'>
               <div>
@@ -857,25 +855,28 @@ export default async function OverviewPage() {
                   </div>
                 </div>
 
-                <div className='grid grid-cols-3 gap-2'>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Queued
+                <div className='space-y-3'>
+                  <div className='grid grid-cols-3 gap-2'>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{actionCenter.counts.total}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Queued
+                      </div>
+                    </div>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{activeRunCount}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Runs
+                      </div>
+                    </div>
+                    <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
+                      <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
+                      <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
+                        Builds
+                      </div>
                     </div>
                   </div>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{activeRunCount}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Runs
-                    </div>
-                  </div>
-                  <div className='rounded-2xl border bg-muted/40 p-3 text-center'>
-                    <div className='text-lg font-semibold'>{buildActivity.activeCount}</div>
-                    <div className='text-muted-foreground text-[10px] uppercase tracking-wide'>
-                      Builds
-                    </div>
-                  </div>
+                  <InteractiveCalendarOverviewCard calendar={calendar} />
                 </div>
               </div>
             </section>
