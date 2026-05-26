@@ -603,6 +603,12 @@ function getEvidenceBullets({
       risk && risk.blockedReasons.length > 0
         ? `Blocked: ${risk.blockedReasons.join('; ')}`
         : undefined,
+      decision.evidence.regime
+        ? `Regime selector: ${decision.evidence.regime.rationale}`
+        : undefined,
+      ...(decision.evidence.regime?.rejectedStrategies.map(
+        (item) => `Rejected ${item.strategy}: ${item.reason}`
+      ) ?? []),
       decision.evidence.marketData?.fundingRatePct !== undefined
         ? `Funding ${decision.evidence.marketData.fundingRatePct.toFixed(4)}%`
         : undefined,
@@ -2293,6 +2299,13 @@ function JournalDecisionDetail({
               />
               <EvidenceMetric label='Win rate' value={percent(botDecision.evidence.winRatePct)} />
               <EvidenceMetric label='Volume trend' value={botDecision.evidence.volumeVerdict} />
+              {botDecision.evidence.regime ? (
+                <EvidenceMetric
+                  label='Regime strategy'
+                  value={botDecision.evidence.regime.selectedStrategy}
+                  tone={botDecision.evidence.regime.noTrade ? 'negative' : undefined}
+                />
+              ) : null}
               {botDecision.evidence.marketData?.fundingRatePct !== undefined ? (
                 <EvidenceMetric
                   label='Funding'

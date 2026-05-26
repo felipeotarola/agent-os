@@ -55,6 +55,17 @@ export type MarketDataInputs = {
   missing: string[];
 };
 
+export type MarketRegime = {
+  trend: 'uptrend' | 'range' | 'downtrend';
+  volatility: 'low' | 'normal' | 'high';
+  liquidity: 'thin' | 'normal' | 'deep';
+  volume: 'rising' | 'flat' | 'falling';
+  selectedStrategy: TradingStrategy;
+  noTrade: boolean;
+  rationale: string;
+  rejectedStrategies: Array<{ strategy: TradingStrategy; reason: string }>;
+};
+
 export type BacktestResult = {
   strategy: TradingStrategy;
   symbol: string;
@@ -93,6 +104,7 @@ export type PaperBotDecision = {
     trade?: TradeDecisionLink;
     risk?: PaperRiskAssessment;
     marketData?: MarketDataInputs;
+    regime?: MarketRegime;
   };
   research?: {
     summary: string;

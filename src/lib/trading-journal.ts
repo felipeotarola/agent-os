@@ -5,6 +5,7 @@ import {
   getTradeDecisionKey,
   type BacktestResult,
   type MarketSnapshot,
+  type MarketRegime,
   type PaperBotDecision,
   type PaperJournalEntry,
   type PaperRiskAssessment,
@@ -709,6 +710,75 @@ function activeRecentTrade(backtest: BacktestResult, latestTime?: number) {
   return ageDays >= 0 && ageDays <= ACTIVE_SIGNAL_WINDOW_DAYS ? lastTrade : undefined;
 }
 
+function average(values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
+}
+
+function detectMarketRegime(snapshot: MarketSnapshot, backtests: BacktestResult[]): MarketRegime {
+  const completed = snapshot.candles.filter((candle) => candle.close > 0).slice(0, -1);
+  const recent = completed.slice(-20);
+  const longer = completed.slice(-50);
+  const latest = completed.at(-1);
+  const sma20 = average(recent.map((candle) => candle.close));
+  const sma50 = average(longer.map((candle) => candle.close));
+  const trend: MarketRegime['trend'] =
+    latest && latest.close > sma20 && sma20 > sma50
+      ? 'uptrend'
+      : latest && latest.close < sma20 && sma20 < sma50
+        ? 'downtrend'
+        : 'range';
+  const atrPct = snapshot.marketData.atr14Pct ?? 0;
+  const volatility: MarketRegime['volatility'] =
+    atrPct >= 4 ? 'high' : atrPct > 0 && atrPct < 1.8 ? 'low' : 'normal';
+  const depth = snapshot.marketData.topBookDepthUsd ?? 0;
+  const spread = snapshot.marketData.spreadPct ?? 1;
+  const liquidity: MarketRegime['liquidity'] =
+    depth > 2_000_000 && spread < 0.03 ? 'deep' : depth > 0 && depth < 250_000 ? 'thin' : 'normal';
+  const preferredStrategy: TradingStrategy =
+    liquidity === 'thin'
+      ? 'rsi-reversion'
+      : volatility === 'high' || snapshot.volumeTrend.verdict === 'rising'
+        ? 'volume-breakout'
+        : trend === 'uptrend' || trend === 'downtrend'
+          ? 'sma-cross'
+          : 'rsi-reversion';
+  const bestBacktest = [...backtests].toSorted(
+    (left, right) => scoreBacktest(right, snapshot) - scoreBacktest(left, snapshot)
+  )[0];
+  const selectedStrategy = backtests.some((item) => item.strategy === preferredStrategy)
+    ? preferredStrategy
+    : (bestBacktest?.strategy ?? 'volume-breakout');
+  const selectedBacktest = backtests.find((item) => item.strategy === selectedStrategy);
+  const noTrade =
+    liquidity === 'thin' ||
+    snapshot.marketData.missing.length >= 3 ||
+    (selectedBacktest !== undefined && scoreBacktest(selectedBacktest, snapshot) < -20);
+  const rejectedStrategies = (['sma-cross', 'rsi-reversion', 'volume-breakout'] as const)
+    .filter((strategy) => strategy !== selectedStrategy)
+    .map((strategy) => ({
+      strategy,
+      reason:
+        strategy === 'sma-cross' && trend === 'range'
+          ? 'Rejected because market is range-bound, not trending.'
+          : strategy === 'rsi-reversion' && trend !== 'range' && volatility !== 'low'
+            ? 'Rejected because current regime is not a low-volatility range.'
+            : strategy === 'volume-breakout' && snapshot.volumeTrend.verdict !== 'rising'
+              ? 'Rejected because volume is not confirming a breakout.'
+              : `Lower regime fit than ${selectedStrategy}.`
+    }));
+
+  return {
+    trend,
+    volatility,
+    liquidity,
+    volume: snapshot.volumeTrend.verdict,
+    selectedStrategy,
+    noTrade,
+    rationale: `${trend}, ${volatility} volatility, ${liquidity} liquidity, ${snapshot.volumeTrend.verdict} volume -> ${noTrade ? 'no-trade guard' : selectedStrategy}.`,
+    rejectedStrategies
+  };
+}
+
 type ResearchLink = NonNullable<PaperBotDecision['research']>['links'][number];
 
 type ResearchFeed = {
@@ -808,6 +878,7 @@ async function buildResearchBrief(
   action: 'buy' | 'sell' | 'hold',
   reason: string,
   risk: string,
+  regime: MarketRegime | undefined,
   targetTrade?: Trade
 ): Promise<PaperBotDecision['research']> {
   const performanceLabel = `${backtest.returnPct.toFixed(2)}% return, ${backtest.maxDrawdownPct.toFixed(2)}% max drawdown, ${backtest.winRatePct.toFixed(2)}% win rate`;
@@ -849,6 +920,9 @@ async function buildResearchBrief(
       `Backtest: ${performanceLabel}`,
       `Exposure: ${backtest.exposurePct.toFixed(2)}% of completed daily candles`,
       `Volume regime: ${volumeLabel}`,
+      regime ? `Detected regime: ${regime.rationale}` : undefined,
+      ...(regime?.rejectedStrategies.map((item) => `Rejected ${item.strategy}: ${item.reason}`) ??
+        []),
       marketDataLabel
         ? `Market data inputs: ${marketDataLabel}`
         : 'Market data inputs: unavailable; decision handled missing sources gracefully',
@@ -896,6 +970,7 @@ export async function buildPaperBotDecision(
   snapshot: MarketSnapshot,
   backtest: BacktestResult,
   selectedStrategy: TradingStrategy,
+  regime?: MarketRegime,
   targetTrade?: Trade
 ): Promise<PaperBotDecision> {
   const lastTrade = backtest.trades.at(-1);
@@ -906,11 +981,13 @@ export async function buildPaperBotDecision(
     lastTrade !== undefined && latestTime !== undefined && lastTrade.time === latestTime;
   const requestedAction = targetTrade
     ? targetTrade.side
-    : latestSignalIsFresh
-      ? lastTrade.side
-      : recentTrade
-        ? recentTrade.side
-        : 'hold';
+    : regime?.noTrade
+      ? 'hold'
+      : latestSignalIsFresh
+        ? lastTrade.side
+        : recentTrade
+          ? recentTrade.side
+          : 'hold';
   const activeSignalConfidenceBonus = !targetTrade && !latestSignalIsFresh && recentTrade ? 8 : 0;
   const confidence = Math.max(5, Math.min(95, 50 + score + activeSignalConfidenceBonus));
   const wallet = targetTrade ? emptyPaperWallet() : await readDbWallet();
@@ -927,15 +1004,17 @@ export async function buildPaperBotDecision(
   const action = riskAssessment?.executableAction ?? requestedAction;
   const reason = targetTrade
     ? `${targetTrade.side.toUpperCase()} signal from ${selectedStrategy} on ${new Date(targetTrade.time).toISOString().slice(0, 10)}: ${targetTrade.reason}`
-    : latestSignalIsFresh
-      ? action === 'hold' && requestedAction !== 'hold'
-        ? `Risk manager blocked ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal: ${lastTrade.reason}`
-        : `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
-      : recentTrade
+    : regime?.noTrade
+      ? `Regime selector forced HOLD: ${regime.rationale}`
+      : latestSignalIsFresh
         ? action === 'hold' && requestedAction !== 'hold'
-          ? `Risk manager blocked active ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
-          : `Recent ${recentTrade.side.toUpperCase()} signal from ${selectedStrategy} remains active (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
-        : `No fresh or active ${selectedStrategy} signal on the latest completed candle; observe only.`;
+          ? `Risk manager blocked ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal: ${lastTrade.reason}`
+          : `${lastTrade.side.toUpperCase()} signal from ${selectedStrategy}: ${lastTrade.reason}`
+        : recentTrade
+          ? action === 'hold' && requestedAction !== 'hold'
+            ? `Risk manager blocked active ${requestedAction.toUpperCase()} from ${selectedStrategy}: ${riskAssessment?.blockedReasons.join('; ')}. Original signal (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
+            : `Recent ${recentTrade.side.toUpperCase()} signal from ${selectedStrategy} remains active (${new Date(recentTrade.time).toISOString().slice(0, 10)}): ${recentTrade.reason}`
+          : `No fresh or active ${selectedStrategy} signal on the latest completed candle; observe only.`;
   const risk = riskAssessment
     ? riskAssessment.allowed
       ? `Risk manager approved ${riskAssessment.executableAction.toUpperCase()} with ${riskAssessment.positionPct.toFixed(1)}% target exposure (${riskAssessment.positionCash.toFixed(2)} USDC notional). Limits: max ${riskAssessment.maxPositionPct}% position, confidence >= ${riskAssessment.confidenceThreshold}%, drawdown <= ${riskAssessment.maxBacktestDrawdownPct}%, paper loss <= ${riskAssessment.maxPaperLossPct}%, ${riskAssessment.cooldownDays}D loss cooldown.`
@@ -954,6 +1033,7 @@ export async function buildPaperBotDecision(
     action,
     reason,
     risk,
+    regime,
     targetTrade
   );
   const evidenceTrade = targetTrade
@@ -993,6 +1073,7 @@ export async function buildPaperBotDecision(
       volumeVerdict: snapshot.volumeTrend.verdict,
       volumeVsSevenDayPct: snapshot.volumeTrend.changeVsSevenDayPct,
       marketData: snapshot.marketData,
+      regime,
       lastSignal: targetTrade
         ? { side: targetTrade.side, time: targetTrade.time, reason: targetTrade.reason }
         : recentTrade
@@ -1030,7 +1111,15 @@ export async function ensurePaperBotDecisionBrief(
     backtests.find((item) => item.strategy === selectedStrategy) ??
     backtests[0] ??
     backtestStrategy(snapshot.candles, selectedStrategy);
-  const decision = await buildPaperBotDecision(snapshot, backtest, backtest.strategy);
+  const regime = detectMarketRegime(snapshot, backtests.length ? backtests : [backtest]);
+  const selectedBacktest =
+    backtests.find((item) => item.strategy === regime.selectedStrategy) ?? backtest;
+  const decision = await buildPaperBotDecision(
+    snapshot,
+    selectedBacktest,
+    regime.selectedStrategy,
+    regime
+  );
 
   journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
   await writeJournal(journal);
@@ -1069,14 +1158,32 @@ export async function runPaperBotDecision(
 
     if (existingDecision?.kind === 'bot') return existingDecision;
 
-    const decision = await buildPaperBotDecision(snapshot, backtest, selectedStrategy, targetTrade);
+    const decision = await buildPaperBotDecision(
+      snapshot,
+      backtest,
+      selectedStrategy,
+      undefined,
+      targetTrade
+    );
     journal.decisions = [...journal.decisions, decision].slice(-MAX_DECISIONS);
     await writeJournal(journal);
     if (databaseEnabled()) await rebuildPaperWallet(journal.decisions);
     return decision;
   }
 
-  const decision = await buildPaperBotDecision(snapshot, backtest, selectedStrategy);
+  const allBacktests = (['sma-cross', 'rsi-reversion', 'volume-breakout'] as const).map(
+    (strategy) =>
+      strategy === selectedStrategy ? backtest : backtestStrategy(snapshot.candles, strategy)
+  );
+  const regime = detectMarketRegime(snapshot, allBacktests);
+  const selectedBacktest =
+    allBacktests.find((item) => item.strategy === regime.selectedStrategy) ?? backtest;
+  const decision = await buildPaperBotDecision(
+    snapshot,
+    selectedBacktest,
+    regime.selectedStrategy,
+    regime
+  );
   await appendPaperDecision(decision);
   return decision;
 }
