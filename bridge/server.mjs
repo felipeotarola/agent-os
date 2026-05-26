@@ -470,6 +470,32 @@ function memoryCandidateFiles() {
     .toSorted((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
+function selectMemoryCandidates(limitPerAgent) {
+  const byAgent = new Map();
+  for (const candidate of memoryCandidateFiles()) {
+    const rows = byAgent.get(candidate.agentId) ?? [];
+    rows.push(candidate);
+    byAgent.set(candidate.agentId, rows);
+  }
+
+  const selected = [];
+  for (const agentId of MEMORY_HARVEST_AGENTS) {
+    const rows = byAgent.get(agentId) ?? [];
+    const core = rows.filter(
+      (row) => row.path.endsWith('/MEMORY.md') || row.path.endsWith('/DREAMS.md')
+    );
+    const rest = rows.filter((row) => !core.includes(row));
+    const picked = [...core, ...rest].slice(0, limitPerAgent);
+    selected.push(...picked);
+  }
+
+  return selected.toSorted((a, b) => {
+    const agentDelta = MEMORY_HARVEST_AGENTS.indexOf(a.agentId) - MEMORY_HARVEST_AGENTS.indexOf(b.agentId);
+    if (agentDelta !== 0) return agentDelta;
+    return b.mtimeMs - a.mtimeMs;
+  });
+}
+
 function memoryKindForPath(path) {
   if (path.endsWith('/MEMORY.md')) return 'long-term-memory';
   if (path.endsWith('/DREAMS.md')) return 'dreams-index';
@@ -502,7 +528,7 @@ function memorySummary(text, path) {
 async function harvestMemoryKnowledge(input = {}) {
   const limit = Math.min(Number(input.limit ?? 20), 80);
   const dryRun = Boolean(input.dryRun);
-  const candidates = memoryCandidateFiles().slice(0, limit);
+  const candidates = selectMemoryCandidates(limit);
   const imported = [];
   const updated = [];
 
@@ -542,7 +568,7 @@ async function harvestMemoryKnowledge(input = {}) {
   await auditEvent(
     'memory_harvest',
     `Memory harvester ${dryRun ? 'previewed' : 'synced'} ${candidates.length} memory files`,
-    { dryRun, limit, importedCount: imported.length, updatedCount: updated.length },
+    { dryRun, limitPerAgent: limit, importedCount: imported.length, updatedCount: updated.length },
     5
   );
   return {

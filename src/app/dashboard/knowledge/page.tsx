@@ -556,7 +556,7 @@ function KnowledgeRightRail({
         <CardContent>
           <form action='/api/knowledge/memory/harvest' method='post' className='space-y-4'>
             <div className='space-y-2'>
-              <Label htmlFor='memory-limit'>Max files</Label>
+              <Label htmlFor='memory-limit'>Max files / agent</Label>
               <Input
                 id='memory-limit'
                 name='limit'
@@ -567,7 +567,8 @@ function KnowledgeRightRail({
               />
             </div>
             <div className='text-muted-foreground text-xs leading-5'>
-              Importerar som <code>extracted</code>; inget blir promoted/context-ready utan review.
+              Importerar balanserat per agent som <code>extracted</code>; inget blir
+              promoted/context-ready utan review.
             </div>
             <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Synkar...'>
               Sync memory to Knowledge
