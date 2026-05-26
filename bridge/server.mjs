@@ -2203,8 +2203,28 @@ function eventNotificationAction(event) {
   return notificationAction('open-overview', 'Open overview', '/dashboard/overview');
 }
 
+const ACTIVE_DEPLOYMENT_STATES = new Set(['BUILDING', 'QUEUED', 'INITIALIZING', 'DEPLOYING']);
+const FAILED_DEPLOYMENT_STATES = new Set(['ERROR', 'CANCELED']);
+
+function deploymentNotificationStatus(deployment) {
+  const state = String(deployment.state ?? '').toUpperCase();
+  if (ACTIVE_DEPLOYMENT_STATES.has(state) || FAILED_DEPLOYMENT_STATES.has(state)) return 'unread';
+  return 'read';
+}
+
+function deploymentNotificationTitle(deployment) {
+  const state = String(deployment.state ?? 'unknown').toUpperCase();
+  if (ACTIVE_DEPLOYMENT_STATES.has(state)) return `Build ${state.toLowerCase()}`;
+  if (FAILED_DEPLOYMENT_STATES.has(state)) return `Build ${state.toLowerCase()}`;
+  return `Latest build ${state.toLowerCase()}`;
+}
+
+function deploymentNotificationHref(deployment) {
+  return deployment.inspectorUrl || deployment.url || '/dashboard/vercel';
+}
+
 async function notificationsSnapshot() {
-  const [waitingTasks, overdueTasks, staleTasks, rawKnowledge, recentEvents, memory] =
+  const [waitingTasks, overdueTasks, staleTasks, rawKnowledge, recentEvents, memory, vercel] =
     await Promise.all([
     sql`
       select t.id, t.title, t.description, t.status, t.updated_at as "updatedAt", p.name as "projectName"
@@ -2246,7 +2266,8 @@ async function notificationsSnapshot() {
       order by created_at desc
       limit 30
     `,
-    memoryStatus()
+    memoryStatus(),
+    cachedRuntimeValue('notifications:vercel', 30_000, () => vercelSnapshot())
   ]);
 
   const notifications = [];
@@ -2325,6 +2346,39 @@ async function notificationsSnapshot() {
       actions: [
         notificationAction('open-command', 'Open command', '/dashboard/command?run=memory-status')
       ]
+    });
+  }
+
+  if (vercel?.connected) {
+    const deployments = Array.isArray(vercel.deployments) ? vercel.deployments : [];
+    const visibleDeployments = deployments.filter((deployment, index) => {
+      const state = String(deployment.state ?? '').toUpperCase();
+      return index === 0 || ACTIVE_DEPLOYMENT_STATES.has(state) || FAILED_DEPLOYMENT_STATES.has(state);
+    });
+
+    for (const deployment of visibleDeployments.slice(0, 5)) {
+      const state = String(deployment.state ?? 'unknown').toUpperCase();
+      notifications.push({
+        id: `build:${deployment.uid}:${state}`,
+        title: deploymentNotificationTitle(deployment),
+        body: `${deployment.name} · ${deployment.target ?? 'unknown target'}${deployment.url ? ` · ${deployment.url}` : ''}`,
+        status: deploymentNotificationStatus(deployment),
+        kind: 'build',
+        createdAt: deployment.createdAt ? new Date(deployment.createdAt).toISOString() : vercel.generatedAt,
+        actions: [
+          notificationAction('open-build', 'Open build', deploymentNotificationHref(deployment))
+        ]
+      });
+    }
+  } else if (vercel?.alerts?.length) {
+    notifications.push({
+      id: 'build:vercel-unavailable',
+      title: 'Build status unavailable',
+      body: vercel.alerts[0]?.detail ?? 'Vercel deployment snapshot is unavailable.',
+      status: 'unread',
+      kind: 'build',
+      createdAt: vercel.generatedAt ?? new Date().toISOString(),
+      actions: [notificationAction('open-vercel', 'Open Vercel', '/dashboard/vercel')]
     });
   }
 
