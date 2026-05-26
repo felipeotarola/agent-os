@@ -546,6 +546,37 @@ function KnowledgeRightRail({
       </Card>
       <Card>
         <CardHeader>
+          <CardTitle>Memory harvester</CardTitle>
+          <CardDescription>
+            Speglar MEMORY.md, daily notes, DREAMS och dreaming/short-term recall till Knowledge
+            Inbox som reviewbara källor. Det här är varför minnen inte alltid syntes här tidigare:
+            QMD-memory och Knowledge DB är separata lager.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action='/api/knowledge/memory/harvest' method='post' className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='memory-limit'>Max files</Label>
+              <Input
+                id='memory-limit'
+                name='limit'
+                type='number'
+                defaultValue={20}
+                min={1}
+                max={80}
+              />
+            </div>
+            <div className='text-muted-foreground text-xs leading-5'>
+              Importerar som <code>extracted</code>; inget blir promoted/context-ready utan review.
+            </div>
+            <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Synkar...'>
+              Sync memory to Knowledge
+            </SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
           <CardTitle>Session retention policy</CardTitle>
           <CardDescription>
             V1-policy: extrahera först, arkivera hellre än radera, ingen automatisk hard delete.
@@ -617,6 +648,7 @@ export default async function KnowledgePage({
     archived?: string;
     deleted?: string;
     sessions?: string;
+    memory?: string;
     error?: string;
   }>;
 }) {
@@ -660,6 +692,7 @@ export default async function KnowledgePage({
           params.archived ||
           params.deleted ||
           params.sessions ||
+          params.memory ||
           params.error) && (
           <Card className={params.error ? 'border-destructive/40' : 'border-primary/40'}>
             <CardContent className='pt-6 text-sm'>
@@ -675,6 +708,9 @@ export default async function KnowledgePage({
                 'Agent-/chat-sessioner importerade till Knowledge Inbox för review.'}
               {params.sessions === 'previewed' &&
                 'Session harvester preview körd. Använd JSON-endpointen för detaljer.'}
+              {params.memory === 'harvested' &&
+                'Memory/dreaming-filer synkade till Knowledge Inbox för review.'}
+              {params.memory === 'previewed' && 'Memory harvester preview körd.'}
               {params.error === 'no-db' &&
                 'Ingen DATABASE_URL i den här miljön. Kör lokalt eller koppla hosted DB.'}
               {params.error === 'missing' && 'Titel och antingen URL eller råtext krävs.'}

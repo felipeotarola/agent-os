@@ -51,7 +51,7 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
 
   try {
     const [sources, counts] = await Promise.all([
-      db.select().from(knowledgeSources).orderBy(desc(knowledgeSources.createdAt)).limit(20),
+      db.select().from(knowledgeSources).orderBy(desc(knowledgeSources.createdAt)).limit(80),
       db
         .select({ status: knowledgeSources.status, count: drizzleSql<number>`count(*)::int` })
         .from(knowledgeSources)

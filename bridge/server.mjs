@@ -63,8 +63,9 @@ const CONTENT_PLATFORMS = [
 ];
 const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
 const CONTENT_MEDIA_PREFIXES = ['image/'];
-const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis'];
+const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
+const MEMORY_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
 const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
 const runtimeCache = new Map();
 
@@ -384,6 +385,10 @@ function sessionAgentRoot(agentId) {
   return `/root/.openclaw/agents/${agentId}`;
 }
 
+function agentWorkspaceDir(agentId) {
+  return agentId === 'main' ? OPENCLAW_WORKSPACE : `${sessionAgentRoot(agentId)}/workspace`;
+}
+
 function sessionCandidateFiles() {
   const files = [];
   for (const agentId of SESSION_HARVEST_AGENTS) {
@@ -405,6 +410,156 @@ function sessionCandidateFiles() {
     }
   }
   return files;
+}
+
+function walkMarkdownFiles(root, maxDepth = 4, depth = 0) {
+  if (!existsSync(root) || depth > maxDepth) return [];
+  const files = [];
+  for (const name of readdirSync(root)) {
+    if (name.startsWith('.') && name !== '.dreams') continue;
+    const path = `${root}/${name}`;
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      files.push(...walkMarkdownFiles(path, maxDepth, depth + 1));
+    } else if (stat.isFile() && (name.endsWith('.md') || name.endsWith('.json'))) {
+      files.push({ path, name, size: stat.size, mtimeMs: stat.mtimeMs });
+    }
+  }
+  return files;
+}
+
+function memoryCandidateFiles() {
+  const files = [];
+  for (const agentId of MEMORY_HARVEST_AGENTS) {
+    const workspace = agentWorkspaceDir(agentId);
+    const roots = [
+      `${workspace}/MEMORY.md`,
+      `${workspace}/DREAMS.md`,
+      `${workspace}/memory`,
+      `${workspace}/memory/.dreams`
+    ];
+    for (const root of roots) {
+      if (!existsSync(root)) continue;
+      try {
+        const stat = statSync(root);
+        if (stat.isFile() && (root.endsWith('.md') || root.endsWith('.json'))) {
+          files.push({ agentId, path: root, name: root.split('/').pop(), size: stat.size, mtimeMs: stat.mtimeMs });
+        } else if (stat.isDirectory()) {
+          files.push(...walkMarkdownFiles(root).map((file) => ({ agentId, ...file })));
+        }
+      } catch {
+        // Ignore paths that disappear during inventory.
+      }
+    }
+  }
+
+  const seen = new Set();
+  return files
+    .filter((file) => {
+      if (file.size < 80) return false;
+      if (file.path.includes('/node_modules/') || file.path.includes('/.git/')) return false;
+      if (seen.has(file.path)) return false;
+      seen.add(file.path);
+      return true;
+    })
+    .toSorted((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+function memoryKindForPath(path) {
+  if (path.endsWith('/MEMORY.md')) return 'long-term-memory';
+  if (path.endsWith('/DREAMS.md')) return 'dreams-index';
+  if (path.includes('/memory/.dreams/')) return 'short-term-memory';
+  if (path.includes('/memory/dreaming/')) return 'dreaming-memory';
+  if (path.includes('/memory/')) return 'daily-memory';
+  return 'memory-file';
+}
+
+function memoryRelativePath(agentId, path) {
+  const workspace = agentWorkspaceDir(agentId);
+  return path.startsWith(`${workspace}/`) ? path.slice(workspace.length + 1) : path;
+}
+
+function memoryTitle(agentId, path) {
+  const rel = memoryRelativePath(agentId, path);
+  return `${agentId} memory: ${rel}`;
+}
+
+function memorySummary(text, path) {
+  const lines = String(text)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('<!--') && !line.startsWith('---'));
+  const heading = lines.find((line) => line.startsWith('#'));
+  const signal = lines.find((line) => /Felipe|decision|beslut|remember|todo|Agent OS|Lysande|Linda|Charles|Cai/i.test(line));
+  return (signal || heading || lines[0] || path).replace(/^#+\s*/, '').slice(0, 1000);
+}
+
+async function harvestMemoryKnowledge(input = {}) {
+  const limit = Math.min(Number(input.limit ?? 20), 80);
+  const dryRun = Boolean(input.dryRun);
+  const candidates = memoryCandidateFiles().slice(0, limit);
+  const imported = [];
+  const updated = [];
+
+  if (!dryRun) {
+    for (const candidate of candidates) {
+      const rel = memoryRelativePath(candidate.agentId, candidate.path);
+      const sourceUrl = `memory://${candidate.agentId}/${rel}`;
+      const kind = memoryKindForPath(candidate.path);
+      const title = memoryTitle(candidate.agentId, candidate.path);
+      const rawContent = readTextSlice(candidate.path, 90000);
+      const summary = memorySummary(rawContent, candidate.path);
+      const rawPath = `knowledge/memory/${candidate.agentId}/${rel}`.replaceAll('//', '/');
+      const existing = await sql`
+        select id from knowledge_sources
+        where source_url = ${sourceUrl}
+        limit 1
+      `;
+
+      if (existing.length) {
+        await sql`
+          update knowledge_sources
+          set title = ${title}, kind = ${kind}, status = 'extracted', raw_content = ${rawContent}, raw_path = ${rawPath}, summary = ${summary}, metadata = ${sql.json({ createdFrom: 'memory-harvester', agentId: candidate.agentId, memoryPath: candidate.path, relativePath: rel, size: candidate.size, mtimeMs: candidate.mtimeMs, harvestedAt: new Date().toISOString() })}, updated_at = now()
+          where id = ${existing[0].id}
+        `;
+        updated.push({ id: existing[0].id, title, kind, rawPath });
+      } else {
+        const id = crypto.randomUUID();
+        await sql`
+          insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
+          values (${id}, ${title}, ${kind}, 'extracted', ${sourceUrl}, ${rawContent}, ${rawPath}, ${summary}, ${sql.json({ createdFrom: 'memory-harvester', agentId: candidate.agentId, memoryPath: candidate.path, relativePath: rel, size: candidate.size, mtimeMs: candidate.mtimeMs, harvestedAt: new Date().toISOString() })})
+        `;
+        imported.push({ id, title, kind, rawPath });
+      }
+    }
+  }
+
+  await auditEvent(
+    'memory_harvest',
+    `Memory harvester ${dryRun ? 'previewed' : 'synced'} ${candidates.length} memory files`,
+    { dryRun, limit, importedCount: imported.length, updatedCount: updated.length },
+    5
+  );
+  return {
+    contract: 'agent-os.memory-knowledge-harvest.v1',
+    generatedAt: new Date().toISOString(),
+    dryRun,
+    selected: candidates.map((candidate) => ({
+      agentId: candidate.agentId,
+      path: candidate.path,
+      relativePath: memoryRelativePath(candidate.agentId, candidate.path),
+      kind: memoryKindForPath(candidate.path),
+      size: candidate.size,
+      mtimeMs: candidate.mtimeMs
+    })),
+    imported,
+    updated
+  };
 }
 
 function sessionSignalScore(text) {
@@ -4181,7 +4336,7 @@ async function knowledgeSnapshot() {
       select id, title, kind, status, source_url as "sourceUrl", summary, raw_path as "rawPath", wiki_path as "wikiPath", wiki_content as "wikiContent", created_at as "createdAt"
       from knowledge_sources
       order by created_at desc
-      limit 20
+      limit 80
     `,
     sql`select status, count(*)::int as count from knowledge_sources group by status`
   ]);
@@ -4814,6 +4969,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/knowledge/sessions/harvest') {
       return send(res, 200, await harvestSessionKnowledge(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/knowledge/memory/harvest') {
+      return send(res, 200, await harvestMemoryKnowledge(await readJson(req)));
     }
 
     send(res, 404, { error: 'not_found' });
