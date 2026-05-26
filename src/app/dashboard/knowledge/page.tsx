@@ -853,7 +853,7 @@ export default async function KnowledgePage({
                 Se exakt var varje dokument är och vad nästa steg är.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className='max-h-[42rem] overflow-y-auto pr-2'>
               {activeSources.length === 0 ? (
                 <div className='text-muted-foreground rounded-xl border border-dashed p-6 text-sm'>
                   Inga aktiva källor i kön. Lägg in första råtexten/URL:en eller återställ något
