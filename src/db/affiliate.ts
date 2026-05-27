@@ -29,12 +29,41 @@ export type AffiliateDailyStat = {
   source: string;
 };
 
+export type AffiliateProduct = {
+  id: string;
+  accountId: string | null;
+  accountName?: string | null;
+  source: string;
+  sourceProductId: string;
+  title: string;
+  category: string;
+  price: number | null;
+  currency: string;
+  imageUrl: string;
+  productUrl: string;
+  trackingLink: string;
+  stockStatus: 'in_stock' | 'out_of_stock' | 'limited' | 'unknown' | string;
+  status: 'active' | 'draft' | 'archived' | string;
+  rating: number | null;
+  reviewCount: number;
+  metadata?: Record<string, unknown>;
+  updatedAt: string;
+};
+
 export type AffiliateSnapshot = {
   source: string;
   generatedAt: string;
   configured: boolean;
   connected: boolean;
   accounts: AffiliateAccount[];
+  products: AffiliateProduct[];
+  catalog: {
+    totalProducts: number;
+    activeProducts: number;
+    categories: string[];
+    inStockProducts: number;
+    needsDataProducts: number;
+  };
   totals: {
     clicks: number;
     orderedItems: number;
@@ -54,6 +83,14 @@ const fallback: AffiliateSnapshot = {
   configured: false,
   connected: false,
   accounts: [],
+  products: [],
+  catalog: {
+    totalProducts: 0,
+    activeProducts: 0,
+    categories: [],
+    inStockProducts: 0,
+    needsDataProducts: 0
+  },
   totals: {
     clicks: 0,
     orderedItems: 0,

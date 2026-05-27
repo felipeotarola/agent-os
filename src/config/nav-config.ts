@@ -118,6 +118,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Sladdis Store',
+        url: '/dashboard/affiliate',
+        icon: 'product',
+        shortcut: ['s', 'l'],
+        items: []
+      },
+      {
         title: 'GitHub',
         url: '/dashboard/github',
         icon: 'github',

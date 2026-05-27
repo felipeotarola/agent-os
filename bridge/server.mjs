@@ -63,6 +63,8 @@ const CONTENT_PLATFORMS = [
 ];
 const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
 const CONTENT_MEDIA_PREFIXES = ['image/'];
+const AFFILIATE_PRODUCT_STATUSES = ['active', 'draft', 'archived'];
+const AFFILIATE_STOCK_STATUSES = ['in_stock', 'out_of_stock', 'limited', 'unknown'];
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 const MEMORY_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
@@ -496,7 +498,13 @@ function memoryCandidateFiles() {
       try {
         const stat = statSync(root);
         if (stat.isFile() && (root.endsWith('.md') || root.endsWith('.json'))) {
-          files.push({ agentId, path: root, name: root.split('/').pop(), size: stat.size, mtimeMs: stat.mtimeMs });
+          files.push({
+            agentId,
+            path: root,
+            name: root.split('/').pop(),
+            size: stat.size,
+            mtimeMs: stat.mtimeMs
+          });
         } else if (stat.isDirectory()) {
           files.push(...walkMarkdownFiles(root).map((file) => ({ agentId, ...file })));
         }
@@ -538,7 +546,8 @@ function selectMemoryCandidates(limitPerAgent) {
   }
 
   return selected.toSorted((a, b) => {
-    const agentDelta = MEMORY_HARVEST_AGENTS.indexOf(a.agentId) - MEMORY_HARVEST_AGENTS.indexOf(b.agentId);
+    const agentDelta =
+      MEMORY_HARVEST_AGENTS.indexOf(a.agentId) - MEMORY_HARVEST_AGENTS.indexOf(b.agentId);
     if (agentDelta !== 0) return agentDelta;
     return b.mtimeMs - a.mtimeMs;
   });
@@ -569,7 +578,9 @@ function memorySummary(text, path) {
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('<!--') && !line.startsWith('---'));
   const heading = lines.find((line) => line.startsWith('#'));
-  const signal = lines.find((line) => /Felipe|decision|beslut|remember|todo|Agent OS|Lysande|Linda|Charles|Cai/i.test(line));
+  const signal = lines.find((line) =>
+    /Felipe|decision|beslut|remember|todo|Agent OS|Lysande|Linda|Charles|Cai/i.test(line)
+  );
   return (signal || heading || lines[0] || path).replace(/^#+\s*/, '').slice(0, 1000);
 }
 
@@ -2038,7 +2049,7 @@ async function taskDispatchSummary() {
   return {
     contract: 'agent-os.task-dispatch-summary.v1',
     generatedAt: new Date().toISOString(),
-    source: 'bridge:postgres',
+    source: 'bridge:supabase',
     actionableStatuses,
     actionableCount,
     byAgent,
@@ -2332,7 +2343,7 @@ function deploymentNotificationHref(deployment) {
 async function notificationsSnapshot() {
   const [waitingTasks, overdueTasks, staleTasks, rawKnowledge, recentEvents, memory, vercel] =
     await Promise.all([
-    sql`
+      sql`
       select t.id, t.title, t.description, t.status, t.updated_at as "updatedAt", p.name as "projectName"
       from tasks t
       left join projects p on p.id = t.project_id
@@ -2340,7 +2351,7 @@ async function notificationsSnapshot() {
       order by t.updated_at desc
       limit 8
     `,
-    sql`
+      sql`
       select t.id, t.title, t.description, t.status, t.due_at as "dueAt", p.name as "projectName"
       from tasks t
       left join projects p on p.id = t.project_id
@@ -2350,7 +2361,7 @@ async function notificationsSnapshot() {
       order by t.due_at asc
       limit 8
     `,
-    sql`
+      sql`
       select t.id, t.title, t.description, t.status, t.priority, t.updated_at as "updatedAt", p.name as "projectName"
       from tasks t
       left join projects p on p.id = t.project_id
@@ -2359,22 +2370,22 @@ async function notificationsSnapshot() {
       order by t.priority desc, t.updated_at asc
       limit 8
     `,
-    sql`
+      sql`
       select id, title, status, created_at as "createdAt"
       from knowledge_sources
       where status in ('raw', 'queued')
       order by created_at desc
       limit 8
     `,
-    sql`
+      sql`
       select id, task_id as "taskId", kind, message, metadata, created_at as "createdAt"
       from task_events
       order by created_at desc
       limit 30
     `,
-    memoryStatus(),
-    cachedRuntimeValue('notifications:vercel', 30_000, () => vercelSnapshot())
-  ]);
+      memoryStatus(),
+      cachedRuntimeValue('notifications:vercel', 30_000, () => vercelSnapshot())
+    ]);
 
   const notifications = [];
 
@@ -2459,7 +2470,9 @@ async function notificationsSnapshot() {
     const deployments = Array.isArray(vercel.deployments) ? vercel.deployments : [];
     const visibleDeployments = deployments.filter((deployment, index) => {
       const state = String(deployment.state ?? '').toUpperCase();
-      return index === 0 || ACTIVE_DEPLOYMENT_STATES.has(state) || FAILED_DEPLOYMENT_STATES.has(state);
+      return (
+        index === 0 || ACTIVE_DEPLOYMENT_STATES.has(state) || FAILED_DEPLOYMENT_STATES.has(state)
+      );
     });
 
     for (const deployment of visibleDeployments.slice(0, 5)) {
@@ -2470,7 +2483,9 @@ async function notificationsSnapshot() {
         body: `${deployment.name} · ${deployment.target ?? 'unknown target'}${deployment.url ? ` · ${deployment.url}` : ''}`,
         status: deploymentNotificationStatus(deployment),
         kind: 'build',
-        createdAt: deployment.createdAt ? new Date(deployment.createdAt).toISOString() : vercel.generatedAt,
+        createdAt: deployment.createdAt
+          ? new Date(deployment.createdAt).toISOString()
+          : vercel.generatedAt,
         actions: [
           notificationAction('open-build', 'Open build', deploymentNotificationHref(deployment))
         ]
@@ -2544,11 +2559,41 @@ async function ensureAffiliateTables() {
       unique(account_id, date)
     )
   `;
+  await sql`
+    create table if not exists affiliate_products (
+      id text primary key,
+      account_id text,
+      source text not null default 'amazon',
+      source_product_id text not null default '',
+      title text not null,
+      category text not null default '',
+      price numeric,
+      currency text not null default 'SEK',
+      image_url text not null default '',
+      product_url text not null default '',
+      tracking_link text not null,
+      stock_status text not null default 'unknown',
+      status text not null default 'draft',
+      rating numeric,
+      review_count integer not null default 0,
+      metadata jsonb not null default '{}',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create unique index if not exists affiliate_products_tracking_link_idx
+    on affiliate_products (tracking_link)
+  `;
+  await sql`
+    create index if not exists affiliate_products_status_category_idx
+    on affiliate_products (status, category)
+  `;
 }
 
 async function affiliateSnapshot() {
   await ensureAffiliateTables();
-  const [accounts, rows] = await Promise.all([
+  const [accounts, rows, products] = await Promise.all([
     sql`
       select id, provider, name, tracking_id as "trackingId", marketplace, status, source, notes, metadata, updated_at as "updatedAt"
       from affiliate_accounts
@@ -2560,6 +2605,14 @@ async function affiliateSnapshot() {
       left join affiliate_accounts a on a.id = s.account_id
       order by s.date desc
       limit 60
+    `,
+    sql`
+      select p.id, p.account_id as "accountId", a.name as "accountName", p.source, p.source_product_id as "sourceProductId", p.title, p.category, p.price, p.currency, p.image_url as "imageUrl", p.product_url as "productUrl", p.tracking_link as "trackingLink", p.stock_status as "stockStatus", p.status, p.rating, p.review_count as "reviewCount", p.metadata, p.updated_at as "updatedAt"
+      from affiliate_products p
+      left join affiliate_accounts a on a.id = p.account_id
+      where p.status <> 'archived'
+      order by p.status asc, p.category asc, p.updated_at desc
+      limit 120
     `
   ]);
 
@@ -2576,20 +2629,40 @@ async function affiliateSnapshot() {
   const conversionRate = totals.clicks
     ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2))
     : 0;
+  const categories = [
+    ...new Set(products.map((product) => product.category).filter(Boolean))
+  ].toSorted();
+  const activeProducts = products.filter((product) => product.status === 'active');
 
   return {
     source: 'bridge:postgres',
     generatedAt: new Date().toISOString(),
     configured: accounts.length > 0,
-    connected: rows.length > 0,
+    connected: rows.length > 0 || products.length > 0,
     accounts,
+    products: products.map((product) => ({
+      ...product,
+      price: product.price === null || product.price === undefined ? null : Number(product.price),
+      rating:
+        product.rating === null || product.rating === undefined ? null : Number(product.rating),
+      reviewCount: Number(product.reviewCount ?? 0)
+    })),
+    catalog: {
+      totalProducts: products.length,
+      activeProducts: activeProducts.length,
+      categories,
+      inStockProducts: products.filter((product) => product.stockStatus === 'in_stock').length,
+      needsDataProducts: products.filter(
+        (product) => !product.imageUrl || !product.price || product.stockStatus === 'unknown'
+      ).length
+    },
     totals: { ...totals, conversionRate, currency: rows[0]?.currency ?? 'SEK' },
     rows,
     nextSteps: [
+      'Add the first Amazon products with title, price, image, category, tracking link, stock, and metadata.',
       'Confirm which Amazon Associates/Creator reporting source Sladdis can access.',
       'Prefer official read-only API/export over browser scraping or manual OAuth loops.',
-      'Store scoped credentials only in bridge/VPS environment, never in Vercel UI.',
-      'Map daily report rows into affiliate_daily_stats and trigger notifications on meaningful changes.'
+      'Map product and daily report rows into affiliate_products and affiliate_daily_stats.'
     ]
   };
 }
@@ -2612,6 +2685,86 @@ async function upsertAffiliateAccount(input) {
     returning id, provider, name, tracking_id as "trackingId", marketplace, status, source, notes, metadata, updated_at as "updatedAt"
   `;
   return rows[0];
+}
+
+async function upsertAffiliateProduct(input) {
+  await ensureAffiliateTables();
+  const id = String(input.id ?? crypto.randomUUID()).trim();
+  const accountId = String(input.accountId ?? input.account_id ?? '').trim() || null;
+  const source = String(input.source ?? 'amazon').trim() || 'amazon';
+  const sourceProductId = String(input.sourceProductId ?? input.source_product_id ?? '').trim();
+  const title = String(input.title ?? '').trim();
+  if (!title) {
+    const error = new Error('title is required');
+    error.status = 400;
+    throw error;
+  }
+  const category = String(input.category ?? '').trim();
+  const price =
+    input.price === null || input.price === undefined || input.price === ''
+      ? null
+      : Number(input.price);
+  const currency = String(input.currency ?? 'SEK').trim() || 'SEK';
+  const imageUrl = String(input.imageUrl ?? input.image_url ?? '').trim();
+  const productUrl = String(input.productUrl ?? input.product_url ?? '').trim();
+  const trackingLink = String(input.trackingLink ?? input.tracking_link ?? '').trim();
+  if (!trackingLink) {
+    const error = new Error('trackingLink is required');
+    error.status = 400;
+    throw error;
+  }
+  const rawStockStatus = String(input.stockStatus ?? input.stock_status ?? 'unknown').trim();
+  const stockStatus = AFFILIATE_STOCK_STATUSES.includes(rawStockStatus)
+    ? rawStockStatus
+    : 'unknown';
+  const rawStatus = String(input.status ?? 'draft').trim();
+  const status = AFFILIATE_PRODUCT_STATUSES.includes(rawStatus) ? rawStatus : 'draft';
+  const rating =
+    input.rating === null || input.rating === undefined || input.rating === ''
+      ? null
+      : Number(input.rating);
+  const reviewCount = Number(input.reviewCount ?? input.review_count ?? 0);
+  const metadata = typeof input.metadata === 'object' && input.metadata ? input.metadata : {};
+
+  const rows = await sql`
+    insert into affiliate_products (
+      id, account_id, source, source_product_id, title, category, price, currency, image_url,
+      product_url, tracking_link, stock_status, status, rating, review_count, metadata, updated_at
+    )
+    values (
+      ${id}, ${accountId}, ${source}, ${sourceProductId}, ${title}, ${category}, ${price}, ${currency},
+      ${imageUrl}, ${productUrl}, ${trackingLink}, ${stockStatus}, ${status}, ${rating},
+      ${reviewCount}, ${sql.json(metadata)}, now()
+    )
+    on conflict (id) do update set
+      account_id = excluded.account_id,
+      source = excluded.source,
+      source_product_id = excluded.source_product_id,
+      title = excluded.title,
+      category = excluded.category,
+      price = excluded.price,
+      currency = excluded.currency,
+      image_url = excluded.image_url,
+      product_url = excluded.product_url,
+      tracking_link = excluded.tracking_link,
+      stock_status = excluded.stock_status,
+      status = excluded.status,
+      rating = excluded.rating,
+      review_count = excluded.review_count,
+      metadata = excluded.metadata,
+      updated_at = now()
+    returning id, account_id as "accountId", source, source_product_id as "sourceProductId", title,
+      category, price, currency, image_url as "imageUrl", product_url as "productUrl",
+      tracking_link as "trackingLink", stock_status as "stockStatus", status, rating,
+      review_count as "reviewCount", metadata, updated_at as "updatedAt"
+  `;
+  const product = rows[0];
+  return {
+    ...product,
+    price: product.price === null || product.price === undefined ? null : Number(product.price),
+    rating: product.rating === null || product.rating === undefined ? null : Number(product.rating),
+    reviewCount: Number(product.reviewCount ?? 0)
+  };
 }
 
 async function supabaseSnapshot() {
@@ -5044,6 +5197,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/affiliate/accounts') {
       return send(res, 201, await upsertAffiliateAccount(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/products') {
+      return send(res, 201, await upsertAffiliateProduct(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {
