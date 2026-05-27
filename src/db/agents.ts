@@ -21,6 +21,20 @@ const openClawAgentsSchema = z.object({
 
 export type OpenClawAgent = z.infer<typeof openClawAgentSchema>;
 
+const taskOwnerAgentSchema = z.object({
+  id: z.string(),
+  name: z.string().optional().nullable(),
+  role: z.string().optional().nullable(),
+  status: z.string().optional().nullable()
+});
+
+const taskOwnerAgentsSchema = z.object({
+  agents: z.array(taskOwnerAgentSchema),
+  source: z.string()
+});
+
+export type TaskOwnerAgent = z.infer<typeof taskOwnerAgentSchema>;
+
 const lindaAgent: OpenClawAgent = {
   id: 'linda',
   name: 'Linda',
@@ -46,6 +60,14 @@ const fallbackAgents: OpenClawAgent[] = [
   lindaAgent
 ];
 
+const fallbackTaskOwnerAgents: TaskOwnerAgent[] = [
+  { id: 'cai', name: 'Cai', role: 'Orchestrator', status: 'online' },
+  { id: 'charles', name: 'Charles', role: 'Product/research', status: 'online' },
+  { id: 'sladdis', name: 'Sladdis', role: 'Affiliate store operator', status: 'online' },
+  { id: 'linda', name: 'Linda', role: 'Paper trading research', status: 'online' },
+  { id: 'worker-pool', name: 'Worker pool', role: 'Implementation', status: 'online' }
+];
+
 function withLinda(agents: OpenClawAgent[]) {
   return agents.some((agent) => agent.id === 'linda' || agent.identityName === 'Linda')
     ? agents
@@ -63,4 +85,16 @@ export async function getOpenClawAgents() {
   }
 
   return { agents: withLinda(fallbackAgents), source: 'fallback' };
+}
+
+export async function getTaskOwnerAgents() {
+  if (hasBridge()) {
+    try {
+      return taskOwnerAgentsSchema.parse(await bridgeRequest('/task-owner-agents'));
+    } catch (error) {
+      console.error('Task owner agents bridge request failed', error);
+    }
+  }
+
+  return { agents: fallbackTaskOwnerAgents, source: 'fallback' };
 }

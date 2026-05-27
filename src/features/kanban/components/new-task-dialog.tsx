@@ -20,8 +20,17 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import type { TaskOwnerAgent } from '@/db/agents';
 
-export default function NewTaskDialog() {
+type NewTaskDialogProps = {
+  agents: TaskOwnerAgent[];
+};
+
+function agentLabel(agent: TaskOwnerAgent) {
+  return agent.name ? `${agent.name} (${agent.id})` : agent.id;
+}
+
+export default function NewTaskDialog({ agents }: NewTaskDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -33,7 +42,7 @@ export default function NewTaskDialog() {
         <DialogHeader className='min-w-0 pr-6'>
           <DialogTitle>Add Agent OS task</DialogTitle>
           <DialogDescription>
-            Creates a real Postgres-backed task in the cockpit board.
+            Creates a real Supabase-backed task in the cockpit board.
           </DialogDescription>
         </DialogHeader>
         <form action='/api/tasks' method='post' className='grid min-w-0 max-w-full gap-4 py-4'>
@@ -77,9 +86,11 @@ export default function NewTaskDialog() {
                   <SelectValue placeholder='Owner' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='cai'>Cai</SelectItem>
-                  <SelectItem value='charles'>Charles</SelectItem>
-                  <SelectItem value='sladdis'>Sladdis</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agentLabel(agent)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

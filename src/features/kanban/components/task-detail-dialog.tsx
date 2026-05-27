@@ -23,12 +23,14 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import type { TaskOwnerAgent } from '@/db/agents';
 import type { Priority, Task } from '../utils/store';
 import { COLUMN_TITLES, TASK_COLUMNS } from '../utils/store';
 
 type TaskDetailDialogProps = {
   task: Task | null;
   open: boolean;
+  agents: TaskOwnerAgent[];
   onOpenChange: (open: boolean) => void;
   onTaskUpdate: (task: Task) => void;
 };
@@ -50,6 +52,12 @@ type EditableTask = {
   projectId: string;
   dueDate: string;
 };
+
+const UNASSIGNED_OWNER = '__unassigned__';
+
+function agentLabel(agent: TaskOwnerAgent) {
+  return agent.name ? `${agent.name} (${agent.id})` : agent.id;
+}
 
 function editableTask(task: Task | null): EditableTask {
   return {
@@ -76,6 +84,7 @@ function extractMermaidBlocks(value: string) {
 export function TaskDetailDialog({
   task,
   open,
+  agents,
   onOpenChange,
   onTaskUpdate
 }: TaskDetailDialogProps) {
@@ -96,6 +105,13 @@ export function TaskDetailDialog({
 
   const formKey = useMemo(() => editableKey(form), [form]);
   const mermaidBlocks = useMemo(() => extractMermaidBlocks(form.description), [form.description]);
+  const ownerOptions = useMemo(() => {
+    if (!form.ownerAgentId || agents.some((agent) => agent.id === form.ownerAgentId)) return agents;
+    return [
+      { id: form.ownerAgentId, name: form.ownerAgentId, role: 'Current assignee' },
+      ...agents
+    ];
+  }, [agents, form.ownerAgentId]);
 
   useEffect(() => {
     if (!open) return;
@@ -326,13 +342,25 @@ export function TaskDetailDialog({
 
             <div className='grid gap-4 md:grid-cols-2'>
               <div className='space-y-2'>
-                <Label htmlFor='task-owner'>Owner/agent id</Label>
-                <Input
-                  id='task-owner'
-                  value={form.ownerAgentId}
-                  onChange={(event) => update('ownerAgentId', event.target.value)}
-                  placeholder='cai, charles, worker…'
-                />
+                <Label>Owner/agent</Label>
+                <Select
+                  value={form.ownerAgentId || UNASSIGNED_OWNER}
+                  onValueChange={(value) =>
+                    update('ownerAgentId', value === UNASSIGNED_OWNER ? '' : value)
+                  }
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder='Choose agent' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED_OWNER}>Unassigned</SelectItem>
+                    {ownerOptions.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agentLabel(agent)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className='space-y-2'>
                 <Label htmlFor='task-project'>Project id</Label>

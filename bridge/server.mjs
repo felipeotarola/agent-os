@@ -96,6 +96,54 @@ function configuredAgents() {
   }
 }
 
+async function taskOwnerAgents() {
+  return await sql`
+    select id, name, role, status
+    from agents
+    order by case when id = 'cai' then 0 else 1 end, name nulls last, id
+  `;
+}
+
+function humanOwnerName(ownerAgentId) {
+  if (ownerAgentId === 'felipe') return 'Felipe';
+  const rawName = String(ownerAgentId ?? '')
+    .replace(/^user[:-]?/, '')
+    .replaceAll('-', ' ')
+    .trim();
+  if (!rawName) return 'User';
+  return rawName.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+async function ensureTaskOwnerAgent(ownerAgentId) {
+  if (!ownerAgentId) return;
+  const rows = await sql`select id from agents where id = ${ownerAgentId} limit 1`;
+  if (rows.length) return;
+  if (ownerAgentId !== 'felipe' && !ownerAgentId.startsWith('user-')) return;
+
+  await sql`
+    insert into agents (id, name, emoji, role, runtime, status, detail, last_seen_at, updated_at)
+    values (
+      ${ownerAgentId},
+      ${humanOwnerName(ownerAgentId)},
+      '👤',
+      'Logged-in user',
+      'human',
+      'online',
+      'Human owner from Agent OS session',
+      now(),
+      now()
+    )
+    on conflict (id) do update set
+      name = excluded.name,
+      role = excluded.role,
+      runtime = excluded.runtime,
+      status = excluded.status,
+      detail = excluded.detail,
+      last_seen_at = now(),
+      updated_at = now()
+  `;
+}
+
 async function openclawJson(args, options = {}) {
   const { stdout } = await execFileAsync('node', [OPENCLAW_CLI, ...args], {
     timeout: options.timeout ?? 20000,
@@ -254,8 +302,8 @@ function createGatewayRpcClient() {
 
             if (frame?.type === 'event' && frame.event === 'connect.challenge') {
               rawRequest('connect', {
-                minProtocol: 3,
-                maxProtocol: 3,
+                minProtocol: 4,
+                maxProtocol: 4,
                 client: {
                   id: 'gateway-client',
                   displayName: 'Agent OS bridge RPC',
@@ -3246,6 +3294,7 @@ async function createTask(input) {
   const projectId = String(input.projectId ?? 'agent-os').trim() || 'agent-os';
   const ownerAgentId = String(input.ownerAgentId ?? 'cai').trim() || 'cai';
   const priority = taskPriorityValue(String(input.priority ?? 'medium'));
+  await ensureTaskOwnerAgent(ownerAgentId);
   const [{ position }] = await sql`
     select coalesce(max(position), 0) + 1000 as position
     from tasks
@@ -3350,6 +3399,7 @@ async function updateTask(input) {
   const dueAt = hasDueDate && input.dueDate ? new Date(String(input.dueDate)).toISOString() : null;
   const hasPosition = Object.prototype.hasOwnProperty.call(input, 'position');
   const position = hasPosition ? Number(input.position ?? 0) : null;
+  if (hasOwnerAgentId) await ensureTaskOwnerAgent(ownerAgentId);
 
   const existingRows = await sql`
     select id, project_id as "projectId", title, description, status, priority, owner_agent_id as "ownerAgentId", source, due_at as "dueAt", position, updated_at as "updatedAt"
@@ -3871,8 +3921,8 @@ function openGatewayEventStream({ sessionKey, onEvent, onError, onReady, onClose
           }
 
           request('connect', {
-            minProtocol: 3,
-            maxProtocol: 3,
+            minProtocol: 4,
+            maxProtocol: 4,
             client: {
               id: 'gateway-client',
               displayName: 'Agent OS bridge',
@@ -4913,6 +4963,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/agents') {
       return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/task-owner-agents') {
+      return send(res, 200, { agents: await taskOwnerAgents(), source: 'bridge:agents' });
     }
 
     if (req.method === 'GET' && url.pathname === '/assistant/readiness-files') {

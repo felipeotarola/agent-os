@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Kanban, KanbanBoard as KanbanBoardPrimitive, KanbanOverlay } from '@/components/ui/kanban';
+import type { TaskOwnerAgent } from '@/db/agents';
 import type { KanbanColumns, Task } from '../utils/store';
 import { TASK_COLUMNS } from '../utils/store';
 import { TaskColumn } from './board-column';
@@ -12,6 +13,7 @@ import { createRestrictToContainer } from '../utils/restrict-to-container';
 type KanbanBoardProps = {
   initialColumns: KanbanColumns;
   columnOrder?: string[];
+  agents: TaskOwnerAgent[];
 };
 
 function normalizeColumns(columns: KanbanColumns, columnOrder: string[]) {
@@ -33,7 +35,11 @@ async function persistBoard(columns: KanbanColumns) {
   if (!response.ok) throw new Error(await response.text());
 }
 
-export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }: KanbanBoardProps) {
+export function KanbanBoard({
+  initialColumns,
+  columnOrder = [...TASK_COLUMNS],
+  agents
+}: KanbanBoardProps) {
   const orderedColumns = useMemo(
     () => (columnOrder.length ? columnOrder : [...TASK_COLUMNS]),
     [columnOrder]
@@ -93,7 +99,7 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
             ? 'Sparar…'
             : syncState === 'error'
               ? 'Sync-fel'
-              : 'Synkad med Postgres'}
+              : 'Synkad med Supabase'}
         </span>
       </div>
       <Kanban
@@ -134,6 +140,7 @@ export function KanbanBoard({ initialColumns, columnOrder = [...TASK_COLUMNS] }:
       <TaskDetailDialog
         task={selectedTask}
         open={Boolean(selectedTask)}
+        agents={agents}
         onOpenChange={(open) => {
           if (!open) setSelectedTask(null);
         }}
