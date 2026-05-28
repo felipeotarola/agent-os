@@ -1,5 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
+import { ImageLibraryPanel } from './image-library-panel';
 import { ImageUploadForm } from './image-upload-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,6 @@ import {
   contentStatuses,
   getContentStudioSnapshot,
   type ContentItem,
-  type ContentMediaAsset,
   type ContentPlatform,
   type ContentStatus
 } from '@/db/content';
@@ -84,6 +84,10 @@ function statusCopy(params: {
   if (params.action === 'schedule')
     return { variant: 'secondary' as const, text: 'Scheduled for launch control' };
   if (params.action === 'archive') return { variant: 'secondary' as const, text: 'Archived' };
+  if (params.action === 'mark-used')
+    return { variant: 'secondary' as const, text: 'Image marked as used' };
+  if (params.action === 'clear-used')
+    return { variant: 'secondary' as const, text: 'Image usage cleared' };
   if (params.launch === 'blocked')
     return { variant: 'outline' as const, text: 'Manual launch is intentionally disabled in V1' };
   if (params.error === 'image-required')
@@ -92,6 +96,8 @@ function statusCopy(params: {
     return { variant: 'destructive' as const, text: 'Only image uploads are accepted' };
   if (params.error === 'too-many-images')
     return { variant: 'destructive' as const, text: 'Upload 20 images or fewer at a time' };
+  if (params.error === 'platform-required')
+    return { variant: 'destructive' as const, text: 'Choose at least one platform' };
   if (params.error)
     return { variant: 'destructive' as const, text: `Content action failed: ${params.error}` };
   return null;
@@ -120,83 +126,6 @@ function imageLibraryAssets(items: ContentItem[]) {
       const aTime = new Date(a.createdAt ?? a.itemUpdatedAt ?? 0).getTime();
       return bTime - aTime;
     });
-}
-
-function ImageLibraryPanel({
-  assets,
-  collections
-}: {
-  assets: Array<
-    ContentMediaAsset & {
-      collection: string;
-      itemTitle: string;
-      itemUpdatedAt?: string | null;
-    }
-  >;
-  collections: number;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-          <div className='flex items-start gap-3'>
-            <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
-            <div>
-              <CardTitle>Image library</CardTitle>
-              <CardDescription>
-                One reusable container for every uploaded image asset.
-              </CardDescription>
-            </div>
-          </div>
-          <div className='flex flex-wrap gap-2'>
-            <Badge variant='secondary'>
-              {assets.length} image{assets.length === 1 ? '' : 's'}
-            </Badge>
-            <Badge variant='outline'>
-              {collections} collection{collections === 1 ? '' : 's'}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {assets.length ? (
-          <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6'>
-            {assets.map((asset) =>
-              asset.blobUrl ? (
-                <a
-                  key={asset.id}
-                  href={asset.blobUrl}
-                  target='_blank'
-                  rel='noreferrer'
-                  className='group block overflow-hidden rounded-lg border bg-muted'
-                  title={asset.fileName ?? asset.itemTitle}
-                >
-                  <span
-                    aria-label={asset.fileName ?? asset.itemTitle}
-                    className='block aspect-square bg-cover bg-center transition group-hover:scale-105'
-                    role='img'
-                    style={{ backgroundImage: `url(${asset.blobUrl})` }}
-                  />
-                  <span className='block min-w-0 border-t bg-background/95 px-2 py-1.5'>
-                    <span className='block truncate text-xs font-medium'>
-                      {asset.fileName ?? 'Source image'}
-                    </span>
-                    <span className='text-muted-foreground block truncate text-[11px]'>
-                      {asset.collection}
-                    </span>
-                  </span>
-                </a>
-              ) : null
-            )}
-          </div>
-        ) : (
-          <div className='rounded-lg border border-dashed p-6 text-sm text-muted-foreground'>
-            Upload images from the panel on the right and they will collect here.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 function ContentActions({ item }: { item: ContentItem }) {

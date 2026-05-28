@@ -35,6 +35,8 @@ const contentMediaAssetSchema = z.object({
   fileName: z.string().nullable().optional(),
   contentType: z.string().nullable().optional(),
   bytes: z.number().nullable().optional(),
+  usedAt: z.string().nullable().optional(),
+  usedPlatforms: z.array(contentPlatformSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.string().nullable().optional(),
   updatedAt: z.string().nullable().optional()

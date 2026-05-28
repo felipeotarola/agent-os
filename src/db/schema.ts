@@ -185,6 +185,8 @@ export const contentMediaAssets = pgTable('content_media_assets', {
   fileName: text('file_name'),
   contentType: text('content_type'),
   bytes: integer('bytes'),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  usedPlatforms: jsonb('used_platforms').$type<string[]>().notNull().default([]),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()

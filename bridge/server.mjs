@@ -1441,10 +1441,17 @@ async function ensureContentTables() {
       file_name text,
       content_type text,
       bytes integer,
+      used_at timestamptz,
+      used_platforms jsonb not null default '[]'::jsonb,
       metadata jsonb not null default '{}'::jsonb,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
+  `;
+  await sql`alter table content_media_assets add column if not exists used_at timestamptz`;
+  await sql`
+    alter table content_media_assets
+    add column if not exists used_platforms jsonb not null default '[]'::jsonb
   `;
 }
 
@@ -1598,6 +1605,10 @@ function mapContentMediaAsset(row) {
     fileName: row.fileName ?? null,
     contentType: row.contentType ?? null,
     bytes: row.bytes === null || row.bytes === undefined ? null : Number(row.bytes),
+    usedAt: contentIsoOrNull(row.usedAt),
+    usedPlatforms: Array.isArray(row.usedPlatforms)
+      ? row.usedPlatforms.filter((platform) => CONTENT_PLATFORMS.includes(platform))
+      : [],
     metadata: row.metadata ?? {},
     createdAt: contentIsoOrNull(row.createdAt),
     updatedAt: contentIsoOrNull(row.updatedAt)
@@ -1667,7 +1678,8 @@ async function contentItemsSnapshot() {
     ? await sql`
       select id, content_item_id as "contentItemId", variant_id as "variantId", kind, status,
         blob_key as "blobKey", blob_url as "blobUrl", file_name as "fileName", content_type as "contentType",
-        bytes, metadata, created_at as "createdAt", updated_at as "updatedAt"
+        bytes, used_at as "usedAt", used_platforms as "usedPlatforms", metadata,
+        created_at as "createdAt", updated_at as "updatedAt"
       from content_media_assets
       where content_item_id = any(${ids})
       order by created_at asc
@@ -1750,6 +1762,57 @@ async function createContentItem(input, mediaFiles = []) {
 
   const snapshot = await contentItemsSnapshot();
   return snapshot.items.find((item) => item.id === id);
+}
+
+async function updateContentMediaAsset(input) {
+  await ensureContentTables();
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const action = String(input.action ?? '').trim();
+  const usedPlatforms = Array.isArray(input.usedPlatforms)
+    ? [
+        ...new Set(
+          input.usedPlatforms
+            .map((platform) => String(platform).trim())
+            .filter((platform) => CONTENT_PLATFORMS.includes(platform))
+        )
+      ]
+    : [];
+  if (action === 'mark-used' && !usedPlatforms.length) {
+    const error = new Error('at least one platform is required');
+    error.status = 400;
+    throw error;
+  }
+  if (action !== 'mark-used' && action !== 'clear-used') {
+    const error = new Error('unsupported media asset action');
+    error.status = 400;
+    throw error;
+  }
+
+  const rows = await sql`
+    update content_media_assets
+    set
+      used_at = case when ${action === 'mark-used'} then now() else null end,
+      used_platforms = ${sql.json(action === 'mark-used' ? usedPlatforms : [])}::jsonb,
+      metadata = metadata || ${sql.json({ lastCockpitAction: action })}::jsonb,
+      updated_at = now()
+    where id = ${id}
+    returning content_item_id as "contentItemId"
+  `;
+  if (!rows.length) {
+    const error = new Error('content media asset not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const snapshot = await contentItemsSnapshot();
+  const item = snapshot.items.find((contentItem) => contentItem.id === rows[0].contentItemId);
+  return item?.mediaAssets.find((asset) => asset.id === id) ?? null;
 }
 
 async function updateContentItem(input) {
@@ -5324,6 +5387,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'PATCH' && url.pathname === '/content/items') {
       return send(res, 200, await updateContentItem(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/content/media-assets') {
+      return send(res, 200, await updateContentMediaAsset(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/radar/state') {
