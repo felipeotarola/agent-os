@@ -1,4 +1,5 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { bridgeRequest } from '@/lib/bridge';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { NextResponse } from 'next/server';
@@ -29,11 +30,16 @@ export async function POST(request: Request) {
   const body = (await request.json()) as HandleUploadBody;
   const token = blobReadWriteToken();
 
-  if (!token) {
-    return NextResponse.json({ error: 'BLOB_READ_WRITE_TOKEN is not configured' }, { status: 500 });
-  }
-
   try {
+    if (!token) {
+      const response = await bridgeRequest('/content/blob-upload', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        timeoutMs: 8000
+      });
+      return NextResponse.json(response);
+    }
+
     const response = await handleUpload({
       body,
       request,

@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { put } from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
 import postgres from 'postgres';
 
 const port = Number(process.env.BRIDGE_PORT ?? 8787);
@@ -63,6 +64,7 @@ const CONTENT_PLATFORMS = [
 ];
 const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
 const MAX_CONTENT_MEDIA_FILES = 20;
+const MAX_CONTENT_CLIENT_UPLOAD_BYTES = 15 * 1024 * 1024;
 const CONTENT_MEDIA_PREFIXES = ['image/'];
 const AFFILIATE_PRODUCT_STATUSES = ['active', 'draft', 'archived'];
 const AFFILIATE_STOCK_STATUSES = ['in_stock', 'out_of_stock', 'limited', 'unknown'];
@@ -3820,6 +3822,29 @@ function mediaFilesFromFormData(formData) {
   return formData.getAll('media').filter((value) => value instanceof File && value.size > 0);
 }
 
+async function contentBlobUpload(body) {
+  if (!blobReadWriteToken) {
+    const error = new Error('BLOB_READ_WRITE_TOKEN is not configured');
+    error.status = 500;
+    throw error;
+  }
+
+  return handleUpload({
+    body,
+    request: new Request('https://api.felipeotarola.com/content/blob-upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' }
+    }),
+    token: blobReadWriteToken,
+    onBeforeGenerateToken: async () => ({
+      allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      maximumSizeInBytes: MAX_CONTENT_CLIENT_UPLOAD_BYTES,
+      addRandomSuffix: true
+    }),
+    onUploadCompleted: async () => {}
+  });
+}
+
 function boundedInt(value, fallback, { min = 1, max = 200 } = {}) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -5291,6 +5316,10 @@ const server = http.createServer(async (req, res) => {
         );
       }
       return send(res, 201, await createContentItem(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/content/blob-upload') {
+      return send(res, 200, await contentBlobUpload(await readJson(req)));
     }
 
     if (req.method === 'PATCH' && url.pathname === '/content/items') {
