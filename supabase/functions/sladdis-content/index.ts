@@ -12,6 +12,7 @@ const CONTENT_PLATFORMS = [
 
 const DEFAULT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts'];
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_MEDIA_FILES = 20;
 const ALLOWED_MEDIA_PREFIXES = ['image/'];
 
 function bearerToken(request: Request) {
@@ -103,6 +104,10 @@ Deno.serve(async (request) => {
   const mediaFiles = formData
     .getAll('media')
     .filter((value): value is File => value instanceof File && value.size > 0);
+
+  if (mediaFiles.length > MAX_MEDIA_FILES) {
+    return json({ error: `too many media files: max ${MAX_MEDIA_FILES}` }, { status: 413 });
+  }
 
   for (const file of mediaFiles) {
     if (file.size > MAX_FILE_BYTES) {

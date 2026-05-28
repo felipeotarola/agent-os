@@ -1,6 +1,18 @@
 import { bridgeFetch, bridgeRequest } from '@/lib/bridge';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const maxDuration = 120;
+
+const MAX_IMAGE_UPLOAD_FILES = 20;
+
+type UploadedAsset = {
+  url?: string;
+  pathname?: string;
+  originalName?: string;
+  contentType?: string;
+  size?: number;
+};
+
 function selectedPlatforms(formData: FormData) {
   const values = formData.getAll('platforms').map((value) => String(value));
   return values.length ? values : ['instagram', 'tiktok', 'youtube_shorts'];
@@ -14,6 +26,24 @@ function selectedMedia(formData: FormData) {
 
 function isImageUpload(file: File) {
   return file.type.startsWith('image/');
+}
+
+function jsonError(message: string, status = 400) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+function isJsonRequest(request: NextRequest) {
+  return request.headers.get('content-type')?.includes('application/json');
+}
+
+function uploadedAssetsFromBody(body: unknown): UploadedAsset[] {
+  if (!body || typeof body !== 'object') return [];
+  const assets = (body as { uploadedAssets?: unknown }).uploadedAssets;
+  return Array.isArray(assets) ? (assets as UploadedAsset[]) : [];
+}
+
+function isUploadedImageAsset(asset: UploadedAsset) {
+  return Boolean(asset.url) && String(asset.contentType ?? '').startsWith('image/');
 }
 
 function imageUploadTitle() {
@@ -76,7 +106,7 @@ async function createContentItemWithBridgeUpload(formData: FormData) {
   await bridgeFetch('/content/items', {
     method: 'POST',
     body: formData,
-    timeoutMs: 30_000
+    timeoutMs: 120_000
   });
 }
 
@@ -86,6 +116,34 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (isJsonRequest(request)) {
+    const body = await request.json();
+    const uploadedAssets = uploadedAssetsFromBody(body);
+    const intent = String(body?.intent ?? '').trim();
+
+    if (intent === 'image-library' && !uploadedAssets.length) {
+      return jsonError('image-required');
+    }
+    if (intent === 'image-library' && uploadedAssets.length > MAX_IMAGE_UPLOAD_FILES) {
+      return jsonError('too-many-images', 413);
+    }
+    if (uploadedAssets.some((asset) => !isUploadedImageAsset(asset))) {
+      return jsonError('images-only');
+    }
+
+    const title = String(body?.title ?? '').trim() || imageUploadTitle();
+    const result = await bridgeRequest('/content/items', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...body,
+        title,
+        contentKind: intent === 'image-library' ? 'image-library' : body?.contentKind
+      }),
+      timeoutMs: 30_000
+    });
+    return NextResponse.json(result, { status: 201, headers: { 'cache-control': 'no-store' } });
+  }
+
   const formData = await request.formData();
   const media = selectedMedia(formData);
   normalizeImageLibraryFormData(formData, media);
@@ -107,6 +165,12 @@ export async function POST(request: NextRequest) {
   if (intent === 'image-library' && !media.length) {
     return NextResponse.redirect(
       new URL('/dashboard/content-studio?error=image-required', request.url),
+      303
+    );
+  }
+  if (intent === 'image-library' && media.length > MAX_IMAGE_UPLOAD_FILES) {
+    return NextResponse.redirect(
+      new URL('/dashboard/content-studio?error=too-many-images', request.url),
       303
     );
   }

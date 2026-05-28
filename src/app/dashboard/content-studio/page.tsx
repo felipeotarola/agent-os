@@ -1,5 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
+import { ImageUploadForm } from './image-upload-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import {
   contentStatuses,
   getContentStudioSnapshot,
   type ContentItem,
+  type ContentMediaAsset,
   type ContentPlatform,
   type ContentStatus
 } from '@/db/content';
@@ -88,6 +90,8 @@ function statusCopy(params: {
     return { variant: 'destructive' as const, text: 'Choose at least one image to upload' };
   if (params.error === 'images-only')
     return { variant: 'destructive' as const, text: 'Only image uploads are accepted' };
+  if (params.error === 'too-many-images')
+    return { variant: 'destructive' as const, text: 'Upload 20 images or fewer at a time' };
   if (params.error)
     return { variant: 'destructive' as const, text: `Content action failed: ${params.error}` };
   return null;
@@ -99,6 +103,100 @@ function isImageLibraryItem(item: ContentItem) {
 
 function contentKindLabel(item: ContentItem) {
   return isImageLibraryItem(item) ? 'Agent image library' : 'Content draft';
+}
+
+function imageLibraryAssets(items: ContentItem[]) {
+  return items
+    .flatMap((item) =>
+      item.mediaAssets.map((asset) => ({
+        ...asset,
+        collection: item.campaign || 'agent-assets',
+        itemTitle: item.title,
+        itemUpdatedAt: item.updatedAt
+      }))
+    )
+    .toSorted((a, b) => {
+      const bTime = new Date(b.createdAt ?? b.itemUpdatedAt ?? 0).getTime();
+      const aTime = new Date(a.createdAt ?? a.itemUpdatedAt ?? 0).getTime();
+      return bTime - aTime;
+    });
+}
+
+function ImageLibraryPanel({
+  assets,
+  collections
+}: {
+  assets: Array<
+    ContentMediaAsset & {
+      collection: string;
+      itemTitle: string;
+      itemUpdatedAt?: string | null;
+    }
+  >;
+  collections: number;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+          <div className='flex items-start gap-3'>
+            <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
+            <div>
+              <CardTitle>Image library</CardTitle>
+              <CardDescription>
+                One reusable container for every uploaded image asset.
+              </CardDescription>
+            </div>
+          </div>
+          <div className='flex flex-wrap gap-2'>
+            <Badge variant='secondary'>
+              {assets.length} image{assets.length === 1 ? '' : 's'}
+            </Badge>
+            <Badge variant='outline'>
+              {collections} collection{collections === 1 ? '' : 's'}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {assets.length ? (
+          <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6'>
+            {assets.map((asset) =>
+              asset.blobUrl ? (
+                <a
+                  key={asset.id}
+                  href={asset.blobUrl}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='group block overflow-hidden rounded-lg border bg-muted'
+                  title={asset.fileName ?? asset.itemTitle}
+                >
+                  <span
+                    aria-label={asset.fileName ?? asset.itemTitle}
+                    className='block aspect-square bg-cover bg-center transition group-hover:scale-105'
+                    role='img'
+                    style={{ backgroundImage: `url(${asset.blobUrl})` }}
+                  />
+                  <span className='block min-w-0 border-t bg-background/95 px-2 py-1.5'>
+                    <span className='block truncate text-xs font-medium'>
+                      {asset.fileName ?? 'Source image'}
+                    </span>
+                    <span className='text-muted-foreground block truncate text-[11px]'>
+                      {asset.collection}
+                    </span>
+                  </span>
+                </a>
+              ) : null
+            )}
+          </div>
+        ) : (
+          <div className='rounded-lg border border-dashed p-6 text-sm text-muted-foreground'>
+            Upload images from the panel on the right and they will collect here.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function ContentActions({ item }: { item: ContentItem }) {
@@ -221,8 +319,11 @@ export default async function ContentStudioPage({
 }) {
   const [snapshot, params] = await Promise.all([getContentStudioSnapshot(), searchParams]);
   const selectedView = normalizeView(params.view);
-  const visibleItems = snapshot.items.filter((item) => matchesView(item, selectedView));
   const imageItems = snapshot.items.filter(isImageLibraryItem);
+  const galleryAssets = imageLibraryAssets(imageItems);
+  const visibleItems = snapshot.items.filter(
+    (item) => !isImageLibraryItem(item) && matchesView(item, selectedView)
+  );
   const imageAssetCount = snapshot.items.reduce(
     (total, item) => total + item.mediaAssets.length,
     0
@@ -295,6 +396,8 @@ export default async function ContentStudioPage({
 
         <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <div className='space-y-4'>
+            <ImageLibraryPanel assets={galleryAssets} collections={imageItems.length} />
+
             <div className='flex flex-wrap gap-2'>
               {(['active', 'all', ...contentStatuses] as ContentView[]).map((view) => (
                 <Button
@@ -432,66 +535,7 @@ export default async function ContentStudioPage({
                 </div>
               </CardHeader>
               <CardContent>
-                <form
-                  action='/api/content/items'
-                  method='post'
-                  encType='multipart/form-data'
-                  className='space-y-4'
-                >
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='image-title'>
-                      Label
-                    </label>
-                    <Input
-                      id='image-title'
-                      name='title'
-                      placeholder='e.g. Sladdis onboarding screenshots'
-                    />
-                  </div>
-                  <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium' htmlFor='image-campaign'>
-                        Collection
-                      </label>
-                      <Input id='image-campaign' name='campaign' defaultValue='agent-assets' />
-                    </div>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium' htmlFor='image-brief'>
-                        Notes
-                      </label>
-                      <Input
-                        id='image-brief'
-                        name='brief'
-                        placeholder='Context an agent should know'
-                      />
-                    </div>
-                  </div>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='image-media'>
-                      Images
-                    </label>
-                    <Input
-                      id='image-media'
-                      name='media'
-                      type='file'
-                      accept='image/*'
-                      multiple
-                      required
-                    />
-                    <p className='text-muted-foreground text-xs'>
-                      Only image MIME types are accepted. Each file is limited to 15 MB by the
-                      ingest service.
-                    </p>
-                  </div>
-                  <input type='hidden' name='intent' value='image-library' />
-                  <input type='hidden' name='contentKind' value='image-library' />
-                  <input type='hidden' name='pillar' value='asset-library' />
-                  <input type='hidden' name='ownerAgentId' value='sladdis' />
-                  <Button type='submit' variant='secondary' className='w-full'>
-                    <Icons.upload className='h-4 w-4' />
-                    Upload images
-                  </Button>
-                </form>
+                <ImageUploadForm />
               </CardContent>
             </Card>
           </div>

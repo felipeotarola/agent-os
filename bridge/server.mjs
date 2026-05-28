@@ -62,6 +62,7 @@ const CONTENT_PLATFORMS = [
   'facebook'
 ];
 const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
+const MAX_CONTENT_MEDIA_FILES = 20;
 const CONTENT_MEDIA_PREFIXES = ['image/'];
 const AFFILIATE_PRODUCT_STATUSES = ['active', 'draft', 'archived'];
 const AFFILIATE_STOCK_STATUSES = ['in_stock', 'out_of_stock', 'limited', 'unknown'];
@@ -1482,6 +1483,11 @@ function contentFileExtension(file) {
 }
 
 function validateContentMediaFiles(mediaFiles) {
+  if (mediaFiles.length > MAX_CONTENT_MEDIA_FILES) {
+    const error = new Error(`too many media files: max ${MAX_CONTENT_MEDIA_FILES}`);
+    error.status = 413;
+    throw error;
+  }
   for (const file of mediaFiles) {
     if (file.size > MAX_CONTENT_MEDIA_BYTES) {
       const error = new Error(`file too large: ${file.name}`);
@@ -1494,6 +1500,48 @@ function validateContentMediaFiles(mediaFiles) {
       throw error;
     }
   }
+}
+
+function uploadedContentMediaAssets({ contentItemId, uploadedAssets }) {
+  if (!Array.isArray(uploadedAssets) || !uploadedAssets.length) return [];
+  if (uploadedAssets.length > MAX_CONTENT_MEDIA_FILES) {
+    const error = new Error(`too many media files: max ${MAX_CONTENT_MEDIA_FILES}`);
+    error.status = 413;
+    throw error;
+  }
+
+  return uploadedAssets.map((asset) => {
+    const blobUrl = String(asset?.url ?? '').trim();
+    const contentType = String(asset?.contentType ?? '').trim();
+    if (!blobUrl || !CONTENT_MEDIA_PREFIXES.some((prefix) => contentType.startsWith(prefix))) {
+      const error = new Error('uploaded image asset is invalid');
+      error.status = 400;
+      throw error;
+    }
+
+    const originalName = String(asset?.originalName ?? asset?.pathname ?? 'upload').trim();
+    const safeName = safeContentFileName(originalName);
+    const bytes = Number(asset?.size ?? 0);
+
+    return {
+      id: randomUUID(),
+      contentItemId,
+      variantId: null,
+      kind: 'source',
+      status: 'uploaded',
+      blobKey: String(asset?.pathname ?? '').trim() || null,
+      blobUrl,
+      fileName: safeName,
+      contentType,
+      bytes: Number.isFinite(bytes) && bytes > 0 ? bytes : null,
+      metadata: {
+        storage: 'vercel-blob',
+        uploadMode: 'client',
+        originalName,
+        createdBy: 'agent-os-client-upload'
+      }
+    };
+  });
 }
 
 async function uploadContentMediaAssets({ contentItemId, campaign, mediaFiles }) {
@@ -1668,7 +1716,10 @@ async function createContentItem(input, mediaFiles = []) {
       : 'draft';
   validateContentMediaFiles(mediaFiles);
   const id = randomUUID();
-  const mediaAssets = await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles });
+  const mediaAssets = [
+    ...uploadedContentMediaAssets({ contentItemId: id, uploadedAssets: input.uploadedAssets }),
+    ...(await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles }))
+  ];
   const metadata = {
     autopublish: false,
     contentKind,
