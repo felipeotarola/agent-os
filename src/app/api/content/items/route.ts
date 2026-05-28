@@ -12,6 +12,33 @@ function selectedMedia(formData: FormData) {
     .filter((value): value is File => value instanceof File && value.size > 0);
 }
 
+function isImageUpload(file: File) {
+  return file.type.startsWith('image/');
+}
+
+function imageUploadTitle() {
+  return `Image upload - ${new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date())}`;
+}
+
+function normalizeImageLibraryFormData(formData: FormData, media: File[]) {
+  if (formData.get('intent') !== 'image-library') return;
+
+  const existingTitle = String(formData.get('title') ?? '').trim();
+  if (!existingTitle) formData.set('title', imageUploadTitle());
+  if (!String(formData.get('brief') ?? '').trim()) {
+    formData.set('brief', 'Image-only upload prepared for future agent reuse.');
+  }
+  if (!String(formData.get('pillar') ?? '').trim()) formData.set('pillar', 'asset-library');
+  if (!String(formData.get('campaign') ?? '').trim()) formData.set('campaign', 'agent-assets');
+  formData.set('contentKind', 'image-library');
+  formData.set('mediaCount', String(media.length));
+}
+
 function edgeFunctionUrl() {
   const explicit = process.env.SLADDIS_CONTENT_EDGE_URL;
   if (explicit) return explicit;
@@ -60,11 +87,15 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
+  const media = selectedMedia(formData);
+  normalizeImageLibraryFormData(formData, media);
+
   const title = String(formData.get('title') ?? '').trim();
   const brief = String(formData.get('brief') ?? '').trim();
   const pillar = String(formData.get('pillar') ?? '').trim();
   const campaign = String(formData.get('campaign') ?? 'sladdis').trim() || 'sladdis';
   const ownerAgentId = String(formData.get('ownerAgentId') ?? 'sladdis').trim() || 'sladdis';
+  const intent = String(formData.get('intent') ?? '').trim();
 
   if (!title) {
     return NextResponse.redirect(
@@ -73,7 +104,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const media = selectedMedia(formData);
+  if (intent === 'image-library' && !media.length) {
+    return NextResponse.redirect(
+      new URL('/dashboard/content-studio?error=image-required', request.url),
+      303
+    );
+  }
+  const unsupportedMedia = media.find((file) => !isImageUpload(file));
+  if (unsupportedMedia) {
+    return NextResponse.redirect(
+      new URL('/dashboard/content-studio?error=images-only', request.url),
+      303
+    );
+  }
+
   if (media.length || (edgeFunctionUrl() && edgeFunctionToken())) {
     try {
       if (edgeFunctionUrl() && edgeFunctionToken()) {
@@ -82,7 +126,10 @@ export async function POST(request: NextRequest) {
         await createContentItemWithBridgeUpload(formData);
       }
       return NextResponse.redirect(
-        new URL('/dashboard/content-studio?created=1', request.url),
+        new URL(
+          `/dashboard/content-studio?${intent === 'image-library' ? 'uploaded=1&view=active' : 'created=1'}`,
+          request.url
+        ),
         303
       );
     } catch (error) {

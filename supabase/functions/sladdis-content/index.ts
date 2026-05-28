@@ -95,6 +95,10 @@ Deno.serve(async (request) => {
   const campaign = String(formData.get('campaign') ?? 'sladdis').trim() || 'sladdis';
   const requestedOwnerAgentId =
     String(formData.get('ownerAgentId') ?? 'sladdis').trim() || 'sladdis';
+  const contentKind =
+    String(formData.get('contentKind') ?? formData.get('intent') ?? '').trim() === 'image-library'
+      ? 'image-library'
+      : 'draft';
   const platforms = normalizePlatforms(formData.getAll('platforms'));
   const mediaFiles = formData
     .getAll('media')
@@ -132,6 +136,8 @@ Deno.serve(async (request) => {
     source: 'supabase-edge',
     metadata: {
       autopublish: false,
+      contentKind,
+      reusableByAgents: contentKind === 'image-library',
       createdBy: 'sladdis-content-edge',
       mediaCount: mediaFiles.length
     }

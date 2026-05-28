@@ -1,4 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
+import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,11 +70,13 @@ function matchesView(item: ContentItem, view: ContentView) {
 
 function statusCopy(params: {
   created?: string;
+  uploaded?: string;
   error?: string;
   action?: string;
   launch?: string;
 }) {
   if (params.created) return { variant: 'secondary' as const, text: 'Draft created' };
+  if (params.uploaded) return { variant: 'secondary' as const, text: 'Images uploaded' };
   if (params.action === 'mark-ready')
     return { variant: 'secondary' as const, text: 'Marked ready' };
   if (params.action === 'schedule')
@@ -81,9 +84,21 @@ function statusCopy(params: {
   if (params.action === 'archive') return { variant: 'secondary' as const, text: 'Archived' };
   if (params.launch === 'blocked')
     return { variant: 'outline' as const, text: 'Manual launch is intentionally disabled in V1' };
+  if (params.error === 'image-required')
+    return { variant: 'destructive' as const, text: 'Choose at least one image to upload' };
+  if (params.error === 'images-only')
+    return { variant: 'destructive' as const, text: 'Only image uploads are accepted' };
   if (params.error)
     return { variant: 'destructive' as const, text: `Content action failed: ${params.error}` };
   return null;
+}
+
+function isImageLibraryItem(item: ContentItem) {
+  return item.metadata?.contentKind === 'image-library' || item.pillar === 'asset-library';
+}
+
+function contentKindLabel(item: ContentItem) {
+  return isImageLibraryItem(item) ? 'Agent image library' : 'Content draft';
 }
 
 function ContentActions({ item }: { item: ContentItem }) {
@@ -141,6 +156,7 @@ function ContentCard({ item }: { item: ContentItem }) {
         <div className='min-w-0 space-y-3'>
           <div className='flex flex-wrap items-center gap-2'>
             <Badge variant={statusVariant(item.status)}>{statusLabels[item.status]}</Badge>
+            <Badge variant='outline'>{contentKindLabel(item)}</Badge>
             <Badge variant='outline'>{item.campaign || 'sladdis'}</Badge>
             {item.pillar && <Badge variant='secondary'>{item.pillar}</Badge>}
             <Badge variant='outline'>{formatDate(item.scheduleAt)}</Badge>
@@ -197,6 +213,7 @@ export default async function ContentStudioPage({
   searchParams: Promise<{
     view?: string;
     created?: string;
+    uploaded?: string;
     error?: string;
     action?: string;
     launch?: string;
@@ -205,30 +222,65 @@ export default async function ContentStudioPage({
   const [snapshot, params] = await Promise.all([getContentStudioSnapshot(), searchParams]);
   const selectedView = normalizeView(params.view);
   const visibleItems = snapshot.items.filter((item) => matchesView(item, selectedView));
+  const imageItems = snapshot.items.filter(isImageLibraryItem);
+  const imageAssetCount = snapshot.items.reduce(
+    (total, item) => total + item.mediaAssets.length,
+    0
+  );
+  const draftItems = snapshot.items.filter((item) => !isImageLibraryItem(item));
   const status = statusCopy(params);
 
   return (
-    <PageContainer>
-      <div className='flex flex-1 flex-col gap-6'>
-        <div className='relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm'>
-          <div className='absolute inset-y-0 right-0 hidden w-1/2 rounded-l-full bg-primary/10 blur-3xl lg:block' />
-          <div className='relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
-            <div className='space-y-3'>
-              <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
-                sladdis content pipeline · prepare only
-              </Badge>
-              <div>
-                <h1 className='text-3xl font-semibold tracking-tight md:text-5xl'>
-                  Content Studio
-                </h1>
-                <p className='text-muted-foreground mt-2 max-w-3xl text-sm md:text-base'>
-                  Draft, adapt and schedule Sladdis content across Instagram, TikTok and YouTube. V1
-                  stores metadata in Postgres and uploads source images to Vercel Blob through the
-                  scoped content ingest API. No external autopublish runs here.
-                </p>
-              </div>
+    <PageContainer
+      pageTitle='Content Studio'
+      pageDescription='Prepare content drafts and reusable source images for Agent OS agents. This remains a prepare-only surface with no external autopublish.'
+      rightRailTitle='Content intake'
+      rightRailDescription='Drafts, image assets, and launch guardrails'
+      rightRail={
+        <div className='space-y-3 text-sm'>
+          <div className='rounded-lg border bg-card p-3'>
+            <div className='font-medium'>Agent-safe asset flow</div>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              Image-only uploads are stored as draft-backed media items with reusable metadata so a
+              future agent can query them from the content storage layer.
+            </p>
+          </div>
+          <div className='grid grid-cols-2 gap-2'>
+            <div className='rounded-lg border bg-card p-3'>
+              <div className='text-muted-foreground text-xs'>Drafts</div>
+              <div className='text-xl font-semibold'>{draftItems.length}</div>
             </div>
-            <div className='grid grid-cols-3 gap-2 rounded-2xl border bg-background/70 p-3 text-center text-sm backdrop-blur md:grid-cols-6'>
+            <div className='rounded-lg border bg-card p-3'>
+              <div className='text-muted-foreground text-xs'>Images</div>
+              <div className='text-xl font-semibold'>{imageAssetCount}</div>
+            </div>
+          </div>
+          <div className='rounded-lg border bg-card p-3'>
+            <div className='text-muted-foreground text-xs'>Image collections</div>
+            <div className='text-xl font-semibold'>{imageItems.length}</div>
+          </div>
+          <div className='rounded-lg border bg-card p-3'>
+            <div className='font-medium'>Guardrail</div>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              Upload accepts images only. Publishing to Instagram, TikTok, YouTube, X, or Facebook
+              is still blocked from this page.
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <div className='flex flex-1 flex-col gap-6'>
+        <div className='rounded-xl border bg-card p-4 shadow-sm'>
+          <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+            <div className='space-y-2'>
+              <Badge variant='outline'>sladdis content pipeline · prepare only</Badge>
+              <p className='text-muted-foreground max-w-3xl text-sm'>
+                Create text drafts with optional source images, or upload image-only assets for a
+                future agent to reuse. V1 stores metadata in Postgres and uploads image bytes
+                through the scoped content ingest API.
+              </p>
+            </div>
+            <div className='grid grid-cols-3 gap-2 rounded-lg border bg-background p-3 text-center text-sm md:grid-cols-6'>
               {contentStatuses.map((contentStatus) => (
                 <div key={contentStatus}>
                   <div className='text-muted-foreground text-xs'>{statusLabels[contentStatus]}</div>
@@ -273,90 +325,176 @@ export default async function ContentStudioPage({
             )}
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>New draft</CardTitle>
-              <CardDescription>
-                Creates DB rows only. Media upload and posting are intentionally deferred.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form
-                action='/api/content/items'
-                method='post'
-                encType='multipart/form-data'
-                className='space-y-4'
-              >
-                <div className='space-y-2'>
-                  <label className='text-sm font-medium' htmlFor='title'>
-                    Title
-                  </label>
-                  <Input
-                    id='title'
-                    name='title'
-                    placeholder='e.g. Why Sladdis matters in 20 seconds'
-                    required
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <label className='text-sm font-medium' htmlFor='brief'>
-                    Brief
-                  </label>
-                  <Textarea
-                    id='brief'
-                    name='brief'
-                    placeholder='Hook, angle, source notes, asset needs…'
-                  />
-                </div>
-                <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='pillar'>
-                      Pillar
-                    </label>
-                    <Input id='pillar' name='pillar' placeholder='education, launch, proof…' />
-                  </div>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='campaign'>
-                      Campaign
-                    </label>
-                    <Input id='campaign' name='campaign' defaultValue='sladdis' />
+          <div className='space-y-4'>
+            <Card>
+              <CardHeader>
+                <div className='flex items-start gap-3'>
+                  <Icons.post className='mt-1 h-5 w-5 text-muted-foreground' />
+                  <div>
+                    <CardTitle>New draft</CardTitle>
+                    <CardDescription>
+                      Create a content draft with optional source images attached.
+                    </CardDescription>
                   </div>
                 </div>
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium'>Platforms</div>
-                  <div className='grid gap-2'>
-                    {contentPlatforms.map((platform) => (
-                      <label key={platform} className='flex items-center gap-2 text-sm'>
-                        <input
-                          type='checkbox'
-                          name='platforms'
-                          value={platform}
-                          defaultChecked={['instagram', 'tiktok', 'youtube_shorts'].includes(
-                            platform
-                          )}
-                        />
-                        {platformLabels[platform]}
+              </CardHeader>
+              <CardContent>
+                <form
+                  action='/api/content/items'
+                  method='post'
+                  encType='multipart/form-data'
+                  className='space-y-4'
+                >
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium' htmlFor='title'>
+                      Title
+                    </label>
+                    <Input
+                      id='title'
+                      name='title'
+                      placeholder='e.g. Why Sladdis matters in 20 seconds'
+                      required
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium' htmlFor='brief'>
+                      Brief
+                    </label>
+                    <Textarea
+                      id='brief'
+                      name='brief'
+                      placeholder='Hook, angle, source notes, asset needs...'
+                    />
+                  </div>
+                  <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium' htmlFor='pillar'>
+                        Pillar
                       </label>
-                    ))}
+                      <Input id='pillar' name='pillar' placeholder='education, launch, proof...' />
+                    </div>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium' htmlFor='campaign'>
+                        Campaign
+                      </label>
+                      <Input id='campaign' name='campaign' defaultValue='sladdis' />
+                    </div>
+                  </div>
+                  <div className='space-y-2'>
+                    <div className='text-sm font-medium'>Platforms</div>
+                    <div className='grid gap-2'>
+                      {contentPlatforms.map((platform) => (
+                        <label key={platform} className='flex items-center gap-2 text-sm'>
+                          <input
+                            type='checkbox'
+                            name='platforms'
+                            value={platform}
+                            defaultChecked={['instagram', 'tiktok', 'youtube_shorts'].includes(
+                              platform
+                            )}
+                          />
+                          {platformLabels[platform]}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium' htmlFor='media'>
+                      Source images
+                    </label>
+                    <Input id='media' name='media' type='file' accept='image/*' multiple />
+                    <p className='text-muted-foreground text-xs'>
+                      Images are uploaded through the scoped content ingest API. Videos and
+                      autopublish are still out of scope for V1.
+                    </p>
+                  </div>
+                  <input type='hidden' name='ownerAgentId' value='sladdis' />
+                  <input type='hidden' name='contentKind' value='draft' />
+                  <Button type='submit' className='w-full'>
+                    <Icons.add className='h-4 w-4' />
+                    Create draft
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className='flex items-start gap-3'>
+                  <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
+                  <div>
+                    <CardTitle>Upload images</CardTitle>
+                    <CardDescription>
+                      Add image-only assets for future agent use. A draft-backed media item is
+                      created automatically.
+                    </CardDescription>
                   </div>
                 </div>
-                <div className='space-y-2'>
-                  <label className='text-sm font-medium' htmlFor='media'>
-                    Source images
-                  </label>
-                  <Input id='media' name='media' type='file' accept='image/*' multiple />
-                  <p className='text-muted-foreground text-xs'>
-                    Images are uploaded to Vercel Blob through the scoped content ingest API. Videos
-                    and autopublish are still intentionally out of scope for V1.
-                  </p>
-                </div>
-                <input type='hidden' name='ownerAgentId' value='sladdis' />
-                <Button type='submit' className='w-full'>
-                  Create draft
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <form
+                  action='/api/content/items'
+                  method='post'
+                  encType='multipart/form-data'
+                  className='space-y-4'
+                >
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium' htmlFor='image-title'>
+                      Label
+                    </label>
+                    <Input
+                      id='image-title'
+                      name='title'
+                      placeholder='e.g. Sladdis onboarding screenshots'
+                    />
+                  </div>
+                  <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium' htmlFor='image-campaign'>
+                        Collection
+                      </label>
+                      <Input id='image-campaign' name='campaign' defaultValue='agent-assets' />
+                    </div>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium' htmlFor='image-brief'>
+                        Notes
+                      </label>
+                      <Input
+                        id='image-brief'
+                        name='brief'
+                        placeholder='Context an agent should know'
+                      />
+                    </div>
+                  </div>
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium' htmlFor='image-media'>
+                      Images
+                    </label>
+                    <Input
+                      id='image-media'
+                      name='media'
+                      type='file'
+                      accept='image/*'
+                      multiple
+                      required
+                    />
+                    <p className='text-muted-foreground text-xs'>
+                      Only image MIME types are accepted. Each file is limited to 15 MB by the
+                      ingest service.
+                    </p>
+                  </div>
+                  <input type='hidden' name='intent' value='image-library' />
+                  <input type='hidden' name='contentKind' value='image-library' />
+                  <input type='hidden' name='pillar' value='asset-library' />
+                  <input type='hidden' name='ownerAgentId' value='sladdis' />
+                  <Button type='submit' variant='secondary' className='w-full'>
+                    <Icons.upload className='h-4 w-4' />
+                    Upload images
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </PageContainer>

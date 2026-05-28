@@ -1662,14 +1662,24 @@ async function createContentItem(input, mediaFiles = []) {
   const ownerRows = await sql`select id from agents where id = ${requestedOwnerAgentId} limit 1`;
   const ownerAgentId = ownerRows.length ? requestedOwnerAgentId : null;
   const platforms = normalizeContentPlatforms(input.platforms);
+  const contentKind =
+    String(input.contentKind ?? input.intent ?? '').trim() === 'image-library'
+      ? 'image-library'
+      : 'draft';
   validateContentMediaFiles(mediaFiles);
   const id = randomUUID();
   const mediaAssets = await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles });
+  const metadata = {
+    autopublish: false,
+    contentKind,
+    reusableByAgents: contentKind === 'image-library',
+    mediaCount: mediaAssets.length
+  };
 
   await sql.begin(async (tx) => {
     await tx`
       insert into content_items (id, title, brief, status, pillar, campaign, owner_agent_id, source, metadata, updated_at)
-      values (${id}, ${title}, ${brief}, 'draft', ${pillar}, ${campaign}, ${ownerAgentId}, 'cockpit', ${sql.json({ autopublish: false, mediaCount: mediaAssets.length })}, now())
+      values (${id}, ${title}, ${brief}, 'draft', ${pillar}, ${campaign}, ${ownerAgentId}, 'cockpit', ${sql.json(metadata)}, now())
     `;
     for (const platform of platforms) {
       await tx`
@@ -3749,7 +3759,9 @@ function formDataToContentInput(formData) {
     pillar: String(formData.get('pillar') ?? ''),
     campaign: String(formData.get('campaign') ?? 'sladdis'),
     ownerAgentId: String(formData.get('ownerAgentId') ?? 'sladdis'),
-    platforms
+    platforms,
+    contentKind: String(formData.get('contentKind') ?? ''),
+    intent: String(formData.get('intent') ?? '')
   };
 }
 
