@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 
-const MAX_IMAGE_UPLOAD_FILES = 20;
+const MAX_MEDIA_UPLOAD_FILES = 20;
 
 function safePathPart(value: string) {
   return (
@@ -33,15 +33,15 @@ export function ImageUploadForm() {
       .filter((value): value is File => value instanceof File && value.size > 0);
 
     if (!files.length) {
-      toast.error('Choose at least one image to upload');
+      toast.error('Choose at least one media file to upload');
       return;
     }
-    if (files.length > MAX_IMAGE_UPLOAD_FILES) {
-      toast.error(`Upload ${MAX_IMAGE_UPLOAD_FILES} images or fewer at a time`);
+    if (files.length > MAX_MEDIA_UPLOAD_FILES) {
+      toast.error(`Upload ${MAX_MEDIA_UPLOAD_FILES} media files or fewer at a time`);
       return;
     }
-    if (files.some((file) => !file.type.startsWith('image/'))) {
-      toast.error('Only image uploads are accepted');
+    if (files.some((file) => !file.type.startsWith('image/') && !file.type.startsWith('video/'))) {
+      toast.error('Only image and video uploads are accepted');
       return;
     }
 
@@ -91,12 +91,12 @@ export function ImageUploadForm() {
       if (!response.ok) throw new Error(payload?.error || `content-item-${response.status}`);
 
       toast.success(
-        `${uploadedAssets.length} image${uploadedAssets.length === 1 ? '' : 's'} uploaded`
+        `${uploadedAssets.length} media file${uploadedAssets.length === 1 ? '' : 's'} uploaded`
       );
       form.reset();
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Image upload failed');
+      toast.error(error instanceof Error ? error.message : 'Media upload failed');
     } finally {
       setIsUploading(false);
     }
@@ -105,30 +105,37 @@ export function ImageUploadForm() {
   return (
     <form onSubmit={onSubmit} className='space-y-4'>
       <div className='space-y-2'>
-        <Label htmlFor='image-title'>Label</Label>
-        <Input id='image-title' name='title' placeholder='e.g. Sladdis onboarding screenshots' />
+        <Label htmlFor='media-title'>Label</Label>
+        <Input id='media-title' name='title' placeholder='e.g. Sladdis onboarding media' />
       </div>
       <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
         <div className='space-y-2'>
-          <Label htmlFor='image-campaign'>Collection</Label>
-          <Input id='image-campaign' name='campaign' defaultValue='agent-assets' />
+          <Label htmlFor='media-campaign'>Collection</Label>
+          <Input id='media-campaign' name='campaign' defaultValue='agent-assets' />
         </div>
         <div className='space-y-2'>
-          <Label htmlFor='image-brief'>Notes</Label>
-          <Input id='image-brief' name='brief' placeholder='Context an agent should know' />
+          <Label htmlFor='media-brief'>Notes</Label>
+          <Input id='media-brief' name='brief' placeholder='Context an agent should know' />
         </div>
       </div>
       <div className='space-y-2'>
-        <Label htmlFor='image-media'>Images</Label>
-        <Input id='image-media' name='media' type='file' accept='image/*' multiple required />
+        <Label htmlFor='media-upload'>Media</Label>
+        <Input
+          id='media-upload'
+          name='media'
+          type='file'
+          accept='image/*,video/*'
+          multiple
+          required
+        />
         <p className='text-muted-foreground text-xs'>
-          Files upload directly to Vercel Blob from your browser. Select up to 20 images at once, 15
-          MB each.
+          Files upload directly to Vercel Blob from your browser. Select up to 20 images or videos
+          at once, 15 MB each.
         </p>
       </div>
       <Button type='submit' variant='secondary' className='w-full' disabled={isUploading}>
         <Icons.upload className='h-4 w-4' />
-        {isUploading ? 'Uploading...' : 'Upload images'}
+        {isUploading ? 'Uploading...' : 'Upload media'}
       </Button>
     </form>
   );

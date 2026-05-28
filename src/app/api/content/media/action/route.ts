@@ -36,14 +36,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await bridgeRequest('/content/media-assets', {
-    method: 'PATCH',
-    body: JSON.stringify({
-      id,
-      action,
-      usedPlatforms: action === 'mark-used' ? platforms : []
-    })
-  });
+  try {
+    await bridgeRequest('/content/media-assets', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        id,
+        action,
+        usedPlatforms: action === 'mark-used' ? platforms : []
+      })
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'media-action-failed';
+    console.error('[content/media/action] failed', error);
+    return NextResponse.redirect(
+      new URL(`/dashboard/content-studio?error=${encodeURIComponent(message)}`, request.url),
+      303
+    );
+  }
 
   return NextResponse.redirect(
     new URL(`/dashboard/content-studio?action=${encodeURIComponent(action)}`, request.url),

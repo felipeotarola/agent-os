@@ -39,7 +39,48 @@ function usageLabel(asset: ImageLibraryAsset) {
 }
 
 function assetLabel(asset: ImageLibraryAsset) {
-  return asset.fileName ?? asset.itemTitle ?? 'Source image';
+  return asset.fileName ?? asset.itemTitle ?? 'Source media';
+}
+
+function isVideoAsset(asset: ImageLibraryAsset) {
+  const contentType = String(asset.contentType ?? '').toLowerCase();
+  const fileName = String(asset.fileName ?? '').toLowerCase();
+  return contentType.startsWith('video/') || /\.(mp4|mov|m4v|webm|avi)$/i.test(fileName);
+}
+
+function mediaKindLabel(asset: ImageLibraryAsset) {
+  return isVideoAsset(asset) ? 'Video' : 'Image';
+}
+
+function MediaPreview({ asset }: { asset: ImageLibraryAsset }) {
+  if (!asset.blobUrl) return null;
+  if (isVideoAsset(asset)) {
+    return (
+      <span className='relative block aspect-square overflow-hidden bg-black'>
+        <video
+          src={asset.blobUrl}
+          className='h-full w-full object-cover transition group-hover:scale-105'
+          muted
+          playsInline
+          preload='metadata'
+        />
+        <span className='absolute inset-0 flex items-center justify-center bg-black/20'>
+          <span className='rounded-full bg-background/90 p-2 shadow-sm'>
+            <Icons.play className='h-4 w-4 text-foreground' />
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      aria-label={assetLabel(asset)}
+      className='block aspect-square bg-cover bg-center transition group-hover:scale-105'
+      role='img'
+      style={{ backgroundImage: `url(${asset.blobUrl})` }}
+    />
+  );
 }
 
 export function ImageLibraryPanel({
@@ -90,15 +131,15 @@ export function ImageLibraryPanel({
           <div className='flex items-start gap-3'>
             <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
             <div>
-              <div className='text-lg font-semibold'>Image library</div>
+              <div className='text-lg font-semibold'>Media Library</div>
               <div className='text-muted-foreground text-sm'>
-                One reusable container for every uploaded image asset.
+                One reusable container for every uploaded image and video asset.
               </div>
             </div>
           </div>
           <div className='flex flex-wrap gap-2'>
             <Badge variant='secondary'>
-              {assets.length} image{assets.length === 1 ? '' : 's'}
+              {assets.length} media asset{assets.length === 1 ? '' : 's'}
             </Badge>
             <Badge variant='outline'>
               {collections} collection{collections === 1 ? '' : 's'}
@@ -116,15 +157,11 @@ export function ImageLibraryPanel({
                     className='group block w-full text-left'
                     title={assetLabel(asset)}
                   >
-                    <span
-                      aria-label={assetLabel(asset)}
-                      className='block aspect-square bg-cover bg-center transition group-hover:scale-105'
-                      role='img'
-                      style={{ backgroundImage: `url(${asset.blobUrl})` }}
-                    />
+                    <MediaPreview asset={asset} />
                   </button>
                   <div className='min-w-0 border-t bg-background/95 px-2 py-2'>
                     <div className='mb-2 flex flex-wrap items-center gap-1.5'>
+                      <Badge variant='outline'>{mediaKindLabel(asset)}</Badge>
                       <Badge variant={asset.usedAt ? 'default' : 'secondary'}>
                         {asset.usedAt ? 'Used' : 'Unused'}
                       </Badge>
@@ -141,7 +178,7 @@ export function ImageLibraryPanel({
             </div>
           ) : (
             <div className='rounded-lg border border-dashed p-6 text-sm text-muted-foreground'>
-              Upload images from the panel on the right and they will collect here.
+              Upload media from the panel on the right and it will collect here.
             </div>
           )}
         </div>
@@ -166,14 +203,25 @@ export function ImageLibraryPanel({
                 </Badge>
               </div>
               <div className='relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-md bg-muted'>
-                <Image
-                  src={selectedAsset.blobUrl ?? ''}
-                  alt={assetLabel(selectedAsset)}
-                  fill
-                  sizes='(max-width: 768px) 100vw, 900px'
-                  className='object-contain'
-                  unoptimized
-                />
+                {isVideoAsset(selectedAsset) ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption -- Source videos may not include captions yet.
+                  <video
+                    src={selectedAsset.blobUrl ?? ''}
+                    controls
+                    playsInline
+                    preload='metadata'
+                    className='max-h-[75vh] w-full bg-black object-contain'
+                  />
+                ) : (
+                  <Image
+                    src={selectedAsset.blobUrl ?? ''}
+                    alt={assetLabel(selectedAsset)}
+                    fill
+                    sizes='(max-width: 768px) 100vw, 900px'
+                    className='object-contain'
+                    unoptimized
+                  />
+                )}
                 {visibleAssets.length > 1 && (
                   <>
                     <Button
@@ -182,7 +230,7 @@ export function ImageLibraryPanel({
                       size='icon'
                       className='absolute left-3 top-1/2 -translate-y-1/2'
                       onClick={goPrevious}
-                      aria-label='Previous image'
+                      aria-label='Previous media asset'
                     >
                       <Icons.chevronLeft className='h-4 w-4' />
                     </Button>
@@ -192,7 +240,7 @@ export function ImageLibraryPanel({
                       size='icon'
                       className='absolute right-3 top-1/2 -translate-y-1/2'
                       onClick={goNext}
-                      aria-label='Next image'
+                      aria-label='Next media asset'
                     >
                       <Icons.chevronRight className='h-4 w-4' />
                     </Button>
@@ -201,6 +249,7 @@ export function ImageLibraryPanel({
               </div>
               <div className='flex flex-wrap items-center justify-between gap-2'>
                 <div className='flex flex-wrap gap-1.5'>
+                  <Badge variant='outline'>{mediaKindLabel(selectedAsset)}</Badge>
                   <Badge variant={selectedAsset.usedAt ? 'default' : 'secondary'}>
                     {selectedAsset.usedAt ? 'Used' : 'Unused'}
                   </Badge>

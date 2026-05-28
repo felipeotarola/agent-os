@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 120;
 
-const MAX_IMAGE_UPLOAD_FILES = 20;
+const MAX_MEDIA_UPLOAD_FILES = 20;
 
 type UploadedAsset = {
   url?: string;
@@ -24,8 +24,8 @@ function selectedMedia(formData: FormData) {
     .filter((value): value is File => value instanceof File && value.size > 0);
 }
 
-function isImageUpload(file: File) {
-  return file.type.startsWith('image/');
+function isMediaUpload(file: File) {
+  return file.type.startsWith('image/') || file.type.startsWith('video/');
 }
 
 function jsonError(message: string, status = 400) {
@@ -42,12 +42,15 @@ function uploadedAssetsFromBody(body: unknown): UploadedAsset[] {
   return Array.isArray(assets) ? (assets as UploadedAsset[]) : [];
 }
 
-function isUploadedImageAsset(asset: UploadedAsset) {
-  return Boolean(asset.url) && String(asset.contentType ?? '').startsWith('image/');
+function isUploadedMediaAsset(asset: UploadedAsset) {
+  const contentType = String(asset.contentType ?? '');
+  return (
+    Boolean(asset.url) && (contentType.startsWith('image/') || contentType.startsWith('video/'))
+  );
 }
 
-function imageUploadTitle() {
-  return `Image upload - ${new Intl.DateTimeFormat('en', {
+function mediaUploadTitle() {
+  return `Media upload - ${new Intl.DateTimeFormat('en', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -59,9 +62,9 @@ function normalizeImageLibraryFormData(formData: FormData, media: File[]) {
   if (formData.get('intent') !== 'image-library') return;
 
   const existingTitle = String(formData.get('title') ?? '').trim();
-  if (!existingTitle) formData.set('title', imageUploadTitle());
+  if (!existingTitle) formData.set('title', mediaUploadTitle());
   if (!String(formData.get('brief') ?? '').trim()) {
-    formData.set('brief', 'Image-only upload prepared for future agent reuse.');
+    formData.set('brief', 'Media upload prepared for future agent reuse.');
   }
   if (!String(formData.get('pillar') ?? '').trim()) formData.set('pillar', 'asset-library');
   if (!String(formData.get('campaign') ?? '').trim()) formData.set('campaign', 'agent-assets');
@@ -124,14 +127,14 @@ export async function POST(request: NextRequest) {
     if (intent === 'image-library' && !uploadedAssets.length) {
       return jsonError('image-required');
     }
-    if (intent === 'image-library' && uploadedAssets.length > MAX_IMAGE_UPLOAD_FILES) {
+    if (intent === 'image-library' && uploadedAssets.length > MAX_MEDIA_UPLOAD_FILES) {
       return jsonError('too-many-images', 413);
     }
-    if (uploadedAssets.some((asset) => !isUploadedImageAsset(asset))) {
-      return jsonError('images-only');
+    if (uploadedAssets.some((asset) => !isUploadedMediaAsset(asset))) {
+      return jsonError('media-only');
     }
 
-    const title = String(body?.title ?? '').trim() || imageUploadTitle();
+    const title = String(body?.title ?? '').trim() || mediaUploadTitle();
     const result = await bridgeRequest('/content/items', {
       method: 'POST',
       body: JSON.stringify({
@@ -168,16 +171,16 @@ export async function POST(request: NextRequest) {
       303
     );
   }
-  if (intent === 'image-library' && media.length > MAX_IMAGE_UPLOAD_FILES) {
+  if (intent === 'image-library' && media.length > MAX_MEDIA_UPLOAD_FILES) {
     return NextResponse.redirect(
       new URL('/dashboard/content-studio?error=too-many-images', request.url),
       303
     );
   }
-  const unsupportedMedia = media.find((file) => !isImageUpload(file));
+  const unsupportedMedia = media.find((file) => !isMediaUpload(file));
   if (unsupportedMedia) {
     return NextResponse.redirect(
-      new URL('/dashboard/content-studio?error=images-only', request.url),
+      new URL('/dashboard/content-studio?error=media-only', request.url),
       303
     );
   }

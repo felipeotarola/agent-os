@@ -12,6 +12,7 @@ import {
   contentStatuses,
   getContentStudioSnapshot,
   type ContentItem,
+  type ContentMediaAsset,
   type ContentPlatform,
   type ContentStatus
 } from '@/db/content';
@@ -78,7 +79,7 @@ function statusCopy(params: {
   launch?: string;
 }) {
   if (params.created) return { variant: 'secondary' as const, text: 'Draft created' };
-  if (params.uploaded) return { variant: 'secondary' as const, text: 'Images uploaded' };
+  if (params.uploaded) return { variant: 'secondary' as const, text: 'Media uploaded' };
   if (params.action === 'mark-ready')
     return { variant: 'secondary' as const, text: 'Marked ready' };
   if (params.action === 'schedule')
@@ -94,6 +95,8 @@ function statusCopy(params: {
     return { variant: 'destructive' as const, text: 'Choose at least one image to upload' };
   if (params.error === 'images-only')
     return { variant: 'destructive' as const, text: 'Only image uploads are accepted' };
+  if (params.error === 'media-only')
+    return { variant: 'destructive' as const, text: 'Only image and video uploads are accepted' };
   if (params.error === 'too-many-images')
     return { variant: 'destructive' as const, text: 'Upload 20 images or fewer at a time' };
   if (params.error === 'platform-required')
@@ -108,7 +111,7 @@ function isImageLibraryItem(item: ContentItem) {
 }
 
 function contentKindLabel(item: ContentItem) {
-  return isImageLibraryItem(item) ? 'Agent image library' : 'Content draft';
+  return isImageLibraryItem(item) ? 'Agent media library' : 'Content draft';
 }
 
 function imageLibraryAssets(items: ContentItem[]) {
@@ -126,6 +129,58 @@ function imageLibraryAssets(items: ContentItem[]) {
       const aTime = new Date(a.createdAt ?? a.itemUpdatedAt ?? 0).getTime();
       return bTime - aTime;
     });
+}
+
+function isVideoAsset(asset: ContentMediaAsset) {
+  const contentType = String(asset.contentType ?? '').toLowerCase();
+  const fileName = String(asset.fileName ?? '').toLowerCase();
+  return contentType.startsWith('video/') || /\.(mp4|mov|m4v|webm|avi)$/i.test(fileName);
+}
+
+function ContentMediaThumb({ asset }: { asset: ContentMediaAsset }) {
+  if (!asset.blobUrl) return null;
+  const label = asset.fileName ?? 'Source media';
+  if (isVideoAsset(asset)) {
+    return (
+      <a
+        href={asset.blobUrl}
+        target='_blank'
+        rel='noreferrer'
+        className='group relative block h-24 w-24 overflow-hidden rounded-xl border bg-black'
+        title={label}
+      >
+        <video
+          src={asset.blobUrl}
+          className='h-full w-full object-cover transition group-hover:scale-105'
+          muted
+          playsInline
+          preload='metadata'
+        />
+        <span className='absolute inset-0 flex items-center justify-center bg-black/20'>
+          <span className='rounded-full bg-background/90 p-2 shadow-sm'>
+            <Icons.play className='h-4 w-4 text-foreground' />
+          </span>
+        </span>
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={asset.blobUrl}
+      target='_blank'
+      rel='noreferrer'
+      className='group block overflow-hidden rounded-xl border bg-muted'
+      title={label}
+    >
+      <span
+        aria-label={label}
+        className='block h-24 w-24 bg-cover bg-center transition group-hover:scale-105'
+        role='img'
+        style={{ backgroundImage: `url(${asset.blobUrl})` }}
+      />
+    </a>
+  );
 }
 
 function ContentActions({ item }: { item: ContentItem }) {
@@ -195,23 +250,7 @@ function ContentCard({ item }: { item: ContentItem }) {
           {item.mediaAssets.length > 0 && (
             <div className='flex flex-wrap gap-2'>
               {item.mediaAssets.map((asset) =>
-                asset.blobUrl ? (
-                  <a
-                    key={asset.id}
-                    href={asset.blobUrl}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='group block overflow-hidden rounded-xl border bg-muted'
-                    title={asset.fileName ?? 'Source image'}
-                  >
-                    <span
-                      aria-label={asset.fileName ?? 'Source image'}
-                      className='block h-24 w-24 bg-cover bg-center transition group-hover:scale-105'
-                      role='img'
-                      style={{ backgroundImage: `url(${asset.blobUrl})` }}
-                    />
-                  </a>
-                ) : null
+                asset.blobUrl ? <ContentMediaThumb key={asset.id} asset={asset} /> : null
               )}
             </div>
           )}
@@ -248,12 +287,12 @@ export default async function ContentStudioPage({
 }) {
   const [snapshot, params] = await Promise.all([getContentStudioSnapshot(), searchParams]);
   const selectedView = normalizeView(params.view);
-  const imageItems = snapshot.items.filter(isImageLibraryItem);
-  const galleryAssets = imageLibraryAssets(imageItems);
+  const galleryAssets = imageLibraryAssets(snapshot.items);
+  const mediaCollections = new Set(galleryAssets.map((asset) => asset.collection)).size;
   const visibleItems = snapshot.items.filter(
     (item) => !isImageLibraryItem(item) && matchesView(item, selectedView)
   );
-  const imageAssetCount = snapshot.items.reduce(
+  const mediaAssetCount = snapshot.items.reduce(
     (total, item) => total + item.mediaAssets.length,
     0
   );
@@ -271,7 +310,7 @@ export default async function ContentStudioPage({
           <div className='rounded-lg border bg-card p-3'>
             <div className='font-medium'>Agent-safe asset flow</div>
             <p className='text-muted-foreground mt-1 text-xs'>
-              Image-only uploads are stored as draft-backed media items with reusable metadata so a
+              Media uploads are stored as draft-backed media items with reusable metadata so a
               future agent can query them from the content storage layer.
             </p>
           </div>
@@ -281,19 +320,19 @@ export default async function ContentStudioPage({
               <div className='text-xl font-semibold'>{draftItems.length}</div>
             </div>
             <div className='rounded-lg border bg-card p-3'>
-              <div className='text-muted-foreground text-xs'>Images</div>
-              <div className='text-xl font-semibold'>{imageAssetCount}</div>
+              <div className='text-muted-foreground text-xs'>Media</div>
+              <div className='text-xl font-semibold'>{mediaAssetCount}</div>
             </div>
           </div>
           <div className='rounded-lg border bg-card p-3'>
-            <div className='text-muted-foreground text-xs'>Image collections</div>
-            <div className='text-xl font-semibold'>{imageItems.length}</div>
+            <div className='text-muted-foreground text-xs'>Media collections</div>
+            <div className='text-xl font-semibold'>{mediaCollections}</div>
           </div>
           <div className='rounded-lg border bg-card p-3'>
             <div className='font-medium'>Guardrail</div>
             <p className='text-muted-foreground mt-1 text-xs'>
-              Upload accepts images only. Publishing to Instagram, TikTok, YouTube, X, or Facebook
-              is still blocked from this page.
+              Upload accepts image and video files. Publishing to Instagram, TikTok, YouTube, X, or
+              Facebook is still blocked from this page.
             </p>
           </div>
         </div>
@@ -305,8 +344,8 @@ export default async function ContentStudioPage({
             <div className='space-y-2'>
               <Badge variant='outline'>sladdis content pipeline · prepare only</Badge>
               <p className='text-muted-foreground max-w-3xl text-sm'>
-                Create text drafts with optional source images, or upload image-only assets for a
-                future agent to reuse. V1 stores metadata in Postgres and uploads image bytes
+                Create text drafts with optional source media, or upload reusable media assets for a
+                future agent to reuse. V1 stores metadata in Postgres and uploads media bytes
                 through the scoped content ingest API.
               </p>
             </div>
@@ -325,7 +364,7 @@ export default async function ContentStudioPage({
 
         <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <div className='space-y-4'>
-            <ImageLibraryPanel assets={galleryAssets} collections={imageItems.length} />
+            <ImageLibraryPanel assets={galleryAssets} collections={mediaCollections} />
 
             <div className='flex flex-wrap gap-2'>
               {(['active', 'all', ...contentStatuses] as ContentView[]).map((view) => (
@@ -432,12 +471,12 @@ export default async function ContentStudioPage({
                   </div>
                   <div className='space-y-2'>
                     <label className='text-sm font-medium' htmlFor='media'>
-                      Source images
+                      Source media
                     </label>
-                    <Input id='media' name='media' type='file' accept='image/*' multiple />
+                    <Input id='media' name='media' type='file' accept='image/*,video/*' multiple />
                     <p className='text-muted-foreground text-xs'>
-                      Images are uploaded through the scoped content ingest API. Videos and
-                      autopublish are still out of scope for V1.
+                      Media is uploaded through the scoped content ingest API. Autopublish is still
+                      out of scope for V1.
                     </p>
                   </div>
                   <input type='hidden' name='ownerAgentId' value='sladdis' />
@@ -455,9 +494,9 @@ export default async function ContentStudioPage({
                 <div className='flex items-start gap-3'>
                   <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
                   <div>
-                    <CardTitle>Upload images</CardTitle>
+                    <CardTitle>Upload media</CardTitle>
                     <CardDescription>
-                      Add image-only assets for future agent use. A draft-backed media item is
+                      Add image and video assets for future agent use. A draft-backed media item is
                       created automatically.
                     </CardDescription>
                   </div>
