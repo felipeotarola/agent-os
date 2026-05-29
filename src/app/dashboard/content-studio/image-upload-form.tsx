@@ -130,7 +130,7 @@ export function ImageUploadForm() {
         />
         <p className='text-muted-foreground text-xs'>
           Files upload directly to Vercel Blob from your browser. Select up to 20 images or videos
-          at once, 15 MB each.
+          at once, 50 MB each.
         </p>
       </div>
       <Button type='submit' variant='secondary' className='w-full' disabled={isUploading}>

@@ -62,10 +62,20 @@ const CONTENT_PLATFORMS = [
   'x',
   'facebook'
 ];
-const MAX_CONTENT_MEDIA_BYTES = 15 * 1024 * 1024;
+const MAX_CONTENT_MEDIA_BYTES = 50 * 1024 * 1024;
 const MAX_CONTENT_MEDIA_FILES = 20;
-const MAX_CONTENT_CLIENT_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_CONTENT_CLIENT_UPLOAD_BYTES = 50 * 1024 * 1024;
 const CONTENT_MEDIA_PREFIXES = ['image/', 'video/'];
+const CONTENT_MEDIA_UPLOAD_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/x-m4v'
+];
 const AFFILIATE_PRODUCT_STATUSES = ['active', 'draft', 'archived'];
 const AFFILIATE_STOCK_STATUSES = ['in_stock', 'out_of_stock', 'limited', 'unknown'];
 const AFFILIATE_PLATFORM_RULES = {
@@ -5219,7 +5229,7 @@ async function contentBlobUpload(body) {
     }),
     token: blobReadWriteToken,
     onBeforeGenerateToken: async () => ({
-      allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      allowedContentTypes: CONTENT_MEDIA_UPLOAD_TYPES,
       maximumSizeInBytes: MAX_CONTENT_CLIENT_UPLOAD_BYTES,
       addRandomSuffix: true
     }),

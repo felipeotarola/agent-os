@@ -11,9 +11,9 @@ const CONTENT_PLATFORMS = [
 ] as const;
 
 const DEFAULT_PLATFORMS = ['instagram', 'tiktok', 'youtube_shorts'];
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_MEDIA_FILES = 20;
-const ALLOWED_MEDIA_PREFIXES = ['image/'];
+const ALLOWED_MEDIA_PREFIXES = ['image/', 'video/'];
 
 function bearerToken(request: Request) {
   const authorization = request.headers.get('authorization') ?? '';
@@ -57,6 +57,10 @@ function extensionFor(file: File) {
   if (file.type === 'image/png') return 'png';
   if (file.type === 'image/webp') return 'webp';
   if (file.type === 'image/gif') return 'gif';
+  if (file.type === 'video/mp4') return 'mp4';
+  if (file.type === 'video/quicktime') return 'mov';
+  if (file.type === 'video/webm') return 'webm';
+  if (file.type === 'video/x-m4v') return 'm4v';
   return 'jpg';
 }
 

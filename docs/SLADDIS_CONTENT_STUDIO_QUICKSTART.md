@@ -78,10 +78,18 @@ Deadline:
 Notes:
 ```
 
+## Brand visual rule
+
+For headphone and social drafts, use the recurring `Sladdis postergirl` / `sladdis-model-01-urban-black-fit` persona as the primary visual when available. Product images can support the copy, but the feed should keep the same recognizable model/persona instead of switching to product-only hero visuals.
+
+## Media library rule
+
+Treat Media Library images as clean reusable source assets. Do not store baked final creatives with text overlays as source media; schedule drafts should combine selected source media with copy, platform, and schedule metadata for the later posting/rendering step.
+
 ## Current limitations
 
-- Image upload exists only when the Supabase Edge Function is deployed and configured with a Vercel Blob token.
-- Video upload is not enabled yet.
+- Media upload exists only when the Supabase Edge Function is deployed and configured with a Vercel Blob token.
+- Video upload is enabled for common short-form web formats (`mp4`, `mov`, `webm`, `m4v`).
 - No external autopublishing.
 - No platform-specific caption editor beyond generated metadata/variants.
 - No approval queue beyond status changes.

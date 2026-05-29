@@ -4,7 +4,17 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { NextResponse } from 'next/server';
 
-const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_MEDIA_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_MEDIA_CONTENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/x-m4v'
+];
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME ?? '/root/.openclaw';
 const AGENT_OS_SECRETS_DIR =
   process.env.AGENT_OS_SECRETS_DIR ?? path.join(OPENCLAW_HOME, 'secrets', 'agent-os');
@@ -45,8 +55,8 @@ export async function POST(request: Request) {
       request,
       token,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-        maximumSizeInBytes: MAX_IMAGE_UPLOAD_BYTES,
+        allowedContentTypes: ALLOWED_MEDIA_CONTENT_TYPES,
+        maximumSizeInBytes: MAX_MEDIA_UPLOAD_BYTES,
         addRandomSuffix: true
       }),
       onUploadCompleted: async () => {}
