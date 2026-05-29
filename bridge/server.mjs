@@ -2814,6 +2814,7 @@ function normalizeAffiliateProduct(row) {
     metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
   };
   product.completeness = productCompletenessScore(product);
+  product.storeVerified = isStoreVerifiedProduct(product);
   return product;
 }
 
@@ -3121,6 +3122,11 @@ function buildCatalogHealth(products) {
       ).length
     },
     {
+      id: 'unverified-store-source',
+      label: 'Unverified store source',
+      count: products.filter((product) => !isStoreVerifiedProduct(product)).length
+    },
+    {
       id: 'weak-metadata',
       label: 'Weak metadata',
       count: products.filter((product) => weakMetadataReasons(product).length > 0).length
@@ -3329,7 +3335,8 @@ async function affiliateSnapshot() {
     ...new Set(normalizedProducts.map((product) => product.category).filter(Boolean))
   ].toSorted();
   const activeProducts = normalizedProducts.filter((product) => product.status === 'active');
-  const opportunities = normalizedProducts
+  const storeVerifiedProducts = normalizedProducts.filter(isStoreVerifiedProduct);
+  const opportunities = storeVerifiedProducts
     .map(scoreAffiliateProduct)
     .toSorted((a, b) => b.score - a.score || b.confidence - a.confidence);
   const catalogHealth = buildCatalogHealth(normalizedProducts);

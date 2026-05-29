@@ -48,6 +48,7 @@ export type AffiliateProduct = {
   reviewCount: number;
   metadata?: Record<string, unknown>;
   completeness?: number;
+  storeVerified?: boolean;
   updatedAt: string;
 };
 
