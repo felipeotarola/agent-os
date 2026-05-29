@@ -11,6 +11,15 @@ function money(value: number | null, currency: string) {
   return new Intl.NumberFormat('sv-SE', { style: 'currency', currency }).format(value);
 }
 
+function rate(value: number | null) {
+  if (value === null || Number.isNaN(value)) return '-';
+  return `${new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 2 }).format(value)}%`;
+}
+
+function signalTitle(item: Record<string, unknown>) {
+  return String(item.title ?? item.name ?? item.page ?? item.url ?? item.productId ?? 'Signal');
+}
+
 function stockLabel(status: string) {
   if (status === 'in_stock') return 'In stock';
   if (status === 'limited') return 'Limited';
@@ -204,6 +213,105 @@ export default async function AffiliatePage() {
             <CardContent className='text-muted-foreground text-sm'>Estimated earnings</CardContent>
           </Card>
         </div>
+
+        <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]'>
+          <Card>
+            <CardHeader>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <CardTitle>Analytics and revenue loop</CardTitle>
+                  <CardDescription>
+                    Clicks, conversions, revenue, CTR, ranking changes and content performance.
+                  </CardDescription>
+                </div>
+                <Badge variant={snapshot.analytics.status === 'tracking' ? 'default' : 'outline'}>
+                  {snapshot.analytics.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>7d clicks</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.analytics.last7.current.clicks}
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {rate(snapshot.analytics.deltas.clicks)} vs prev
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Conversions</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.analytics.last7.current.orderedItems}
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {rate(snapshot.analytics.last7.current.conversionRate)} CVR
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Revenue</div>
+                  <div className='text-2xl font-semibold'>
+                    {money(snapshot.analytics.last7.current.revenue, totals.currency)}
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {rate(snapshot.analytics.deltas.revenue)} vs prev
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Avg CTR</div>
+                  <div className='text-2xl font-semibold'>
+                    {rate(snapshot.analytics.averageCtr)}
+                  </div>
+                  <div className='text-muted-foreground text-xs'>from content rows</div>
+                </div>
+              </div>
+              <div className='space-y-2'>
+                {snapshot.analytics.summary.map((item) => (
+                  <div key={item} className='flex gap-2 text-sm'>
+                    <Icons.arrowRight className='text-muted-foreground mt-0.5 size-4 shrink-0' />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+              <div className='rounded-lg border bg-background/40 p-3 text-sm'>
+                {snapshot.analytics.suggestedNextAction}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Content performance</CardTitle>
+              <CardDescription>Imported content/product rows from stats exports.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {snapshot.analytics.contentPerformance.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                  No content performance imported yet. Use{' '}
+                  <span className='font-mono'>POST /affiliate/stats/batch</span>.
+                </div>
+              ) : (
+                snapshot.analytics.contentPerformance.slice(0, 5).map((item, index) => (
+                  <div
+                    key={`${signalTitle(item)}-${item.date}-${index}`}
+                    className='rounded-lg border bg-background/40 p-3 text-sm'
+                  >
+                    <div className='line-clamp-2 font-medium'>{signalTitle(item)}</div>
+                    <div className='text-muted-foreground mt-2 grid grid-cols-3 gap-2 text-xs'>
+                      <span>{item.clicks} clicks</span>
+                      <span>{item.conversions} conv.</span>
+                      <span>{rate(item.ctr)}</span>
+                    </div>
+                    {item.rankingChange !== null && (
+                      <div className='mt-2 text-xs'>Ranking change: {item.rankingChange}</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]'>
           <Card>

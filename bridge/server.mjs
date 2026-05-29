@@ -3292,6 +3292,175 @@ function buildSladdisDailyBrief({ opportunities, catalogHealth, approvalQueue, c
   };
 }
 
+function affiliateStatDate(value) {
+  const input = String(value ?? '').trim();
+  const date = input ? new Date(input) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    const error = new Error('date is invalid');
+    error.status = 400;
+    throw error;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function affiliateNumber(input, keys, fallback = 0) {
+  for (const key of keys) {
+    const value = input?.[key];
+    if (value !== null && value !== undefined && value !== '') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return fallback;
+}
+
+function affiliateStatTopProducts(input) {
+  if (Array.isArray(input?.topProducts)) return input.topProducts;
+  if (Array.isArray(input?.top_products)) return input.top_products;
+  const rows = [];
+  if (Array.isArray(input?.contentPerformance)) {
+    rows.push(
+      ...input.contentPerformance.map((item) => ({
+        ...item,
+        kind: item.kind ?? 'content-performance'
+      }))
+    );
+  }
+  if (Array.isArray(input?.rankingChanges)) {
+    rows.push(
+      ...input.rankingChanges.map((item) => ({
+        ...item,
+        kind: item.kind ?? 'ranking-change'
+      }))
+    );
+  }
+  return rows;
+}
+
+function mapAffiliateStat(row) {
+  return {
+    ...row,
+    clicks: Number(row.clicks ?? 0),
+    orderedItems: Number(row.orderedItems ?? 0),
+    shippedItems: Number(row.shippedItems ?? 0),
+    revenue: Number(row.revenue ?? 0),
+    commission: Number(row.commission ?? 0),
+    conversionRate: Number(row.conversionRate ?? 0),
+    topProducts: Array.isArray(row.topProducts) ? row.topProducts : []
+  };
+}
+
+function sumAffiliateStats(items) {
+  return items.reduce(
+    (acc, row) => ({
+      clicks: acc.clicks + row.clicks,
+      orderedItems: acc.orderedItems + row.orderedItems,
+      shippedItems: acc.shippedItems + row.shippedItems,
+      revenue: acc.revenue + row.revenue,
+      commission: acc.commission + row.commission
+    }),
+    { clicks: 0, orderedItems: 0, shippedItems: 0, revenue: 0, commission: 0 }
+  );
+}
+
+function statWindow(rows, days) {
+  const sorted = rows
+    .map(mapAffiliateStat)
+    .toSorted((a, b) => String(b.date).localeCompare(String(a.date)));
+  const current = sorted.slice(0, days);
+  const previous = sorted.slice(days, days * 2);
+  const currentTotals = sumAffiliateStats(current);
+  const previousTotals = sumAffiliateStats(previous);
+  return {
+    days,
+    current: {
+      ...currentTotals,
+      conversionRate: currentTotals.clicks
+        ? Number(((currentTotals.orderedItems / currentTotals.clicks) * 100).toFixed(2))
+        : 0
+    },
+    previous: {
+      ...previousTotals,
+      conversionRate: previousTotals.clicks
+        ? Number(((previousTotals.orderedItems / previousTotals.clicks) * 100).toFixed(2))
+        : 0
+    }
+  };
+}
+
+function percentDelta(current, previous) {
+  if (!previous) return current ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(2));
+}
+
+function buildAffiliateAnalytics(rows) {
+  const stats = rows.map(mapAffiliateStat);
+  const latest = stats[0] ?? null;
+  const last7 = statWindow(stats, 7);
+  const contentPerformance = stats
+    .flatMap((row) =>
+      row.topProducts.map((item) => ({
+        ...item,
+        date: row.date,
+        accountId: row.accountId,
+        accountName: row.accountName,
+        clicks: Number(item.clicks ?? 0),
+        conversions: Number(item.conversions ?? item.orderedItems ?? item.orders ?? 0),
+        revenue: Number(item.revenue ?? 0),
+        ctr:
+          item.ctr === null || item.ctr === undefined || item.ctr === '' ? null : Number(item.ctr),
+        rankingChange:
+          item.rankingChange === null ||
+          item.rankingChange === undefined ||
+          item.rankingChange === ''
+            ? null
+            : Number(item.rankingChange)
+      }))
+    )
+    .toSorted((a, b) => b.clicks - a.clicks || b.revenue - a.revenue)
+    .slice(0, 8);
+  const rankingChanges = contentPerformance
+    .filter((item) => item.rankingChange !== null)
+    .toSorted((a, b) => Math.abs(b.rankingChange) - Math.abs(a.rankingChange))
+    .slice(0, 6);
+  const ctrValues = contentPerformance
+    .map((item) => item.ctr)
+    .filter((value) => Number.isFinite(value));
+  const averageCtr = ctrValues.length
+    ? Number((ctrValues.reduce((sum, value) => sum + value, 0) / ctrValues.length).toFixed(2))
+    : null;
+  const summary = [
+    latest ? `Latest import: ${latest.date}` : 'No affiliate analytics imported yet.',
+    last7.current.clicks
+      ? `${last7.current.clicks} clicks and ${last7.current.orderedItems} conversions in the latest window.`
+      : 'No clicks in the latest window.',
+    last7.current.revenue
+      ? `${last7.current.revenue.toFixed(2)} revenue tracked.`
+      : 'No revenue tracked yet.'
+  ];
+  return {
+    status: stats.length ? 'tracking' : 'no_data',
+    latest,
+    last7,
+    deltas: {
+      clicks: percentDelta(last7.current.clicks, last7.previous.clicks),
+      orderedItems: percentDelta(last7.current.orderedItems, last7.previous.orderedItems),
+      revenue: percentDelta(last7.current.revenue, last7.previous.revenue),
+      commission: percentDelta(last7.current.commission, last7.previous.commission)
+    },
+    averageCtr,
+    contentPerformance,
+    rankingChanges,
+    summary,
+    suggestedNextAction:
+      stats.length === 0
+        ? 'Import the first clicks/conversions/revenue export before optimizing content.'
+        : last7.current.clicks && !last7.current.orderedItems
+          ? 'Prioritize conversion fixes before scaling traffic.'
+          : 'Use best-performing content and revenue signals to guide the next opportunity scan.'
+  };
+}
+
 async function affiliateSnapshot() {
   await ensureAffiliateTables();
   const [accounts, rows, products] = await Promise.all([
@@ -3317,7 +3486,8 @@ async function affiliateSnapshot() {
     `
   ]);
 
-  const totals = rows.reduce(
+  const statRows = rows.map(mapAffiliateStat);
+  const totals = statRows.reduce(
     (acc, row) => ({
       clicks: acc.clicks + Number(row.clicks ?? 0),
       orderedItems: acc.orderedItems + Number(row.orderedItems ?? 0),
@@ -3330,6 +3500,7 @@ async function affiliateSnapshot() {
   const conversionRate = totals.clicks
     ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2))
     : 0;
+  const analytics = buildAffiliateAnalytics(statRows);
   const normalizedProducts = products.map(normalizeAffiliateProduct);
   const categories = [
     ...new Set(normalizedProducts.map((product) => product.category).filter(Boolean))
@@ -3389,8 +3560,9 @@ async function affiliateSnapshot() {
         (product) => !product.imageUrl || !product.price || product.stockStatus === 'unknown'
       ).length
     },
+    analytics,
     totals: { ...totals, conversionRate, currency: rows[0]?.currency ?? 'SEK' },
-    rows,
+    rows: statRows,
     nextSteps: [
       opportunities[0]
         ? `Prepare approval-gated draft for: ${opportunities[0].title}`
@@ -3399,6 +3571,108 @@ async function affiliateSnapshot() {
       'Keep claims/disclosure/price freshness checks green before any publishing.',
       'Use the approval queue for all external Sladdis actions.'
     ]
+  };
+}
+
+async function upsertAffiliateDailyStat(input) {
+  await ensureAffiliateTables();
+  const accountId = affiliateInputString(input, ['accountId', 'account_id'], '');
+  if (!accountId) {
+    const error = new Error('accountId is required');
+    error.status = 400;
+    throw error;
+  }
+  const accountRows = await sql`select id from affiliate_accounts where id = ${accountId}`;
+  if (!accountRows.length) {
+    const error = new Error('affiliate account not found');
+    error.status = 404;
+    throw error;
+  }
+  const date = affiliateStatDate(input.date);
+  const clicks = Math.max(0, Math.round(affiliateNumber(input, ['clicks'])));
+  const orderedItems = Math.max(
+    0,
+    Math.round(affiliateNumber(input, ['orderedItems', 'ordered_items', 'orders', 'conversions']))
+  );
+  const shippedItems = Math.max(
+    0,
+    Math.round(affiliateNumber(input, ['shippedItems', 'shipped_items']))
+  );
+  const revenue = affiliateNumber(input, ['revenue', 'sales', 'orderedRevenue']);
+  const commission = affiliateNumber(input, ['commission', 'earnings', 'fees']);
+  const currency = affiliateInputString(input, ['currency'], 'SEK') || 'SEK';
+  const conversionRate =
+    input.conversionRate !== null &&
+    input.conversionRate !== undefined &&
+    input.conversionRate !== ''
+      ? Number(input.conversionRate)
+      : clicks
+        ? Number(((orderedItems / clicks) * 100).toFixed(2))
+        : 0;
+  const topProducts = affiliateStatTopProducts(input);
+  const source = affiliateInputString(input, ['source'], 'manual') || 'manual';
+  const id = String(input.id ?? `${accountId}:${date}`).trim();
+  const rows = await sql`
+    insert into affiliate_daily_stats (
+      id, account_id, date, clicks, ordered_items, shipped_items, revenue, commission,
+      currency, conversion_rate, top_products, source, updated_at
+    )
+    values (
+      ${id}, ${accountId}, ${date}, ${clicks}, ${orderedItems}, ${shippedItems},
+      ${revenue}, ${commission}, ${currency}, ${conversionRate}, ${sql.json(topProducts)},
+      ${source}, now()
+    )
+    on conflict (account_id, date) do update set
+      clicks = excluded.clicks,
+      ordered_items = excluded.ordered_items,
+      shipped_items = excluded.shipped_items,
+      revenue = excluded.revenue,
+      commission = excluded.commission,
+      currency = excluded.currency,
+      conversion_rate = excluded.conversion_rate,
+      top_products = excluded.top_products,
+      source = excluded.source,
+      updated_at = now()
+    returning id, account_id as "accountId", date, clicks, ordered_items as "orderedItems",
+      shipped_items as "shippedItems", revenue, commission, currency,
+      conversion_rate as "conversionRate", top_products as "topProducts", source
+  `;
+  return mapAffiliateStat(rows[0]);
+}
+
+async function upsertAffiliateDailyStatBatch(input) {
+  const rows = Array.isArray(input)
+    ? input
+    : Array.isArray(input.rows)
+      ? input.rows
+      : Array.isArray(input.stats)
+        ? input.stats
+        : [];
+  if (!rows.length) {
+    const error = new Error('rows/stats array is required');
+    error.status = 400;
+    throw error;
+  }
+  const defaults = !Array.isArray(input) && input.defaults ? input.defaults : {};
+  const imported = [];
+  const errors = [];
+  for (const [index, row] of rows.entries()) {
+    try {
+      imported.push(await upsertAffiliateDailyStat({ ...defaults, ...row }));
+    } catch (error) {
+      errors.push({
+        index,
+        date: row?.date ?? '',
+        error: error instanceof Error ? error.message : 'unknown error'
+      });
+    }
+  }
+  return {
+    imported,
+    errors,
+    count: imported.length,
+    source: 'bridge:affiliate-stats-batch',
+    next: 'Review /affiliate/snapshot for analytics feedback, content performance and revenue-loop suggestions.'
   };
 }
 
@@ -6009,6 +6283,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/affiliate/products/batch') {
       return send(res, 201, await upsertAffiliateProductBatch(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/stats') {
+      return send(res, 201, await upsertAffiliateDailyStat(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/stats/batch') {
+      return send(res, 201, await upsertAffiliateDailyStatBatch(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {

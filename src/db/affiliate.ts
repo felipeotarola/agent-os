@@ -109,6 +109,52 @@ export type AffiliateApprovalItem = {
   nextAction: string;
 };
 
+export type AffiliateAnalytics = {
+  status: 'tracking' | 'no_data' | string;
+  latest: AffiliateDailyStat | null;
+  last7: {
+    days: number;
+    current: {
+      clicks: number;
+      orderedItems: number;
+      shippedItems: number;
+      revenue: number;
+      commission: number;
+      conversionRate: number;
+    };
+    previous: {
+      clicks: number;
+      orderedItems: number;
+      shippedItems: number;
+      revenue: number;
+      commission: number;
+      conversionRate: number;
+    };
+  };
+  deltas: {
+    clicks: number;
+    orderedItems: number;
+    revenue: number;
+    commission: number;
+  };
+  averageCtr: number | null;
+  contentPerformance: Array<
+    Record<string, unknown> & {
+      date: string;
+      accountId: string;
+      accountName?: string;
+      clicks: number;
+      conversions: number;
+      revenue: number;
+      ctr: number | null;
+      rankingChange: number | null;
+    }
+  >;
+  rankingChanges: Array<Record<string, unknown> & { rankingChange: number | null }>;
+  summary: string[];
+  suggestedNextAction: string;
+};
+
 export type AffiliateSnapshot = {
   source: string;
   generatedAt: string;
@@ -142,6 +188,7 @@ export type AffiliateSnapshot = {
     inStockProducts: number;
     needsDataProducts: number;
   };
+  analytics: AffiliateAnalytics;
   totals: {
     clicks: number;
     orderedItems: number;
@@ -173,6 +220,35 @@ const fallback: AffiliateSnapshot = {
   },
   compliance: { status: 'fallback', checks: [], rules: {} },
   contentPipeline: { drafts: [], approvalQueue: [], visibleSurfaces: [] },
+  analytics: {
+    status: 'fallback',
+    latest: null,
+    last7: {
+      days: 7,
+      current: {
+        clicks: 0,
+        orderedItems: 0,
+        shippedItems: 0,
+        revenue: 0,
+        commission: 0,
+        conversionRate: 0
+      },
+      previous: {
+        clicks: 0,
+        orderedItems: 0,
+        shippedItems: 0,
+        revenue: 0,
+        commission: 0,
+        conversionRate: 0
+      }
+    },
+    deltas: { clicks: 0, orderedItems: 0, revenue: 0, commission: 0 },
+    averageCtr: null,
+    contentPerformance: [],
+    rankingChanges: [],
+    summary: ['Affiliate bridge unavailable'],
+    suggestedNextAction: 'Reconnect Agent OS bridge'
+  },
   dailyBrief: {
     headline: 'Affiliate bridge unavailable',
     topOpportunities: [],
