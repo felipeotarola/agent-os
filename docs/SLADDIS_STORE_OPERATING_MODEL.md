@@ -98,6 +98,7 @@ The bridge-backed Sladdis Storefront now exposes the first autonomous operating 
 - `POST /affiliate/products/batch` imports a feed batch and reports per-row failures without aborting the full batch. It accepts `{ products }`, `{ items }`, or a root array, plus optional `defaults`, `source`, and `batchId` metadata.
 - `POST /affiliate/stats` upserts one daily analytics row for clicks, conversions, revenue, commission, conversion rate, and optional content/ranking rows in `topProducts`.
 - `POST /affiliate/stats/batch` imports a stats batch and reports per-row failures without aborting the full batch. It accepts `{ rows }`, `{ stats }`, or a root array, plus optional `defaults`.
+- `POST /affiliate/seo-social/drafts` creates Content Studio draft items from SEO/social candidates, but only when there are verified `sladdis.store` or approved-export sources.
 
 Product ingestion normalizes common feed aliases such as `asin`, `sku`, `name`, `image`, `affiliateUrl`, `trackingUrl`, `department`, and `browseNode`. Rows without explicit IDs get stable affiliate product IDs from source product IDs or tracking links, so repeated feed imports update existing products instead of creating duplicates. Product scoring uses metadata when present (`commissionRate`, `discountPercent`, `trendScore`, `seasonality`, `conversionLikelihood`, `contentFit`) and falls back to catalog quality, rating/review count, stock, price, and tracking-link completeness. Scores include evidence and rejection reasons so Sladdis can show why an item is ready, watchlisted, or needs review.
 
@@ -106,3 +107,5 @@ Catalog health is read-only. It checks missing prices, missing/invalid images, m
 Publishing remains approval-gated. The UI surfaces opportunity queues, scoring evidence, catalog health, drafts, approvals, compliance warnings, stop-condition style blockers, and suggested next actions so Sladdis does not run important loops invisibly.
 
 Analytics feedback is also read-only in V1. Imported daily stats produce 7-day clicks, conversions, revenue, commission, conversion rate, CTR, content performance, ranking-change rows, and a suggested next action. Sladdis should use those signals to decide what to inspect next, not to auto-publish or auto-spend.
+
+SEO/social distribution is source-gated. `GET /affiliate/snapshot` generates keyword clusters, internal-link suggestions, page-refresh suggestions, and platform-specific draft candidates only from verified `sladdis.store` pages/products or an approved live-store export. Unverified affiliate candidates remain excluded and should be repaired or verified first. Creating Content Studio drafts is an explicit internal action and still does not publish externally.

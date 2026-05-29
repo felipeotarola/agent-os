@@ -155,6 +155,50 @@ export type AffiliateAnalytics = {
   suggestedNextAction: string;
 };
 
+export type AffiliateSeoSocial = {
+  status: 'ready' | 'blocked' | string;
+  sourcePolicy: string;
+  verifiedSourceCount: number;
+  excludedUnverifiedProducts: number;
+  keywordClusters: Array<{
+    id: string;
+    label: string;
+    primaryKeyword: string;
+    keywords: string[];
+    sourceIds: string[];
+    evidence: string[];
+  }>;
+  internalLinks: Array<{
+    id: string;
+    anchorText: string;
+    sourceIds: string[];
+    suggestion: string;
+  }>;
+  pageRefreshSuggestions: Array<{
+    id: string;
+    contentItemId: string;
+    title: string;
+    reason: string;
+    priority: string;
+  }>;
+  platformDrafts: Array<{
+    id: string;
+    clusterId: string;
+    title: string;
+    status: string;
+    sourceIds: string[];
+    brief: string;
+    platforms: Array<{
+      platform: string;
+      title: string;
+      caption: string;
+      hashtags: string[];
+    }>;
+  }>;
+  blockers: string[];
+  nextAction: string;
+};
+
 export type AffiliateSnapshot = {
   source: string;
   generatedAt: string;
@@ -189,6 +233,7 @@ export type AffiliateSnapshot = {
     needsDataProducts: number;
   };
   analytics: AffiliateAnalytics;
+  seoSocial: AffiliateSeoSocial;
   totals: {
     clicks: number;
     orderedItems: number;
@@ -248,6 +293,18 @@ const fallback: AffiliateSnapshot = {
     rankingChanges: [],
     summary: ['Affiliate bridge unavailable'],
     suggestedNextAction: 'Reconnect Agent OS bridge'
+  },
+  seoSocial: {
+    status: 'blocked',
+    sourcePolicy: 'verified sladdis.store pages or approved live-store export only',
+    verifiedSourceCount: 0,
+    excludedUnverifiedProducts: 0,
+    keywordClusters: [],
+    internalLinks: [],
+    pageRefreshSuggestions: [],
+    platformDrafts: [],
+    blockers: ['Affiliate bridge unavailable'],
+    nextAction: 'Reconnect Agent OS bridge'
   },
   dailyBrief: {
     headline: 'Affiliate bridge unavailable',

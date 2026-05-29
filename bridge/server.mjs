@@ -1685,6 +1685,19 @@ function mapContentItem(row) {
   };
 }
 
+function isStoreVerifiedContentItem(item) {
+  const metadata = item.metadata ?? {};
+  return Boolean(
+    metadata.storeVerifiedAt ||
+    metadata.liveStoreUrl ||
+    metadata.sladdisStoreUrl ||
+    metadata.approvedStoreExportAt ||
+    metadata.catalogSource === 'sladdis.store' ||
+    item.source === 'sladdis.store' ||
+    item.source === 'approved-store-export'
+  );
+}
+
 async function contentItemsSnapshot() {
   await ensureContentTables();
   const usageColumns = await contentMediaUsageColumns();
@@ -3461,8 +3474,199 @@ function buildAffiliateAnalytics(rows) {
   };
 }
 
+function seoWords(value) {
+  return [
+    ...new Set(
+      String(value ?? '')
+        .toLowerCase()
+        .replace(/å/g, 'a')
+        .replace(/ä/g, 'a')
+        .replace(/ö/g, 'o')
+        .split(/[^a-z0-9]+/)
+        .filter((word) => word.length > 2)
+        .filter(
+          (word) =>
+            ![
+              'och',
+              'the',
+              'for',
+              'with',
+              'usb',
+              'sladdis',
+              'wired',
+              'headphones',
+              'horlurar'
+            ].includes(word)
+        )
+    )
+  ];
+}
+
+function buildKeywordClusters({ products, contentItems }) {
+  const clusters = new Map();
+  const add = ({ id, label, keyword, sourceId, sourceTitle, evidence }) => {
+    if (!clusters.has(id)) {
+      clusters.set(id, {
+        id,
+        label,
+        primaryKeyword: keyword,
+        keywords: new Set([keyword]),
+        sourceIds: new Set(),
+        evidence: []
+      });
+    }
+    const cluster = clusters.get(id);
+    cluster.keywords.add(keyword);
+    if (sourceId) cluster.sourceIds.add(sourceId);
+    if (evidence) cluster.evidence.push(evidence);
+    if (sourceTitle) cluster.evidence.push(sourceTitle);
+  };
+
+  for (const product of products) {
+    const category = String(product.category || 'wired picks').trim();
+    const clusterId = `product:${category.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'wired'}`;
+    add({
+      id: clusterId,
+      label: category,
+      keyword: `${category} wired headphones`.toLowerCase(),
+      sourceId: product.id,
+      sourceTitle: product.title,
+      evidence: product.storeVerified ? 'verified store product' : null
+    });
+    for (const word of seoWords(product.title).slice(0, 4)) {
+      add({
+        id: clusterId,
+        label: category,
+        keyword: `${word} wired`,
+        sourceId: product.id
+      });
+    }
+  }
+
+  for (const item of contentItems) {
+    const pillar = String(item.pillar || item.campaign || 'sladdis').trim();
+    const clusterId = `content:${pillar.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'sladdis'}`;
+    add({
+      id: clusterId,
+      label: pillar,
+      keyword: `${pillar} wired headphones`.toLowerCase(),
+      sourceId: item.id,
+      sourceTitle: item.title,
+      evidence: 'verified store content'
+    });
+    for (const word of seoWords(`${item.title} ${item.brief}`).slice(0, 5)) {
+      add({
+        id: clusterId,
+        label: pillar,
+        keyword: `${word} sladdis`,
+        sourceId: item.id
+      });
+    }
+  }
+
+  return [...clusters.values()]
+    .map((cluster) => ({
+      ...cluster,
+      keywords: [...cluster.keywords].slice(0, 8),
+      sourceIds: [...cluster.sourceIds],
+      evidence: [...new Set(cluster.evidence.filter(Boolean))].slice(0, 8)
+    }))
+    .toSorted((a, b) => b.sourceIds.length - a.sourceIds.length || a.label.localeCompare(b.label));
+}
+
+function platformDraftsForCluster(cluster) {
+  const tags = cluster.keywords
+    .flatMap((keyword) => seoWords(keyword))
+    .filter((word) => word.length > 2)
+    .slice(0, 5);
+  return [
+    {
+      platform: 'instagram',
+      title: `${cluster.label}: wired pick carousel`,
+      caption: `Sladdis angle: ${cluster.primaryKeyword}. Keep it visual, honest, and affiliate-disclosed. No price claim unless recently verified.`,
+      hashtags: ['sladdis', 'wiredheadphones', ...tags].slice(0, 8)
+    },
+    {
+      platform: 'tiktok',
+      title: `${cluster.label}: 20s wired hook`,
+      caption: `Hook: why ${cluster.primaryKeyword} still makes sense. Mention the tradeoff, then send viewers to the approved store page.`,
+      hashtags: ['sladdis', 'wiredtok', ...tags].slice(0, 8)
+    },
+    {
+      platform: 'youtube_shorts',
+      title: `${cluster.label}: quick comparison`,
+      caption: `Short script: problem, wired option, who it fits, and clear affiliate disclosure. Use only verified store references.`,
+      hashtags: ['sladdis', 'wiredaudio', ...tags].slice(0, 8)
+    }
+  ];
+}
+
+function buildSeoSocialDistribution({ products, contentItems, analytics }) {
+  const verifiedProducts = products.filter(isStoreVerifiedProduct);
+  const verifiedContent = contentItems.filter(isStoreVerifiedContentItem);
+  const clusters = buildKeywordClusters({
+    products: verifiedProducts,
+    contentItems: verifiedContent
+  });
+  const internalLinks = clusters.slice(0, 8).map((cluster) => ({
+    id: `internal-link:${cluster.id}`,
+    anchorText: cluster.primaryKeyword,
+    sourceIds: cluster.sourceIds,
+    suggestion:
+      cluster.sourceIds.length > 1
+        ? `Cross-link ${cluster.sourceIds.length} verified Sladdis sources around "${cluster.primaryKeyword}".`
+        : `Add one supporting internal link for "${cluster.primaryKeyword}" once another verified source exists.`
+  }));
+  const pageRefreshSuggestions = verifiedContent.slice(0, 8).map((item) => ({
+    id: `refresh:${item.id}`,
+    contentItemId: item.id,
+    title: item.title,
+    reason:
+      analytics?.status === 'tracking'
+        ? 'Refresh with latest analytics and internal links.'
+        : 'Refresh after first analytics import; keep claims source-backed.',
+    priority: item.variants?.some((variant) => variant.status === 'posted') ? 'medium' : 'low'
+  }));
+  const platformDrafts = clusters.slice(0, 6).map((cluster) => ({
+    id: `seo-draft:${cluster.id}`,
+    clusterId: cluster.id,
+    title: `SEO/social draft: ${cluster.label}`,
+    status: 'draft_candidate',
+    sourceIds: cluster.sourceIds,
+    brief: `Keyword cluster: ${cluster.primaryKeyword}. Sources: ${cluster.sourceIds.join(', ')}. Autopublish disabled.`,
+    platforms: platformDraftsForCluster(cluster)
+  }));
+  const blockers = [
+    !verifiedProducts.length && !verifiedContent.length
+      ? 'No verified sladdis.store or approved-export sources available.'
+      : null,
+    products.length && !verifiedProducts.length
+      ? `${products.length} catalog products are still unverified and excluded.`
+      : null
+  ].filter(Boolean);
+
+  return {
+    status: blockers.length ? 'blocked' : 'ready',
+    sourcePolicy: 'verified sladdis.store pages or approved live-store export only',
+    verifiedSourceCount: verifiedProducts.length + verifiedContent.length,
+    excludedUnverifiedProducts: products.length - verifiedProducts.length,
+    keywordClusters: clusters,
+    internalLinks,
+    pageRefreshSuggestions,
+    platformDrafts,
+    blockers,
+    nextAction: blockers.length
+      ? 'Verify live store sources before generating SEO/social drafts.'
+      : 'Review draft candidates, then create Content Studio drafts for human approval.'
+  };
+}
+
 async function affiliateSnapshot() {
   await ensureAffiliateTables();
+  const contentSnapshotPromise = contentItemsSnapshot().catch((error) => {
+    console.warn(`Skipping SEO/social content snapshot: ${error.message ?? error}`);
+    return { items: [] };
+  });
   const [accounts, rows, products] = await Promise.all([
     sql`
       select id, provider, name, tracking_id as "trackingId", marketplace, status, source, notes, metadata, updated_at as "updatedAt"
@@ -3485,6 +3689,7 @@ async function affiliateSnapshot() {
       limit 120
     `
   ]);
+  const contentSnapshot = await contentSnapshotPromise;
 
   const statRows = rows.map(mapAffiliateStat);
   const totals = statRows.reduce(
@@ -3502,6 +3707,11 @@ async function affiliateSnapshot() {
     : 0;
   const analytics = buildAffiliateAnalytics(statRows);
   const normalizedProducts = products.map(normalizeAffiliateProduct);
+  const seoSocial = buildSeoSocialDistribution({
+    products: normalizedProducts,
+    contentItems: contentSnapshot.items ?? [],
+    analytics
+  });
   const categories = [
     ...new Set(normalizedProducts.map((product) => product.category).filter(Boolean))
   ].toSorted();
@@ -3561,6 +3771,7 @@ async function affiliateSnapshot() {
       ).length
     },
     analytics,
+    seoSocial,
     totals: { ...totals, conversionRate, currency: rows[0]?.currency ?? 'SEK' },
     rows: statRows,
     nextSteps: [
@@ -3571,6 +3782,45 @@ async function affiliateSnapshot() {
       'Keep claims/disclosure/price freshness checks green before any publishing.',
       'Use the approval queue for all external Sladdis actions.'
     ]
+  };
+}
+
+async function createSeoSocialDrafts(input = {}) {
+  const snapshot = await affiliateSnapshot();
+  const candidates = snapshot.seoSocial.platformDrafts.slice(0, Number(input.limit ?? 3));
+  if (!candidates.length) {
+    const error = new Error(
+      snapshot.seoSocial.nextAction || 'no SEO/social draft candidates available'
+    );
+    error.status = 400;
+    throw error;
+  }
+  const created = [];
+  for (const candidate of candidates) {
+    created.push(
+      await createContentItem({
+        title: candidate.title,
+        brief: candidate.brief,
+        pillar: 'seo-social-distribution',
+        campaign: 'sladdis',
+        ownerAgentId: 'sladdis',
+        platforms: candidate.platforms.map((platform) => platform.platform),
+        metadata: {
+          autopublish: false,
+          createdBy: 'seo-social-distribution-loop',
+          sourcePolicy: snapshot.seoSocial.sourcePolicy,
+          keywordClusterId: candidate.clusterId,
+          sourceIds: candidate.sourceIds,
+          platformDrafts: candidate.platforms
+        }
+      })
+    );
+  }
+  return {
+    created,
+    count: created.length,
+    source: 'bridge:affiliate-seo-social-drafts',
+    next: 'Review generated Content Studio drafts before any external publishing.'
   };
 }
 
@@ -6291,6 +6541,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/affiliate/stats/batch') {
       return send(res, 201, await upsertAffiliateDailyStatBatch(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/seo-social/drafts') {
+      return send(res, 201, await createSeoSocialDrafts(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {

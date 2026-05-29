@@ -313,6 +313,94 @@ export default async function AffiliatePage() {
           </Card>
         </section>
 
+        <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]'>
+          <Card>
+            <CardHeader>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <CardTitle>SEO and social distribution</CardTitle>
+                  <CardDescription>
+                    Verified-store keyword clusters, internal links, refreshes and draft candidates.
+                  </CardDescription>
+                </div>
+                <Badge variant={snapshot.seoSocial.status === 'ready' ? 'default' : 'outline'}>
+                  {snapshot.seoSocial.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Verified sources</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.seoSocial.verifiedSourceCount}
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Excluded products</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.seoSocial.excludedUnverifiedProducts}
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Clusters</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.seoSocial.keywordClusters.length}
+                  </div>
+                </div>
+                <div className='rounded-lg border bg-background/40 p-3'>
+                  <div className='text-muted-foreground text-xs'>Drafts</div>
+                  <div className='text-2xl font-semibold'>
+                    {snapshot.seoSocial.platformDrafts.length}
+                  </div>
+                </div>
+              </div>
+              {snapshot.seoSocial.blockers.length > 0 && (
+                <div className='space-y-2'>
+                  {snapshot.seoSocial.blockers.map((blocker) => (
+                    <div key={blocker} className='rounded-lg border bg-background/40 p-3 text-sm'>
+                      {blocker}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className='rounded-lg border bg-background/40 p-3 text-sm'>
+                {snapshot.seoSocial.nextAction}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Keyword clusters</CardTitle>
+              <CardDescription>{snapshot.seoSocial.sourcePolicy}</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {snapshot.seoSocial.keywordClusters.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                  No verified keyword clusters yet.
+                </div>
+              ) : (
+                snapshot.seoSocial.keywordClusters.slice(0, 5).map((cluster) => (
+                  <div key={cluster.id} className='rounded-lg border bg-background/40 p-3 text-sm'>
+                    <div className='font-medium'>{cluster.label}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      {cluster.primaryKeyword}
+                    </div>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      {cluster.keywords.slice(0, 4).map((keyword) => (
+                        <Badge key={keyword} variant='outline'>
+                          {keyword}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
         <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]'>
           <Card>
             <CardHeader>
