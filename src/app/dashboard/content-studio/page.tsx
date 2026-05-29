@@ -285,6 +285,21 @@ function ContentEditForm({ item }: { item: ContentItem }) {
             ))}
           </div>
         </div>
+        <div className='space-y-2'>
+          <label className='text-sm font-medium' htmlFor={`edit-media-${item.id}`}>
+            Add media
+          </label>
+          <Input
+            id={`edit-media-${item.id}`}
+            name='media'
+            type='file'
+            accept='image/*,video/*'
+            multiple
+          />
+          <p className='text-muted-foreground text-xs'>
+            New uploads are appended to this draft. Existing media stays attached.
+          </p>
+        </div>
         <Button type='submit' size='sm' variant='secondary'>
           <Icons.check className='h-4 w-4' />
           Save draft

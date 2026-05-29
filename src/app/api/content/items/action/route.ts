@@ -1,4 +1,4 @@
-import { bridgeRequest } from '@/lib/bridge';
+import { bridgeFetch, bridgeRequest } from '@/lib/bridge';
 import { contentPlatforms } from '@/db/content';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -45,17 +45,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await bridgeRequest('/content/items', {
+    await bridgeFetch('/content/items', {
       method: 'PATCH',
-      body: JSON.stringify({
-        id,
-        action,
-        title,
-        brief: String(formData.get('brief') ?? '').trim(),
-        pillar: String(formData.get('pillar') ?? '').trim(),
-        campaign: String(formData.get('campaign') ?? 'sladdis').trim() || 'sladdis',
-        platforms
-      })
+      body: formData,
+      timeoutMs: 120_000
     });
 
     return NextResponse.redirect(

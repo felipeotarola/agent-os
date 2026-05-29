@@ -1887,7 +1887,7 @@ async function updateContentMediaAsset(input) {
   return item?.mediaAssets.find((asset) => asset.id === id) ?? null;
 }
 
-async function updateContentItem(input) {
+async function updateContentItem(input, mediaFiles = []) {
   await ensureContentTables();
   const id = String(input.id ?? '').trim();
   if (!id) {
@@ -1915,6 +1915,7 @@ async function updateContentItem(input) {
   const campaign = hasCampaign ? String(input.campaign ?? 'sladdis').trim() || 'sladdis' : null;
   const hasPlatforms = Object.prototype.hasOwnProperty.call(input, 'platforms');
   const platforms = hasPlatforms ? normalizeContentPlatforms(input.platforms) : [];
+  validateContentMediaFiles(mediaFiles);
 
   const rows = await sql`
     update content_items
@@ -1928,7 +1929,7 @@ async function updateContentItem(input) {
       metadata = metadata || ${sql.json({ lastCockpitAction: input.action ?? 'update', autopublish: false })}::jsonb,
       updated_at = now()
     where id = ${id}
-    returning id
+    returning id, campaign
   `;
   if (!rows.length) {
     const error = new Error('content item not found');
@@ -1975,6 +1976,24 @@ async function updateContentItem(input) {
         where id = ${id}
       `;
     }
+  }
+  const mediaAssets = [
+    ...uploadedContentMediaAssets({ contentItemId: id, uploadedAssets: input.uploadedAssets }),
+    ...(await uploadContentMediaAssets({
+      contentItemId: id,
+      campaign: rows[0].campaign ?? 'sladdis',
+      mediaFiles
+    }))
+  ];
+  if (mediaAssets.length) {
+    await sql.begin(async (tx) => {
+      for (const asset of mediaAssets) {
+        await tx`
+          insert into content_media_assets (id, content_item_id, variant_id, kind, status, blob_key, blob_url, file_name, content_type, bytes, metadata, updated_at)
+          values (${asset.id}, ${asset.contentItemId}, ${asset.variantId}, ${asset.kind}, ${asset.status}, ${asset.blobKey}, ${asset.blobUrl}, ${asset.fileName}, ${asset.contentType}, ${asset.bytes}, ${sql.json(asset.metadata)}, now())
+        `;
+      }
+    });
   }
   const snapshot = await contentItemsSnapshot();
   return snapshot.items.find((item) => item.id === id);
@@ -5089,6 +5108,8 @@ async function readFormData(req) {
 function formDataToContentInput(formData) {
   const platforms = formData.getAll('platforms').map((value) => String(value));
   return {
+    id: String(formData.get('id') ?? ''),
+    action: String(formData.get('action') ?? ''),
     title: String(formData.get('title') ?? ''),
     brief: String(formData.get('brief') ?? ''),
     pillar: String(formData.get('pillar') ?? ''),
@@ -6621,6 +6642,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'PATCH' && url.pathname === '/content/items') {
+      if (isMultipartRequest(req)) {
+        const formData = await readFormData(req);
+        return send(
+          res,
+          200,
+          await updateContentItem(
+            formDataToContentInput(formData),
+            mediaFilesFromFormData(formData)
+          )
+        );
+      }
       return send(res, 200, await updateContentItem(await readJson(req)));
     }
 
