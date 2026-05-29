@@ -82,6 +82,7 @@ function statusCopy(params: {
   if (params.uploaded) return { variant: 'secondary' as const, text: 'Media uploaded' };
   if (params.action === 'mark-ready')
     return { variant: 'secondary' as const, text: 'Marked ready' };
+  if (params.action === 'edit') return { variant: 'secondary' as const, text: 'Draft updated' };
   if (params.action === 'schedule')
     return { variant: 'secondary' as const, text: 'Scheduled for launch control' };
   if (params.action === 'archive') return { variant: 'secondary' as const, text: 'Archived' };
@@ -101,6 +102,8 @@ function statusCopy(params: {
     return { variant: 'destructive' as const, text: 'Upload 20 images or fewer at a time' };
   if (params.error === 'platform-required')
     return { variant: 'destructive' as const, text: 'Choose at least one platform' };
+  if (params.error === 'missing-title')
+    return { variant: 'destructive' as const, text: 'Draft title is required' };
   if (params.error)
     return { variant: 'destructive' as const, text: `Content action failed: ${params.error}` };
   return null;
@@ -228,6 +231,69 @@ function ContentActions({ item }: { item: ContentItem }) {
   );
 }
 
+function ContentEditForm({ item }: { item: ContentItem }) {
+  const activePlatforms = new Set(item.variants.map((variant) => variant.platform));
+
+  return (
+    <details className='rounded-xl border bg-background/70 p-3'>
+      <summary className='flex cursor-pointer list-none items-center gap-2 text-sm font-medium'>
+        <Icons.edit className='h-4 w-4 text-muted-foreground' />
+        Edit draft
+      </summary>
+      <form action='/api/content/items/action' method='post' className='mt-4 space-y-4'>
+        <input type='hidden' name='id' value={item.id} />
+        <input type='hidden' name='action' value='edit' />
+        <div className='grid gap-3 lg:grid-cols-2'>
+          <div className='space-y-2 lg:col-span-2'>
+            <label className='text-sm font-medium' htmlFor={`edit-title-${item.id}`}>
+              Title
+            </label>
+            <Input id={`edit-title-${item.id}`} name='title' defaultValue={item.title} required />
+          </div>
+          <div className='space-y-2 lg:col-span-2'>
+            <label className='text-sm font-medium' htmlFor={`edit-brief-${item.id}`}>
+              Brief
+            </label>
+            <Textarea id={`edit-brief-${item.id}`} name='brief' defaultValue={item.brief} />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium' htmlFor={`edit-pillar-${item.id}`}>
+              Pillar
+            </label>
+            <Input id={`edit-pillar-${item.id}`} name='pillar' defaultValue={item.pillar} />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium' htmlFor={`edit-campaign-${item.id}`}>
+              Campaign
+            </label>
+            <Input id={`edit-campaign-${item.id}`} name='campaign' defaultValue={item.campaign} />
+          </div>
+        </div>
+        <div className='space-y-2'>
+          <div className='text-sm font-medium'>Platforms</div>
+          <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+            {contentPlatforms.map((platform) => (
+              <label key={platform} className='flex items-center gap-2 text-sm'>
+                <input
+                  type='checkbox'
+                  name='platforms'
+                  value={platform}
+                  defaultChecked={activePlatforms.has(platform)}
+                />
+                {platformLabels[platform]}
+              </label>
+            ))}
+          </div>
+        </div>
+        <Button type='submit' size='sm' variant='secondary'>
+          <Icons.check className='h-4 w-4' />
+          Save draft
+        </Button>
+      </form>
+    </details>
+  );
+}
+
 function ContentCard({ item }: { item: ContentItem }) {
   const variantPlatforms = item.variants.map((variant) => variant.platform);
   const missingMediaCount = item.variants.filter((variant) => !variant.mediaAssets?.length).length;
@@ -266,10 +332,127 @@ function ContentCard({ item }: { item: ContentItem }) {
             · {missingMediaCount} platform variant{missingMediaCount === 1 ? '' : 's'} still need
             media mapping
           </div>
+          <ContentEditForm item={item} />
         </div>
         <ContentActions item={item} />
       </div>
     </div>
+  );
+}
+
+function NewDraftCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex items-start gap-3'>
+          <Icons.post className='mt-1 h-5 w-5 text-muted-foreground' />
+          <div>
+            <CardTitle>New draft</CardTitle>
+            <CardDescription>
+              Create a content draft with optional source images attached.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <form
+          action='/api/content/items'
+          method='post'
+          encType='multipart/form-data'
+          className='space-y-4'
+        >
+          <div className='space-y-2'>
+            <label className='text-sm font-medium' htmlFor='title'>
+              Title
+            </label>
+            <Input
+              id='title'
+              name='title'
+              placeholder='e.g. Why Sladdis matters in 20 seconds'
+              required
+            />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium' htmlFor='brief'>
+              Brief
+            </label>
+            <Textarea
+              id='brief'
+              name='brief'
+              placeholder='Hook, angle, source notes, asset needs...'
+            />
+          </div>
+          <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='pillar'>
+                Pillar
+              </label>
+              <Input id='pillar' name='pillar' placeholder='education, launch, proof...' />
+            </div>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='campaign'>
+                Campaign
+              </label>
+              <Input id='campaign' name='campaign' defaultValue='sladdis' />
+            </div>
+          </div>
+          <div className='space-y-2'>
+            <div className='text-sm font-medium'>Platforms</div>
+            <div className='grid gap-2'>
+              {contentPlatforms.map((platform) => (
+                <label key={platform} className='flex items-center gap-2 text-sm'>
+                  <input
+                    type='checkbox'
+                    name='platforms'
+                    value={platform}
+                    defaultChecked={['instagram', 'tiktok', 'youtube_shorts'].includes(platform)}
+                  />
+                  {platformLabels[platform]}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium' htmlFor='media'>
+              Source media
+            </label>
+            <Input id='media' name='media' type='file' accept='image/*,video/*' multiple />
+            <p className='text-muted-foreground text-xs'>
+              Media is uploaded through the scoped content ingest API. Autopublish is still out of
+              scope for V1.
+            </p>
+          </div>
+          <input type='hidden' name='ownerAgentId' value='sladdis' />
+          <input type='hidden' name='contentKind' value='draft' />
+          <Button type='submit' className='w-full'>
+            <Icons.add className='h-4 w-4' />
+            Create draft
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function UploadMediaCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex items-start gap-3'>
+          <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
+          <div>
+            <CardTitle>Upload media</CardTitle>
+            <CardDescription>
+              Add image and video assets for future agent use. A draft-backed media item is created
+              automatically.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ImageUploadForm />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -306,7 +489,9 @@ export default async function ContentStudioPage({
       rightRailTitle='Content intake'
       rightRailDescription='Drafts, image assets, and launch guardrails'
       rightRail={
-        <div className='space-y-3 text-sm'>
+        <div className='space-y-4 text-sm'>
+          <NewDraftCard />
+          <UploadMediaCard />
           <div className='rounded-lg border bg-card p-3'>
             <div className='font-medium'>Agent-safe asset flow</div>
             <p className='text-muted-foreground mt-1 text-xs'>
@@ -362,151 +547,37 @@ export default async function ContentStudioPage({
 
         {status && <Badge variant={status.variant}>{status.text}</Badge>}
 
-        <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
-          <div className='space-y-4'>
-            <ImageLibraryPanel assets={galleryAssets} collections={mediaCollections} />
+        <div className='space-y-4'>
+          <ImageLibraryPanel assets={galleryAssets} collections={mediaCollections} />
 
-            <div className='flex flex-wrap gap-2'>
-              {(['active', 'all', ...contentStatuses] as ContentView[]).map((view) => (
-                <Button
-                  key={view}
-                  asChild
-                  size='sm'
-                  variant={selectedView === view ? 'default' : 'outline'}
-                >
-                  <a href={`/dashboard/content-studio?view=${view}`}>
-                    {view === 'active' ? 'Active' : view === 'all' ? 'All' : statusLabels[view]}
-                  </a>
-                </Button>
+          <div className='flex flex-wrap gap-2'>
+            {(['active', 'all', ...contentStatuses] as ContentView[]).map((view) => (
+              <Button
+                key={view}
+                asChild
+                size='sm'
+                variant={selectedView === view ? 'default' : 'outline'}
+              >
+                <a href={`/dashboard/content-studio?view=${view}`}>
+                  {view === 'active' ? 'Active' : view === 'all' ? 'All' : statusLabels[view]}
+                </a>
+              </Button>
+            ))}
+          </div>
+          {visibleItems.length ? (
+            <div className='space-y-3'>
+              {visibleItems.map((item) => (
+                <ContentCard key={item.id} item={item} />
               ))}
             </div>
-            {visibleItems.length ? (
-              <div className='space-y-3'>
-                {visibleItems.map((item) => (
-                  <ContentCard key={item.id} item={item} />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>No content items yet</CardTitle>
-                  <CardDescription>Create a draft to start the Sladdis pipeline.</CardDescription>
-                </CardHeader>
-              </Card>
-            )}
-          </div>
-
-          <div className='space-y-4'>
+          ) : (
             <Card>
               <CardHeader>
-                <div className='flex items-start gap-3'>
-                  <Icons.post className='mt-1 h-5 w-5 text-muted-foreground' />
-                  <div>
-                    <CardTitle>New draft</CardTitle>
-                    <CardDescription>
-                      Create a content draft with optional source images attached.
-                    </CardDescription>
-                  </div>
-                </div>
+                <CardTitle>No content items yet</CardTitle>
+                <CardDescription>Create a draft to start the Sladdis pipeline.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <form
-                  action='/api/content/items'
-                  method='post'
-                  encType='multipart/form-data'
-                  className='space-y-4'
-                >
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='title'>
-                      Title
-                    </label>
-                    <Input
-                      id='title'
-                      name='title'
-                      placeholder='e.g. Why Sladdis matters in 20 seconds'
-                      required
-                    />
-                  </div>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='brief'>
-                      Brief
-                    </label>
-                    <Textarea
-                      id='brief'
-                      name='brief'
-                      placeholder='Hook, angle, source notes, asset needs...'
-                    />
-                  </div>
-                  <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium' htmlFor='pillar'>
-                        Pillar
-                      </label>
-                      <Input id='pillar' name='pillar' placeholder='education, launch, proof...' />
-                    </div>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium' htmlFor='campaign'>
-                        Campaign
-                      </label>
-                      <Input id='campaign' name='campaign' defaultValue='sladdis' />
-                    </div>
-                  </div>
-                  <div className='space-y-2'>
-                    <div className='text-sm font-medium'>Platforms</div>
-                    <div className='grid gap-2'>
-                      {contentPlatforms.map((platform) => (
-                        <label key={platform} className='flex items-center gap-2 text-sm'>
-                          <input
-                            type='checkbox'
-                            name='platforms'
-                            value={platform}
-                            defaultChecked={['instagram', 'tiktok', 'youtube_shorts'].includes(
-                              platform
-                            )}
-                          />
-                          {platformLabels[platform]}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium' htmlFor='media'>
-                      Source media
-                    </label>
-                    <Input id='media' name='media' type='file' accept='image/*,video/*' multiple />
-                    <p className='text-muted-foreground text-xs'>
-                      Media is uploaded through the scoped content ingest API. Autopublish is still
-                      out of scope for V1.
-                    </p>
-                  </div>
-                  <input type='hidden' name='ownerAgentId' value='sladdis' />
-                  <input type='hidden' name='contentKind' value='draft' />
-                  <Button type='submit' className='w-full'>
-                    <Icons.add className='h-4 w-4' />
-                    Create draft
-                  </Button>
-                </form>
-              </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <div className='flex items-start gap-3'>
-                  <Icons.media className='mt-1 h-5 w-5 text-muted-foreground' />
-                  <div>
-                    <CardTitle>Upload media</CardTitle>
-                    <CardDescription>
-                      Add image and video assets for future agent use. A draft-backed media item is
-                      created automatically.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ImageUploadForm />
-              </CardContent>
-            </Card>
-          </div>
+          )}
         </div>
       </div>
     </PageContainer>

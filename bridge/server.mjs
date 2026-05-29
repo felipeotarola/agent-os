@@ -1907,12 +1907,23 @@ async function updateContentItem(input) {
     error.status = 400;
     throw error;
   }
+  const hasBrief = Object.prototype.hasOwnProperty.call(input, 'brief');
+  const brief = hasBrief ? String(input.brief ?? '').trim() : null;
+  const hasPillar = Object.prototype.hasOwnProperty.call(input, 'pillar');
+  const pillar = hasPillar ? String(input.pillar ?? '').trim() : null;
+  const hasCampaign = Object.prototype.hasOwnProperty.call(input, 'campaign');
+  const campaign = hasCampaign ? String(input.campaign ?? 'sladdis').trim() || 'sladdis' : null;
+  const hasPlatforms = Object.prototype.hasOwnProperty.call(input, 'platforms');
+  const platforms = hasPlatforms ? normalizeContentPlatforms(input.platforms) : [];
 
   const rows = await sql`
     update content_items
     set
       title = case when ${hasTitle} then ${title} else title end,
+      brief = case when ${hasBrief} then ${brief} else brief end,
       status = case when ${hasStatus} then ${status} else status end,
+      pillar = case when ${hasPillar} then ${pillar} else pillar end,
+      campaign = case when ${hasCampaign} then ${campaign} else campaign end,
       schedule_at = case when ${hasScheduleAt} then ${scheduleAt}::timestamptz else schedule_at end,
       metadata = metadata || ${sql.json({ lastCockpitAction: input.action ?? 'update', autopublish: false })}::jsonb,
       updated_at = now()
@@ -1933,6 +1944,37 @@ async function updateContentItem(input) {
         updated_at = now()
       where content_item_id = ${id} and status != 'posted'
     `;
+  }
+  if (hasTitle) {
+    await sql`
+      update content_variants
+      set title = ${title},
+        metadata = metadata || ${sql.json({ lastCockpitAction: input.action ?? 'update', autopublish: false })}::jsonb,
+        updated_at = now()
+      where content_item_id = ${id} and status != 'posted'
+    `;
+  }
+  if (hasPlatforms) {
+    const existingVariantRows = await sql`
+      select platform from content_variants
+      where content_item_id = ${id}
+    `;
+    const existingPlatforms = new Set(existingVariantRows.map((row) => row.platform));
+    await sql`
+      delete from content_variants
+      where content_item_id = ${id}
+        and status != 'posted'
+        and platform != all(${platforms})
+    `;
+    for (const platform of platforms) {
+      if (existingPlatforms.has(platform)) continue;
+      await sql`
+        insert into content_variants (id, content_item_id, platform, status, title, caption, hashtags, metadata, updated_at)
+        select ${randomUUID()}, ${id}, ${platform}, ${status ?? 'draft'}, title, '', ${sql.json([])}, ${sql.json({ autopublish: false, lastCockpitAction: input.action ?? 'update' })}, now()
+        from content_items
+        where id = ${id}
+      `;
+    }
   }
   const snapshot = await contentItemsSnapshot();
   return snapshot.items.find((item) => item.id === id);
