@@ -12,9 +12,7 @@ export default function AboutPage() {
           <h1 className='text-foreground text-3xl font-bold tracking-tight sm:text-4xl'>
             Agent OS
           </h1>
-          <p className='text-muted-foreground mt-4 text-lg'>
-            Local-first cockpit for Felipe × Cai.
-          </p>
+          <p className='text-muted-foreground mt-4 text-lg'>Local-first cockpit for Felipe.</p>
         </header>
         <section className='bg-card rounded-2xl border p-8 shadow-sm'>
           <h2 className='text-foreground mb-4 text-xl font-semibold'>Purpose</h2>
