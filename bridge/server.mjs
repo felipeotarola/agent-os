@@ -68,6 +68,23 @@ const MAX_CONTENT_CLIENT_UPLOAD_BYTES = 15 * 1024 * 1024;
 const CONTENT_MEDIA_PREFIXES = ['image/', 'video/'];
 const AFFILIATE_PRODUCT_STATUSES = ['active', 'draft', 'archived'];
 const AFFILIATE_STOCK_STATUSES = ['in_stock', 'out_of_stock', 'limited', 'unknown'];
+const AFFILIATE_PLATFORM_RULES = {
+  amazon: {
+    disclosure: 'Affiliate disclosure required near product links.',
+    priceFreshness: 'Prices and availability need freshness context before publishing.',
+    prohibitedClaims: ['guaranteed', 'cure', 'best ever', 'officially approved']
+  },
+  instagram: {
+    disclosure: 'Use clear affiliate/ad disclosure in the post caption.',
+    priceFreshness: 'Avoid exact prices unless recently verified.',
+    prohibitedClaims: ['guaranteed', 'cure', 'risk-free']
+  },
+  tiktok: {
+    disclosure: 'Use visible affiliate/ad disclosure in voiceover, caption, or overlay.',
+    priceFreshness: 'Avoid exact prices unless recently verified.',
+    prohibitedClaims: ['guaranteed', 'cure', 'risk-free']
+  }
+};
 const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
 const MEMORY_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
@@ -1448,11 +1465,21 @@ async function ensureContentTables() {
       updated_at timestamptz not null default now()
     )
   `;
-  await sql`alter table content_media_assets add column if not exists used_at timestamptz`;
-  await sql`
-    alter table content_media_assets
-    add column if not exists used_platforms jsonb not null default '[]'::jsonb
+}
+
+async function contentMediaUsageColumns() {
+  const rows = await sql`
+    select column_name as "columnName"
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'content_media_assets'
+      and column_name in ('used_at', 'used_platforms')
   `;
+  const columns = new Set(rows.map((column) => column.columnName));
+  return {
+    hasUsedAt: columns.has('used_at'),
+    hasUsedPlatforms: columns.has('used_platforms')
+  };
 }
 
 function normalizeContentStatus(status) {
@@ -1594,6 +1621,12 @@ async function uploadContentMediaAssets({ contentItemId, campaign, mediaFiles })
 }
 
 function mapContentMediaAsset(row) {
+  const metadata = row.metadata ?? {};
+  const usedPlatforms = Array.isArray(row.usedPlatforms)
+    ? row.usedPlatforms
+    : Array.isArray(metadata.usedPlatforms)
+      ? metadata.usedPlatforms
+      : [];
   return {
     id: row.id,
     contentItemId: row.contentItemId,
@@ -1605,11 +1638,9 @@ function mapContentMediaAsset(row) {
     fileName: row.fileName ?? null,
     contentType: row.contentType ?? null,
     bytes: row.bytes === null || row.bytes === undefined ? null : Number(row.bytes),
-    usedAt: contentIsoOrNull(row.usedAt),
-    usedPlatforms: Array.isArray(row.usedPlatforms)
-      ? row.usedPlatforms.filter((platform) => CONTENT_PLATFORMS.includes(platform))
-      : [],
-    metadata: row.metadata ?? {},
+    usedAt: contentIsoOrNull(row.usedAt ?? metadata.usedAt),
+    usedPlatforms: usedPlatforms.filter((platform) => CONTENT_PLATFORMS.includes(platform)),
+    metadata,
     createdAt: contentIsoOrNull(row.createdAt),
     updatedAt: contentIsoOrNull(row.updatedAt)
   };
@@ -1656,6 +1687,7 @@ function mapContentItem(row) {
 
 async function contentItemsSnapshot() {
   await ensureContentTables();
+  const usageColumns = await contentMediaUsageColumns();
   const itemRows = await sql`
     select id, title, brief, status, pillar, campaign, owner_agent_id as "ownerAgentId", source,
       schedule_at as "scheduleAt", published_at as "publishedAt", metadata, created_at as "createdAt", updated_at as "updatedAt"
@@ -1674,8 +1706,9 @@ async function contentItemsSnapshot() {
       order by created_at asc
     `
     : [];
-  const assetRows = ids.length
-    ? await sql`
+  let assetRows = [];
+  if (ids.length && usageColumns.hasUsedAt && usageColumns.hasUsedPlatforms) {
+    assetRows = await sql`
       select id, content_item_id as "contentItemId", variant_id as "variantId", kind, status,
         blob_key as "blobKey", blob_url as "blobUrl", file_name as "fileName", content_type as "contentType",
         bytes, used_at as "usedAt", used_platforms as "usedPlatforms", metadata,
@@ -1683,8 +1716,18 @@ async function contentItemsSnapshot() {
       from content_media_assets
       where content_item_id = any(${ids})
       order by created_at asc
-    `
-    : [];
+    `;
+  } else if (ids.length) {
+    assetRows = await sql`
+      select id, content_item_id as "contentItemId", variant_id as "variantId", kind, status,
+        blob_key as "blobKey", blob_url as "blobUrl", file_name as "fileName", content_type as "contentType",
+        bytes, null as "usedAt", null as "usedPlatforms", metadata,
+        created_at as "createdAt", updated_at as "updatedAt"
+      from content_media_assets
+      where content_item_id = any(${ids})
+      order by created_at asc
+    `;
+  }
 
   const items = itemRows.map(mapContentItem);
   const itemMap = new Map(items.map((item) => [item.id, item]));
@@ -1794,16 +1837,32 @@ async function updateContentMediaAsset(input) {
     throw error;
   }
 
-  const rows = await sql`
-    update content_media_assets
-    set
-      used_at = case when ${action === 'mark-used'} then now() else null end,
-      used_platforms = ${sql.json(action === 'mark-used' ? usedPlatforms : [])}::jsonb,
-      metadata = metadata || ${sql.json({ lastCockpitAction: action })}::jsonb,
-      updated_at = now()
-    where id = ${id}
-    returning content_item_id as "contentItemId"
-  `;
+  const usageColumns = await contentMediaUsageColumns();
+  const usageMetadata = {
+    lastCockpitAction: action,
+    usedAt: action === 'mark-used' ? new Date().toISOString() : null,
+    usedPlatforms: action === 'mark-used' ? usedPlatforms : []
+  };
+  const rows =
+    usageColumns.hasUsedAt && usageColumns.hasUsedPlatforms
+      ? await sql`
+        update content_media_assets
+        set
+          used_at = case when ${action === 'mark-used'} then now() else null end,
+          used_platforms = ${sql.json(action === 'mark-used' ? usedPlatforms : [])}::jsonb,
+          metadata = metadata || ${sql.json({ lastCockpitAction: action })}::jsonb,
+          updated_at = now()
+        where id = ${id}
+        returning content_item_id as "contentItemId"
+      `
+      : await sql`
+        update content_media_assets
+        set
+          metadata = metadata || ${sql.json(usageMetadata)}::jsonb,
+          updated_at = now()
+        where id = ${id}
+        returning content_item_id as "contentItemId"
+      `;
   if (!rows.length) {
     const error = new Error('content media asset not found');
     error.status = 404;
@@ -2717,6 +2776,516 @@ async function ensureAffiliateTables() {
   `;
 }
 
+function numberFromMetadata(metadata, keys, fallback = 0) {
+  if (!metadata || typeof metadata !== 'object') return fallback;
+  for (const key of keys) {
+    const value = metadata[key];
+    if (value !== null && value !== undefined && value !== '') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return fallback;
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function productCompletenessScore(product) {
+  const fields = [
+    product.title,
+    product.price !== null && product.price !== undefined,
+    product.imageUrl,
+    product.category,
+    product.trackingLink,
+    product.stockStatus && product.stockStatus !== 'unknown',
+    product.metadata && Object.keys(product.metadata).length > 0
+  ];
+  return clampScore((fields.filter(Boolean).length / fields.length) * 100);
+}
+
+function normalizeAffiliateProduct(row) {
+  const product = {
+    ...row,
+    price: row.price === null || row.price === undefined ? null : Number(row.price),
+    rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
+    reviewCount: Number(row.reviewCount ?? 0),
+    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+  };
+  product.completeness = productCompletenessScore(product);
+  return product;
+}
+
+function validHttpUrl(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(String(value));
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function hoursSince(value) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const timestamp = new Date(String(value)).getTime();
+  if (!Number.isFinite(timestamp)) return Number.POSITIVE_INFINITY;
+  return (Date.now() - timestamp) / (1000 * 60 * 60);
+}
+
+function isStoreVerifiedProduct(product) {
+  const metadata = product.metadata ?? {};
+  return Boolean(
+    metadata.storeVerifiedAt ||
+    metadata.liveStoreUrl ||
+    metadata.sladdisStoreUrl ||
+    metadata.approvedStoreExportAt ||
+    metadata.catalogSource === 'sladdis.store'
+  );
+}
+
+function weakMetadataReasons(product) {
+  const metadata = product.metadata ?? {};
+  return [
+    !metadata.commissionRate && !metadata.commission_rate ? 'commissionRate' : null,
+    !metadata.contentFit && !metadata.content_fit ? 'contentFit' : null,
+    !metadata.priceVerifiedAt && product.price ? 'priceVerifiedAt' : null,
+    !isStoreVerifiedProduct(product) ? 'live store verification' : null
+  ].filter(Boolean);
+}
+
+function affiliateInputString(input, keys, fallback = '') {
+  for (const key of keys) {
+    const value = input?.[key];
+    if (value !== null && value !== undefined && value !== '') return String(value).trim();
+  }
+  return fallback;
+}
+
+function stableAffiliateProductId({ id, source, sourceProductId, trackingLink }) {
+  const explicitId = String(id ?? '').trim();
+  if (explicitId) return explicitId;
+  if (sourceProductId) return `affiliate:${source}:${sourceProductId}`;
+  return `affiliate:${source}:${createHash('sha256').update(trackingLink).digest('hex').slice(0, 16)}`;
+}
+
+function normalizeAffiliateStockStatus(value) {
+  const normalized = String(value ?? 'unknown')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (['in_stock', 'instock', 'available', 'available_now'].includes(normalized)) {
+    return 'in_stock';
+  }
+  if (['limited', 'low_stock', 'limited_stock'].includes(normalized)) return 'limited';
+  if (['out_of_stock', 'outofstock', 'sold_out', 'unavailable'].includes(normalized)) {
+    return 'out_of_stock';
+  }
+  return AFFILIATE_STOCK_STATUSES.includes(normalized) ? normalized : 'unknown';
+}
+
+function affiliateProductsFromFeed(input) {
+  const rows = Array.isArray(input)
+    ? input
+    : Array.isArray(input.products)
+      ? input.products
+      : Array.isArray(input.items)
+        ? input.items
+        : [];
+  const defaults =
+    !Array.isArray(input) && input.defaults && typeof input.defaults === 'object'
+      ? input.defaults
+      : {};
+  return rows.map((row) => {
+    const product = row && typeof row === 'object' ? row : {};
+    return {
+      ...defaults,
+      ...product,
+      metadata: {
+        ...(defaults.metadata && typeof defaults.metadata === 'object' ? defaults.metadata : {}),
+        ...(product.metadata && typeof product.metadata === 'object' ? product.metadata : {}),
+        feedSource: !Array.isArray(input) ? (input.source ?? input.feedSource) : undefined,
+        feedBatchId: !Array.isArray(input) ? (input.batchId ?? input.feedBatchId) : undefined
+      }
+    };
+  });
+}
+
+function scoreAffiliateProduct(product) {
+  const metadata = product.metadata ?? {};
+  const commissionRate = numberFromMetadata(metadata, ['commissionRate', 'commission_rate'], 3);
+  const discountPercent = numberFromMetadata(metadata, ['discountPercent', 'discount_percent'], 0);
+  const trendScore = numberFromMetadata(
+    metadata,
+    ['trendScore', 'trend_score', 'searchDemand'],
+    50
+  );
+  const seasonality = numberFromMetadata(metadata, ['seasonality', 'seasonalityScore'], 50);
+  const conversionLikelihood = numberFromMetadata(
+    metadata,
+    ['conversionLikelihood', 'conversion_likelihood'],
+    product.rating ? product.rating * 16 : 45
+  );
+  const contentFit = numberFromMetadata(
+    metadata,
+    ['contentFit', 'content_fit'],
+    product.category ? 60 : 35
+  );
+  const confidenceSignals = [
+    product.price !== null,
+    Boolean(product.imageUrl),
+    product.stockStatus === 'in_stock' || product.stockStatus === 'limited',
+    Boolean(product.trackingLink),
+    product.reviewCount > 0,
+    product.completeness >= 70
+  ];
+  const confidence = clampScore(
+    (confidenceSignals.filter(Boolean).length / confidenceSignals.length) * 100
+  );
+  const stockScore =
+    product.stockStatus === 'in_stock'
+      ? 100
+      : product.stockStatus === 'limited'
+        ? 65
+        : product.stockStatus === 'out_of_stock'
+          ? 0
+          : 35;
+  const reviewScore = clampScore(
+    (product.rating ?? 0) * 14 + Math.min(product.reviewCount, 500) / 10
+  );
+  const commissionScore = clampScore(commissionRate * 12);
+  const priceScore = product.price ? 70 : 25;
+  const score = clampScore(
+    commissionScore * 0.16 +
+      discountPercent * 0.1 +
+      trendScore * 0.16 +
+      seasonality * 0.1 +
+      conversionLikelihood * 0.16 +
+      contentFit * 0.14 +
+      stockScore * 0.1 +
+      reviewScore * 0.08 +
+      priceScore * 0.04 +
+      product.completeness * 0.06
+  );
+  const evidence = [
+    `commission ${commissionRate}%`,
+    `trend ${clampScore(trendScore)}`,
+    `content fit ${clampScore(contentFit)}`,
+    `confidence ${confidence}`,
+    product.rating ? `rating ${product.rating}` : null,
+    product.reviewCount ? `${product.reviewCount} reviews` : null,
+    product.stockStatus ? `stock ${product.stockStatus}` : null
+  ].filter(Boolean);
+  const rejectionReasons = [
+    !product.trackingLink ? 'missing tracking link' : null,
+    !product.price ? 'missing price' : null,
+    !product.imageUrl ? 'missing image' : null,
+    product.stockStatus === 'out_of_stock' ? 'out of stock' : null,
+    confidence < 50 ? 'low confidence' : null,
+    score < 45 ? 'weak opportunity score' : null
+  ].filter(Boolean);
+  return {
+    productId: product.id,
+    title: product.title,
+    category: product.category,
+    score,
+    confidence,
+    status: rejectionReasons.length ? 'needs_review' : score >= 70 ? 'ready' : 'watch',
+    evidence,
+    rejectionReasons,
+    factors: {
+      commissionRate,
+      discountPercent,
+      trendScore: clampScore(trendScore),
+      seasonality: clampScore(seasonality),
+      conversionLikelihood: clampScore(conversionLikelihood),
+      contentFit: clampScore(contentFit),
+      stockScore,
+      reviewScore,
+      completeness: product.completeness
+    },
+    updatedAt: product.updatedAt
+      ? new Date(product.updatedAt).toISOString()
+      : new Date().toISOString()
+  };
+}
+
+function buildCatalogHealth(products) {
+  const trackingCounts = new Map();
+  const sourceProductCounts = new Map();
+  const titleCounts = new Map();
+  for (const product of products) {
+    if (product.trackingLink) {
+      trackingCounts.set(product.trackingLink, (trackingCounts.get(product.trackingLink) ?? 0) + 1);
+    }
+    if (product.sourceProductId) {
+      const key = `${product.source}:${product.sourceProductId}`;
+      sourceProductCounts.set(key, (sourceProductCounts.get(key) ?? 0) + 1);
+    }
+    const titleKey = String(product.title ?? '')
+      .trim()
+      .toLowerCase();
+    if (titleKey) titleCounts.set(titleKey, (titleCounts.get(titleKey) ?? 0) + 1);
+  }
+
+  const productIssues = products.map((product) => {
+    const metadata = product.metadata ?? {};
+    const duplicateKeys = [
+      product.trackingLink && trackingCounts.get(product.trackingLink) > 1 ? 'trackingLink' : null,
+      product.sourceProductId &&
+      sourceProductCounts.get(`${product.source}:${product.sourceProductId}`) > 1
+        ? 'sourceProductId'
+        : null,
+      titleCounts.get(
+        String(product.title ?? '')
+          .trim()
+          .toLowerCase()
+      ) > 1
+        ? 'title'
+        : null
+    ].filter(Boolean);
+    const stalePrice = Boolean(product.price) && hoursSince(metadata.priceVerifiedAt) > 72;
+    const issues = [
+      !product.price ? 'missing price' : null,
+      !product.imageUrl ? 'missing image' : null,
+      product.imageUrl && !validHttpUrl(product.imageUrl) ? 'invalid image URL' : null,
+      !product.category ? 'missing category' : null,
+      product.stockStatus === 'unknown' ? 'unknown stock' : null,
+      product.stockStatus === 'out_of_stock' ? 'out of stock' : null,
+      !product.trackingLink ? 'missing tracking link' : null,
+      product.trackingLink && !validHttpUrl(product.trackingLink) ? 'invalid tracking link' : null,
+      stalePrice ? 'stale price' : null,
+      duplicateKeys.length ? `duplicate ${duplicateKeys.join('/')}` : null,
+      ...weakMetadataReasons(product).map((reason) => `weak metadata: ${reason}`)
+    ].filter(Boolean);
+    return { product, issues };
+  });
+
+  const checks = [
+    {
+      id: 'missing-price',
+      label: 'Missing prices',
+      count: products.filter((product) => !product.price).length
+    },
+    {
+      id: 'missing-image',
+      label: 'Missing images',
+      count: products.filter((product) => !product.imageUrl).length
+    },
+    {
+      id: 'invalid-image-url',
+      label: 'Invalid image URLs',
+      count: products.filter((product) => product.imageUrl && !validHttpUrl(product.imageUrl))
+        .length
+    },
+    {
+      id: 'missing-category',
+      label: 'Missing categories',
+      count: products.filter((product) => !product.category).length
+    },
+    {
+      id: 'unknown-stock',
+      label: 'Unknown stock',
+      count: products.filter((product) => product.stockStatus === 'unknown').length
+    },
+    {
+      id: 'out-of-stock',
+      label: 'Out of stock',
+      count: products.filter((product) => product.stockStatus === 'out_of_stock').length
+    },
+    {
+      id: 'missing-tracking',
+      label: 'Missing tracking links',
+      count: products.filter((product) => !product.trackingLink).length
+    },
+    {
+      id: 'invalid-tracking-url',
+      label: 'Invalid tracking URLs',
+      count: products.filter(
+        (product) => product.trackingLink && !validHttpUrl(product.trackingLink)
+      ).length
+    },
+    {
+      id: 'stale-price',
+      label: 'Stale prices',
+      count: products.filter(
+        (product) => Boolean(product.price) && hoursSince(product.metadata?.priceVerifiedAt) > 72
+      ).length
+    },
+    {
+      id: 'duplicate-products',
+      label: 'Duplicate products',
+      count: productIssues.filter(({ issues }) =>
+        issues.some((issue) => issue.startsWith('duplicate '))
+      ).length
+    },
+    {
+      id: 'weak-metadata',
+      label: 'Weak metadata',
+      count: products.filter((product) => weakMetadataReasons(product).length > 0).length
+    }
+  ];
+  const blockingCount = checks.reduce((sum, check) => sum + check.count, 0);
+  return {
+    status: blockingCount ? 'needs_attention' : 'healthy',
+    blockingCount,
+    checks,
+    repairQueue: productIssues
+      .filter(({ issues }) => issues.length > 0)
+      .toSorted(
+        (a, b) =>
+          b.issues.length - a.issues.length || a.product.completeness - b.product.completeness
+      )
+      .slice(0, 12)
+      .map(({ product, issues }) => ({
+        productId: product.id,
+        title: product.title,
+        severity: issues.some((issue) =>
+          ['missing tracking link', 'invalid tracking link', 'out of stock'].includes(issue)
+        )
+          ? 'blocker'
+          : issues.length >= 3
+            ? 'high'
+            : 'medium',
+        issues,
+        suggestedFixes: [
+          ...new Set(
+            issues.map((issue) => {
+              if (issue.includes('price')) return 'Refresh price and set metadata.priceVerifiedAt.';
+              if (issue.includes('image'))
+                return 'Add a valid product image URL from the live store.';
+              if (issue.includes('tracking')) return 'Replace with a valid affiliate tracking URL.';
+              if (issue.includes('stock')) return 'Verify current stock and update stockStatus.';
+              if (issue.includes('duplicate')) {
+                return 'Merge duplicate catalog rows or archive the weaker row.';
+              }
+              if (issue.includes('live store verification')) {
+                return 'Verify against sladdis.store or an approved live-store export.';
+              }
+              if (issue.includes('metadata')) return 'Add scoring metadata evidence.';
+              return 'Review and repair catalog data.';
+            })
+          )
+        ]
+      })),
+    weakestProducts: products
+      .toSorted((a, b) => a.completeness - b.completeness)
+      .slice(0, 5)
+      .map((product) => ({
+        id: product.id,
+        title: product.title,
+        completeness: product.completeness,
+        missing: [
+          !product.price ? 'price' : null,
+          !product.imageUrl ? 'image' : null,
+          !product.category ? 'category' : null,
+          product.stockStatus === 'unknown' ? 'stock' : null,
+          !product.trackingLink ? 'trackingLink' : null
+        ].filter(Boolean)
+      })),
+    checkedAt: new Date().toISOString()
+  };
+}
+
+function checkAffiliateCompliance(product) {
+  const metadata = product.metadata ?? {};
+  const platforms =
+    Array.isArray(metadata.platforms) && metadata.platforms.length
+      ? metadata.platforms
+      : ['amazon'];
+  const text = [product.title, metadata.claims, metadata.caption, metadata.description]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const warnings = [];
+  if (!metadata.disclosure && !metadata.hasDisclosure) {
+    warnings.push('affiliate disclosure missing');
+  }
+  if (!metadata.priceVerifiedAt && product.price) {
+    warnings.push('price freshness missing');
+  }
+  for (const platform of platforms) {
+    const rules = AFFILIATE_PLATFORM_RULES[platform] ?? AFFILIATE_PLATFORM_RULES.amazon;
+    for (const term of rules.prohibitedClaims) {
+      if (text.includes(term)) warnings.push(`risky claim: ${term}`);
+    }
+  }
+  if (!product.trackingLink) warnings.push('tracking link missing');
+  if (product.stockStatus === 'out_of_stock') warnings.push('out of stock');
+  return {
+    productId: product.id,
+    title: product.title,
+    status: warnings.length ? 'blocked' : 'clear',
+    warnings,
+    requiredApproval: warnings.length > 0 || product.status !== 'active',
+    platforms
+  };
+}
+
+function buildContentDrafts(opportunities) {
+  return opportunities.slice(0, 6).map((opportunity) => ({
+    id: `draft:${opportunity.productId}`,
+    productId: opportunity.productId,
+    title: opportunity.title,
+    status: opportunity.status === 'ready' ? 'ready_for_approval' : 'needs_evidence',
+    angle:
+      opportunity.score >= 75 ? 'High-confidence buying guide' : 'Watchlist comparison snippet',
+    formats: ['buying-guide', 'comparison-snippet', 'social-post'],
+    brief: `${opportunity.title}: score ${opportunity.score}, confidence ${opportunity.confidence}. ${opportunity.evidence.join('; ')}.`
+  }));
+}
+
+function buildApprovalQueue(contentDrafts, complianceChecks) {
+  const complianceByProduct = new Map(complianceChecks.map((check) => [check.productId, check]));
+  return contentDrafts
+    .filter(
+      (draft) =>
+        draft.status === 'ready_for_approval' ||
+        complianceByProduct.get(draft.productId)?.requiredApproval
+    )
+    .map((draft) => ({
+      id: `approval:${draft.productId}`,
+      productId: draft.productId,
+      title: draft.title,
+      kind: 'publish-approval',
+      status: 'needs_human',
+      reason:
+        complianceByProduct.get(draft.productId)?.warnings.join(', ') ||
+        'ready draft requires human approval before external action',
+      nextAction: 'Review draft, claims, disclosure, and target channel before publishing.'
+    }));
+}
+
+function buildSladdisDailyBrief({ opportunities, catalogHealth, approvalQueue, complianceChecks }) {
+  const blockers = [
+    catalogHealth.blockingCount ? `${catalogHealth.blockingCount} catalog data gaps` : null,
+    approvalQueue.length ? `${approvalQueue.length} items need approval` : null,
+    complianceChecks.filter((check) => check.status === 'blocked').length
+      ? `${complianceChecks.filter((check) => check.status === 'blocked').length} compliance blocks`
+      : null
+  ].filter(Boolean);
+  return {
+    headline: opportunities.length
+      ? `${opportunities[0].title} is the top Sladdis opportunity`
+      : 'No products ready for Sladdis scoring yet',
+    topOpportunities: opportunities.slice(0, 3),
+    blockers,
+    suggestedActions: [
+      opportunities[0]
+        ? `Prepare draft for ${opportunities[0].title}`
+        : 'Import first product feed',
+      catalogHealth.blockingCount
+        ? 'Fix missing catalog data before publishing'
+        : 'Keep catalog health green',
+      approvalQueue.length
+        ? 'Review approval queue before any external action'
+        : 'No publishing approvals pending'
+    ],
+    generatedAt: new Date().toISOString()
+  };
+}
+
 async function affiliateSnapshot() {
   await ensureAffiliateTables();
   const [accounts, rows, products] = await Promise.all([
@@ -2755,10 +3324,24 @@ async function affiliateSnapshot() {
   const conversionRate = totals.clicks
     ? Number(((totals.orderedItems / totals.clicks) * 100).toFixed(2))
     : 0;
+  const normalizedProducts = products.map(normalizeAffiliateProduct);
   const categories = [
-    ...new Set(products.map((product) => product.category).filter(Boolean))
+    ...new Set(normalizedProducts.map((product) => product.category).filter(Boolean))
   ].toSorted();
-  const activeProducts = products.filter((product) => product.status === 'active');
+  const activeProducts = normalizedProducts.filter((product) => product.status === 'active');
+  const opportunities = normalizedProducts
+    .map(scoreAffiliateProduct)
+    .toSorted((a, b) => b.score - a.score || b.confidence - a.confidence);
+  const catalogHealth = buildCatalogHealth(normalizedProducts);
+  const complianceChecks = normalizedProducts.map(checkAffiliateCompliance);
+  const contentDrafts = buildContentDrafts(opportunities);
+  const approvalQueue = buildApprovalQueue(contentDrafts, complianceChecks);
+  const dailyBrief = buildSladdisDailyBrief({
+    opportunities,
+    catalogHealth,
+    approvalQueue,
+    complianceChecks
+  });
 
   return {
     source: 'bridge:postgres',
@@ -2766,29 +3349,48 @@ async function affiliateSnapshot() {
     configured: accounts.length > 0,
     connected: rows.length > 0 || products.length > 0,
     accounts,
-    products: products.map((product) => ({
-      ...product,
-      price: product.price === null || product.price === undefined ? null : Number(product.price),
-      rating:
-        product.rating === null || product.rating === undefined ? null : Number(product.rating),
-      reviewCount: Number(product.reviewCount ?? 0)
-    })),
+    products: normalizedProducts,
+    opportunities,
+    catalogHealth,
+    compliance: {
+      status: complianceChecks.some((check) => check.status === 'blocked') ? 'blocked' : 'clear',
+      checks: complianceChecks,
+      rules: AFFILIATE_PLATFORM_RULES
+    },
+    contentPipeline: {
+      drafts: contentDrafts,
+      approvalQueue,
+      visibleSurfaces: [
+        'opportunity queue',
+        'scoring evidence',
+        'catalog health',
+        'drafts',
+        'approval queue',
+        'audit trail',
+        'errors and stop conditions',
+        'suggested next actions'
+      ]
+    },
+    dailyBrief,
     catalog: {
-      totalProducts: products.length,
+      totalProducts: normalizedProducts.length,
       activeProducts: activeProducts.length,
       categories,
-      inStockProducts: products.filter((product) => product.stockStatus === 'in_stock').length,
-      needsDataProducts: products.filter(
+      inStockProducts: normalizedProducts.filter((product) => product.stockStatus === 'in_stock')
+        .length,
+      needsDataProducts: normalizedProducts.filter(
         (product) => !product.imageUrl || !product.price || product.stockStatus === 'unknown'
       ).length
     },
     totals: { ...totals, conversionRate, currency: rows[0]?.currency ?? 'SEK' },
     rows,
     nextSteps: [
-      'Add the first Amazon products with title, price, image, category, tracking link, stock, and metadata.',
-      'Confirm which Amazon Associates/Creator reporting source Sladdis can access.',
-      'Prefer official read-only API/export over browser scraping or manual OAuth loops.',
-      'Map product and daily report rows into affiliate_products and affiliate_daily_stats.'
+      opportunities[0]
+        ? `Prepare approval-gated draft for: ${opportunities[0].title}`
+        : 'Add the first Amazon products with title, price, image, category, tracking link, stock, and metadata.',
+      'Feed ingestion should write normalized products into affiliate_products with scoring metadata.',
+      'Keep claims/disclosure/price freshness checks green before any publishing.',
+      'Use the approval queue for all external Sladdis actions.'
     ]
   };
 }
@@ -2815,34 +3417,49 @@ async function upsertAffiliateAccount(input) {
 
 async function upsertAffiliateProduct(input) {
   await ensureAffiliateTables();
-  const id = String(input.id ?? crypto.randomUUID()).trim();
   const accountId = String(input.accountId ?? input.account_id ?? '').trim() || null;
-  const source = String(input.source ?? 'amazon').trim() || 'amazon';
-  const sourceProductId = String(input.sourceProductId ?? input.source_product_id ?? '').trim();
-  const title = String(input.title ?? '').trim();
+  const source = affiliateInputString(input, ['source', 'provider'], 'amazon') || 'amazon';
+  const sourceProductId = affiliateInputString(input, [
+    'sourceProductId',
+    'source_product_id',
+    'asin',
+    'sku',
+    'externalId'
+  ]);
+  const title = affiliateInputString(input, ['title', 'name', 'productName']);
   if (!title) {
     const error = new Error('title is required');
     error.status = 400;
     throw error;
   }
-  const category = String(input.category ?? '').trim();
+  const category = affiliateInputString(input, ['category', 'department', 'browseNode']);
   const price =
     input.price === null || input.price === undefined || input.price === ''
       ? null
       : Number(input.price);
   const currency = String(input.currency ?? 'SEK').trim() || 'SEK';
-  const imageUrl = String(input.imageUrl ?? input.image_url ?? '').trim();
-  const productUrl = String(input.productUrl ?? input.product_url ?? '').trim();
-  const trackingLink = String(input.trackingLink ?? input.tracking_link ?? '').trim();
+  const imageUrl = affiliateInputString(input, ['imageUrl', 'image_url', 'image', 'imageLink']);
+  const productUrl = affiliateInputString(input, [
+    'productUrl',
+    'product_url',
+    'url',
+    'productLink'
+  ]);
+  const trackingLink = affiliateInputString(input, [
+    'trackingLink',
+    'tracking_link',
+    'trackingUrl',
+    'affiliateUrl',
+    'affiliate_url',
+    'affiliateLink'
+  ]);
   if (!trackingLink) {
     const error = new Error('trackingLink is required');
     error.status = 400;
     throw error;
   }
-  const rawStockStatus = String(input.stockStatus ?? input.stock_status ?? 'unknown').trim();
-  const stockStatus = AFFILIATE_STOCK_STATUSES.includes(rawStockStatus)
-    ? rawStockStatus
-    : 'unknown';
+  const id = stableAffiliateProductId({ id: input.id, source, sourceProductId, trackingLink });
+  const stockStatus = normalizeAffiliateStockStatus(input.stockStatus ?? input.stock_status);
   const rawStatus = String(input.status ?? 'draft').trim();
   const status = AFFILIATE_PRODUCT_STATUSES.includes(rawStatus) ? rawStatus : 'draft';
   const rating =
@@ -2890,6 +3507,35 @@ async function upsertAffiliateProduct(input) {
     price: product.price === null || product.price === undefined ? null : Number(product.price),
     rating: product.rating === null || product.rating === undefined ? null : Number(product.rating),
     reviewCount: Number(product.reviewCount ?? 0)
+  };
+}
+
+async function upsertAffiliateProductBatch(input) {
+  const products = affiliateProductsFromFeed(input);
+  if (!products.length) {
+    const error = new Error('products/items array is required');
+    error.status = 400;
+    throw error;
+  }
+  const imported = [];
+  const errors = [];
+  for (const [index, product] of products.entries()) {
+    try {
+      imported.push(await upsertAffiliateProduct(product));
+    } catch (error) {
+      errors.push({
+        index,
+        title: product?.title ?? '',
+        error: error instanceof Error ? error.message : 'unknown error'
+      });
+    }
+  }
+  return {
+    imported,
+    errors,
+    count: imported.length,
+    source: 'bridge:affiliate-products-batch',
+    next: 'Review /affiliate/snapshot for scoring, compliance, draft, approval and daily brief updates.'
   };
 }
 
@@ -5352,6 +5998,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/affiliate/products') {
       return send(res, 201, await upsertAffiliateProduct(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/affiliate/products/batch') {
+      return send(res, 201, await upsertAffiliateProductBatch(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/commands/run') {

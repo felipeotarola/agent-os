@@ -38,6 +38,13 @@ export const navGroups: NavGroup[] = [
         icon: 'media',
         shortcut: ['c', 's'],
         items: []
+      },
+      {
+        title: 'Affiliate Store',
+        url: '/dashboard/affiliate',
+        icon: 'product',
+        shortcut: ['s', 'l'],
+        items: []
       }
     ]
   },
@@ -115,13 +122,6 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/trading-lab',
         icon: 'dashboard',
         shortcut: ['t', 'l'],
-        items: []
-      },
-      {
-        title: 'Sladdis Store',
-        url: '/dashboard/affiliate',
-        icon: 'product',
-        shortcut: ['s', 'l'],
         items: []
       },
       {

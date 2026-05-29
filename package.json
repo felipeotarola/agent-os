@@ -6,7 +6,7 @@
     "name": "Agent OS"
   },
   "scripts": {
-    "dev": "node scripts/postinstall.js 2>/dev/null; next dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "oxlint",

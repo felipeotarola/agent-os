@@ -38,6 +38,18 @@ function productCompleteness(product: AffiliateProduct) {
   return Math.round((fields.filter(Boolean).length / fields.length) * 100);
 }
 
+function scoreVariant(score: number): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (score >= 70) return 'default';
+  if (score >= 45) return 'secondary';
+  return 'outline';
+}
+
+function riskVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'blocked' || status === 'blocker') return 'destructive';
+  if (status === 'clear' || status === 'healthy') return 'default';
+  return 'secondary';
+}
+
 function ProductCard({ product }: { product: AffiliateProduct }) {
   const completeness = productCompleteness(product);
 
@@ -86,6 +98,8 @@ function ProductCard({ product }: { product: AffiliateProduct }) {
         <div className='text-muted-foreground grid grid-cols-2 gap-2 text-xs'>
           <span>source</span>
           <span className='text-right font-mono'>{product.source}</span>
+          <span>completeness</span>
+          <span className='text-right font-mono'>{product.completeness ?? completeness}%</span>
           <span>tracking</span>
           <span className='truncate text-right font-mono'>{product.trackingLink}</span>
           <span>updated</span>
@@ -93,12 +107,19 @@ function ProductCard({ product }: { product: AffiliateProduct }) {
             {new Date(product.updatedAt).toLocaleDateString('sv-SE')}
           </span>
         </div>
-        <Button asChild variant='outline' className='w-full' disabled={!product.trackingLink}>
-          <a href={product.trackingLink || product.productUrl} target='_blank' rel='noreferrer'>
+        {product.trackingLink ? (
+          <Button asChild variant='outline' className='w-full'>
+            <a href={product.trackingLink} target='_blank' rel='noreferrer'>
+              <Icons.externalLink aria-hidden='true' />
+              Open affiliate link
+            </a>
+          </Button>
+        ) : (
+          <Button variant='outline' className='w-full' disabled>
             <Icons.externalLink aria-hidden='true' />
-            Open affiliate link
-          </a>
-        </Button>
+            Missing affiliate link
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -184,6 +205,232 @@ export default async function AffiliatePage() {
           </Card>
         </div>
 
+        <section className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]'>
+          <Card>
+            <CardHeader>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <CardTitle>Opportunity queue</CardTitle>
+                  <CardDescription>
+                    Ranked by commission, demand, seasonality, conversion likelihood, content fit,
+                    stock, reviews and data confidence.
+                  </CardDescription>
+                </div>
+                <Badge variant='outline'>{snapshot.opportunities.length} scored</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {snapshot.opportunities.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                  No scored products yet. Import products to populate Sladdis opportunities.
+                </div>
+              ) : (
+                snapshot.opportunities.slice(0, 6).map((opportunity, index) => (
+                  <div
+                    key={opportunity.productId}
+                    className='rounded-lg border bg-background/40 p-4'
+                  >
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <div className='text-muted-foreground text-xs'>#{index + 1}</div>
+                        <div className='line-clamp-2 font-medium'>{opportunity.title}</div>
+                      </div>
+                      <div className='flex shrink-0 flex-col items-end gap-2'>
+                        <Badge variant={scoreVariant(opportunity.score)}>{opportunity.score}</Badge>
+                        <span className='text-muted-foreground text-xs'>
+                          {opportunity.confidence}% confidence
+                        </span>
+                      </div>
+                    </div>
+                    <div className='mt-3 flex flex-wrap gap-2'>
+                      {opportunity.evidence.slice(0, 4).map((item) => (
+                        <Badge key={item} variant='outline'>
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                    {opportunity.rejectionReasons.length > 0 && (
+                      <div className='text-muted-foreground mt-3 text-xs'>
+                        Needs review: {opportunity.rejectionReasons.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <div className='space-y-4'>
+            <Card>
+              <CardHeader>
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <CardTitle>Daily Sladdis brief</CardTitle>
+                    <CardDescription>
+                      Generated from catalog, scoring and approval state.
+                    </CardDescription>
+                  </div>
+                  <Icons.sparkles className='text-primary size-5' aria-hidden='true' />
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-3 text-sm'>
+                <div className='font-medium'>{snapshot.dailyBrief.headline}</div>
+                {snapshot.dailyBrief.blockers.length > 0 && (
+                  <div className='space-y-2'>
+                    {snapshot.dailyBrief.blockers.map((blocker) => (
+                      <div key={blocker} className='rounded-lg border bg-background/40 p-3'>
+                        {blocker}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Separator />
+                <div className='space-y-2'>
+                  {snapshot.dailyBrief.suggestedActions.map((action) => (
+                    <div key={action} className='flex gap-2'>
+                      <Icons.arrowRight className='text-muted-foreground mt-0.5 size-4 shrink-0' />
+                      <span>{action}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Catalog health</CardTitle>
+                <CardDescription>
+                  Broken links, missing media, stale prices, duplicates and weak metadata.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-3'>
+                <div className='flex items-center justify-between gap-3'>
+                  <Badge variant={riskVariant(snapshot.catalogHealth.status)}>
+                    {snapshot.catalogHealth.status}
+                  </Badge>
+                  <span className='text-muted-foreground text-sm'>
+                    {snapshot.catalogHealth.blockingCount} gaps
+                  </span>
+                </div>
+                {snapshot.catalogHealth.checks.map((check) => (
+                  <div key={check.id} className='flex items-center justify-between gap-3 text-sm'>
+                    <span>{check.label}</span>
+                    <span className='font-mono'>{check.count}</span>
+                  </div>
+                ))}
+                <Separator />
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div className='text-sm font-medium'>Repair queue</div>
+                    <Badge variant='outline'>{snapshot.catalogHealth.repairQueue.length}</Badge>
+                  </div>
+                  {snapshot.catalogHealth.repairQueue.length === 0 ? (
+                    <div className='text-muted-foreground rounded-lg border border-dashed p-3 text-sm'>
+                      No catalog repairs queued.
+                    </div>
+                  ) : (
+                    snapshot.catalogHealth.repairQueue.slice(0, 4).map((item) => (
+                      <div
+                        key={item.productId}
+                        className='rounded-lg border bg-background/40 p-3 text-sm'
+                      >
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='line-clamp-2 font-medium'>{item.title}</div>
+                          <Badge variant={riskVariant(item.severity)}>{item.severity}</Badge>
+                        </div>
+                        <div className='text-muted-foreground mt-2 text-xs'>
+                          {item.issues.slice(0, 3).join(', ')}
+                        </div>
+                        <div className='mt-2 text-xs'>{item.suggestedFixes[0]}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        <section className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
+          <Card>
+            <CardHeader>
+              <CardTitle>Compliance guardrails</CardTitle>
+              <CardDescription>
+                Disclosure, claims, price freshness and platform risk.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <Badge variant={riskVariant(snapshot.compliance.status)}>
+                {snapshot.compliance.status}
+              </Badge>
+              {snapshot.compliance.checks.slice(0, 5).map((check) => (
+                <div
+                  key={check.productId}
+                  className='rounded-lg border bg-background/40 p-3 text-sm'
+                >
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='line-clamp-2 font-medium'>{check.title}</div>
+                    <Badge variant={riskVariant(check.status)}>{check.status}</Badge>
+                  </div>
+                  <div className='text-muted-foreground mt-2 text-xs'>
+                    {check.warnings.length ? check.warnings.join(', ') : 'No warnings'}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Draft pipeline</CardTitle>
+              <CardDescription>Drafts are prepared, never published automatically.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {snapshot.contentPipeline.drafts.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                  No draft candidates yet.
+                </div>
+              ) : (
+                snapshot.contentPipeline.drafts.slice(0, 5).map((draft) => (
+                  <div key={draft.id} className='rounded-lg border bg-background/40 p-3 text-sm'>
+                    <div className='font-medium'>{draft.title}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>{draft.angle}</div>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      {draft.formats.map((format) => (
+                        <Badge key={format} variant='outline'>
+                          {format}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Approval queue</CardTitle>
+              <CardDescription>External actions require explicit human approval.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {snapshot.contentPipeline.approvalQueue.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+                  No approvals pending.
+                </div>
+              ) : (
+                snapshot.contentPipeline.approvalQueue.slice(0, 5).map((item) => (
+                  <div key={item.id} className='rounded-lg border bg-background/40 p-3 text-sm'>
+                    <div className='font-medium'>{item.title}</div>
+                    <div className='text-muted-foreground mt-1 text-xs'>{item.reason}</div>
+                    <div className='mt-2 text-xs'>{item.nextAction}</div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
         <div className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <section className='space-y-4'>
             <div className='flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
@@ -210,8 +457,8 @@ export default async function AffiliatePage() {
                   <h2 className='text-xl font-semibold'>No Amazon products imported yet</h2>
                   <p className='text-muted-foreground text-sm'>
                     Foundationen är på plats. Lägg första produkterna via bridge-endpointen
-                    <span className='font-mono'> POST /affiliate/products</span> med title, price,
-                    imageUrl, category, trackingLink, stockStatus, source och metadata.
+                    <span className='font-mono'> POST /affiliate/products/batch</span> med products
+                    eller items. Varje rad ska minst ha title/name och trackingLink/affiliateUrl.
                   </p>
                 </div>
               </div>

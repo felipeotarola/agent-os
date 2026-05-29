@@ -31,12 +31,14 @@ flowchart TD
 
 ## Inputs
 
-- Product catalog and affiliate links.
+- Product catalog and affiliate links from actual `sladdis.store` pages or an approved live-store export.
 - Amazon product foundation data: title, price, image, category, tracking link, stock status, source, and metadata.
 - Store pages, content drafts, and publishing state.
 - Analytics: clicks, conversions, revenue, traffic source, broken links, top pages, weak pages.
 - Market signals: seasonal demand, trending products, competitor pages, search/social questions.
 - Guardrails: allowed categories, forbidden claims, compliance requirements, brand voice.
+
+Products discovered from Amazon or affiliate research are candidates only until verified against the live store. Do not import, score, brief, or draft content from inferred products as if they are active Sladdis inventory.
 
 ## Outputs
 
@@ -86,3 +88,17 @@ The first useful version is not a fully autonomous store. It is:
 5. A product/opportunity scoring model with evidence fields.
 6. A draft-content pipeline with human approval before publishing.
 7. Analytics feedback that feeds the next opportunity scan.
+
+## Agent OS V1 Implementation
+
+The bridge-backed Sladdis Storefront now exposes the first autonomous operating layer:
+
+- `GET /affiliate/snapshot` returns products plus opportunity scoring, catalog health, compliance checks, draft candidates, an approval queue, and a daily brief.
+- `POST /affiliate/products` upserts one normalized affiliate product.
+- `POST /affiliate/products/batch` imports a feed batch and reports per-row failures without aborting the full batch. It accepts `{ products }`, `{ items }`, or a root array, plus optional `defaults`, `source`, and `batchId` metadata.
+
+Product ingestion normalizes common feed aliases such as `asin`, `sku`, `name`, `image`, `affiliateUrl`, `trackingUrl`, `department`, and `browseNode`. Rows without explicit IDs get stable affiliate product IDs from source product IDs or tracking links, so repeated feed imports update existing products instead of creating duplicates. Product scoring uses metadata when present (`commissionRate`, `discountPercent`, `trendScore`, `seasonality`, `conversionLikelihood`, `contentFit`) and falls back to catalog quality, rating/review count, stock, price, and tracking-link completeness. Scores include evidence and rejection reasons so Sladdis can show why an item is ready, watchlisted, or needs review.
+
+Catalog health is read-only. It checks missing prices, missing/invalid images, missing categories, unknown/out-of-stock products, missing/invalid tracking links, stale prices, duplicate products, weak metadata, and missing live-store verification. Problems become a repair queue with suggested fixes; Sladdis must not silently rewrite the store catalog.
+
+Publishing remains approval-gated. The UI surfaces opportunity queues, scoring evidence, catalog health, drafts, approvals, compliance warnings, stop-condition style blockers, and suggested next actions so Sladdis does not run important loops invisibly.

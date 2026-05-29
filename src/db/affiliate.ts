@@ -47,7 +47,65 @@ export type AffiliateProduct = {
   rating: number | null;
   reviewCount: number;
   metadata?: Record<string, unknown>;
+  completeness?: number;
   updatedAt: string;
+};
+
+export type AffiliateOpportunity = {
+  productId: string;
+  title: string;
+  category: string;
+  score: number;
+  confidence: number;
+  status: 'ready' | 'watch' | 'needs_review' | string;
+  evidence: string[];
+  rejectionReasons: string[];
+  factors: Record<string, number>;
+  updatedAt: string;
+};
+
+export type AffiliateCatalogHealth = {
+  status: 'healthy' | 'needs_attention' | string;
+  blockingCount: number;
+  checks: Array<{ id: string; label: string; count: number }>;
+  repairQueue: Array<{
+    productId: string;
+    title: string;
+    severity: 'blocker' | 'high' | 'medium' | string;
+    issues: string[];
+    suggestedFixes: string[];
+  }>;
+  weakestProducts: Array<{ id: string; title: string; completeness: number; missing: string[] }>;
+  checkedAt: string;
+};
+
+export type AffiliateComplianceCheck = {
+  productId: string;
+  title: string;
+  status: 'clear' | 'blocked' | string;
+  warnings: string[];
+  requiredApproval: boolean;
+  platforms: string[];
+};
+
+export type AffiliateContentDraft = {
+  id: string;
+  productId: string;
+  title: string;
+  status: string;
+  angle: string;
+  formats: string[];
+  brief: string;
+};
+
+export type AffiliateApprovalItem = {
+  id: string;
+  productId: string;
+  title: string;
+  kind: string;
+  status: string;
+  reason: string;
+  nextAction: string;
 };
 
 export type AffiliateSnapshot = {
@@ -57,6 +115,25 @@ export type AffiliateSnapshot = {
   connected: boolean;
   accounts: AffiliateAccount[];
   products: AffiliateProduct[];
+  opportunities: AffiliateOpportunity[];
+  catalogHealth: AffiliateCatalogHealth;
+  compliance: {
+    status: string;
+    checks: AffiliateComplianceCheck[];
+    rules: Record<string, Record<string, unknown>>;
+  };
+  contentPipeline: {
+    drafts: AffiliateContentDraft[];
+    approvalQueue: AffiliateApprovalItem[];
+    visibleSurfaces: string[];
+  };
+  dailyBrief: {
+    headline: string;
+    topOpportunities: AffiliateOpportunity[];
+    blockers: string[];
+    suggestedActions: string[];
+    generatedAt: string;
+  };
   catalog: {
     totalProducts: number;
     activeProducts: number;
@@ -84,6 +161,24 @@ const fallback: AffiliateSnapshot = {
   connected: false,
   accounts: [],
   products: [],
+  opportunities: [],
+  catalogHealth: {
+    status: 'fallback',
+    blockingCount: 0,
+    checks: [],
+    repairQueue: [],
+    weakestProducts: [],
+    checkedAt: new Date().toISOString()
+  },
+  compliance: { status: 'fallback', checks: [], rules: {} },
+  contentPipeline: { drafts: [], approvalQueue: [], visibleSurfaces: [] },
+  dailyBrief: {
+    headline: 'Affiliate bridge unavailable',
+    topOpportunities: [],
+    blockers: ['Bridge unavailable'],
+    suggestedActions: ['Reconnect Agent OS bridge'],
+    generatedAt: new Date().toISOString()
+  },
   catalog: {
     totalProducts: 0,
     activeProducts: 0,
