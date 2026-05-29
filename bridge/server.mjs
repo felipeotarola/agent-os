@@ -1494,6 +1494,17 @@ function normalizeContentPlatforms(platforms) {
   return normalized.length ? [...new Set(normalized)] : ['instagram', 'tiktok', 'youtube_shorts'];
 }
 
+function normalizeContentMediaAssetIds(ids) {
+  const requested = Array.isArray(ids) ? ids : String(ids ?? '').split(',');
+  return [
+    ...new Set(
+      requested
+        .map((id) => String(id).trim())
+        .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+    )
+  ];
+}
+
 function contentIsoOrNull(value) {
   return value ? new Date(value).toISOString() : null;
 }
@@ -1618,6 +1629,68 @@ async function uploadContentMediaAssets({ contentItemId, campaign, mediaFiles })
     });
   }
   return assets;
+}
+
+async function existingLibraryMediaAssets({ contentItemId, mediaAssetIds }) {
+  const ids = normalizeContentMediaAssetIds(mediaAssetIds);
+  if (!ids.length) return [];
+  if (ids.length > MAX_CONTENT_MEDIA_FILES) {
+    const error = new Error(`too many media files: max ${MAX_CONTENT_MEDIA_FILES}`);
+    error.status = 413;
+    throw error;
+  }
+
+  const existingRows = await sql`
+    select metadata
+    from content_media_assets
+    where content_item_id = ${contentItemId}
+  `;
+  const alreadyAttached = new Set(
+    existingRows
+      .map((row) => row.metadata?.sourceMediaAssetId)
+      .filter((id) => typeof id === 'string')
+  );
+
+  const rows = await sql`
+    select
+      asset.id,
+      asset.blob_key as "blobKey",
+      asset.blob_url as "blobUrl",
+      asset.file_name as "fileName",
+      asset.content_type as "contentType",
+      asset.bytes,
+      asset.metadata,
+      item.title as "itemTitle",
+      item.campaign
+    from content_media_assets asset
+    join content_items item on item.id = asset.content_item_id
+    where asset.id = any(${ids})
+      and coalesce(item.metadata->>'contentKind', '') = 'image-library'
+  `;
+
+  return rows
+    .filter((row) => !alreadyAttached.has(row.id))
+    .map((row) => ({
+      id: randomUUID(),
+      contentItemId,
+      variantId: null,
+      kind: 'source',
+      status: 'selected',
+      blobKey: row.blobKey ?? null,
+      blobUrl: row.blobUrl ?? null,
+      fileName: row.fileName ?? safeContentFileName(row.itemTitle ?? 'media-library-asset'),
+      contentType: row.contentType ?? null,
+      bytes: row.bytes === null || row.bytes === undefined ? null : Number(row.bytes),
+      metadata: {
+        ...row.metadata,
+        storage: row.metadata?.storage ?? 'media-library',
+        createdBy: 'content-studio-media-picker',
+        originalName: row.metadata?.originalName ?? row.fileName ?? row.itemTitle ?? 'media-library-asset',
+        sourceMediaAssetId: row.id,
+        sourceContentKind: 'image-library',
+        sourceCollection: row.campaign ?? 'agent-assets'
+      }
+    }));
 }
 
 function mapContentMediaAsset(row) {
@@ -1780,6 +1853,7 @@ async function createContentItem(input, mediaFiles = []) {
   const ownerRows = await sql`select id from agents where id = ${requestedOwnerAgentId} limit 1`;
   const ownerAgentId = ownerRows.length ? requestedOwnerAgentId : null;
   const platforms = normalizeContentPlatforms(input.platforms);
+  const mediaAssetIds = normalizeContentMediaAssetIds(input.mediaAssetIds);
   const contentKind =
     String(input.contentKind ?? input.intent ?? '').trim() === 'image-library'
       ? 'image-library'
@@ -1788,7 +1862,8 @@ async function createContentItem(input, mediaFiles = []) {
   const id = randomUUID();
   const mediaAssets = [
     ...uploadedContentMediaAssets({ contentItemId: id, uploadedAssets: input.uploadedAssets }),
-    ...(await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles }))
+    ...(await uploadContentMediaAssets({ contentItemId: id, campaign, mediaFiles })),
+    ...(await existingLibraryMediaAssets({ contentItemId: id, mediaAssetIds }))
   ];
   const metadata = {
     autopublish: false,
@@ -1915,6 +1990,7 @@ async function updateContentItem(input, mediaFiles = []) {
   const campaign = hasCampaign ? String(input.campaign ?? 'sladdis').trim() || 'sladdis' : null;
   const hasPlatforms = Object.prototype.hasOwnProperty.call(input, 'platforms');
   const platforms = hasPlatforms ? normalizeContentPlatforms(input.platforms) : [];
+  const mediaAssetIds = normalizeContentMediaAssetIds(input.mediaAssetIds);
   validateContentMediaFiles(mediaFiles);
 
   const rows = await sql`
@@ -1983,7 +2059,8 @@ async function updateContentItem(input, mediaFiles = []) {
       contentItemId: id,
       campaign: rows[0].campaign ?? 'sladdis',
       mediaFiles
-    }))
+    })),
+    ...(await existingLibraryMediaAssets({ contentItemId: id, mediaAssetIds }))
   ];
   if (mediaAssets.length) {
     await sql.begin(async (tx) => {
@@ -5107,6 +5184,7 @@ async function readFormData(req) {
 
 function formDataToContentInput(formData) {
   const platforms = formData.getAll('platforms').map((value) => String(value));
+  const mediaAssetIds = formData.getAll('mediaAssetIds').map((value) => String(value));
   return {
     id: String(formData.get('id') ?? ''),
     action: String(formData.get('action') ?? ''),
@@ -5116,6 +5194,7 @@ function formDataToContentInput(formData) {
     campaign: String(formData.get('campaign') ?? 'sladdis'),
     ownerAgentId: String(formData.get('ownerAgentId') ?? 'sladdis'),
     platforms,
+    mediaAssetIds,
     contentKind: String(formData.get('contentKind') ?? ''),
     intent: String(formData.get('intent') ?? '')
   };

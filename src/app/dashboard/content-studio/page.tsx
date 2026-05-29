@@ -22,6 +22,11 @@ export const metadata = {
 };
 
 type ContentView = 'active' | ContentStatus | 'all';
+type LibraryMediaAsset = ContentMediaAsset & {
+  collection: string;
+  itemTitle: string;
+  itemUpdatedAt?: string | null;
+};
 
 const platformLabels: Record<ContentPlatform, string> = {
   instagram: 'Instagram',
@@ -119,6 +124,7 @@ function contentKindLabel(item: ContentItem) {
 
 function imageLibraryAssets(items: ContentItem[]) {
   return items
+    .filter(isImageLibraryItem)
     .flatMap((item) =>
       item.mediaAssets.map((asset) => ({
         ...asset,
@@ -186,6 +192,56 @@ function ContentMediaThumb({ asset }: { asset: ContentMediaAsset }) {
   );
 }
 
+function MediaLibraryPicker({
+  assets,
+  selectedAssetIds = []
+}: {
+  assets: LibraryMediaAsset[];
+  selectedAssetIds?: string[];
+}) {
+  const selected = new Set(selectedAssetIds);
+  const pickableAssets = assets.filter((asset) => asset.blobUrl).slice(0, 24);
+
+  if (!pickableAssets.length) {
+    return (
+      <div className='rounded-lg border border-dashed p-3 text-xs text-muted-foreground'>
+        Upload reusable media first, then pick it here.
+      </div>
+    );
+  }
+
+  return (
+    <div className='max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-background p-2'>
+      {pickableAssets.map((asset) => (
+        <label
+          key={asset.id}
+          className='flex cursor-pointer items-center gap-3 rounded-md p-2 text-sm hover:bg-muted'
+        >
+          <input
+            type='checkbox'
+            name='mediaAssetIds'
+            value={asset.id}
+            defaultChecked={selected.has(asset.id)}
+          />
+          {asset.blobUrl && (
+            <span
+              aria-hidden='true'
+              className='h-10 w-10 shrink-0 rounded-md border bg-cover bg-center'
+              style={{ backgroundImage: `url(${asset.blobUrl})` }}
+            />
+          )}
+          <span className='min-w-0'>
+            <span className='block truncate font-medium'>
+              {asset.fileName ?? asset.itemTitle ?? 'Media asset'}
+            </span>
+            <span className='text-muted-foreground block truncate text-xs'>{asset.collection}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function ContentActions({ item }: { item: ContentItem }) {
   return (
     <div className='flex flex-wrap items-center gap-2'>
@@ -231,8 +287,17 @@ function ContentActions({ item }: { item: ContentItem }) {
   );
 }
 
-function ContentEditForm({ item }: { item: ContentItem }) {
+function ContentEditForm({
+  item,
+  libraryAssets
+}: {
+  item: ContentItem;
+  libraryAssets: LibraryMediaAsset[];
+}) {
   const activePlatforms = new Set(item.variants.map((variant) => variant.platform));
+  const selectedLibraryAssetIds = item.mediaAssets
+    .map((asset) => asset.metadata?.sourceMediaAssetId)
+    .filter((id): id is string => typeof id === 'string');
 
   return (
     <details className='rounded-xl border bg-background/70 p-3'>
@@ -286,8 +351,12 @@ function ContentEditForm({ item }: { item: ContentItem }) {
           </div>
         </div>
         <div className='space-y-2'>
+          <div className='text-sm font-medium'>Pick from Media Library</div>
+          <MediaLibraryPicker assets={libraryAssets} selectedAssetIds={selectedLibraryAssetIds} />
+        </div>
+        <div className='space-y-2'>
           <label className='text-sm font-medium' htmlFor={`edit-media-${item.id}`}>
-            Add media
+            Upload new media
           </label>
           <Input
             id={`edit-media-${item.id}`}
@@ -309,7 +378,13 @@ function ContentEditForm({ item }: { item: ContentItem }) {
   );
 }
 
-function ContentCard({ item }: { item: ContentItem }) {
+function ContentCard({
+  item,
+  libraryAssets
+}: {
+  item: ContentItem;
+  libraryAssets: LibraryMediaAsset[];
+}) {
   const variantPlatforms = item.variants.map((variant) => variant.platform);
   const missingMediaCount = item.variants.filter((variant) => !variant.mediaAssets?.length).length;
 
@@ -347,7 +422,7 @@ function ContentCard({ item }: { item: ContentItem }) {
             · {missingMediaCount} platform variant{missingMediaCount === 1 ? '' : 's'} still need
             media mapping
           </div>
-          <ContentEditForm item={item} />
+          <ContentEditForm item={item} libraryAssets={libraryAssets} />
         </div>
         <ContentActions item={item} />
       </div>
@@ -355,7 +430,7 @@ function ContentCard({ item }: { item: ContentItem }) {
   );
 }
 
-function NewDraftCard() {
+function NewDraftCard({ libraryAssets }: { libraryAssets: LibraryMediaAsset[] }) {
   return (
     <Card>
       <CardHeader>
@@ -428,8 +503,12 @@ function NewDraftCard() {
             </div>
           </div>
           <div className='space-y-2'>
+            <div className='text-sm font-medium'>Pick from Media Library</div>
+            <MediaLibraryPicker assets={libraryAssets} />
+          </div>
+          <div className='space-y-2'>
             <label className='text-sm font-medium' htmlFor='media'>
-              Source media
+              Upload new media
             </label>
             <Input id='media' name='media' type='file' accept='image/*,video/*' multiple />
             <p className='text-muted-foreground text-xs'>
@@ -505,7 +584,7 @@ export default async function ContentStudioPage({
       rightRailDescription='Drafts, image assets, and launch guardrails'
       rightRail={
         <div className='space-y-4 text-sm'>
-          <NewDraftCard />
+          <NewDraftCard libraryAssets={galleryAssets} />
           <UploadMediaCard />
           <div className='rounded-lg border bg-card p-3'>
             <div className='font-medium'>Agent-safe asset flow</div>
@@ -582,7 +661,7 @@ export default async function ContentStudioPage({
           {visibleItems.length ? (
             <div className='space-y-3'>
               {visibleItems.map((item) => (
-                <ContentCard key={item.id} item={item} />
+                <ContentCard key={item.id} item={item} libraryAssets={galleryAssets} />
               ))}
             </div>
           ) : (

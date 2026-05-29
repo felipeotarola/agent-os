@@ -24,6 +24,13 @@ function selectedMedia(formData: FormData) {
     .filter((value): value is File => value instanceof File && value.size > 0);
 }
 
+function selectedMediaAssetIds(formData: FormData) {
+  return formData
+    .getAll('mediaAssetIds')
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
 function isMediaUpload(file: File) {
   return file.type.startsWith('image/') || file.type.startsWith('video/');
 }
@@ -149,6 +156,7 @@ export async function POST(request: NextRequest) {
 
   const formData = await request.formData();
   const media = selectedMedia(formData);
+  const mediaAssetIds = selectedMediaAssetIds(formData);
   normalizeImageLibraryFormData(formData, media);
 
   const title = String(formData.get('title') ?? '').trim();
@@ -185,9 +193,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (media.length || (edgeFunctionUrl() && edgeFunctionToken())) {
+  if (media.length || mediaAssetIds.length || (edgeFunctionUrl() && edgeFunctionToken())) {
     try {
-      if (edgeFunctionUrl() && edgeFunctionToken()) {
+      if (mediaAssetIds.length) {
+        await createContentItemWithBridgeUpload(formData);
+      } else if (edgeFunctionUrl() && edgeFunctionToken()) {
         await createContentItemWithEdge(formData);
       } else {
         await createContentItemWithBridgeUpload(formData);
