@@ -43,3 +43,5 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 ## Feature docs
 
 - `docs/TRADING_LAB.md` — paper-only BTC research workspace, APIs, guardrails, and validation.
+- `docs/BROWSER_AUTOMATION_RECOVERY.md` — profile-specific browser automation triage and safe recovery guardrails.
+- `docs/LOCAL_DAILY_BRIEF.md` — local-only daily brief template and approval-gated input rules.

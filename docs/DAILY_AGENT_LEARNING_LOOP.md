@@ -34,6 +34,7 @@ Write back only high-signal items:
 - Do not add UI surfaces unless they improve agent stability or recovery.
 - Ask before external messages, paid APIs, model/provider defaults, broad gateway permissions or OpenClaw self-update.
 - If scheduler/task tools are restricted inside the cron run, record that as a visibility limit and fall back to prompt context, current cron id, memory, Agent OS docs, and repo evidence; do not infer “no cron/task signals” from restricted access.
+- Treat optional file reads as best-effort. If a daily memory/doc/task file is missing or temporarily unreadable, note the unavailable path and continue; do not let one failed `sed`/read abort the whole learning loop.
 
 ## Cadence
 
