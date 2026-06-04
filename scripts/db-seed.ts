@@ -113,7 +113,7 @@ async function main() {
       projectId: 'agent-os',
       title: 'OpenClaw bridge',
       description: 'Small local adapter that syncs sessions/tasks/events into Postgres and exposes safe actions.',
-      status: 'todo',
+      status: 'done',
       priority: 90,
       ownerAgentId: 'worker-pool',
       source: 'architecture'
@@ -123,7 +123,7 @@ async function main() {
       projectId: 'agent-os',
       title: 'Knowledge vault structure',
       description: 'Create raw/wiki/journal/index/log folders and mirror metadata to DB.',
-      status: 'todo',
+      status: 'done',
       priority: 80,
       ownerAgentId: 'cai',
       source: 'architecture'
@@ -133,7 +133,7 @@ async function main() {
       projectId: 'life-os',
       title: 'Income/runway picture',
       description: 'Turn finance/project context into concrete runway view and next actions without storing secrets.',
-      status: 'waiting',
+      status: 'done',
       priority: 70,
       ownerAgentId: 'cai',
       source: 'life-os'

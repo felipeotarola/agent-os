@@ -10,6 +10,7 @@ Local-first cockpit for Felipe × Cai.
 - Command: read-only bridge diagnostics
 - Knowledge Inbox: raw source capture
 - Wiki: vault/read-model view
+- Runway: safe Life OS income/runway picture
 - Journal: local log/decision capture into knowledge raw
 - Memory: memory search/save surface
 - Permissions: notification/permission state
@@ -57,3 +58,5 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 - `docs/WORKFLOW_FEEDBACK.md` — post-run learning template and routing rules.
 - `docs/PLAYBOOKS_AND_WORKFLOWS.md` — definitions and naming guidance for playbooks, workflows, runbooks, policies, and contracts.
 - `docs/DURABLE_ARTIFACTS.md` — rules for preserving briefs, research, decisions, eval reports, instruction changes, and workflow outputs.
+- `docs/KNOWLEDGE_VAULT.md` — generated Obsidian-compatible vault structure and DB metadata mirror.
+- `docs/RUNWAY_PICTURE.md` — safe 30-60 day income/runway surface and guardrails.

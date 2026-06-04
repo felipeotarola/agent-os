@@ -111,6 +111,103 @@ function buildIndex(sources: VaultSource[]) {
     '',
     '- [[agents.md]]',
     '- [[log.md]]',
+    '- [[knowledge/index.md]]',
+    '- [[knowledge/raw/index.md]]',
+    '- [[knowledge/wiki/index.md]]',
+    '- [[journal/index.md]]',
+    ''
+  ].join('\n');
+}
+
+function buildKnowledgeIndex(sources: VaultSource[]) {
+  const activeSources = sources.filter((source) => source.status !== 'archived');
+  const byKind = new Map<string, number>();
+  const byStatus = new Map<string, number>();
+
+  for (const source of activeSources) {
+    byKind.set(source.kind, (byKind.get(source.kind) ?? 0) + 1);
+    byStatus.set(source.status, (byStatus.get(source.status) ?? 0) + 1);
+  }
+
+  return [
+    '# Knowledge',
+    '',
+    'Generated Agent OS knowledge vault root.',
+    '',
+    '## Folders',
+    '',
+    '- [[knowledge/raw/index.md]] — source material and evidence',
+    '- [[knowledge/wiki/index.md]] — synthesized working knowledge',
+    '- [[knowledge/memory]] — imported memory islands by agent',
+    '- [[journal/index.md]] — operational notes and dated reflections',
+    '',
+    '## Active source counts',
+    '',
+    ...[...byStatus.entries()]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([status, count]) => `- ${status}: ${count}`),
+    '',
+    '## Source kinds',
+    '',
+    ...[...byKind.entries()]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([kind, count]) => `- ${kind}: ${count}`),
+    ''
+  ].join('\n');
+}
+
+function buildRawIndex(sources: VaultSource[]) {
+  const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
+  const raw = sources.filter(
+    (source) =>
+      source.status !== 'archived' &&
+      !wikiStatuses.has(source.status) &&
+      !memoryAgentFromPath(source.rawPath)
+  );
+
+  return [
+    '# Raw Sources',
+    '',
+    'Raw sources are evidence, not interpreted context.',
+    '',
+    ...(raw.length
+      ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
+      : ['- No active raw sources.']),
+    ''
+  ].join('\n');
+}
+
+function buildWikiIndex(sources: VaultSource[]) {
+  const wikiStatuses = new Set(['wikified', 'reviewed', 'promoted']);
+  const wiki = sources.filter(
+    (source) => source.status !== 'archived' && wikiStatuses.has(source.status) && source.wikiPath
+  );
+
+  return [
+    '# Wiki',
+    '',
+    'Wiki pages are synthesized working knowledge derived from cited sources.',
+    '',
+    ...(wiki.length
+      ? wiki.map((source) => `- [[${source.wikiPath}]] — ${source.title}`)
+      : ['- No wiki pages yet.']),
+    ''
+  ].join('\n');
+}
+
+function buildJournalIndex(sources: VaultSource[]) {
+  const journal = sources.filter(
+    (source) => source.status !== 'archived' && source.rawPath.startsWith('journal/')
+  );
+
+  return [
+    '# Journal',
+    '',
+    'Operational notes and dated reflections captured through Agent OS.',
+    '',
+    ...(journal.length
+      ? journal.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
+      : ['- No journal entries in the vault yet.']),
     ''
   ].join('\n');
 }
@@ -188,6 +285,10 @@ export function buildVaultSnapshot(sources: VaultSource[]): VaultSnapshot {
     { path: uniquePath('agents.md', seen), content: buildAgentsMd() },
     { path: uniquePath('index.md', seen), content: buildIndex(sources) },
     { path: uniquePath('log.md', seen), content: buildLog(sources) },
+    { path: uniquePath('knowledge/index.md', seen), content: buildKnowledgeIndex(activeSources) },
+    { path: uniquePath('knowledge/raw/index.md', seen), content: buildRawIndex(activeSources) },
+    { path: uniquePath('knowledge/wiki/index.md', seen), content: buildWikiIndex(activeSources) },
+    { path: uniquePath('journal/index.md', seen), content: buildJournalIndex(activeSources) },
     ...memoryAgents.map((agent) => ({
       path: uniquePath(`knowledge/memory/${agent}/index.md`, seen),
       content: buildMemoryIsland(agent, activeSources)

@@ -6118,6 +6118,72 @@ function buildVaultSnapshot(sources) {
     '',
     '- [[agents.md]]',
     '- [[log.md]]',
+    '- [[knowledge/index.md]]',
+    '- [[knowledge/raw/index.md]]',
+    '- [[knowledge/wiki/index.md]]',
+    '- [[journal/index.md]]',
+    ''
+  ].join('\n');
+  const byKind = new Map();
+  const byStatus = new Map();
+  for (const source of activeSources) {
+    byKind.set(source.kind, (byKind.get(source.kind) ?? 0) + 1);
+    byStatus.set(source.status, (byStatus.get(source.status) ?? 0) + 1);
+  }
+  const knowledgeIndexMd = [
+    '# Knowledge',
+    '',
+    'Generated Agent OS knowledge vault root.',
+    '',
+    '## Folders',
+    '',
+    '- [[knowledge/raw/index.md]] — source material and evidence',
+    '- [[knowledge/wiki/index.md]] — synthesized working knowledge',
+    '- [[knowledge/memory]] — imported memory islands by agent',
+    '- [[journal/index.md]] — operational notes and dated reflections',
+    '',
+    '## Active source counts',
+    '',
+    ...[...byStatus.entries()]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([status, count]) => `- ${status}: ${count}`),
+    '',
+    '## Source kinds',
+    '',
+    ...[...byKind.entries()]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([kind, count]) => `- ${kind}: ${count}`),
+    ''
+  ].join('\n');
+  const rawIndexMd = [
+    '# Raw Sources',
+    '',
+    'Raw sources are evidence, not interpreted context.',
+    '',
+    ...(raw.length
+      ? raw.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
+      : ['- No active raw sources.']),
+    ''
+  ].join('\n');
+  const wikiIndexMd = [
+    '# Wiki',
+    '',
+    'Wiki pages are synthesized working knowledge derived from cited sources.',
+    '',
+    ...(wikified.length
+      ? wikified.map((source) => `- [[${source.wikiPath}]] — ${source.title}`)
+      : ['- No wiki pages yet.']),
+    ''
+  ].join('\n');
+  const journal = activeSources.filter((source) => String(source.rawPath ?? '').startsWith('journal/'));
+  const journalIndexMd = [
+    '# Journal',
+    '',
+    'Operational notes and dated reflections captured through Agent OS.',
+    '',
+    ...(journal.length
+      ? journal.map((source) => `- [[${source.rawPath}]] — ${source.title}`)
+      : ['- No journal entries in the vault yet.']),
     ''
   ].join('\n');
   const logMd = [
@@ -6133,6 +6199,10 @@ function buildVaultSnapshot(sources) {
     { path: uniquePath('agents.md'), content: agentsMd },
     { path: uniquePath('index.md'), content: indexMd },
     { path: uniquePath('log.md'), content: logMd },
+    { path: uniquePath('knowledge/index.md'), content: knowledgeIndexMd },
+    { path: uniquePath('knowledge/raw/index.md'), content: rawIndexMd },
+    { path: uniquePath('knowledge/wiki/index.md'), content: wikiIndexMd },
+    { path: uniquePath('journal/index.md'), content: journalIndexMd },
     ...memoryAgents.map((agent) => ({
       path: uniquePath(`knowledge/memory/${agent}/index.md`),
       content: [
