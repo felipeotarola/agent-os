@@ -103,7 +103,7 @@ async function main() {
       projectId: 'agent-os',
       title: 'Agent OS database foundation',
       description: 'Local Postgres, Drizzle schema, migration, seed data, and dashboard read path.',
-      status: 'in_progress',
+      status: 'done',
       priority: 100,
       ownerAgentId: 'cai',
       source: 'telegram'
