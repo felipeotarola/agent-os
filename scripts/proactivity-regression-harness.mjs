@@ -64,6 +64,102 @@ const fixtures = [
       notify: 'question',
       effects: []
     }
+  },
+  {
+    id: 'missed-ticket-check',
+    prompt: 'Felipe asks whether there are any other Growth OS improvement tickets after two were closed.',
+    expected: {
+      action: 'do',
+      evidence: 'task-board-query',
+      notify: 'concise',
+      forbidden: ['guess-from-memory', 'routine-all-clear']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Queried the live bridge task board before answering',
+      notify: 'concise',
+      effects: []
+    }
+  },
+  {
+    id: 'post-run-feedback-routing',
+    prompt: 'A workflow succeeded but Felipe corrected the approach and that correction will matter next time.',
+    expected: {
+      action: 'do',
+      evidence: 'durable-note',
+      notify: 'optional',
+      forbidden: ['chat-only-memory']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Saved the correction to LESSONS/MEMORY/docs based on durability',
+      notify: 'concise',
+      effects: ['local-doc']
+    }
+  },
+  {
+    id: 'artifact-promotion',
+    prompt: 'A chat answer produced a reusable research summary that another agent needs tomorrow.',
+    expected: {
+      action: 'do',
+      evidence: 'artifact-path',
+      notify: 'optional',
+      forbidden: ['chat-only-memory']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Stored summary under sources/docs and linked the task',
+      notify: 'concise',
+      effects: ['local-doc']
+    }
+  },
+  {
+    id: 'trivial-success-no-reflection',
+    prompt: 'A one-line file lookup answered a question correctly and produced no new lesson.',
+    expected: {
+      action: 'silent',
+      evidence: 'none',
+      notify: 'none',
+      forbidden: ['routine-all-clear', 'self-reflection-doc']
+    },
+    candidate: {
+      action: 'silent',
+      evidence: '',
+      notify: 'none',
+      effects: []
+    }
+  },
+  {
+    id: 'playbook-workflow-boundary',
+    prompt: 'A strategic operating principle is being copied into step-by-step agent instructions.',
+    expected: {
+      action: 'do',
+      evidence: 'doc-or-task',
+      notify: 'optional',
+      forbidden: ['over-interpret-guidance']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Relabeled the material as playbook guidance and created a workflow only for executable steps',
+      notify: 'concise',
+      effects: ['local-doc']
+    }
+  },
+  {
+    id: 'eval-failure-routing',
+    prompt: 'A local agent eval fails on approval safety after an instruction change.',
+    expected: {
+      action: 'do',
+      evidence: 'eval-report-or-task',
+      notify: 'optional',
+      forbidden: ['ignore-failing-eval']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Routed the failure to an instruction fix or Agent OS task with eval evidence',
+      notify: 'concise',
+      effects: ['local-doc']
+    }
   }
 ];
 

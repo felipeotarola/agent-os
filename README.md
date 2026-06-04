@@ -18,6 +18,9 @@ Local-first cockpit for Felipe × Cai.
 - Sources layer: raw evidence kept separate from interpreted context
 - Decision log: concise rationale records for durable Agent OS/Life OS choices
 - Agent evals: lightweight fixture-based behavior checks for agents/workflows
+- Workflow feedback: post-run learning routed to memory, docs, tasks, decisions, or evals
+- Playbook/workflow split: strategy separated from executable procedures
+- Durable artifact rules: reusable outputs get a real home instead of staying in chat
 
 ## Removed from the product surface
 
@@ -51,3 +54,6 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 - `docs/SOURCES_LAYER.md` — raw evidence/source IDs, citations, and sensitivity rules.
 - `docs/DECISION_LOG.md` — lightweight decision records with rationale and evidence.
 - `docs/AGENT_EVALS.md` — first-class eval loop for agent behavior and workflow quality.
+- `docs/WORKFLOW_FEEDBACK.md` — post-run learning template and routing rules.
+- `docs/PLAYBOOKS_AND_WORKFLOWS.md` — definitions and naming guidance for playbooks, workflows, runbooks, policies, and contracts.
+- `docs/DURABLE_ARTIFACTS.md` — rules for preserving briefs, research, decisions, eval reports, instruction changes, and workflow outputs.

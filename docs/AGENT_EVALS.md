@@ -2,7 +2,7 @@
 
 Purpose: make agent behavior reviewable with lightweight eval cases, not only code tests and memory notes.
 
-Agent OS already has `npm run check:runtime-mocks` for runtime guardrails and `npm run check:proactivity` for a narrow proactivity harness. Agent evals are the broader convention for testing agent outputs and workflows.
+Agent OS already has `npm run check:runtime-mocks` for runtime guardrails and `npm run check:proactivity` for memory/proactivity regression fixtures. Agent evals are the broader convention for testing agent outputs and workflows.
 
 ## V0 Scope
 

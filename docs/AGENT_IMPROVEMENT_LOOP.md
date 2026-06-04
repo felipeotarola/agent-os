@@ -16,6 +16,9 @@ Purpose: make Agent OS better at improving Cai/Charles/Sladdis without Felipe ha
 - `/dashboard/memory` — QMD/Dreaming memory health, search and hygiene.
 - `/dashboard/assistant` — personal-assistant readiness checks inspired by OpenClaw setup docs.
 - `npm run evals:agent` — lightweight fixture-based evals for agent behavior, guardrails, context usage and output quality.
+- `docs/WORKFLOW_FEEDBACK.md` — post-run learning template and routing rules.
+- `docs/DURABLE_ARTIFACTS.md` — durable homes for reusable outputs instead of chat-only storage.
+- `docs/PLAYBOOKS_AND_WORKFLOWS.md` — separates strategic guidance from executable procedures.
 
 ## Next high-leverage builds
 
@@ -70,6 +73,8 @@ Deprioritize:
 ## Daily learning loop
 
 Add a low-noise daily review loop inspired by OpenClaw self-learning workflows: review what worked, failed, got corrected, broke, and what should be saved. Write back only high-signal lessons into memory, operating notes, docs, tasks, or small commits. See `docs/DAILY_AGENT_LEARNING_LOOP.md`.
+
+Use `docs/WORKFLOW_FEEDBACK.md` for non-trivial post-run feedback. Route reusable outputs through `docs/DURABLE_ARTIFACTS.md` so useful work gets a durable home without creating a storage junk drawer.
 
 ## Agent evals
 

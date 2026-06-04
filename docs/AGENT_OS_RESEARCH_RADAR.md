@@ -166,7 +166,7 @@ Progress: V1 persistence scaffold exists in the bridge (`GET/POST /inbox/items`)
 
 New build candidate from 2026-05-25 scan: add a tiny memory/proactivity regression harness inspired by STATE-Bench, using local Agent OS fixtures and scoring outcome/reliability/cost/safety instead of retrieval accuracy.
 
-Progress: V0 exists as `scripts/proactivity-regression-harness.mjs` with `npm run check:proactivity`. It uses deterministic local fixtures for safe doc follow-up, external outreach approval, noise control, and token-rotation sensitivity. This is a baseline guardrail, not a full agent evaluator yet.
+Progress: V0 exists as `scripts/proactivity-regression-harness.mjs` with `npm run check:proactivity`. It uses 10 deterministic local fixtures for safe doc follow-up, external outreach approval, noise control, token-rotation sensitivity, missed-ticket checks, workflow feedback, durable artifact promotion, playbook/workflow separation, and eval-failure routing. This is a baseline guardrail, not a full agent evaluator yet.
 
 Progress update: first-class Agent OS evals now exist as `docs/AGENT_EVALS.md`, `evals/agent-behavior-v0.json`, and `scripts/agent-evals.mjs` with `npm run evals:agent`. V0 covers recommendation quality, guardrail compliance, context usage, missed-context detection, and output format quality.
 

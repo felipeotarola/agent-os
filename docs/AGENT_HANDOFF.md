@@ -34,6 +34,13 @@ Use this shape when a worker finishes non-trivial research, coding, review, or t
 
 ## Recommended next step
 - <single concrete next action>
+
+## Workflow feedback
+- Worked: <what should be repeated, or "none">
+- Failed or friction: <what broke/confused/slowed execution, or "none">
+- Change needed: memory | instruction | skill | doc | ticket | eval | none
+- Durable home: <path, task id, eval id, decision id, or "none">
+- Follow-up: <single concrete next action, or "none">
 ```
 
 ## JSON shape
@@ -50,7 +57,14 @@ Use this shape when a worker finishes non-trivial research, coding, review, or t
   "verification": ["string"],
   "decisionsMade": [{ "decision": "string", "reason": "string" }],
   "blockers": ["string"],
-  "recommendedNextStep": "string"
+  "recommendedNextStep": "string",
+  "workflowFeedback": {
+    "worked": "string",
+    "failedOrFriction": "string",
+    "changeNeeded": "memory | instruction | skill | doc | ticket | eval | none",
+    "durableHome": "string",
+    "followUp": "string"
+  }
 }
 ```
 
@@ -61,3 +75,4 @@ Use this shape when a worker finishes non-trivial research, coding, review, or t
 - If the worker needs Felipe to decide, set `status` to `blocked` and make the decision the recommended next step.
 - Do not include secrets, raw private mail, tokens, credentials, or unnecessary personal data.
 - For Inbox Radar, map handoffs needing review to `kind: handoff`; map consequential decisions to `kind: approval`.
+- Include workflow feedback only when the run produced a lesson, correction, follow-up, or reusable artifact. See `docs/WORKFLOW_FEEDBACK.md` and `docs/DURABLE_ARTIFACTS.md`.
