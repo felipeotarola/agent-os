@@ -33,6 +33,14 @@ Generate a local draft with:
 npm run brief:local
 ```
 
+Route it through the heartbeat noise filter with:
+
+```bash
+npm run brief:heartbeat
+```
+
+The heartbeat route prints `HEARTBEAT_OK` unless the local brief shows a decision point, a degraded/local-change signal, a forced run, or meaningfully changed context after a quiet period. Use `npm run brief:heartbeat -- --write-state` from cron/heartbeat jobs that should update `/root/.openclaw/workspace/memory/heartbeat-state.json`.
+
 ```markdown
 # Daily Brief - YYYY-MM-DD
 
