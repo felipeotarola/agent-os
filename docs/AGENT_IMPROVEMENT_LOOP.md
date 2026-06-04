@@ -15,6 +15,7 @@ Purpose: make Agent OS better at improving Cai/Charles/Sladdis without Felipe ha
 - Bridge timeout/cache hardening — faster and less fragile snapshot reads.
 - `/dashboard/memory` — QMD/Dreaming memory health, search and hygiene.
 - `/dashboard/assistant` — personal-assistant readiness checks inspired by OpenClaw setup docs.
+- `npm run evals:agent` — lightweight fixture-based evals for agent behavior, guardrails, context usage and output quality.
 
 ## Next high-leverage builds
 
@@ -36,6 +37,7 @@ Purpose: make Agent OS better at improving Cai/Charles/Sladdis without Felipe ha
    - internal tasks tagged `agent-improvement`
    - reviewable ideas from heartbeats/dreaming/session friction
    - lightweight status: proposed → scaffolded → verified → shipped
+   - eval failures become tasks, instruction updates or decision records
 
 4. **Integration scaffold lane**
    - safe local adapters first
@@ -68,3 +70,7 @@ Deprioritize:
 ## Daily learning loop
 
 Add a low-noise daily review loop inspired by OpenClaw self-learning workflows: review what worked, failed, got corrected, broke, and what should be saved. Write back only high-signal lessons into memory, operating notes, docs, tasks, or small commits. See `docs/DAILY_AGENT_LEARNING_LOOP.md`.
+
+## Agent evals
+
+Use `docs/AGENT_EVALS.md` and `npm run evals:agent` when changing agent instructions, task routing, proactive behavior, or output/reporting conventions. Keep evals small and deterministic until a live model/tool harness is clearly worth the complexity.

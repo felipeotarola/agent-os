@@ -168,4 +168,6 @@ New build candidate from 2026-05-25 scan: add a tiny memory/proactivity regressi
 
 Progress: V0 exists as `scripts/proactivity-regression-harness.mjs` with `npm run check:proactivity`. It uses deterministic local fixtures for safe doc follow-up, external outreach approval, noise control, and token-rotation sensitivity. This is a baseline guardrail, not a full agent evaluator yet.
 
+Progress update: first-class Agent OS evals now exist as `docs/AGENT_EVALS.md`, `evals/agent-behavior-v0.json`, and `scripts/agent-evals.mjs` with `npm run evals:agent`. V0 covers recommendation quality, guardrail compliance, context usage, missed-context detection, and output format quality.
+
 Operational note from 2026-05-26 proactive loop: Cai upserted this as persistent Inbox Radar task `cai-memory-proactivity-regression-harness`. The bridge now skips optional Inbox Radar index creation when the runtime DB role is not the table owner, avoiding the prior `must be owner of table inbox_items` failure.

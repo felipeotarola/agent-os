@@ -17,6 +17,7 @@ Local-first cockpit for Felipe × Cai.
 - Trading Lab: paper-only BTC research/backtesting workspace
 - Sources layer: raw evidence kept separate from interpreted context
 - Decision log: concise rationale records for durable Agent OS/Life OS choices
+- Agent evals: lightweight fixture-based behavior checks for agents/workflows
 
 ## Removed from the product surface
 
@@ -49,3 +50,4 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 - `docs/LOCAL_DAILY_BRIEF.md` — local-only daily brief template and approval-gated input rules.
 - `docs/SOURCES_LAYER.md` — raw evidence/source IDs, citations, and sensitivity rules.
 - `docs/DECISION_LOG.md` — lightweight decision records with rationale and evidence.
+- `docs/AGENT_EVALS.md` — first-class eval loop for agent behavior and workflow quality.

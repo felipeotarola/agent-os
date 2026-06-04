@@ -18,4 +18,5 @@ GrowthOS review surfaced that Agent OS had memory, docs, agent instructions, and
 
 - `docs/SOURCES_LAYER.md`
 - `docs/DECISION_LOG.md`
+- `docs/AGENT_EVALS.md`
 - `docs/TASKS.md`

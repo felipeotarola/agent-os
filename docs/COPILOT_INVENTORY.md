@@ -45,6 +45,10 @@ Date: 2026-05-18
   - Defines lightweight decision records for durable Agent OS and Life OS choices.
   - Captures decision, reason, evidence/source, tradeoff, date, owner, and related task.
 
+- **Agent evals** (`docs/AGENT_EVALS.md`, `evals/`, `scripts/agent-evals.mjs`)
+  - Fixture-based behavior checks for recommendation quality, guardrail compliance, context usage, missed-context detection, and output format quality.
+  - Exposed as `npm run evals:agent` and included in `npm run verify`.
+
 - **Memory** (`/dashboard/memory`)
   - Memory search/save surface.
   - Should stay local-first and avoid secrets.
@@ -106,7 +110,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 - Make empty states explicit: no fake data, tell the user what source is missing.
 - Add a “needs wiring” badge for surfaces that are real UI but not fully connected.
 - Add an inventory/admin page so this document does not live only in markdown.
-- Eventually surface sources and decision records in the UI if the markdown convention proves useful.
+- Eventually surface sources, decision records, and eval reports in the UI if the markdown/file conventions prove useful.
 
 ### Quality
 
