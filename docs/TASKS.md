@@ -20,6 +20,15 @@ Use this shape when converting local context, Life OS blockers, Radar items, or 
 }
 ```
 
+When a task comes from research, GrowthOS review, Life OS context, or a customer/product signal, add an `Evidence` section to the description. Cite stable source IDs from `docs/SOURCES_LAYER.md` or explicit links/commits.
+
+```markdown
+## Evidence
+
+- `src:2026-06-04-growthos-context-boundary` - reason this task exists.
+- `src:repo-agent-os-f0cd7977` - implementation commit or repo state.
+```
+
 Status values used by the board are `backlog`, `in_progress`, `review`, `waiting`, and `done`.
 Legacy `todo` is normalized to `backlog` by dispatcher views.
 
@@ -65,3 +74,4 @@ Notes:
 - Use ` ```mermaid ` fences exactly; normal code fences remain plain task text.
 - Diagrams are rendered client-side with Mermaid `securityLevel: strict`.
 - Keep diagrams task-local and operational: process flows, dependencies, state machines, sequence diagrams, and decision trees.
+- If a Mermaid task encodes a durable operating decision, link a decision record from `decisions/`.

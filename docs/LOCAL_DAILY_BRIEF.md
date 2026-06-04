@@ -18,6 +18,7 @@ Preferred safe inputs:
 - `/root/.openclaw/workspace/HEARTBEAT.md`
 - Recent daily notes under `/root/.openclaw/workspace/memory/YYYY-MM-DD.md`
 - Agent OS `git status`, recent commits, docs, tasks, and local build/test results
+- Agent OS sources and decision records when they explain current priorities
 - Cron/task run summaries that are already visible in the runtime context
 
 Approval-gated inputs:
@@ -52,6 +53,7 @@ npm run brief:local
 ## Evidence
 
 - <file path, command result, task id, commit, or named source used>
+- <source id or decision record path when the brief depends on durable rationale>
 ```
 
 ## Noise Filter

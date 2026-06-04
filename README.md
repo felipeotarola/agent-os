@@ -15,6 +15,8 @@ Local-first cockpit for Felipe × Cai.
 - Permissions: notification/permission state
 - Settings: real system/data-source status and guardrails
 - Trading Lab: paper-only BTC research/backtesting workspace
+- Sources layer: raw evidence kept separate from interpreted context
+- Decision log: concise rationale records for durable Agent OS/Life OS choices
 
 ## Removed from the product surface
 
@@ -45,3 +47,5 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 - `docs/TRADING_LAB.md` — paper-only BTC research workspace, APIs, guardrails, and validation.
 - `docs/BROWSER_AUTOMATION_RECOVERY.md` — profile-specific browser automation triage and safe recovery guardrails.
 - `docs/LOCAL_DAILY_BRIEF.md` — local-only daily brief template and approval-gated input rules.
+- `docs/SOURCES_LAYER.md` — raw evidence/source IDs, citations, and sensitivity rules.
+- `docs/DECISION_LOG.md` — lightweight decision records with rationale and evidence.

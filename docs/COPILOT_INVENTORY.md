@@ -37,6 +37,14 @@ Date: 2026-05-18
   - Real local log/decision capture surface.
   - Persists entries into `knowledge_sources` as `kind=journal` for later wikification.
 
+- **Sources layer** (`docs/SOURCES_LAYER.md`, `sources/`)
+  - Defines raw evidence as separate from interpreted context.
+  - Adds stable source IDs and citation conventions for docs, tickets, decisions, and agent outputs.
+
+- **Decision log** (`docs/DECISION_LOG.md`, `decisions/`)
+  - Defines lightweight decision records for durable Agent OS and Life OS choices.
+  - Captures decision, reason, evidence/source, tradeoff, date, owner, and related task.
+
 - **Memory** (`/dashboard/memory`)
   - Memory search/save surface.
   - Should stay local-first and avoid secrets.
@@ -98,6 +106,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 - Make empty states explicit: no fake data, tell the user what source is missing.
 - Add a “needs wiring” badge for surfaces that are real UI but not fully connected.
 - Add an inventory/admin page so this document does not live only in markdown.
+- Eventually surface sources and decision records in the UI if the markdown convention proves useful.
 
 ### Quality
 
