@@ -23,7 +23,7 @@ chmod 600 "$OUT"
 
 # Verify gzip integrity and that the dump has real content.
 gzip -t "$OUT"
-if ! gzip -dc "$OUT" | head -n 20 | grep -q 'PostgreSQL database dump'; then
+if ! gzip -dc "$OUT" | awk 'NR <= 20 && /PostgreSQL database dump/ { found = 1 } END { exit found ? 0 : 1 }'; then
   echo "backup verification failed: dump header not found" >&2
   exit 1
 fi
