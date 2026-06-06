@@ -85,7 +85,7 @@ if (args.has('--write-state')) {
     hash: briefHash,
     lastCheckedAt: now.toISOString(),
     lastSurfacedAt: shouldSurface ? now.toISOString() : previous.lastSurfacedAt || null,
-    lastReason: surfaceReason()
+    lastReason: shouldSurface ? surfaceReason() : 'quiet'
   };
   writeState(state);
 }
