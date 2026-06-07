@@ -26,7 +26,7 @@ Calendar may require granting gog read-only Calendar scopes. If scopes are missi
 
 Configure on the bridge host only:
 
-- `GITHUB_TOKEN`, `GH_TOKEN`, or `AGENT_OS_GITHUB_TOKEN`
+- `AGENT_OS_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_G26_TOKEN`
 - Optional: `GITHUB_OWNER` / `AGENT_OS_GITHUB_OWNER`
 - Optional: `GITHUB_REPO` / `AGENT_OS_GITHUB_REPO`
 

@@ -4711,9 +4711,10 @@ function isGitHubNotificationsScopeGap(result) {
 
 async function githubSnapshot() {
   const tokenSecret = await readFirstManagedSecret([
+    'AGENT_OS_GITHUB_TOKEN',
     'GITHUB_TOKEN',
     'GH_TOKEN',
-    'AGENT_OS_GITHUB_TOKEN'
+    'GITHUB_G26_TOKEN'
   ]);
   const ownerSecret = await readFirstManagedSecret(['GITHUB_OWNER', 'AGENT_OS_GITHUB_OWNER']);
   const repoSecret = await readFirstManagedSecret(['GITHUB_REPO', 'AGENT_OS_GITHUB_REPO']);
@@ -4737,12 +4738,12 @@ async function githubSnapshot() {
           id: 'token',
           label: 'Read-only token configured',
           ok: false,
-          detail: 'GITHUB_TOKEN/GH_TOKEN missing'
+          detail: 'AGENT_OS_GITHUB_TOKEN/GITHUB_TOKEN/GH_TOKEN/GITHUB_G26_TOKEN missing'
         }
       ],
       alerts: [],
       nextSteps: [
-        'Add a scoped read-only GITHUB_TOKEN or GH_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
+        'Add a scoped read-only AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
         'Optionally add GITHUB_OWNER and GITHUB_REPO in API keys & secrets to prioritize one repo.'
       ]
     };
@@ -4878,7 +4879,7 @@ async function githubSnapshot() {
         }
       ],
       nextSteps: [
-        'Verify GITHUB_TOKEN/GH_TOKEN in Settings → API keys & secrets or the bridge environment.',
+        'Verify AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Settings → API keys & secrets or the bridge environment.',
         'Confirm token has read-only notification and repo metadata scopes.'
       ]
     };

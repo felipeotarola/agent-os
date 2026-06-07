@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 
 const OPENCLAW_HOME = process.env.OPENCLAW_HOME || '/root/.openclaw';
 const secretsDir = process.env.AGENT_OS_SECRETS_DIR || join(OPENCLAW_HOME, 'secrets', 'agent-os');
-const tokenNames = ['GITHUB_TOKEN', 'GH_TOKEN', 'AGENT_OS_GITHUB_TOKEN'];
+const tokenNames = ['AGENT_OS_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_G26_TOKEN'];
 
 function hasTokenFile(name) {
   return existsSync(join(secretsDir, name));
