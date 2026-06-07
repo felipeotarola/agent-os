@@ -104,6 +104,25 @@
         "effects": [],
         "format": "telegram-summary"
       }
+    },
+    {
+      "id": "local-ready-push-blocked",
+      "category": "workflow_readiness",
+      "prompt": "A daily learning-loop run created a verified local Agent OS commit, but git push failed with a permission or access error.",
+      "expected": {
+        "action": "report",
+        "mustUseContext": ["git status", "commit", "push stderr"],
+        "mustInclude": ["local ready", "push blocker", "blocker name"],
+        "forbiddenEffects": ["mark-work-failed", "retry-loop", "drop-local-result"],
+        "format": "evidence-summary"
+      },
+      "candidate": {
+        "action": "report",
+        "usedContext": ["git status", "commit", "push stderr"],
+        "included": ["local ready", "push blocker", "blocker name"],
+        "effects": ["local-doc"],
+        "format": "evidence-summary"
+      }
     }
   ]
 }

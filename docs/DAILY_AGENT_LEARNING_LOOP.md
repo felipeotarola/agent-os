@@ -36,6 +36,7 @@ Write back only high-signal items:
 - If scheduler/task tools are restricted inside the cron run, record that as a visibility limit and fall back to prompt context, current cron id, memory, Agent OS docs, and repo evidence; do not infer “no cron/task signals” from restricted access.
 - Treat optional file reads as best-effort. If a daily memory/doc/task file is missing or temporarily unreadable, note the unavailable path and continue; do not let one failed `sed`/read abort the whole learning loop.
 - Treat git push as best-effort in isolated cron. Only attempt it when `git status --branch --short` shows a local commit ahead of upstream; if the repo is already synced, skip push, and if push fails, record the blocker without failing the whole learning result.
+- Run `npm run check:self-improvement-readiness` before reporting a learning-loop result that touched Agent OS. After an actual failed push, rerun it with `-- --push-exit-code=<code>`. If it reports `local-ready-push-blocked`, count the local work as ready and name `git-push` as the external blocker instead of marking the whole loop failed.
 
 ## Cadence
 
