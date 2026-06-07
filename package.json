@@ -29,6 +29,7 @@
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
     "check:self-improvement-readiness": "node scripts/self-improvement-readiness.mjs",
+    "git:push": "node scripts/git-push-agent-os-token.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
     "verify": "npm run check:runtime-mocks && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run lint && npm run typecheck",
