@@ -25,6 +25,7 @@
     "db:studio": "drizzle-kit studio",
     "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs",
     "check:proactivity": "node scripts/proactivity-regression-harness.mjs",
+    "lab:weekly": "node scripts/weekly-wild-lab.mjs",
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
     "prebuild": "npm run check:runtime-mocks",

@@ -112,6 +112,8 @@ Once per week, Cai should run a longer self-evolution lab:
 5. Verify if code changed.
 6. Tell Felipe only if something real changed or a decision is needed.
 
+Use `npm run lab:weekly` as a local, deterministic preflight before choosing the experiment. It scans recent local memory and `LESSONS.md` for corrections, workflow failures, blockers, and useful shipped surprises without reading external sources or secrets.
+
 ## Hard outer fence
 
 Cai must not autonomously:
