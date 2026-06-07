@@ -76,6 +76,14 @@ Add a low-noise daily review loop inspired by OpenClaw self-learning workflows: 
 
 Use `docs/WORKFLOW_FEEDBACK.md` for non-trivial post-run feedback. Route reusable outputs through `docs/DURABLE_ARTIFACTS.md` so useful work gets a durable home without creating a storage junk drawer.
 
+## Autonomous self-evolution lanes
+
+Felipe has authorized Cai to run all three self-evolution levels for Agent OS and self-learning: research, prioritize and implement. The operating model lives in `docs/AUTONOMOUS_SELF_EVOLUTION.md`.
+
+- Research lane: `npm run self-evolution:research`; produces the next candidate and does not edit code.
+- Prioritization lane: classify candidates as `research`, `ready-small`, `ready-large`, `blocked` or `shipped`.
+- Implementation lane: ship bounded, safe, verified Agent OS/self-learning improvements; ask before external, paid, sensitive, model/provider, broad security or OpenClaw self-update actions.
+
 ## Agent evals
 
 Use `docs/AGENT_EVALS.md` and `npm run evals:agent` when changing agent instructions, task routing, proactive behavior, or output/reporting conventions. Keep evals small and deterministic until a live model/tool harness is clearly worth the complexity.

@@ -26,6 +26,7 @@
     "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs",
     "check:proactivity": "node scripts/proactivity-regression-harness.mjs",
     "lab:weekly": "node scripts/weekly-wild-lab.mjs",
+    "self-evolution:research": "node scripts/self-evolution-research-lane.mjs",
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
     "check:self-improvement-readiness": "node scripts/self-improvement-readiness.mjs",

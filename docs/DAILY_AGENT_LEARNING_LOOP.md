@@ -44,6 +44,8 @@ Live cron: `cai-daily-agent-learning-loop` (`2d2afd11-a269-48b8-a622-690046a01d0
 
 It is intentionally low-noise: no all-clear messages, only a Telegram update if it changed something meaningful or needs a real decision.
 
+This daily loop is not the same as the self-evolution research lane. The daily loop reviews what happened. The research lane, defined in `docs/AUTONOMOUS_SELF_EVOLUTION.md`, looks for the next Agent OS/self-learning candidate and may hand a bounded candidate to an implementation lane.
+
 Initial prompt shape:
 
 ```text

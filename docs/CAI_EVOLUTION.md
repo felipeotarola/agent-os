@@ -33,6 +33,8 @@ Translated to Cai/OpenClaw:
 
 ## Autonomy levels
 
+Felipe has approved the practical L1-L3 Agent OS/self-learning operating lanes. See `docs/AUTONOMOUS_SELF_EVOLUTION.md` for the concrete research, prioritization and implementation policy.
+
 ### L0 - Answer
 Respond only to explicit user request.
 

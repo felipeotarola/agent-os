@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -134,13 +135,57 @@ function assertFixtures() {
   };
 }
 
+function assertAutonomyLanes() {
+  const required = [
+    {
+      id: 'operating-model-doc',
+      path: resolve(repo, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
+      patterns: [/Lane 1: Research-only/, /Lane 2: Prioritize/, /Lane 3: Implement/]
+    },
+    {
+      id: 'research-lane-script',
+      path: resolve(repo, 'scripts', 'self-evolution-research-lane.mjs'),
+      patterns: [/lane: 'research-only'/, /chooseCandidate/, /ready-small/]
+    },
+    {
+      id: 'package-research-command',
+      path: resolve(repo, 'package.json'),
+      patterns: [/"self-evolution:research": "node scripts\/self-evolution-research-lane\.mjs"/]
+    },
+    {
+      id: 'agent-eval-mandate-case',
+      path: resolve(repo, 'evals', 'agent-behavior-v0.json'),
+      patterns: [/"autonomous-self-evolution-mandate"/, /"research lane"/, /"implementation lane"/]
+    }
+  ];
+
+  const results = required.map((item) => {
+    const text = existsSync(item.path) ? readFileSync(item.path, 'utf8') : '';
+    const passed = text.length > 0 && item.patterns.every((pattern) => pattern.test(text));
+    return {
+      id: item.id,
+      passed,
+      path: item.path,
+      missingPatterns: item.patterns.filter((pattern) => !pattern.test(text)).map((pattern) => pattern.source)
+    };
+  });
+
+  return {
+    suite: 'autonomous-self-evolution-lanes-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
+  };
+}
+
 const report = {
   generatedAt: new Date().toISOString(),
   repo,
   current: classifyReadiness(currentRepoInput()),
-  fixtures: runFixtures ? assertFixtures() : undefined
+  fixtures: runFixtures ? assertFixtures() : undefined,
+  autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined
 };
 
 console.log(JSON.stringify(report, null, 2));
 
-if (report.fixtures?.failed.length > 0) process.exit(1);
+if (report.fixtures?.failed.length > 0 || report.autonomyLanes?.failed.length > 0) process.exit(1);
