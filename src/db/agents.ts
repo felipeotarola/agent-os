@@ -63,7 +63,7 @@ const fallbackAgents: OpenClawAgent[] = [
 const fallbackTaskOwnerAgents: TaskOwnerAgent[] = [
   { id: 'cai', name: 'Cai', role: 'Orchestrator', status: 'online' },
   { id: 'charles', name: 'Charles', role: 'Product/research', status: 'online' },
-  { id: 'sladdis', name: 'Sladdis', role: 'Affiliate store operator', status: 'online' },
+  { id: 'sladdis', name: 'Sladdis', role: 'QA agent', status: 'online' },
   { id: 'linda', name: 'Linda', role: 'Paper trading research', status: 'online' },
   { id: 'worker-pool', name: 'Worker pool', role: 'Implementation', status: 'online' }
 ];

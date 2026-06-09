@@ -1,5 +1,7 @@
 # Sladdis Store Operating Model
 
+Status: superseded on 2026-06-09 by the Sladdis QA-agent pivot. Keep this document only as legacy affiliate/storefront context unless Felipe explicitly reopens that lane.
+
 Purpose: make Sladdis useful as a 24/7 affiliate store agent without pretending it should publish or spend money unsupervised.
 
 ## Operating Loops

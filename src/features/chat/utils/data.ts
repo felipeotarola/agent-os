@@ -18,14 +18,15 @@ export const chatAgents: ChatAgent[] = [
   {
     id: 'sladdis',
     name: 'Sladdis',
-    role: 'Playful companion',
+    role: 'QA agent',
     initials: 'SL',
-    tone: 'Lightweight help, ideas, and small tasks'
+    tone: 'Exploratory testing, test cases, checks, and concise QA reports'
   }
 ];
 
 export const defaultWelcomeByAgent = {
   cai: 'Cai ready. Pick an agent, write the task, and I’ll route it through the chat API when the backend is available.',
   charles: 'Charles here. Give me the messy context and I’ll turn it into a strategy thread.',
-  sladdis: 'Sladdis online. Small chaos accepted, preferably with snacks.'
+  sladdis:
+    'Sladdis online. Give me a link and I’ll explore it, suggest tests, run checks, and report findings.'
 } satisfies Record<ChatAgent['id'], string>;

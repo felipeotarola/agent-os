@@ -97,9 +97,9 @@ const agents = [
   },
   {
     name: 'Sladdis',
-    role: 'Affiliate agent',
+    role: 'QA agent',
     status: 'Active',
-    task: 'Running sladdis.store and marketing on social media',
+    task: 'Exploring links, writing test cases, running checks, and reporting findings',
     progress: 50,
     avatarIcon: 'gitBranch',
     avatarColumn: '66.666%'
