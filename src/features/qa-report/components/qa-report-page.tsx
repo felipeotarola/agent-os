@@ -371,7 +371,7 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
   return (
     <main className='bg-background min-h-screen'>
       <section className='border-b'>
-        <div className='mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:py-14'>
+        <div className='mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8 lg:py-14'>
           <div className='flex min-w-0 flex-col gap-8'>
             <div className='flex flex-wrap items-center gap-2'>
               <Badge variant='secondary'>{report.agentName}</Badge>
@@ -380,14 +380,14 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
               <Badge variant='outline'>{report.reportType}</Badge>
               <Badge variant='outline'>{formatReportDate(report.generatedAt)}</Badge>
             </div>
-            <div className='max-w-4xl'>
+            <div className='max-w-5xl'>
               <p className='text-muted-foreground text-sm font-medium uppercase tracking-[0.18em]'>
                 {strategy?.name ?? 'Public QA report'}
               </p>
               <h1 className='text-foreground mt-4 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl'>
                 {report.title}
               </h1>
-              <p className='text-muted-foreground mt-6 max-w-3xl text-lg leading-8'>
+              <p className='text-muted-foreground mt-6 max-w-4xl text-lg leading-8'>
                 {report.executiveSummary}
               </p>
             </div>
@@ -407,21 +407,20 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
             </div>
           </div>
 
-          <Card className='min-w-0 self-start rounded-lg'>
+          <Card className='min-w-0 max-w-5xl rounded-lg'>
             <CardHeader>
               <CardTitle>Readiness score</CardTitle>
               <CardDescription>{report.verdict}</CardDescription>
             </CardHeader>
-            <CardContent className='flex flex-col gap-6'>
-              <div>
+            <CardContent className='grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]'>
+              <div className='min-w-0'>
                 <div className='flex items-end justify-between gap-4'>
                   <span className='text-5xl font-semibold tracking-tight'>{report.score}</span>
                   <span className='text-muted-foreground pb-1 text-sm'>of 100</span>
                 </div>
                 <Progress value={report.score} className='mt-4' />
               </div>
-              <Separator />
-              <div className='grid gap-2'>
+              <div className='grid min-w-0 gap-2 md:grid-cols-2'>
                 {report.environment.map((item) => (
                   <div
                     key={item.label}
@@ -432,8 +431,7 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
                   </div>
                 ))}
               </div>
-              <Separator />
-              <div className='grid grid-cols-2 gap-3'>
+              <div className='grid gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-4'>
                 {report.metrics.map((metric) => (
                   <div key={metric.label} className='bg-muted/50 min-w-0 rounded-md p-3'>
                     <div className='text-2xl font-semibold'>{metric.value}</div>
