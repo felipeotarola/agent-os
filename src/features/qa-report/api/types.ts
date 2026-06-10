@@ -118,6 +118,15 @@ export interface QaRequirementTrace {
   notes: string;
 }
 
+export interface QaReportTestStrategy {
+  selectedScenarioReason: string;
+  techniquesUsed: string[];
+  decisionPolicy: string;
+  knowledgeSources: string[];
+  coverageGaps: string[];
+  recommendedNextTest: string;
+}
+
 export interface QaReport {
   vertical: QaReportVertical;
   customerSlug: string;
@@ -134,6 +143,7 @@ export interface QaReport {
   scope: string[];
   testRun?: QaTestRunSummary;
   traceability?: QaRequirementTrace[];
+  testStrategy?: QaReportTestStrategy;
   metrics: QaMetric[];
   environment: QaEnvironment[];
   coverage: QaCoverageArea[];

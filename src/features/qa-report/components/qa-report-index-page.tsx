@@ -50,6 +50,14 @@ const minimumReportBody = `{
       "notes": "Covered by first-impression and CTA smoke checks."
     }
   ],
+  "testStrategy": {
+    "selectedScenarioReason": "Felipe sent a public homepage URL and no scenario; UX/UI is the highest-value first pass for demo readiness.",
+    "techniquesUsed": ["Risk-based testing", "Exploratory session-based testing", "Nielsen UX heuristics"],
+    "decisionPolicy": "ask-when-ambiguous",
+    "knowledgeSources": ["Agent OS QA Strategy", "Nielsen Norman Group heuristics", "ISTQB CTFL v4.0"],
+    "coverageGaps": ["No accessibility smoke pass yet", "No safe form submission retest yet"],
+    "recommendedNextTest": "Run accessibility smoke next because UX/UI already covered the first impression."
+  },
   "metrics": [],
   "environment": [],
   "coverage": [],

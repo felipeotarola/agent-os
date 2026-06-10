@@ -49,6 +49,16 @@ const qaReportSchema = z.object({
       })
     )
     .optional(),
+  testStrategy: z
+    .object({
+      selectedScenarioReason: z.string().min(1),
+      techniquesUsed: z.array(z.string().min(1)),
+      decisionPolicy: z.string().min(1),
+      knowledgeSources: z.array(z.string().min(1)),
+      coverageGaps: z.array(z.string()),
+      recommendedNextTest: z.string().min(1)
+    })
+    .optional(),
   metrics: z.array(z.unknown()),
   environment: z.array(z.unknown()),
   coverage: z.array(z.unknown()),

@@ -59,6 +59,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'QA Strategy',
+        url: '/dashboard/qa-knowledge',
+        icon: 'shieldCheck',
+        shortcut: ['q', 'a'],
+        items: []
+      },
+      {
         title: 'Wiki',
         url: '/dashboard/wiki',
         icon: 'page',

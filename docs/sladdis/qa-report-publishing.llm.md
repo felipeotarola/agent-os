@@ -24,11 +24,13 @@ Example:
 
 Before creating a claim or publishing a report, confirm that the report vertical is the right one.
 
+- Use the private Agent OS QA Strategy dashboard (`/dashboard/qa-knowledge`) as the source of truth for active QA techniques, scenario priorities, decision policies, stale-report thresholds, and required strategy metadata.
 - If Felipe named a scenario, use the matching vertical.
 - If Felipe only sent a URL or gave an ambiguous "test this" instruction, ask which scenario to run.
 - Use `/qa-rapport` as the source of available scenarios and existing public reports.
 - Check whether the same domain/customer already has a report. If it does, mention the existing vertical and recommend either a retest or a complementary scenario.
 - Do not silently repeat the same vertical for the same domain unless Felipe asked for a retest or the previous report is stale.
+- See `docs/sladdis/qa-knowledge-playbook.llm.md` for the decision flow and QA technique baseline.
 
 Available verticals:
 
@@ -140,6 +142,14 @@ Minimum valid example:
       "notes": "Covered by first-impression and CTA smoke checks."
     }
   ],
+  "testStrategy": {
+    "selectedScenarioReason": "Felipe sent a public homepage URL and no scenario; UX/UI is the highest-value first pass for demo readiness.",
+    "techniquesUsed": ["Risk-based testing", "Exploratory session-based testing", "Nielsen UX heuristics"],
+    "decisionPolicy": "ask-when-ambiguous",
+    "knowledgeSources": ["Agent OS QA Strategy", "Nielsen Norman Group heuristics", "ISTQB CTFL v4.0"],
+    "coverageGaps": ["No accessibility smoke pass yet", "No safe form submission retest yet"],
+    "recommendedNextTest": "Run accessibility smoke next because UX/UI already covered the first impression."
+  },
   "metrics": [],
   "environment": [],
   "coverage": [],
@@ -164,7 +174,7 @@ Minimum valid example:
 
 If the report body is invalid, the API returns `400 invalid-report` with an `issues` array containing validation paths and messages.
 
-`testRun` and `traceability` are optional for backwards compatibility, but new reports should include them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, and mappings from requirements to test cases and findings.
+`testRun`, `traceability`, and `testStrategy` are optional for backwards compatibility, but new reports should include them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, mappings from requirements to test cases and findings, why the scenario was selected, which QA techniques were used, what coverage gaps remain, and what Sladdis recommends next.
 
 The response returns:
 

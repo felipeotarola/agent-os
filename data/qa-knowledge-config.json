@@ -1,0 +1,74 @@
+{
+  "activeTechniqueIds": [
+    "risk-based-testing",
+    "exploratory-session",
+    "nielsen-heuristics",
+    "wcag-22-smoke",
+    "equivalence-boundary",
+    "decision-table",
+    "state-transition",
+    "core-web-vitals-smoke",
+    "owasp-wstg-baseline",
+    "seo-content-intent"
+  ],
+  "verticalSettings": [
+    {
+      "vertical": "ux-ui",
+      "priority": "high",
+      "decisionPolicy": "ask-when-ambiguous",
+      "techniqueIds": ["risk-based-testing", "exploratory-session", "nielsen-heuristics"],
+      "staleAfterDays": 30,
+      "requireScreenshots": true
+    },
+    {
+      "vertical": "accessibility",
+      "priority": "medium",
+      "decisionPolicy": "ask-when-ambiguous",
+      "techniqueIds": ["risk-based-testing", "wcag-22-smoke"],
+      "staleAfterDays": 60,
+      "requireScreenshots": true
+    },
+    {
+      "vertical": "performance",
+      "priority": "medium",
+      "decisionPolicy": "ask-when-ambiguous",
+      "techniqueIds": ["risk-based-testing", "core-web-vitals-smoke"],
+      "staleAfterDays": 60,
+      "requireScreenshots": true
+    },
+    {
+      "vertical": "seo-content",
+      "priority": "medium",
+      "decisionPolicy": "ask-when-ambiguous",
+      "techniqueIds": ["risk-based-testing", "seo-content-intent"],
+      "staleAfterDays": 60,
+      "requireScreenshots": true
+    },
+    {
+      "vertical": "conversion-flow",
+      "priority": "medium",
+      "decisionPolicy": "ask-when-ambiguous",
+      "techniqueIds": [
+        "risk-based-testing",
+        "exploratory-session",
+        "equivalence-boundary",
+        "decision-table",
+        "state-transition"
+      ],
+      "staleAfterDays": 60,
+      "requireScreenshots": true
+    },
+    {
+      "vertical": "security-smoke",
+      "priority": "medium",
+      "decisionPolicy": "ask-before-running",
+      "techniqueIds": ["risk-based-testing", "owasp-wstg-baseline"],
+      "staleAfterDays": 60,
+      "requireScreenshots": true
+    }
+  ],
+  "requireStrategyInReports": true,
+  "requireCoverageGaps": true,
+  "requireRecommendedNextTest": true,
+  "updatedAt": "2026-06-10T22:01:00.000Z"
+}

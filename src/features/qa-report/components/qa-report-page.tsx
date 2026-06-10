@@ -19,6 +19,7 @@ import type {
   QaReport,
   QaRequirementTrace,
   QaStrategyDefinition,
+  QaReportTestStrategy,
   QaRiskArea,
   QaSeverity,
   QaStatus,
@@ -242,6 +243,72 @@ function TraceabilityMatrix({ traceability }: { traceability: QaRequirementTrace
             ))}
           </TableBody>
         </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TestStrategyRecord({ strategy }: { strategy: QaReportTestStrategy }) {
+  return (
+    <Card className='min-w-0 rounded-lg'>
+      <CardHeader>
+        <CardTitle>Test strategy</CardTitle>
+        <CardDescription className='break-words'>
+          Why this scenario was selected and which QA techniques shaped the run.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.6fr)]'>
+        <div className='space-y-4'>
+          <div className='rounded-md bg-muted/50 p-3'>
+            <div className='text-xs text-muted-foreground'>Selected scenario reason</div>
+            <p className='mt-2 text-sm leading-6 break-words'>{strategy.selectedScenarioReason}</p>
+          </div>
+          <div className='rounded-md bg-muted/50 p-3'>
+            <div className='text-xs text-muted-foreground'>Recommended next test</div>
+            <p className='mt-2 text-sm leading-6 break-words'>{strategy.recommendedNextTest}</p>
+          </div>
+          {strategy.coverageGaps.length ? (
+            <div>
+              <div className='text-sm font-medium'>Coverage gaps</div>
+              <ul className='mt-2 space-y-2'>
+                {strategy.coverageGaps.map((gap) => (
+                  <li key={gap} className='flex gap-2 text-sm text-muted-foreground'>
+                    <Icons.warning className='mt-0.5 size-4 shrink-0' />
+                    <span className='break-words'>{gap}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className='space-y-4'>
+          <div>
+            <div className='text-sm font-medium'>Techniques used</div>
+            <div className='mt-2 flex flex-wrap gap-2'>
+              {strategy.techniquesUsed.map((technique) => (
+                <Badge key={technique} variant='secondary'>
+                  {technique}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className='rounded-md border p-3'>
+            <div className='text-xs text-muted-foreground'>Decision policy</div>
+            <div className='mt-1 font-mono text-sm'>{strategy.decisionPolicy}</div>
+          </div>
+          {strategy.knowledgeSources.length ? (
+            <div>
+              <div className='text-sm font-medium'>Knowledge sources</div>
+              <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
+                {strategy.knowledgeSources.map((source) => (
+                  <li key={source} className='break-words'>
+                    {source}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );
@@ -657,6 +724,8 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
           {report.traceability?.length ? (
             <TraceabilityMatrix traceability={report.traceability} />
           ) : null}
+
+          {report.testStrategy ? <TestStrategyRecord strategy={report.testStrategy} /> : null}
 
           <section className='grid min-w-0 gap-4'>
             <CoverageMatrix coverage={report.coverage} />
