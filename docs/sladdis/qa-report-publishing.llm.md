@@ -145,7 +145,17 @@ Minimum valid example:
   "coverage": [],
   "timeline": [],
   "risks": [],
-  "evidence": [],
+  "evidence": [
+    {
+      "id": "hero-desktop",
+      "label": "Homepage desktop",
+      "viewport": "1440 x 1000",
+      "path": "/",
+      "imageUrl": "https://example.com/screenshots/lysande-homepage-desktop.png",
+      "capturedAt": "10:40 UTC",
+      "notes": "Above-the-fold message and primary action visibility."
+    }
+  ],
   "findings": [],
   "suggestedTests": [],
   "nextRun": ["Retest primary CTA and mobile layout after fixes."]
@@ -195,7 +205,7 @@ Every publishable report must include:
 - `coverage`
 - `timeline`
 - `risks`
-- `evidence`
+- `evidence` with durable screenshot URLs in `imageUrl` or `blobUrl` whenever screenshots were captured
 - `findings`
 - `suggestedTests`
 - `nextRun`

@@ -71,6 +71,18 @@ function getRiskLabel(risk: QaRiskArea) {
   return 'Low risk';
 }
 
+function isImageAssetPath(value: string) {
+  return /\.(avif|gif|jpe?g|png|webp)(\?.*)?$/i.test(value);
+}
+
+function getEvidenceImageSrc(item: QaReport['evidence'][number]) {
+  if (item.imageUrl) return item.imageUrl;
+  if (item.blobUrl) return item.blobUrl;
+  if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
+  if (item.path.startsWith('/') && isImageAssetPath(item.path)) return item.path;
+  return null;
+}
+
 function TestRunRecord({ testRun }: { testRun: QaTestRunSummary }) {
   const totals = [
     { label: 'Passed', value: testRun.passed },
@@ -676,20 +688,32 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
                 </div>
                 <div
                   className={cn(
-                    'from-muted via-background to-muted flex min-w-0 items-center justify-center bg-linear-to-br p-4 sm:aspect-[16/10] sm:p-6',
+                    'from-muted via-background to-muted flex min-w-0 items-center justify-center bg-linear-to-br sm:aspect-[16/10]',
                     index % 2 === 1 && 'from-background via-muted/60 to-background'
                   )}
                 >
-                  <div className='border-border/70 bg-card/80 w-full max-w-[min(100%,24rem)] rounded-lg border p-4 shadow-sm sm:p-5'>
-                    <div className='bg-muted h-4 w-2/3 rounded' />
-                    <div className='bg-muted mt-4 h-3 w-full rounded' />
-                    <div className='bg-muted mt-2 h-3 w-5/6 rounded' />
-                    <div className='mt-5 grid grid-cols-3 gap-2'>
-                      <div className='bg-muted h-14 rounded' />
-                      <div className='bg-muted h-14 rounded' />
-                      <div className='bg-muted h-14 rounded' />
+                  {getEvidenceImageSrc(item) ? (
+                    // oxlint-disable-next-line next/no-img-element -- Evidence screenshots can be arbitrary signed/blob URLs.
+                    <img
+                      src={getEvidenceImageSrc(item) ?? undefined}
+                      alt={`${item.label} screenshot`}
+                      className='h-full min-h-64 w-full object-cover'
+                      loading='lazy'
+                    />
+                  ) : (
+                    <div className='flex w-full items-center justify-center p-4 sm:p-6'>
+                      <div className='border-border/70 bg-card/80 w-full max-w-[min(100%,24rem)] rounded-lg border p-4 shadow-sm sm:p-5'>
+                        <div className='bg-muted h-4 w-2/3 rounded' />
+                        <div className='bg-muted mt-4 h-3 w-full rounded' />
+                        <div className='bg-muted mt-2 h-3 w-5/6 rounded' />
+                        <div className='mt-5 grid grid-cols-3 gap-2'>
+                          <div className='bg-muted h-14 rounded' />
+                          <div className='bg-muted h-14 rounded' />
+                          <div className='bg-muted h-14 rounded' />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <CardContent className='flex flex-col gap-2 py-5'>
                   <div className='flex items-start justify-between gap-3'>

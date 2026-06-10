@@ -51,6 +51,8 @@ export interface QaEvidence {
   label: string;
   viewport: string;
   path: string;
+  imageUrl?: string;
+  blobUrl?: string;
   capturedAt: string;
   notes: string;
 }

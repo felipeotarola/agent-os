@@ -127,8 +127,10 @@ export async function upsertPersistedQaReport(report: QaReport) {
         evidenceId: evidence.id,
         label: evidence.label,
         path: evidence.path,
+        blobUrl: evidence.blobUrl ?? evidence.imageUrl,
         viewport: evidence.viewport,
         metadata: {
+          imageUrl: evidence.imageUrl,
           notes: evidence.notes,
           capturedAt: evidence.capturedAt
         }
