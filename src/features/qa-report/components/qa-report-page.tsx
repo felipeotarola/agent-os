@@ -70,15 +70,15 @@ function getRiskLabel(risk: QaRiskArea) {
 
 function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <CardTitle>Coverage matrix</CardTitle>
-        <CardDescription>
+        <CardDescription className='break-words'>
           What was checked, how deep the pass went, and what remains.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Table>
+      <CardContent className='min-w-0'>
+        <Table className='min-w-[720px]'>
           <TableHeader>
             <TableRow>
               <TableHead>Area</TableHead>
@@ -91,7 +91,7 @@ function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
           <TableBody>
             {coverage.map((item) => (
               <TableRow key={item.area}>
-                <TableCell className='font-medium'>{item.area}</TableCell>
+                <TableCell className='whitespace-normal font-medium'>{item.area}</TableCell>
                 <TableCell>
                   <Badge variant={getStatusBadgeVariant(item.status)}>
                     {statusLabels[item.status]}
@@ -106,7 +106,7 @@ function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground whitespace-normal'>
+                <TableCell className='text-muted-foreground max-w-72 whitespace-normal'>
                   {item.notes}
                 </TableCell>
               </TableRow>
@@ -120,16 +120,16 @@ function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
 
 function RiskMap({ risks }: { risks: QaRiskArea[] }) {
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <CardTitle>Risk map</CardTitle>
         <CardDescription>Where the next test run should spend attention first.</CardDescription>
       </CardHeader>
       <CardContent className='grid gap-4 md:grid-cols-2'>
         {risks.map((risk) => (
-          <div key={risk.label} className='bg-muted/50 rounded-md p-4'>
+          <div key={risk.label} className='bg-muted/50 min-w-0 rounded-md p-4'>
             <div className='flex items-start justify-between gap-3'>
-              <div>
+              <div className='min-w-0'>
                 <div className='font-medium'>{risk.label}</div>
                 <div className='text-muted-foreground mt-1 text-sm'>{getRiskLabel(risk)}</div>
               </div>
@@ -137,7 +137,7 @@ function RiskMap({ risks }: { risks: QaRiskArea[] }) {
                 {risk.score}
               </Badge>
             </div>
-            <div className='mt-4 grid grid-cols-[96px_1fr] items-center gap-4'>
+            <div className='mt-4 grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-center gap-4'>
               <div className='border-border bg-background relative size-24 rounded-md border'>
                 <div className='bg-muted absolute inset-x-3 top-1/2 h-px' />
                 <div className='bg-muted absolute inset-y-3 left-1/2 w-px' />
@@ -155,7 +155,9 @@ function RiskMap({ risks }: { risks: QaRiskArea[] }) {
                   }}
                 />
               </div>
-              <p className='text-muted-foreground text-sm leading-6'>{risk.reason}</p>
+              <p className='text-muted-foreground min-w-0 text-sm leading-6 break-words'>
+                {risk.reason}
+              </p>
             </div>
           </div>
         ))}
@@ -166,7 +168,7 @@ function RiskMap({ risks }: { risks: QaRiskArea[] }) {
 
 function RunTimeline({ timeline }: { timeline: QaTimelineEvent[] }) {
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <CardTitle>Run timeline</CardTitle>
         <CardDescription>How Sladdis moved from URL to report.</CardDescription>
@@ -177,18 +179,23 @@ function RunTimeline({ timeline }: { timeline: QaTimelineEvent[] }) {
             const EventIcon = getFindingIcon(event.status);
 
             return (
-              <li key={`${event.time}-${event.title}`} className='grid grid-cols-[64px_1fr] gap-4'>
+              <li
+                key={`${event.time}-${event.title}`}
+                className='grid grid-cols-[52px_minmax(0,1fr)] gap-3 sm:grid-cols-[64px_minmax(0,1fr)] sm:gap-4'
+              >
                 <div className='text-muted-foreground pt-1 font-mono text-xs'>{event.time}</div>
-                <div className='relative flex gap-3'>
+                <div className='relative flex min-w-0 gap-3'>
                   {index < timeline.length - 1 ? (
                     <span className='bg-border absolute left-4 top-9 h-[calc(100%+1rem)] w-px' />
                   ) : null}
                   <span className='bg-background relative z-10 flex size-8 shrink-0 items-center justify-center rounded-md border'>
                     <EventIcon className='size-4' />
                   </span>
-                  <div>
+                  <div className='min-w-0'>
                     <div className='font-medium'>{event.title}</div>
-                    <p className='text-muted-foreground mt-1 text-sm leading-6'>{event.detail}</p>
+                    <p className='text-muted-foreground mt-1 text-sm leading-6 break-words'>
+                      {event.detail}
+                    </p>
                   </div>
                 </div>
               </li>
@@ -202,15 +209,15 @@ function RunTimeline({ timeline }: { timeline: QaTimelineEvent[] }) {
 
 function FindingSummaryTable({ findings }: { findings: QaFinding[] }) {
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <CardTitle>Defect summary</CardTitle>
         <CardDescription>
           A compact table for scanning severity, owner area, and status.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Table>
+      <CardContent className='min-w-0'>
+        <Table className='min-w-[680px]'>
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
@@ -224,8 +231,10 @@ function FindingSummaryTable({ findings }: { findings: QaFinding[] }) {
             {findings.map((finding) => (
               <TableRow key={finding.id}>
                 <TableCell className='font-mono text-xs'>{finding.id}</TableCell>
-                <TableCell className='whitespace-normal font-medium'>{finding.title}</TableCell>
-                <TableCell>{finding.area}</TableCell>
+                <TableCell className='max-w-72 whitespace-normal font-medium'>
+                  {finding.title}
+                </TableCell>
+                <TableCell className='whitespace-normal'>{finding.area}</TableCell>
                 <TableCell>
                   <Badge variant={getSeverityBadgeVariant(finding.severity)}>
                     {severityLabels[finding.severity]}
@@ -252,7 +261,7 @@ function TestMixDiagram({ report }: { report: QaReport }) {
   const total = Math.max(1, automated + assisted + planned);
 
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <CardTitle>Test mix</CardTitle>
         <CardDescription>
@@ -289,7 +298,7 @@ function FindingCard({ finding }: { finding: QaFinding }) {
   const StatusIcon = getFindingIcon(finding.status);
 
   return (
-    <Card className='rounded-lg'>
+    <Card className='min-w-0 rounded-lg'>
       <CardHeader>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div className='flex min-w-0 gap-3'>
@@ -361,8 +370,8 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
   return (
     <main className='bg-background min-h-screen'>
       <section className='border-b'>
-        <div className='mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8 lg:py-14'>
-          <div className='flex flex-col gap-8'>
+        <div className='mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:py-14'>
+          <div className='flex min-w-0 flex-col gap-8'>
             <div className='flex flex-wrap items-center gap-2'>
               <Badge variant='secondary'>{report.agentName}</Badge>
               {strategy ? <Badge variant='default'>{strategy.shortName}</Badge> : null}
@@ -384,20 +393,20 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
             <div className='flex flex-wrap items-center gap-3'>
               <a
                 href={report.targetUrl}
-                className='border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-colors'
+                className='border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-10 max-w-full min-w-0 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-colors'
                 target='_blank'
                 rel='noreferrer'
               >
-                <Icons.externalLink className='size-4' />
-                {report.targetUrl}
+                <Icons.externalLink className='size-4 shrink-0' />
+                <span className='truncate'>{report.targetUrl}</span>
               </a>
-              <div className='text-muted-foreground text-sm'>
+              <div className='text-muted-foreground min-w-0 text-sm break-all'>
                 Shareable URL: /qa-rapport/{report.vertical}/{report.customerSlug}/{report.slug}
               </div>
             </div>
           </div>
 
-          <Card className='self-start rounded-lg'>
+          <Card className='min-w-0 self-start rounded-lg'>
             <CardHeader>
               <CardTitle>Readiness score</CardTitle>
               <CardDescription>{report.verdict}</CardDescription>
@@ -413,16 +422,19 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
               <Separator />
               <div className='grid gap-2'>
                 {report.environment.map((item) => (
-                  <div key={item.label} className='flex items-center justify-between gap-4 text-sm'>
+                  <div
+                    key={item.label}
+                    className='flex min-w-0 items-center justify-between gap-4 text-sm'
+                  >
                     <span className='text-muted-foreground'>{item.label}</span>
-                    <span className='truncate text-right font-medium'>{item.value}</span>
+                    <span className='min-w-0 truncate text-right font-medium'>{item.value}</span>
                   </div>
                 ))}
               </div>
               <Separator />
               <div className='grid grid-cols-2 gap-3'>
                 {report.metrics.map((metric) => (
-                  <div key={metric.label} className='bg-muted/50 rounded-md p-3'>
+                  <div key={metric.label} className='bg-muted/50 min-w-0 rounded-md p-3'>
                     <div className='text-2xl font-semibold'>{metric.value}</div>
                     <div className='mt-1 text-sm font-medium'>{metric.label}</div>
                     <div className='text-muted-foreground mt-1 text-xs leading-5'>
@@ -437,42 +449,42 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
       </section>
 
       <div className='mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8'>
-        <div className='flex flex-col gap-8'>
-          <section className='grid gap-4 xl:grid-cols-[1.05fr_0.95fr]'>
+        <div className='min-w-0 flex flex-col gap-8'>
+          <section className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]'>
             <CoverageMatrix coverage={report.coverage} />
-            <div className='grid gap-4'>
+            <div className='grid min-w-0 gap-4'>
               <RiskMap risks={report.risks} />
               <TestMixDiagram report={report} />
             </div>
           </section>
 
-          <section className='grid gap-4 xl:grid-cols-[0.9fr_1.1fr]'>
+          <section className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]'>
             <RunTimeline timeline={report.timeline} />
             <FindingSummaryTable findings={report.findings} />
           </section>
 
-          <section className='grid gap-4 md:grid-cols-2'>
+          <section className='grid min-w-0 gap-4 md:grid-cols-2'>
             {report.evidence.map((item, index) => (
-              <Card key={item.id} className='overflow-hidden rounded-lg py-0'>
+              <Card key={item.id} className='min-w-0 overflow-hidden rounded-lg py-0'>
                 <div className='bg-muted/70 border-b p-3'>
-                  <div className='flex items-center justify-between gap-3'>
+                  <div className='flex min-w-0 items-center justify-between gap-3'>
                     <div className='flex items-center gap-2'>
                       <span className='bg-background size-2 rounded-full' />
                       <span className='bg-background size-2 rounded-full' />
                       <span className='bg-background size-2 rounded-full' />
                     </div>
-                    <span className='text-muted-foreground truncate font-mono text-xs'>
+                    <span className='text-muted-foreground min-w-0 truncate font-mono text-xs'>
                       {item.path}
                     </span>
                   </div>
                 </div>
                 <div
                   className={cn(
-                    'from-muted via-background to-muted flex aspect-[16/10] items-center justify-center bg-linear-to-br p-6',
+                    'from-muted via-background to-muted flex min-w-0 items-center justify-center bg-linear-to-br p-4 sm:aspect-[16/10] sm:p-6',
                     index % 2 === 1 && 'from-background via-muted/60 to-background'
                   )}
                 >
-                  <div className='border-border/70 bg-card/80 w-full max-w-sm rounded-lg border p-5 shadow-sm'>
+                  <div className='border-border/70 bg-card/80 w-full max-w-[min(100%,24rem)] rounded-lg border p-4 shadow-sm sm:p-5'>
                     <div className='bg-muted h-4 w-2/3 rounded' />
                     <div className='bg-muted mt-4 h-3 w-full rounded' />
                     <div className='bg-muted mt-2 h-3 w-5/6 rounded' />
@@ -485,11 +497,15 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
                 </div>
                 <CardContent className='flex flex-col gap-2 py-5'>
                   <div className='flex items-start justify-between gap-3'>
-                    <div>
+                    <div className='min-w-0'>
                       <div className='font-medium'>{item.label}</div>
-                      <div className='text-muted-foreground mt-1 text-sm'>{item.notes}</div>
+                      <div className='text-muted-foreground mt-1 text-sm break-words'>
+                        {item.notes}
+                      </div>
                     </div>
-                    <Badge variant='outline'>{item.viewport}</Badge>
+                    <Badge className='shrink-0' variant='outline'>
+                      {item.viewport}
+                    </Badge>
                   </div>
                   <div className='text-muted-foreground text-xs'>Captured at {item.capturedAt}</div>
                 </CardContent>

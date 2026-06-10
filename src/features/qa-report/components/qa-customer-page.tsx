@@ -57,17 +57,19 @@ export function QaCustomerPage({
                 key={report.slug}
                 href={`/qa-rapport/${report.vertical}/${report.customerSlug}/${report.slug}`}
               >
-                <div className='hover:bg-muted/50 h-full rounded-md border p-4 transition-colors'>
-                  <div className='flex items-start justify-between gap-4'>
-                    <div>
+                <div className='hover:bg-muted/50 h-full min-w-0 rounded-md border p-4 transition-colors'>
+                  <div className='flex min-w-0 items-start justify-between gap-4'>
+                    <div className='min-w-0'>
                       <div className='font-medium'>{report.title}</div>
-                      <p className='text-muted-foreground mt-2 text-sm leading-6'>
+                      <p className='text-muted-foreground mt-2 text-sm leading-6 break-words'>
                         {report.verdict}
                       </p>
                     </div>
-                    <Badge variant='outline'>{report.score}/100</Badge>
+                    <Badge className='shrink-0' variant='outline'>
+                      {report.score}/100
+                    </Badge>
                   </div>
-                  <div className='text-muted-foreground mt-4 font-mono text-xs'>
+                  <div className='text-muted-foreground mt-4 break-all font-mono text-xs'>
                     /qa-rapport/{report.vertical}/{report.customerSlug}/{report.slug}
                   </div>
                 </div>

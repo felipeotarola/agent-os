@@ -67,10 +67,12 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
                   Agents must claim scoped writer access before saving reports to Agent OS.
                 </CardDescription>
               </div>
-              <Badge variant='outline'>requires Felipe approval</Badge>
+              <Badge className='w-fit' variant='outline'>
+                requires Felipe approval
+              </Badge>
             </div>
           </CardHeader>
-          <CardContent className='grid gap-6 lg:grid-cols-[1fr_360px]'>
+          <CardContent className='grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]'>
             <div className='grid gap-3 md:grid-cols-2'>
               {[
                 {
@@ -90,16 +92,18 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
                   value: 'POST /api/qa-reports'
                 }
               ].map((step) => (
-                <div key={step.label} className='bg-muted/50 rounded-md p-4'>
+                <div key={step.label} className='bg-muted/50 min-w-0 rounded-md p-4'>
                   <div className='text-sm font-medium'>{step.label}</div>
-                  <div className='text-muted-foreground mt-2 font-mono text-xs'>{step.value}</div>
+                  <div className='text-muted-foreground mt-2 break-all font-mono text-xs'>
+                    {step.value}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className='flex flex-col gap-4'>
+            <div className='flex min-w-0 flex-col gap-4'>
               <div>
                 <div className='text-sm font-medium'>Instruction file</div>
-                <div className='text-muted-foreground mt-2 font-mono text-xs'>
+                <div className='text-muted-foreground mt-2 break-all font-mono text-xs'>
                   docs/sladdis/qa-report-publishing.llm.md
                 </div>
               </div>
@@ -136,12 +140,17 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
               <Link key={strategy.vertical} href={`/qa-rapport/${strategy.vertical}`}>
                 <Card className='hover:bg-muted/40 h-full rounded-lg transition-colors'>
                   <CardHeader>
-                    <div className='flex items-start justify-between gap-4'>
-                      <div>
+                    <div className='flex min-w-0 items-start justify-between gap-4'>
+                      <div className='min-w-0'>
                         <CardTitle>{strategy.name}</CardTitle>
-                        <CardDescription className='mt-2'>{strategy.description}</CardDescription>
+                        <CardDescription className='mt-2 break-words'>
+                          {strategy.description}
+                        </CardDescription>
                       </div>
-                      <Badge variant={strategy.status === 'active' ? 'default' : 'secondary'}>
+                      <Badge
+                        className='shrink-0'
+                        variant={strategy.status === 'active' ? 'default' : 'secondary'}
+                      >
                         {strategy.status}
                       </Badge>
                     </div>
@@ -162,7 +171,7 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
                     <Separator />
                     <div>
                       <div className='text-sm font-medium'>Agent instructions</div>
-                      <div className='text-muted-foreground mt-2 font-mono text-xs'>
+                      <div className='text-muted-foreground mt-2 break-all font-mono text-xs'>
                         {strategy.agentInstructionsPath}
                       </div>
                     </div>

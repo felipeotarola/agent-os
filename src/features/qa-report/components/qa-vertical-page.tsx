@@ -40,7 +40,7 @@ export function QaVerticalPage({ strategy, reports }: QaVerticalPageProps) {
       </section>
 
       <div className='mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8'>
-        <div className='flex flex-col gap-8'>
+        <div className='min-w-0 flex flex-col gap-8'>
           <Card className='rounded-lg'>
             <CardHeader>
               <CardTitle>Reports</CardTitle>
@@ -53,17 +53,19 @@ export function QaVerticalPage({ strategy, reports }: QaVerticalPageProps) {
                     key={`${report.customerSlug}-${report.slug}`}
                     href={`/qa-rapport/${report.vertical}/${report.customerSlug}/${report.slug}`}
                   >
-                    <div className='hover:bg-muted/50 rounded-md border p-4 transition-colors'>
-                      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                        <div>
+                    <div className='hover:bg-muted/50 min-w-0 rounded-md border p-4 transition-colors'>
+                      <div className='flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                        <div className='min-w-0'>
                           <div className='font-medium'>
                             {report.customerName} / {report.title}
                           </div>
-                          <p className='text-muted-foreground mt-2 text-sm leading-6'>
+                          <p className='text-muted-foreground mt-2 text-sm leading-6 break-words'>
                             {report.executiveSummary}
                           </p>
                         </div>
-                        <Badge variant='outline'>{report.score}/100</Badge>
+                        <Badge className='w-fit shrink-0' variant='outline'>
+                          {report.score}/100
+                        </Badge>
                       </div>
                     </div>
                   </Link>
@@ -104,7 +106,7 @@ export function QaVerticalPage({ strategy, reports }: QaVerticalPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className='bg-muted/50 rounded-md p-3 font-mono text-xs'>
+              <div className='bg-muted/50 rounded-md p-3 font-mono text-xs break-all'>
                 {strategy.agentInstructionsPath}
               </div>
             </CardContent>
