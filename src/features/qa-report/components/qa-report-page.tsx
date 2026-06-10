@@ -78,41 +78,43 @@ function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className='min-w-0'>
-        <Table className='min-w-[720px]'>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Area</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Checks</TableHead>
-              <TableHead className='min-w-40'>Coverage</TableHead>
-              <TableHead>Notes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {coverage.map((item) => (
-              <TableRow key={item.area}>
-                <TableCell className='whitespace-normal font-medium'>{item.area}</TableCell>
-                <TableCell>
-                  <Badge variant={getStatusBadgeVariant(item.status)}>
-                    {statusLabels[item.status]}
-                  </Badge>
-                </TableCell>
-                <TableCell>{item.checks}</TableCell>
-                <TableCell>
-                  <div className='flex min-w-36 items-center gap-3'>
-                    <Progress value={item.coverage} className='h-2' />
-                    <span className='text-muted-foreground w-10 text-right text-xs'>
-                      {item.coverage}%
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className='text-muted-foreground max-w-72 whitespace-normal'>
-                  {item.notes}
-                </TableCell>
+        <div className='overflow-x-auto'>
+          <Table className='min-w-[760px]'>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Area</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Checks</TableHead>
+                <TableHead className='min-w-44'>Coverage</TableHead>
+                <TableHead>Notes</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {coverage.map((item) => (
+                <TableRow key={item.area}>
+                  <TableCell className='whitespace-normal font-medium'>{item.area}</TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(item.status)}>
+                      {statusLabels[item.status]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.checks}</TableCell>
+                  <TableCell>
+                    <div className='flex min-w-40 items-center gap-3'>
+                      <Progress value={item.coverage} className='h-2' />
+                      <span className='text-muted-foreground w-10 text-right text-xs'>
+                        {item.coverage}%
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className='text-muted-foreground max-w-96 whitespace-normal'>
+                    {item.notes}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -125,39 +127,36 @@ function RiskMap({ risks }: { risks: QaRiskArea[] }) {
         <CardTitle>Risk map</CardTitle>
         <CardDescription>Where the next test run should spend attention first.</CardDescription>
       </CardHeader>
-      <CardContent className='grid gap-4 md:grid-cols-2'>
+      <CardContent className='grid gap-4'>
         {risks.map((risk) => (
           <div key={risk.label} className='bg-muted/50 min-w-0 rounded-md p-4'>
-            <div className='flex items-start justify-between gap-3'>
+            <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px] sm:items-start'>
               <div className='min-w-0'>
-                <div className='font-medium'>{risk.label}</div>
-                <div className='text-muted-foreground mt-1 text-sm'>{getRiskLabel(risk)}</div>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <div className='font-medium'>{risk.label}</div>
+                  <Badge variant={risk.level === 'high' ? 'destructive' : 'secondary'}>
+                    {getRiskLabel(risk)}
+                  </Badge>
+                </div>
+                <p className='text-muted-foreground mt-2 text-sm leading-6'>{risk.reason}</p>
               </div>
-              <Badge variant={risk.level === 'high' ? 'destructive' : 'secondary'}>
-                {risk.score}
-              </Badge>
+              <div className='sm:text-right'>
+                <div className='text-2xl font-semibold tabular-nums'>{risk.score}</div>
+                <div className='text-muted-foreground text-xs'>risk score</div>
+              </div>
             </div>
-            <div className='mt-4 grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-center gap-4'>
-              <div className='border-border bg-background relative size-24 rounded-md border'>
-                <div className='bg-muted absolute inset-x-3 top-1/2 h-px' />
-                <div className='bg-muted absolute inset-y-3 left-1/2 w-px' />
+            <div className='mt-4'>
+              <div className='bg-background h-2 overflow-hidden rounded-full border'>
                 <div
                   className={cn(
-                    'absolute size-4 rounded-full border shadow-sm',
+                    'h-full rounded-full',
                     risk.level === 'high' && 'bg-destructive',
                     risk.level === 'medium' && 'bg-primary',
                     risk.level === 'low' && 'bg-secondary'
                   )}
-                  style={{
-                    left: `${Math.min(78, Math.max(8, risk.score))}%`,
-                    top: `${Math.min(78, Math.max(8, 100 - risk.score))}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
+                  style={{ width: `${Math.max(8, Math.min(100, risk.score))}%` }}
                 />
               </div>
-              <p className='text-muted-foreground min-w-0 text-sm leading-6 break-words'>
-                {risk.reason}
-              </p>
             </div>
           </div>
         ))}
@@ -217,38 +216,40 @@ function FindingSummaryTable({ findings }: { findings: QaFinding[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className='min-w-0'>
-        <Table className='min-w-[680px]'>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Finding</TableHead>
-              <TableHead>Area</TableHead>
-              <TableHead>Severity</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {findings.map((finding) => (
-              <TableRow key={finding.id}>
-                <TableCell className='font-mono text-xs'>{finding.id}</TableCell>
-                <TableCell className='max-w-72 whitespace-normal font-medium'>
-                  {finding.title}
-                </TableCell>
-                <TableCell className='whitespace-normal'>{finding.area}</TableCell>
-                <TableCell>
-                  <Badge variant={getSeverityBadgeVariant(finding.severity)}>
-                    {severityLabels[finding.severity]}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusBadgeVariant(finding.status)}>
-                    {statusLabels[finding.status]}
-                  </Badge>
-                </TableCell>
+        <div className='overflow-x-auto'>
+          <Table className='min-w-[680px]'>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Finding</TableHead>
+                <TableHead>Area</TableHead>
+                <TableHead>Severity</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {findings.map((finding) => (
+                <TableRow key={finding.id}>
+                  <TableCell className='font-mono text-xs'>{finding.id}</TableCell>
+                  <TableCell className='max-w-80 whitespace-normal font-medium'>
+                    {finding.title}
+                  </TableCell>
+                  <TableCell className='whitespace-normal'>{finding.area}</TableCell>
+                  <TableCell>
+                    <Badge variant={getSeverityBadgeVariant(finding.severity)}>
+                      {severityLabels[finding.severity]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(finding.status)}>
+                      {statusLabels[finding.status]}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -450,9 +451,9 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
 
       <div className='mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8'>
         <div className='min-w-0 flex flex-col gap-8'>
-          <section className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]'>
+          <section className='grid min-w-0 gap-4'>
             <CoverageMatrix coverage={report.coverage} />
-            <div className='grid min-w-0 gap-4'>
+            <div className='grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.6fr)]'>
               <RiskMap risks={report.risks} />
               <TestMixDiagram report={report} />
             </div>
