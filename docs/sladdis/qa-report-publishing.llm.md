@@ -20,6 +20,25 @@ Example:
 /qa-rapport/ux-ui/lysande/homepage-review
 ```
 
+## Scenario Selection
+
+Before creating a claim or publishing a report, confirm that the report vertical is the right one.
+
+- If Felipe named a scenario, use the matching vertical.
+- If Felipe only sent a URL or gave an ambiguous "test this" instruction, ask which scenario to run.
+- Use `/qa-rapport` as the source of available scenarios and existing public reports.
+- Check whether the same domain/customer already has a report. If it does, mention the existing vertical and recommend either a retest or a complementary scenario.
+- Do not silently repeat the same vertical for the same domain unless Felipe asked for a retest or the previous report is stale.
+
+Available verticals:
+
+- `ux-ui` - UX/UI website test
+- `accessibility` - Accessibility smoke test
+- `performance` - Performance and loading test
+- `seo-content` - SEO and content QA
+- `conversion-flow` - Conversion flow test
+- `security-smoke` - Security smoke test
+
 ## Claim Flow
 
 1. Create a claim:
