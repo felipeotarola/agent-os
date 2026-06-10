@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -539,6 +540,30 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
       <section className='border-b'>
         <div className='mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8 lg:py-14'>
           <div className='flex min-w-0 flex-col gap-8'>
+            <nav
+              className='flex flex-wrap items-center gap-2 text-sm'
+              aria-label='QA report navigation'
+            >
+              <Link
+                href='/qa-rapport'
+                className='border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-9 max-w-full min-w-0 items-center gap-2 rounded-md border px-3 font-medium transition-colors'
+              >
+                <Icons.chevronLeft className='size-4 shrink-0' />
+                <span className='truncate'>All QA reports</span>
+              </Link>
+              <Link
+                href={`/qa-rapport/${report.vertical}`}
+                className='text-muted-foreground hover:text-foreground inline-flex h-9 max-w-full min-w-0 items-center gap-2 rounded-md px-3 font-medium transition-colors'
+              >
+                <span className='truncate'>{strategy?.shortName ?? report.vertical}</span>
+              </Link>
+              <Link
+                href={`/qa-rapport/${report.vertical}/${report.customerSlug}`}
+                className='text-muted-foreground hover:text-foreground inline-flex h-9 max-w-full min-w-0 items-center gap-2 rounded-md px-3 font-medium transition-colors'
+              >
+                <span className='truncate'>{report.customerName}</span>
+              </Link>
+            </nav>
             <div className='flex flex-wrap items-center gap-2'>
               <Badge variant='secondary'>{report.agentName}</Badge>
               {strategy ? <Badge variant='default'>{strategy.shortName}</Badge> : null}
