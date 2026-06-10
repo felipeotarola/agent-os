@@ -42,12 +42,14 @@ Priority is an integer in Postgres. For UI adapters that need labels, map it rou
 
 These are safe internal candidates derived from `/root/.openclaw/workspace/LIFE_OS.md`. Create or upsert them through the bridge only when the bridge token is available in the approved runtime context; otherwise keep this list as the reviewable source.
 
-| ID | Title | Priority | Owner | Source | Guardrail |
-| --- | --- | --- | --- | --- | --- |
-| `income-ai-qa-audit-sprint-ready` | Prepare AI QA Audit Sprint decision packet | 80 | `cai` | `life-os` | Draft only; no outreach until Felipe approves price, availability, and contacts. |
-| `agent-os-token-hygiene-reminder` | Track exposed token rotation reminders | 65 | `cai` | `life-os` | Reminder/docs only; do not rotate, revoke, or inspect raw secrets without approval. |
-| `charles-slack-reply-verification` | Verify Charles Slack reply path | 60 | `cai` | `life-os` | Read-only/status checks first; no external Slack messages unless explicitly authorized. |
-| `lysande-lead-workflow-test-plan` | Turn Charles lead workflow test into checklist | 55 | `cai` | `life-os` | Internal checklist only; Max/Andreas outreach remains approval/owner-gated. |
+For bridge-free review, export this list locally with `npm run tasks:life-os-export`. The default output is `data/private/life-os-task-candidates.json`, which stays outside git.
+
+| ID                                 | Title                                          | Priority | Owner | Source    | Guardrail                                                                               |
+| ---------------------------------- | ---------------------------------------------- | -------- | ----- | --------- | --------------------------------------------------------------------------------------- |
+| `income-ai-qa-audit-sprint-ready`  | Prepare AI QA Audit Sprint decision packet     | 80       | `cai` | `life-os` | Draft only; no outreach until Felipe approves price, availability, and contacts.        |
+| `agent-os-token-hygiene-reminder`  | Track exposed token rotation reminders         | 65       | `cai` | `life-os` | Reminder/docs only; do not rotate, revoke, or inspect raw secrets without approval.     |
+| `charles-slack-reply-verification` | Verify Charles Slack reply path                | 60       | `cai` | `life-os` | Read-only/status checks first; no external Slack messages unless explicitly authorized. |
+| `lysande-lead-workflow-test-plan`  | Turn Charles lead workflow test into checklist | 55       | `cai` | `life-os` | Internal checklist only; Max/Andreas outreach remains approval/owner-gated.             |
 
 ## Mermaid diagrams
 
