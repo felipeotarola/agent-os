@@ -10,6 +10,31 @@ interface QaReportIndexPageProps {
   reports: QaReport[];
 }
 
+const minimumReportBody = `{
+  "vertical": "ux-ui",
+  "customerSlug": "lysande",
+  "customerName": "Lysande",
+  "slug": "homepage-review",
+  "title": "Lysande UX/UI QA report",
+  "targetUrl": "https://www.lysande.ai",
+  "generatedAt": "2026-06-10T10:37:18.782Z",
+  "agentName": "Sladdis",
+  "reportType": "ux-ui-report",
+  "executiveSummary": "Short summary of the most important QA findings.",
+  "score": 78,
+  "verdict": "Usable, with clear fixes recommended.",
+  "scope": ["Homepage first impression"],
+  "metrics": [],
+  "environment": [],
+  "coverage": [],
+  "timeline": [],
+  "risks": [],
+  "evidence": [],
+  "findings": [],
+  "suggestedTests": [],
+  "nextRun": ["Retest after fixes."]
+}`;
+
 function getReportCount(reports: QaReport[], strategy: QaStrategyDefinition) {
   return reports.filter((report) => report.vertical === strategy.vertical).length;
 }
@@ -85,6 +110,21 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
                 claim exchange.
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className='mb-8 rounded-lg'>
+          <CardHeader>
+            <CardTitle>Minimum report body</CardTitle>
+            <CardDescription>
+              `POST /api/qa-reports` returns `invalid-report` with validation issues when this shape
+              is not met.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className='bg-muted/50 max-h-[520px] overflow-auto rounded-md p-4 text-xs leading-5'>
+              <code>{minimumReportBody}</code>
+            </pre>
           </CardContent>
         </Card>
 

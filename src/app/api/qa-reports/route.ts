@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { upsertPersistedQaReport, verifyQaWriterToken } from '@/features/qa-report/api/persistence';
-import { isQaReportVertical } from '@/features/qa-report/api/strategies';
+import { isQaReportVertical, qaStrategies } from '@/features/qa-report/api/strategies';
 import type { QaReport } from '@/features/qa-report/api/types';
 import { readBearerToken } from '@/lib/qa-report-tokens';
 
@@ -30,6 +30,14 @@ const qaReportSchema = z.object({
   nextRun: z.array(z.string())
 });
 
+function formatZodIssues(error: z.ZodError) {
+  return error.issues.map((issue) => ({
+    path: issue.path.join('.'),
+    code: issue.code,
+    message: issue.message
+  }));
+}
+
 export async function POST(request: NextRequest) {
   const token = readBearerToken(request.headers.get('authorization'));
   const writerToken = token ? await verifyQaWriterToken(token) : null;
@@ -38,8 +46,28 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = qaReportSchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success || !isQaReportVertical(payload.data.vertical)) {
-    return NextResponse.json({ error: 'invalid-report' }, { status: 400 });
+  if (!payload.success) {
+    return NextResponse.json(
+      { error: 'invalid-report', issues: formatZodIssues(payload.error) },
+      { status: 400 }
+    );
+  }
+
+  if (!isQaReportVertical(payload.data.vertical)) {
+    return NextResponse.json(
+      {
+        error: 'invalid-report',
+        issues: [
+          {
+            path: 'vertical',
+            code: 'invalid_value',
+            message: `Expected one of: ${qaStrategies.map((strategy) => strategy.vertical).join(', ')}`
+          }
+        ],
+        expectedVerticals: qaStrategies.map((strategy) => strategy.vertical)
+      },
+      { status: 400 }
+    );
   }
 
   const report = payload.data as QaReport;

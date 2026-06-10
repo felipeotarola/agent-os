@@ -78,6 +78,37 @@ Content-Type: application/json
 
 Body must be a full `QaReport` object. The token is scoped; if the claim included `vertical`, `customerSlug`, or `reportSlug`, the report must match those values.
 
+Minimum valid example:
+
+```json
+{
+  "vertical": "ux-ui",
+  "customerSlug": "lysande",
+  "customerName": "Lysande",
+  "slug": "homepage-review",
+  "title": "Lysande UX/UI QA report",
+  "targetUrl": "https://www.lysande.ai",
+  "generatedAt": "2026-06-10T10:37:18.782Z",
+  "agentName": "Sladdis",
+  "reportType": "ux-ui-report",
+  "executiveSummary": "Short summary of the most important QA findings.",
+  "score": 78,
+  "verdict": "Usable, with clear conversion and responsive-layout fixes recommended.",
+  "scope": ["Homepage first impression", "Desktop and mobile responsive pass"],
+  "metrics": [],
+  "environment": [],
+  "coverage": [],
+  "timeline": [],
+  "risks": [],
+  "evidence": [],
+  "findings": [],
+  "suggestedTests": [],
+  "nextRun": ["Retest primary CTA and mobile layout after fixes."]
+}
+```
+
+If the report body is invalid, the API returns `400 invalid-report` with an `issues` array containing validation paths and messages.
+
 The response returns:
 
 ```json
