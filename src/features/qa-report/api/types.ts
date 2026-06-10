@@ -90,6 +90,32 @@ export interface QaEnvironment {
   value: string;
 }
 
+export interface QaTestRunSummary {
+  build: string;
+  testPlan: string;
+  executionType: string;
+  startedAt?: string;
+  completedAt?: string;
+  result: QaStatus;
+  passed: number;
+  failed: number;
+  warnings: number;
+  notRun: number;
+  deviations: string[];
+  releaseReadiness: string;
+  reviewer?: string;
+  signOff?: string;
+}
+
+export interface QaRequirementTrace {
+  requirement: string;
+  source: string;
+  status: QaStatus;
+  testCases: string[];
+  findings: string[];
+  notes: string;
+}
+
 export interface QaReport {
   vertical: QaReportVertical;
   customerSlug: string;
@@ -104,6 +130,8 @@ export interface QaReport {
   score: number;
   verdict: string;
   scope: string[];
+  testRun?: QaTestRunSummary;
+  traceability?: QaRequirementTrace[];
   metrics: QaMetric[];
   environment: QaEnvironment[];
   coverage: QaCoverageArea[];

@@ -16,10 +16,12 @@ import type {
   QaCoverageArea,
   QaFinding,
   QaReport,
+  QaRequirementTrace,
   QaStrategyDefinition,
   QaRiskArea,
   QaSeverity,
   QaStatus,
+  QaTestRunSummary,
   QaTimelineEvent
 } from '../api/types';
 
@@ -66,6 +68,170 @@ function getRiskLabel(risk: QaRiskArea) {
   if (risk.level === 'high') return 'High risk';
   if (risk.level === 'medium') return 'Medium risk';
   return 'Low risk';
+}
+
+function TestRunRecord({ testRun }: { testRun: QaTestRunSummary }) {
+  const totals = [
+    { label: 'Passed', value: testRun.passed },
+    { label: 'Failed', value: testRun.failed },
+    { label: 'Warnings', value: testRun.warnings },
+    { label: 'Not run', value: testRun.notRun }
+  ];
+
+  return (
+    <Card className='min-w-0 rounded-lg'>
+      <CardHeader>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='min-w-0'>
+            <CardTitle>Test execution record</CardTitle>
+            <CardDescription className='mt-2 break-words'>
+              Build, test basis, deviations, and release-readiness summary.
+            </CardDescription>
+          </div>
+          <Badge className='w-fit shrink-0' variant={getStatusBadgeVariant(testRun.result)}>
+            {statusLabels[testRun.result]}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className='grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_220px]'>
+        <div className='grid min-w-0 gap-4'>
+          <div className='grid gap-3 sm:grid-cols-2'>
+            {[
+              { label: 'Build', value: testRun.build },
+              { label: 'Test plan', value: testRun.testPlan },
+              { label: 'Execution', value: testRun.executionType },
+              {
+                label: 'Window',
+                value: [testRun.startedAt, testRun.completedAt].filter(Boolean).join(' - ') || 'n/a'
+              }
+            ].map((item) => (
+              <div key={item.label} className='bg-muted/50 min-w-0 rounded-md p-3'>
+                <div className='text-muted-foreground text-xs'>{item.label}</div>
+                <div className='mt-1 text-sm font-medium break-words'>{item.value}</div>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className='text-sm font-medium'>Release readiness</div>
+            <p className='text-muted-foreground mt-2 text-sm leading-6 break-words'>
+              {testRun.releaseReadiness}
+            </p>
+          </div>
+          {testRun.deviations.length ? (
+            <div>
+              <div className='text-sm font-medium'>Plan deviations</div>
+              <ul className='mt-3 flex flex-col gap-2'>
+                {testRun.deviations.map((deviation) => (
+                  <li key={deviation} className='flex min-w-0 gap-3 text-sm'>
+                    <Icons.warning className='mt-0.5 size-4 shrink-0' />
+                    <span className='text-muted-foreground min-w-0 leading-6 break-words'>
+                      {deviation}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {testRun.reviewer || testRun.signOff ? (
+            <div className='text-muted-foreground text-sm leading-6 break-words'>
+              {[
+                testRun.reviewer && `Reviewer: ${testRun.reviewer}`,
+                testRun.signOff && `Sign-off: ${testRun.signOff}`
+              ]
+                .filter(Boolean)
+                .join(' / ')}
+            </div>
+          ) : null}
+        </div>
+        <div className='grid grid-cols-2 gap-3 lg:grid-cols-1'>
+          {totals.map((item) => (
+            <div key={item.label} className='bg-muted/50 min-w-0 rounded-md p-3'>
+              <div className='text-2xl font-semibold'>{item.value}</div>
+              <div className='text-muted-foreground mt-1 text-xs'>{item.label}</div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TraceabilityMatrix({ traceability }: { traceability: QaRequirementTrace[] }) {
+  return (
+    <Card className='min-w-0 rounded-lg'>
+      <CardHeader>
+        <CardTitle>Traceability matrix</CardTitle>
+        <CardDescription className='break-words'>
+          Requirements or acceptance criteria mapped to test cases and findings.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='min-w-0'>
+        <div className='grid gap-3 sm:hidden'>
+          {traceability.map((item) => (
+            <div
+              key={`${item.source}-${item.requirement}`}
+              className='bg-muted/50 min-w-0 rounded-md p-3'
+            >
+              <div className='flex min-w-0 items-start justify-between gap-3'>
+                <div className='min-w-0'>
+                  <div className='font-medium leading-6 break-words'>{item.requirement}</div>
+                  <div className='text-muted-foreground mt-1 text-xs break-words'>
+                    {item.source}
+                  </div>
+                </div>
+                <Badge className='shrink-0' variant={getStatusBadgeVariant(item.status)}>
+                  {statusLabels[item.status]}
+                </Badge>
+              </div>
+              <p className='text-muted-foreground mt-3 text-sm leading-6 break-words'>
+                {item.notes}
+              </p>
+              <div className='text-muted-foreground mt-3 text-xs leading-5 break-words'>
+                Tests: {item.testCases.join(', ') || 'n/a'} / Findings:{' '}
+                {item.findings.join(', ') || 'none'}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Table className='hidden min-w-[760px] sm:table'>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Requirement</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Tests</TableHead>
+              <TableHead>Findings</TableHead>
+              <TableHead>Notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {traceability.map((item) => (
+              <TableRow key={`${item.source}-${item.requirement}`}>
+                <TableCell className='max-w-64 whitespace-normal font-medium'>
+                  {item.requirement}
+                </TableCell>
+                <TableCell className='max-w-40 whitespace-normal'>{item.source}</TableCell>
+                <TableCell>
+                  <Badge variant={getStatusBadgeVariant(item.status)}>
+                    {statusLabels[item.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell className='text-muted-foreground max-w-44 whitespace-normal'>
+                  {item.testCases.join(', ') || 'n/a'}
+                </TableCell>
+                <TableCell className='text-muted-foreground max-w-36 whitespace-normal'>
+                  {item.findings.join(', ') || 'none'}
+                </TableCell>
+                <TableCell className='text-muted-foreground max-w-64 whitespace-normal'>
+                  {item.notes}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
 function CoverageMatrix({ coverage }: { coverage: QaCoverageArea[] }) {
@@ -449,6 +615,12 @@ export function QaReportTemplate({ report, strategy }: QaReportTemplateProps) {
 
       <div className='mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8'>
         <div className='min-w-0 flex flex-col gap-8'>
+          {report.testRun ? <TestRunRecord testRun={report.testRun} /> : null}
+
+          {report.traceability?.length ? (
+            <TraceabilityMatrix traceability={report.traceability} />
+          ) : null}
+
           <section className='grid min-w-0 gap-4'>
             <CoverageMatrix coverage={report.coverage} />
             <div className='grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.6fr)]'>

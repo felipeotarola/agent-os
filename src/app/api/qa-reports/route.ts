@@ -19,6 +19,36 @@ const qaReportSchema = z.object({
   score: z.number().int().min(0).max(100),
   verdict: z.string(),
   scope: z.array(z.string()),
+  testRun: z
+    .object({
+      build: z.string().min(1),
+      testPlan: z.string().min(1),
+      executionType: z.string().min(1),
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      result: z.enum(['passed', 'warning', 'failed', 'not-run']),
+      passed: z.number().int().min(0),
+      failed: z.number().int().min(0),
+      warnings: z.number().int().min(0),
+      notRun: z.number().int().min(0),
+      deviations: z.array(z.string()),
+      releaseReadiness: z.string().min(1),
+      reviewer: z.string().optional(),
+      signOff: z.string().optional()
+    })
+    .optional(),
+  traceability: z
+    .array(
+      z.object({
+        requirement: z.string().min(1),
+        source: z.string().min(1),
+        status: z.enum(['passed', 'warning', 'failed', 'not-run']),
+        testCases: z.array(z.string()),
+        findings: z.array(z.string()),
+        notes: z.string()
+      })
+    )
+    .optional(),
   metrics: z.array(z.unknown()),
   environment: z.array(z.unknown()),
   coverage: z.array(z.unknown()),

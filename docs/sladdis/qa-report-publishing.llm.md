@@ -95,6 +95,32 @@ Minimum valid example:
   "score": 78,
   "verdict": "Usable, with clear conversion and responsive-layout fixes recommended.",
   "scope": ["Homepage first impression", "Desktop and mobile responsive pass"],
+  "testRun": {
+    "build": "public-site 2026-06-10",
+    "testPlan": "Sladdis UX/UI smoke plan v1",
+    "executionType": "Manual exploratory with browser evidence",
+    "startedAt": "10:37",
+    "completedAt": "10:52",
+    "result": "warning",
+    "passed": 4,
+    "failed": 0,
+    "warnings": 2,
+    "notRun": 1,
+    "deviations": ["Production form submission was stopped at the mutation boundary."],
+    "releaseReadiness": "Ready for review after responsive fixes are retested.",
+    "reviewer": "Cai",
+    "signOff": "Retest required before final client sign-off."
+  },
+  "traceability": [
+    {
+      "requirement": "Visitor understands the offer and primary next step",
+      "source": "Homepage acceptance criterion",
+      "status": "warning",
+      "testCases": ["TC-001"],
+      "findings": [],
+      "notes": "Covered by first-impression and CTA smoke checks."
+    }
+  ],
   "metrics": [],
   "environment": [],
   "coverage": [],
@@ -108,6 +134,8 @@ Minimum valid example:
 ```
 
 If the report body is invalid, the API returns `400 invalid-report` with an `issues` array containing validation paths and messages.
+
+`testRun` and `traceability` are optional for backwards compatibility, but new reports should include them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, and mappings from requirements to test cases and findings.
 
 The response returns:
 

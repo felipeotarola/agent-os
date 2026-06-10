@@ -22,6 +22,53 @@ const qaReports: QaReport[] = [
       'Accessibility and trust signals',
       'Next useful test coverage'
     ],
+    testRun: {
+      build: 'public-site 2026-06-10',
+      testPlan: 'Sladdis UX/UI smoke plan v1',
+      executionType: 'Manual exploratory with browser evidence',
+      startedAt: '09:10',
+      completedAt: '09:24',
+      result: 'warning',
+      passed: 6,
+      failed: 0,
+      warnings: 4,
+      notRun: 2,
+      deviations: [
+        'Production form submission was stopped at the mutation boundary.',
+        'Accessibility checks were limited to smoke-level review in this run.'
+      ],
+      releaseReadiness:
+        'Good enough as a public demo artifact after real screenshot assets are attached; not enough for conversion sign-off.',
+      reviewer: 'Cai',
+      signOff: 'Retest required before using this as final client evidence.'
+    },
+    traceability: [
+      {
+        requirement: 'Visitor understands the offer and primary next step',
+        source: 'Homepage acceptance criterion',
+        status: 'warning',
+        testCases: ['TC-001', 'TC-002'],
+        findings: ['QA-001'],
+        notes:
+          'Offer is understandable, but the CTA success state still needs a safe end-to-end pass.'
+      },
+      {
+        requirement: 'Core content and controls fit small mobile screens',
+        source: 'Responsive QA scope',
+        status: 'warning',
+        testCases: ['TC-003'],
+        findings: ['QA-002'],
+        notes: 'Mobile viewport pass is covered, with narrower breakpoints recommended for retest.'
+      },
+      {
+        requirement: 'Basic accessibility can be verified and repeated',
+        source: 'Accessibility smoke baseline',
+        status: 'not-run',
+        testCases: ['TC-004'],
+        findings: ['QA-004'],
+        notes: 'Reserved for the next automated accessibility pass.'
+      }
+    ],
     metrics: [
       {
         label: 'Findings',
