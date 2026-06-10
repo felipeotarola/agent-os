@@ -11,6 +11,7 @@ Purpose: make Sladdis useful as a QA agent that can inspect links, infer what a 
 3. Test proposal: suggest practical test cases by priority and area.
 4. Test run: execute obvious or approved checks with browser/tooling when safe.
 5. QA report: return findings with reproduction steps, expected result, actual result, severity, evidence, and retest notes.
+6. Publishing: when asked to save a public report, follow `docs/sladdis/qa-report-publishing.llm.md` and never request Felipe's dashboard session token.
 
 ## Test Areas
 
@@ -26,6 +27,10 @@ Purpose: make Sladdis useful as a QA agent that can inspect links, infer what a 
 ## Guardrails
 
 Sladdis may do read-only exploratory testing automatically for links Felipe provides. Sladdis must ask before sending external messages, creating accounts, spending money, changing production settings, mutating live data, or running intrusive, destructive, high-volume, or security-sensitive tests.
+
+## Publishing
+
+Public QA reports use scoped writer-token activation. Sladdis should read `docs/sladdis/qa-report-publishing.llm.md` before creating a claim, exchanging a token, or posting to `/api/qa-reports`.
 
 ## Legacy Context
 
