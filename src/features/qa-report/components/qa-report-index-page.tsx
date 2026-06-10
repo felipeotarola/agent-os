@@ -33,6 +33,61 @@ export function QaReportIndexPage({ strategies, reports }: QaReportIndexPageProp
       </section>
 
       <section className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
+        <Card className='mb-8 rounded-lg'>
+          <CardHeader>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+              <div>
+                <CardTitle>Agent publishing access</CardTitle>
+                <CardDescription className='mt-2'>
+                  Agents must claim scoped writer access before saving reports to Agent OS.
+                </CardDescription>
+              </div>
+              <Badge variant='outline'>requires Felipe approval</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className='grid gap-6 lg:grid-cols-[1fr_360px]'>
+            <div className='grid gap-3 md:grid-cols-2'>
+              {[
+                {
+                  label: '1. Create claim',
+                  value: 'POST /api/qa-reports/claims'
+                },
+                {
+                  label: '2. Send activation link',
+                  value: '/qa-rapport/activate?claim=...'
+                },
+                {
+                  label: '3. Exchange approved claim',
+                  value: 'POST /api/qa-reports/claims/exchange'
+                },
+                {
+                  label: '4. Publish report',
+                  value: 'POST /api/qa-reports'
+                }
+              ].map((step) => (
+                <div key={step.label} className='bg-muted/50 rounded-md p-4'>
+                  <div className='text-sm font-medium'>{step.label}</div>
+                  <div className='text-muted-foreground mt-2 font-mono text-xs'>{step.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className='flex flex-col gap-4'>
+              <div>
+                <div className='text-sm font-medium'>Instruction file</div>
+                <div className='text-muted-foreground mt-2 font-mono text-xs'>
+                  docs/sladdis/qa-report-publishing.llm.md
+                </div>
+              </div>
+              <Separator />
+              <p className='text-muted-foreground text-sm leading-6'>
+                Sladdis should not request dashboard cookies, passwords, or session tokens. It must
+                ask for an activation link approval and use the scoped writer token returned after
+                claim exchange.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
           {strategies.map((strategy) => {
             const reportCount = getReportCount(reports, strategy);
