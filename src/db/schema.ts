@@ -262,6 +262,40 @@ export const qaReportEvidenceAssets = pgTable('qa_report_evidence_assets', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const qaReportClaims = pgTable('qa_report_claims', {
+  id: text('id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  status: text('status').notNull().default('pending'),
+  requestedByAgent: text('requested_by_agent').notNull().default('Sladdis'),
+  vertical: text('vertical').notNull(),
+  customerSlug: text('customer_slug').notNull().default(''),
+  customerName: text('customer_name').notNull().default(''),
+  reportSlug: text('report_slug').notNull().default(''),
+  targetUrl: text('target_url').notNull().default(''),
+  writerTokenId: text('writer_token_id'),
+  approvedBy: text('approved_by'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  exchangedAt: timestamp('exchanged_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const qaReportWriterTokens = pgTable('qa_report_writer_tokens', {
+  id: text('id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  name: text('name').notNull().default('Sladdis QA writer'),
+  status: text('status').notNull().default('active'),
+  scope: jsonb('scope').$type<Record<string, unknown>>().notNull().default({}),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export const tradingBacktestRuns = pgTable('trading_backtest_runs', {
   id: text('id').primaryKey(),
   symbol: text('symbol').notNull(),
@@ -340,6 +374,8 @@ export type ContentMediaAsset = typeof contentMediaAssets.$inferSelect;
 export type QaCustomer = typeof qaCustomers.$inferSelect;
 export type QaReportRecord = typeof qaReports.$inferSelect;
 export type QaReportEvidenceAsset = typeof qaReportEvidenceAssets.$inferSelect;
+export type QaReportClaim = typeof qaReportClaims.$inferSelect;
+export type QaReportWriterToken = typeof qaReportWriterTokens.$inferSelect;
 export type TradingBacktestRun = typeof tradingBacktestRuns.$inferSelect;
 export type TradingDecision = typeof tradingDecisions.$inferSelect;
 export type TradingWallet = typeof tradingWallets.$inferSelect;

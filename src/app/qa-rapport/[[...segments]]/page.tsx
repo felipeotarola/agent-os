@@ -4,10 +4,12 @@ import {
   getQaReport,
   getQaReportByCustomer,
   getQaReportByVertical,
-  getQaReports,
-  getQaReportsByCustomer,
-  getQaReportsByVertical
+  getQaReports
 } from '@/features/qa-report/api/service';
+import {
+  getPersistedQaReportByCustomer,
+  getPersistedQaReports
+} from '@/features/qa-report/api/persistence';
 import { getQaStrategy, qaStrategies } from '@/features/qa-report/api/strategies';
 import { QaCustomerPage } from '@/features/qa-report/components/qa-customer-page';
 import { QaReportIndexPage } from '@/features/qa-report/components/qa-report-index-page';
@@ -21,12 +23,31 @@ interface QaReportRouteProps {
   }>;
 }
 
-function resolveQaReport(segments: string[] = []):
+async function getAllQaReports() {
+  try {
+    const persistedReports = await getPersistedQaReports();
+    const persistedKeys = new Set(
+      persistedReports.map((report) => `${report.vertical}/${report.customerSlug}/${report.slug}`)
+    );
+    return [
+      ...persistedReports,
+      ...getQaReports().filter(
+        (report) => !persistedKeys.has(`${report.vertical}/${report.customerSlug}/${report.slug}`)
+      )
+    ];
+  } catch (error) {
+    console.error('Could not load persisted QA reports', error);
+    return getQaReports();
+  }
+}
+
+async function resolveQaReport(segments: string[] = []): Promise<
   | {
       report: QaReport;
       strategy?: QaStrategyDefinition;
     }
-  | undefined {
+  | undefined
+> {
   if (segments.length === 1) {
     const strategy = getQaStrategy(segments[0]!);
     if (strategy) {
@@ -45,7 +66,13 @@ function resolveQaReport(segments: string[] = []):
 
   if (segments.length === 3) {
     const [vertical, customerSlug, slug] = segments;
-    const report = getQaReportByCustomer(vertical!, customerSlug!, slug!);
+    let persistedReport: QaReport | undefined;
+    try {
+      persistedReport = await getPersistedQaReportByCustomer(vertical!, customerSlug!, slug!);
+    } catch (error) {
+      console.error('Could not load persisted QA report', error);
+    }
+    const report = persistedReport ?? getQaReportByCustomer(vertical!, customerSlug!, slug!);
     return report ? { report, strategy: getQaStrategy(report.vertical) } : undefined;
   }
 
@@ -102,7 +129,12 @@ export async function generateMetadata({ params }: QaReportRouteProps): Promise<
   if (segments.length === 2) {
     const [vertical, customerSlug] = segments;
     const strategy = getQaStrategy(vertical!);
-    const customerReports = strategy ? getQaReportsByCustomer(vertical!, customerSlug!) : [];
+    const allReports = await getAllQaReports();
+    const customerReports = strategy
+      ? allReports.filter(
+          (report) => report.vertical === vertical && report.customerSlug === customerSlug
+        )
+      : [];
     if (strategy && customerReports.length > 0) {
       const firstReport = customerReports[0]!;
       return {
@@ -115,7 +147,7 @@ export async function generateMetadata({ params }: QaReportRouteProps): Promise<
     }
   }
 
-  const resolved = resolveQaReport(segments);
+  const resolved = await resolveQaReport(segments);
 
   if (!resolved) {
     return {
@@ -144,14 +176,18 @@ export default async function QaReportRoute({ params }: QaReportRouteProps) {
   const { segments } = await params;
 
   if (!segments?.length) {
-    return <QaReportIndexPage strategies={qaStrategies} reports={getQaReports()} />;
+    return <QaReportIndexPage strategies={qaStrategies} reports={await getAllQaReports()} />;
   }
 
   if (segments.length === 1) {
     const strategy = getQaStrategy(segments[0]!);
     if (strategy) {
+      const allReports = await getAllQaReports();
       return (
-        <QaVerticalPage strategy={strategy} reports={getQaReportsByVertical(strategy.vertical)} />
+        <QaVerticalPage
+          strategy={strategy}
+          reports={allReports.filter((report) => report.vertical === strategy.vertical)}
+        />
       );
     }
   }
@@ -159,7 +195,12 @@ export default async function QaReportRoute({ params }: QaReportRouteProps) {
   if (segments.length === 2) {
     const [vertical, customerSlug] = segments;
     const strategy = getQaStrategy(vertical!);
-    const customerReports = strategy ? getQaReportsByCustomer(vertical!, customerSlug!) : [];
+    const allReports = await getAllQaReports();
+    const customerReports = strategy
+      ? allReports.filter(
+          (report) => report.vertical === vertical && report.customerSlug === customerSlug
+        )
+      : [];
     if (strategy && customerReports.length > 0) {
       const firstReport = customerReports[0]!;
       return (
@@ -173,7 +214,7 @@ export default async function QaReportRoute({ params }: QaReportRouteProps) {
     }
   }
 
-  const resolved = resolveQaReport(segments);
+  const resolved = await resolveQaReport(segments);
 
   if (!resolved) {
     notFound();
