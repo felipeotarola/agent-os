@@ -1,4 +1,12 @@
-import { doublePrecision, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex
+} from 'drizzle-orm/pg-core';
 
 export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
@@ -192,6 +200,68 @@ export const contentMediaAssets = pgTable('content_media_assets', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const qaCustomers = pgTable('qa_customers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  websiteUrl: text('website_url').notNull().default(''),
+  contactEmail: text('contact_email').notNull().default(''),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const qaReports = pgTable(
+  'qa_reports',
+  {
+    id: text('id').primaryKey(),
+    customerId: text('customer_id')
+      .notNull()
+      .references(() => qaCustomers.id),
+    vertical: text('vertical').notNull(),
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    targetUrl: text('target_url').notNull(),
+    status: text('status').notNull().default('draft'),
+    agentName: text('agent_name').notNull().default('Sladdis'),
+    reportTemplate: text('report_template').notNull(),
+    summary: text('summary').notNull().default(''),
+    verdict: text('verdict').notNull().default(''),
+    score: integer('score').notNull().default(0),
+    reportPayload: jsonb('report_payload').$type<Record<string, unknown>>().notNull().default({}),
+    generatedAt: timestamp('generated_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => ({
+    customerVerticalSlugUnique: uniqueIndex('qa_reports_customer_vertical_slug_unique').on(
+      table.customerId,
+      table.vertical,
+      table.slug
+    )
+  })
+);
+
+export const qaReportEvidenceAssets = pgTable('qa_report_evidence_assets', {
+  id: text('id').primaryKey(),
+  reportId: text('report_id')
+    .notNull()
+    .references(() => qaReports.id),
+  evidenceId: text('evidence_id').notNull(),
+  kind: text('kind').notNull().default('screenshot'),
+  label: text('label').notNull().default(''),
+  path: text('path').notNull().default(''),
+  blobKey: text('blob_key'),
+  blobUrl: text('blob_url'),
+  fileName: text('file_name'),
+  contentType: text('content_type'),
+  viewport: text('viewport').notNull().default(''),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export const tradingBacktestRuns = pgTable('trading_backtest_runs', {
   id: text('id').primaryKey(),
   symbol: text('symbol').notNull(),
@@ -239,7 +309,9 @@ export const tradingExecutions = pgTable('trading_executions', {
   walletId: text('wallet_id')
     .notNull()
     .references(() => tradingWallets.id),
-  decisionId: text('decision_id').notNull(),
+  decisionId: text('decision_id')
+    .notNull()
+    .references(() => tradingDecisions.id),
   action: text('action').notNull(),
   price: doublePrecision('price').notNull(),
   quantity: doublePrecision('quantity').notNull().default(0),
@@ -265,6 +337,9 @@ export type Event = typeof events.$inferSelect;
 export type ContentItem = typeof contentItems.$inferSelect;
 export type ContentVariant = typeof contentVariants.$inferSelect;
 export type ContentMediaAsset = typeof contentMediaAssets.$inferSelect;
+export type QaCustomer = typeof qaCustomers.$inferSelect;
+export type QaReportRecord = typeof qaReports.$inferSelect;
+export type QaReportEvidenceAsset = typeof qaReportEvidenceAssets.$inferSelect;
 export type TradingBacktestRun = typeof tradingBacktestRuns.$inferSelect;
 export type TradingDecision = typeof tradingDecisions.$inferSelect;
 export type TradingWallet = typeof tradingWallets.$inferSelect;
