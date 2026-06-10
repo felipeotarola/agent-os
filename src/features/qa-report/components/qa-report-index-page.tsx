@@ -22,8 +22,34 @@ const minimumReportBody = `{
   "reportType": "ux-ui-report",
   "executiveSummary": "Short summary of the most important QA findings.",
   "score": 78,
-  "verdict": "Usable, with clear fixes recommended.",
-  "scope": ["Homepage first impression"],
+  "verdict": "Usable, with clear conversion and responsive-layout fixes recommended.",
+  "scope": ["Homepage first impression", "Desktop and mobile responsive pass"],
+  "testRun": {
+    "build": "public-site 2026-06-10",
+    "testPlan": "Sladdis UX/UI smoke plan v1",
+    "executionType": "Manual exploratory with browser evidence",
+    "startedAt": "10:37",
+    "completedAt": "10:52",
+    "result": "warning",
+    "passed": 4,
+    "failed": 0,
+    "warnings": 2,
+    "notRun": 1,
+    "deviations": ["Production form submission was stopped at the mutation boundary."],
+    "releaseReadiness": "Ready for review after responsive fixes are retested.",
+    "reviewer": "Cai",
+    "signOff": "Retest required before final client sign-off."
+  },
+  "traceability": [
+    {
+      "requirement": "Visitor understands the offer and primary next step",
+      "source": "Homepage acceptance criterion",
+      "status": "warning",
+      "testCases": ["TC-001"],
+      "findings": [],
+      "notes": "Covered by first-impression and CTA smoke checks."
+    }
+  ],
   "metrics": [],
   "environment": [],
   "coverage": [],
