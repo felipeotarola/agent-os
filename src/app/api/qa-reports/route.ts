@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { validateQaReportAgainstKnowledgeConfig } from '@/features/qa-knowledge/api/runtime';
 import { upsertPersistedQaReport, verifyQaWriterToken } from '@/features/qa-report/api/persistence';
 import { isQaReportVertical, qaStrategies } from '@/features/qa-report/api/strategies';
 import type { QaReport } from '@/features/qa-report/api/types';
@@ -111,6 +112,14 @@ export async function POST(request: NextRequest) {
   }
 
   const report = payload.data as QaReport;
+  const strategyIssues = await validateQaReportAgainstKnowledgeConfig(report);
+  if (strategyIssues.length) {
+    return NextResponse.json(
+      { error: 'qa-strategy-policy-mismatch', issues: strategyIssues },
+      { status: 400 }
+    );
+  }
+
   const scope = writerToken.scope;
   if (
     (typeof scope.vertical === 'string' && scope.vertical !== report.vertical) ||

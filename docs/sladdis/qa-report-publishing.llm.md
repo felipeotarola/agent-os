@@ -24,9 +24,13 @@ Example:
 
 Before creating a claim or publishing a report, confirm that the report vertical is the right one.
 
-- Use the private Agent OS QA Strategy dashboard (`/dashboard/qa-knowledge`) as the source of truth for active QA techniques, scenario priorities, decision policies, stale-report thresholds, and required strategy metadata.
+- Use the private Agent OS QA Strategy dashboard (`/dashboard/qa-knowledge`) as the human control surface.
+- Use `POST /api/qa-reports/strategy` as the runtime source of truth before recommending, creating a claim, or publishing. It returns active scenarios, configured techniques, matching same-domain/customer reports, the decision policy, and the recommended next action.
 - If Felipe named a scenario, use the matching vertical.
-- If Felipe only sent a URL or gave an ambiguous "test this" instruction, ask which scenario to run.
+- If Felipe only sent a URL or gave an ambiguous "test this" instruction, follow the returned recommendation action:
+  - `run`: proceed with the recommended scenario.
+  - `ask`: ask Felipe which scenario to run and suggest the recommended default.
+  - `approval-required`: wait for explicit approval before running.
 - Use `/qa-rapport` as the source of available scenarios and existing public reports.
 - Check whether the same domain/customer already has a report. If it does, mention the existing vertical and recommend either a retest or a complementary scenario.
 - Do not silently repeat the same vertical for the same domain unless Felipe asked for a retest or the previous report is stale.
@@ -40,6 +44,27 @@ Available verticals:
 - `seo-content` - SEO and content QA
 - `conversion-flow` - Conversion flow test
 - `security-smoke` - Security smoke test
+
+Runtime request:
+
+```http
+POST /api/qa-reports/strategy
+Authorization: Bearer {SLADDIS_QA_ACTIVATION_SECRET}
+Content-Type: application/json
+```
+
+```json
+{
+  "targetUrl": "https://www.lysande.ai",
+  "customerSlug": "lysande",
+  "requestText": "test this",
+  "requestedVertical": "ux-ui"
+}
+```
+
+Omit `requestedVertical` when Felipe did not name a scenario.
+
+If `SLADDIS_QA_ACTIVATION_SECRET` is not configured, the authorization header is not required. Prefer configuring it in production.
 
 ## Claim Flow
 
@@ -172,9 +197,9 @@ Minimum valid example:
 }
 ```
 
-If the report body is invalid, the API returns `400 invalid-report` with an `issues` array containing validation paths and messages.
+If the report body is structurally invalid, the API returns `400 invalid-report` with an `issues` array containing validation paths and messages. If the body conflicts with the active QA Strategy config, it returns `400 qa-strategy-policy-mismatch`.
 
-`testRun`, `traceability`, and `testStrategy` are optional for backwards compatibility, but new reports should include them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, mappings from requirements to test cases and findings, why the scenario was selected, which QA techniques were used, what coverage gaps remain, and what Sladdis recommends next.
+`testRun` and `traceability` are optional for backwards compatibility. `testStrategy`, `coverageGaps`, `recommendedNextTest`, and durable screenshot evidence are enforced when the QA Strategy config requires them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, mappings from requirements to test cases and findings, why the scenario was selected, which QA techniques were used, what coverage gaps remain, and what Sladdis recommends next.
 
 The response returns:
 
