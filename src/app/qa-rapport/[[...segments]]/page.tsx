@@ -6,10 +6,6 @@ import {
   getQaReportByVertical,
   getQaReports
 } from '@/features/qa-report/api/service';
-import {
-  getPersistedQaReportByCustomer,
-  getPersistedQaReports
-} from '@/features/qa-report/api/persistence';
 import { getQaStrategy, qaStrategies } from '@/features/qa-report/api/strategies';
 import { QaCustomerPage } from '@/features/qa-report/components/qa-customer-page';
 import { QaReportIndexPage } from '@/features/qa-report/components/qa-report-index-page';
@@ -23,8 +19,17 @@ interface QaReportRouteProps {
   }>;
 }
 
+function isProductionBuild() {
+  return process.env.NEXT_PHASE === 'phase-production-build';
+}
+
 async function getAllQaReports() {
+  if (isProductionBuild()) {
+    return getQaReports();
+  }
+
   try {
+    const { getPersistedQaReports } = await import('@/features/qa-report/api/persistence');
     const persistedReports = await getPersistedQaReports();
     const persistedKeys = new Set(
       persistedReports.map((report) => `${report.vertical}/${report.customerSlug}/${report.slug}`)
@@ -67,10 +72,14 @@ async function resolveQaReport(segments: string[] = []): Promise<
   if (segments.length === 3) {
     const [vertical, customerSlug, slug] = segments;
     let persistedReport: QaReport | undefined;
-    try {
-      persistedReport = await getPersistedQaReportByCustomer(vertical!, customerSlug!, slug!);
-    } catch (error) {
-      console.error('Could not load persisted QA report', error);
+    if (!isProductionBuild()) {
+      try {
+        const { getPersistedQaReportByCustomer } =
+          await import('@/features/qa-report/api/persistence');
+        persistedReport = await getPersistedQaReportByCustomer(vertical!, customerSlug!, slug!);
+      } catch (error) {
+        console.error('Could not load persisted QA report', error);
+      }
     }
     const report = persistedReport ?? getQaReportByCustomer(vertical!, customerSlug!, slug!);
     return report ? { report, strategy: getQaStrategy(report.vertical) } : undefined;
