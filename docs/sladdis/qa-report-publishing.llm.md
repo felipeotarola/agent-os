@@ -201,6 +201,8 @@ If the report body is structurally invalid, the API returns `400 invalid-report`
 
 `testRun` and `traceability` are optional for backwards compatibility. `testStrategy`, `coverageGaps`, `recommendedNextTest`, and durable screenshot evidence are enforced when the QA Strategy config requires them. They capture the QA reporting record: what build or page version was tested, which test plan or acceptance criteria were used, pass/fail/not-run totals, deviations from the plan, release-readiness, reviewer/sign-off, mappings from requirements to test cases and findings, why the scenario was selected, which QA techniques were used, what coverage gaps remain, and what Sladdis recommends next.
 
+When screenshots are required, every `evidence` item that creates a report card must include a durable `imageUrl` or `blobUrl`. Do not publish placeholder-only evidence rows for pages, routes, or viewports that were not actually captured; capture each tested page first or list the missing route in `coverageGaps`.
+
 The response returns:
 
 ```json
@@ -240,7 +242,7 @@ Every publishable report must include:
 - `coverage`
 - `timeline`
 - `risks`
-- `evidence` with durable screenshot URLs in `imageUrl` or `blobUrl` whenever screenshots were captured
+- `evidence` with durable screenshot URLs in `imageUrl` or `blobUrl` for every evidence card when screenshots are required
 - `findings`
 - `suggestedTests`
 - `nextRun`

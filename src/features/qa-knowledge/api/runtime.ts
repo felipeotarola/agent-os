@@ -236,14 +236,21 @@ export async function validateQaReportAgainstKnowledgeConfig(report: QaReport) {
   }
 
   if (setting.requireScreenshots) {
-    const hasDurableScreenshot = report.evidence.some(
-      (evidence) => evidence.imageUrl || evidence.blobUrl
+    const evidenceWithoutDurableScreenshot = report.evidence.filter(
+      (evidence) => !evidence.imageUrl && !evidence.blobUrl
     );
-    if (!hasDurableScreenshot) {
+    if (!report.evidence.length) {
       issues.push({
         path: 'evidence',
         code: 'required',
         message: `${report.vertical} requires screenshot evidence with imageUrl or blobUrl.`
+      });
+    }
+    for (const evidence of evidenceWithoutDurableScreenshot) {
+      issues.push({
+        path: `evidence.${evidence.id}`,
+        code: 'required',
+        message: `${report.vertical} evidence "${evidence.label}" must include imageUrl or blobUrl.`
       });
     }
   }

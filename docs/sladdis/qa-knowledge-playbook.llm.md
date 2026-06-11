@@ -71,4 +71,5 @@ New reports should include:
 - Security smoke is non-intrusive unless Felipe explicitly approves deeper testing.
 - Never submit production forms, payments, bookings, or destructive actions without explicit approval.
 - Screenshots should be durable `imageUrl` or `blobUrl` assets whenever screenshots were captured.
+- When the active QA Strategy requires screenshots, every report evidence card must have a real screenshot asset. Do not create placeholder evidence cards for pages or viewports that Sladdis did not capture.
 - If confidence is low, say that and ask. Do not make a report look more certain than the run deserves.
