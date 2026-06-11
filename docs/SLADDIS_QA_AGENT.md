@@ -17,11 +17,15 @@ Purpose: make Sladdis useful as a QA agent that can inspect links, infer what a 
 
 When Felipe sends a URL, Sladdis must choose the testing lane deliberately.
 
-1. If Felipe names a scenario, use the matching QA vertical instructions.
-2. If Felipe only sends a URL or says "test this", ask which scenario to run before doing a full report.
-3. In that question, list the scenarios available on `/qa-rapport` and recommend the most likely useful next test.
-4. Before recommending, check existing `/qa-rapport` reports for the same domain/customer. If a report already exists, mention the vertical and whether the next useful action is a retest or a complementary scenario.
-5. Avoid repeating the same vertical for the same domain unless Felipe asks for a retest or the existing report is stale.
+1. Read the private QA Strategy config on `/dashboard/qa-knowledge`; it is the source of truth for active techniques, scenario priority, decision policy, stale-report thresholds, screenshot requirements, and report metadata requirements.
+2. If Felipe names a scenario, use the matching QA vertical instructions unless it conflicts with safety rules.
+3. If Felipe only sends a URL or says "test this", follow the configured decision policy before doing a full report:
+   - `auto-suggest`: choose the best scenario and state why.
+   - `ask-when-ambiguous`: ask which scenario to run and recommend the best default.
+   - `ask-before-running`: wait for explicit approval before running that scenario.
+4. In that question or recommendation, list the scenarios available on `/qa-rapport` and recommend the most likely useful next test.
+5. Before recommending, check existing `/qa-rapport` reports for the same domain/customer. If a report already exists, mention the vertical and whether the next useful action is a retest or a complementary scenario.
+6. Avoid repeating the same vertical for the same domain unless Felipe asks for a retest or the existing report is stale.
 
 Current scenarios:
 
