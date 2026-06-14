@@ -84,6 +84,7 @@ Default implementation policy:
 Before reporting completion:
 
 - run `npm run check:self-improvement-readiness`
+- for scheduled repo-review candidates, run `npm run check:repo-review-preflight -- --repo=<path> --pattern=<pattern>`
 - if code changed, run the smallest meaningful test and prefer `npm run verify`
 - commit locally
 - push with `npm run git:push`

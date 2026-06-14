@@ -29,3 +29,13 @@ After an actual failed push, pass the exit code into the local report:
 ```bash
 npm run check:self-improvement-readiness -- --push-exit-code=128
 ```
+
+## Repo Review Preflight
+
+Scheduled repo-review jobs should classify local evidence access before reporting failure:
+
+```bash
+npm run check:repo-review-preflight -- --repo=/root/.openclaw/repos/lysande.ai --pattern="target phrase"
+```
+
+The check treats missing repos as `repo-path` blockers, treats completed no-match searches as evidence, and falls back from `rg` to `git grep` when needed.
