@@ -93,6 +93,24 @@ export interface ReportRunDetail {
   value: string;
 }
 
+export interface ReportTraceabilityItem {
+  id: string;
+  requirement: string;
+  source?: string;
+  status: ReportStatus;
+  testCaseIds: string[];
+  findingIds: string[];
+  notes?: string;
+}
+
+export interface ReportTimelineEvent {
+  id: string;
+  time: string;
+  title: string;
+  detail?: string;
+  status: ReportStatus;
+}
+
 export interface TestReport {
   id: string;
   title: string;
@@ -114,5 +132,7 @@ export interface TestReport {
   recommendations: ReportRecommendation[];
   checklist: ReportChecklistItem[];
   evidence: ReportEvidence[];
+  traceability?: ReportTraceabilityItem[];
+  timeline?: ReportTimelineEvent[];
   raw?: unknown;
 }

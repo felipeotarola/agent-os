@@ -91,7 +91,35 @@ export default async function SettingsPage() {
   ];
 
   const systemDrilldowns = [
+    {
+      title: 'Action Center',
+      href: '/dashboard/action-center',
+      detail: 'Operational task and knowledge queue'
+    },
+    { title: 'Runway', href: '/dashboard/runway', detail: 'Income and autonomy pressure snapshot' },
+    {
+      title: 'Content Studio',
+      href: '/dashboard/content-studio',
+      detail: 'Sladdis content and media workflow'
+    },
+    {
+      title: 'Affiliate Store',
+      href: '/dashboard/affiliate',
+      detail: 'Store opportunities and catalog health'
+    },
+    {
+      title: 'Trading Lab',
+      href: '/dashboard/trading-lab',
+      detail: 'Local research and paper-trading lab'
+    },
+    {
+      title: 'QA Strategy',
+      href: '/dashboard/qa-knowledge',
+      detail: 'QA offer and strategy knowledge'
+    },
     { title: 'Agents', href: '/dashboard/agents', detail: 'Bindings, status and visible agents' },
+    { title: 'Assistant', href: '/dashboard/assistant', detail: 'Cai readiness and memory status' },
+    { title: 'Topology', href: '/dashboard/topology', detail: 'Runtime graph and bridge topology' },
     { title: 'Command', href: '/dashboard/command', detail: 'Guarded runbooks and operations' },
     { title: 'Architecture', href: '/dashboard/architecture', detail: 'System map and docs' },
     { title: 'Notifications', href: '/dashboard/notifications', detail: 'Permissions and alerts' },

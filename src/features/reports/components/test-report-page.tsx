@@ -24,6 +24,8 @@ import type {
   ReportRecommendation,
   ReportSeverity,
   ReportStatus,
+  ReportTimelineEvent,
+  ReportTraceabilityItem,
   TestReport
 } from '../api/types';
 
@@ -85,6 +87,34 @@ function getSeverityAccent(severity: ReportSeverity) {
   return 'border-l-border';
 }
 
+function getChecklistStatus(item: ReportChecklistItem): ReportStatus {
+  if (item.status === 'todo' || item.status === 'not_applicable') return 'not_run';
+  return item.status;
+}
+
+function getChecklistStatusLabel(item: ReportChecklistItem) {
+  if (item.status === 'todo') return 'Ready to run';
+  if (item.status === 'not_applicable') return 'Not applicable';
+  return statusLabels[item.status];
+}
+
+function getStatusSummary(report: TestReport) {
+  return report.checklist.reduce(
+    (summary, item) => {
+      const status = getChecklistStatus(item);
+      summary[status] += 1;
+      return summary;
+    },
+    {
+      passed: 0,
+      warning: 0,
+      failed: 0,
+      in_progress: 0,
+      not_run: 0
+    } satisfies Record<ReportStatus, number>
+  );
+}
+
 function isImageEvidence(evidence: ReportEvidence) {
   const src = evidence.url ?? evidence.path ?? '';
   return (
@@ -107,12 +137,15 @@ function stringifyRaw(value: unknown) {
 }
 
 function ReportHeader({ report }: { report: TestReport }) {
+  const statusSummary = getStatusSummary(report);
+
   return (
     <section className='border-b bg-muted/20'>
-      <div className='mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-12'>
+      <div className='mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8'>
         <div className='flex flex-col gap-4'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant='secondary'>{report.testType}</Badge>
+            <Badge variant='secondary'>QA Control Center</Badge>
+            <Badge variant='outline'>{report.testType}</Badge>
             <Badge variant={getStatusBadgeVariant(report.status)}>
               {statusLabels[report.status]}
             </Badge>
@@ -123,30 +156,66 @@ function ReportHeader({ report }: { report: TestReport }) {
               </Badge>
             ))}
           </div>
-          <div className='grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end'>
+          <div className='grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end'>
             <div className='min-w-0'>
-              <h1 className='text-3xl font-semibold tracking-tight break-words sm:text-4xl lg:text-5xl'>
+              <h1 className='text-3xl font-semibold tracking-tight break-words sm:text-4xl'>
                 {report.title}
               </h1>
               <p className='text-muted-foreground mt-4 max-w-4xl text-base leading-7 break-words sm:text-lg'>
                 {report.summary}
               </p>
             </div>
-            <Card className='min-w-0 rounded-lg'>
-              <CardHeader>
-                <CardTitle>Overall score</CardTitle>
-                <CardDescription>{report.verdict ?? statusLabels[report.status]}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <Card className='min-w-0 rounded-lg py-4'>
+              <CardContent className='flex flex-col gap-4'>
                 <div className='flex items-end justify-between gap-4'>
-                  <span className='text-5xl font-semibold tracking-tight tabular-nums'>
-                    {report.score}
-                  </span>
-                  <span className='text-muted-foreground pb-1 text-sm'>of 100</span>
+                  <div>
+                    <div className='text-muted-foreground text-sm'>Report score</div>
+                    <div className='flex items-end gap-2'>
+                      <span className='text-5xl font-semibold tracking-tight tabular-nums'>
+                        {report.score}
+                      </span>
+                      <span className='text-muted-foreground pb-1 text-sm'>/100</span>
+                    </div>
+                  </div>
+                  <Icons.chartBar className='text-muted-foreground size-8' />
                 </div>
                 <Progress value={report.score} className='mt-4' />
+                <p className='text-muted-foreground text-sm leading-6 break-words'>
+                  {report.verdict ?? statusLabels[report.status]}
+                </p>
               </CardContent>
             </Card>
+          </div>
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-5'>
+            <HeaderStat
+              label='Test cases'
+              value={String(report.checklist.length)}
+              detail='Tracked'
+            />
+            <HeaderStat
+              label='Passed'
+              value={String(statusSummary.passed)}
+              detail='Latest run'
+              status='passed'
+            />
+            <HeaderStat
+              label='Issues'
+              value={String(report.findings.length)}
+              detail='Linked findings'
+              status={report.findings.length ? 'warning' : 'passed'}
+            />
+            <HeaderStat
+              label='Evidence'
+              value={String(report.evidence.length)}
+              detail='Assets'
+              status={report.evidence.length ? 'passed' : 'not_run'}
+            />
+            <HeaderStat
+              label='Not run'
+              value={String(statusSummary.not_run)}
+              detail='Retest queue'
+              status={statusSummary.not_run ? 'not_run' : 'passed'}
+            />
           </div>
           <div className='flex flex-wrap items-center gap-3'>
             {report.targetUrl ? (
@@ -177,6 +246,42 @@ function ReportHeader({ report }: { report: TestReport }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function HeaderStat({
+  label,
+  value,
+  detail,
+  status = 'warning'
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  status?: ReportStatus;
+}) {
+  return (
+    <div className='rounded-lg border bg-background p-4'>
+      <div className='flex items-start justify-between gap-3'>
+        <div className='min-w-0'>
+          <div className='text-muted-foreground text-xs font-medium uppercase'>{label}</div>
+          <div className='mt-2 text-2xl font-semibold tabular-nums'>{value}</div>
+          <div className='text-muted-foreground mt-1 text-xs'>{detail}</div>
+        </div>
+        <span className='mt-1 size-2 shrink-0 rounded-full bg-muted'>
+          <span
+            className={cn(
+              'block size-2 rounded-full',
+              status === 'passed' && 'bg-primary',
+              status === 'failed' && 'bg-destructive',
+              status === 'warning' && 'bg-primary',
+              status === 'not_run' && 'bg-muted-foreground',
+              status === 'in_progress' && 'bg-primary'
+            )}
+          />
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -471,49 +576,176 @@ function RecommendationsTab({ recommendations }: { recommendations: ReportRecomm
   );
 }
 
-function ChecklistTab({ checklist }: { checklist: ReportChecklistItem[] }) {
-  if (!checklist.length)
-    return <EmptyState title='No checklist' detail='No retest checklist was recorded.' />;
+function TestCasesTab({ checklist }: { checklist: ReportChecklistItem[] }) {
+  if (!checklist.length) {
+    return <EmptyState title='No test cases' detail='No reusable test cases were recorded.' />;
+  }
 
   return (
-    <div className='grid gap-3'>
-      {checklist.map((item) => (
-        <ChecklistItemCard key={item.id} item={item} />
-      ))}
-    </div>
+    <Card className='min-w-0 rounded-lg'>
+      <CardHeader>
+        <CardTitle>Test cases</CardTitle>
+        <CardDescription>
+          Reusable cases Sladdis can run again and compare over time.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='overflow-x-auto'>
+        <Table className='min-w-[840px]'>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Case</TableHead>
+              <TableHead>Area</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {checklist.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className='max-w-80 whitespace-normal'>
+                  <div className='font-medium'>{item.id}</div>
+                  <div className='text-muted-foreground mt-1 text-sm'>{item.title}</div>
+                </TableCell>
+                <TableCell>{item.category ?? 'General'}</TableCell>
+                <TableCell>
+                  {item.priority ? (
+                    <Badge variant={getPriorityBadgeVariant(item.priority)}>
+                      {priorityLabels[item.priority]}
+                    </Badge>
+                  ) : (
+                    'n/a'
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getStatusBadgeVariant(getChecklistStatus(item))}>
+                    {getChecklistStatusLabel(item)}
+                  </Badge>
+                </TableCell>
+                <TableCell className='text-muted-foreground max-w-96 whitespace-normal'>
+                  {item.notes ?? 'No note recorded.'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 
-function ChecklistItemCard({ item }: { item: ReportChecklistItem }) {
-  const status =
-    item.status === 'todo' ? 'not_run' : item.status === 'not_applicable' ? 'not_run' : item.status;
-  const StatusIcon = getStatusIcon(status);
+function TraceabilityTab({ traceability }: { traceability: ReportTraceabilityItem[] }) {
+  if (!traceability.length) {
+    return (
+      <EmptyState
+        title='No traceability links'
+        detail='No requirement-to-test-to-finding links were recorded.'
+      />
+    );
+  }
 
   return (
-    <Card className='min-w-0 rounded-lg py-4'>
-      <CardContent className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-        <div className='flex min-w-0 gap-3'>
-          <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-md'>
-            <StatusIcon />
-          </span>
-          <div className='min-w-0'>
-            <div className='font-medium leading-6 break-words'>{item.title}</div>
-            {item.notes ? (
-              <p className='text-muted-foreground mt-1 text-sm leading-6 break-words'>
-                {item.notes}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div className='flex shrink-0 flex-wrap gap-2'>
-          {item.category ? <Badge variant='outline'>{item.category}</Badge> : null}
-          {item.priority ? (
-            <Badge variant={getPriorityBadgeVariant(item.priority)}>
-              {priorityLabels[item.priority]}
-            </Badge>
-          ) : null}
-          <Badge variant='secondary'>{item.status.replace('_', ' ')}</Badge>
-        </div>
+    <Card className='min-w-0 rounded-lg'>
+      <CardHeader>
+        <CardTitle>Traceability matrix</CardTitle>
+        <CardDescription>
+          Requirements mapped to test cases, findings, and evidence gaps.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='overflow-x-auto'>
+        <Table className='min-w-[920px]'>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Requirement</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Test cases</TableHead>
+              <TableHead>Findings</TableHead>
+              <TableHead>Notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {traceability.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className='max-w-80 whitespace-normal'>
+                  <div className='font-medium'>{item.id}</div>
+                  <div className='text-muted-foreground mt-1 text-sm'>{item.requirement}</div>
+                </TableCell>
+                <TableCell>{item.source ?? 'n/a'}</TableCell>
+                <TableCell>
+                  <Badge variant={getStatusBadgeVariant(item.status)}>
+                    {statusLabels[item.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className='flex flex-wrap gap-1'>
+                    {item.testCaseIds.map((id) => (
+                      <Badge key={id} variant='outline'>
+                        {id}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className='flex flex-wrap gap-1'>
+                    {item.findingIds.length ? (
+                      item.findingIds.map((id) => (
+                        <Badge key={id} variant='secondary'>
+                          {id}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className='text-muted-foreground text-sm'>None</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className='text-muted-foreground max-w-96 whitespace-normal'>
+                  {item.notes ?? 'No note recorded.'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TimelineTab({ timeline }: { timeline: ReportTimelineEvent[] }) {
+  if (!timeline.length) {
+    return <EmptyState title='No run history' detail='No execution timeline was recorded.' />;
+  }
+
+  return (
+    <Card className='rounded-lg'>
+      <CardHeader>
+        <CardTitle>Run history</CardTitle>
+        <CardDescription>Chronological execution log for this test activity.</CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        {timeline.map((event) => {
+          const StatusIcon = getStatusIcon(event.status);
+
+          return (
+            <div key={event.id} className='grid gap-3 border-l pl-4 sm:grid-cols-[92px_1fr]'>
+              <div className='text-muted-foreground font-mono text-xs'>{event.time}</div>
+              <div className='min-w-0'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <StatusIcon className='size-4' />
+                  <span className='font-medium'>{event.title}</span>
+                  <Badge variant={getStatusBadgeVariant(event.status)}>
+                    {statusLabels[event.status]}
+                  </Badge>
+                </div>
+                {event.detail ? (
+                  <p className='text-muted-foreground mt-1 text-sm leading-6 break-words'>
+                    {event.detail}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
@@ -585,6 +817,8 @@ function SummaryRail({ report }: { report: TestReport }) {
   const criticalFindings = report.findings.filter((finding) =>
     ['critical', 'high'].includes(finding.severity)
   ).length;
+  const traceabilityCount = report.traceability?.length ?? 0;
+  const runEvents = report.timeline?.length ?? 0;
 
   return (
     <aside className='flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start'>
@@ -621,6 +855,14 @@ function SummaryRail({ report }: { report: TestReport }) {
               <span className='text-muted-foreground'>Checklist</span>
               <span className='font-medium'>{report.checklist.length}</span>
             </div>
+            <div className='flex justify-between gap-3'>
+              <span className='text-muted-foreground'>Requirements</span>
+              <span className='font-medium'>{traceabilityCount}</span>
+            </div>
+            <div className='flex justify-between gap-3'>
+              <span className='text-muted-foreground'>Run events</span>
+              <span className='font-medium'>{runEvents}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -642,6 +884,9 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
 }
 
 export function TestReportPage({ report }: { report: TestReport }) {
+  const traceability = report.traceability ?? [];
+  const timeline = report.timeline ?? [];
+
   return (
     <main className='min-h-screen bg-background'>
       <ReportHeader report={report} />
@@ -651,18 +896,28 @@ export function TestReportPage({ report }: { report: TestReport }) {
             <div className='overflow-x-auto pb-1'>
               <TabsList>
                 <TabsTrigger value='overview'>Overview</TabsTrigger>
+                <TabsTrigger value='traceability'>Traceability</TabsTrigger>
+                <TabsTrigger value='test-cases'>Test Cases</TabsTrigger>
                 <TabsTrigger value='findings'>Findings</TabsTrigger>
                 <TabsTrigger value='evidence'>Evidence</TabsTrigger>
-                <TabsTrigger value='categories'>Categories</TabsTrigger>
+                <TabsTrigger value='coverage'>Coverage</TabsTrigger>
+                <TabsTrigger value='runs'>Runs</TabsTrigger>
                 <TabsTrigger value='recommendations'>Recommendations</TabsTrigger>
-                <TabsTrigger value='checklist'>Checklist</TabsTrigger>
                 <TabsTrigger value='raw'>Raw Details</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value='overview' className='flex flex-col gap-5'>
               <MetricGrid report={report} />
+              <TraceabilityTab traceability={traceability.slice(0, 4)} />
+              <TestCasesTab checklist={report.checklist.slice(0, 6)} />
               <ReportScoreCards categories={report.categories} />
               <FindingsTab findings={report.findings.slice(0, 3)} />
+            </TabsContent>
+            <TabsContent value='traceability'>
+              <TraceabilityTab traceability={traceability} />
+            </TabsContent>
+            <TabsContent value='test-cases'>
+              <TestCasesTab checklist={report.checklist} />
             </TabsContent>
             <TabsContent value='findings'>
               <FindingsTab findings={report.findings} />
@@ -670,14 +925,14 @@ export function TestReportPage({ report }: { report: TestReport }) {
             <TabsContent value='evidence'>
               <EvidenceTab evidence={report.evidence} />
             </TabsContent>
-            <TabsContent value='categories'>
+            <TabsContent value='coverage'>
               <CategoriesTab categories={report.categories} />
+            </TabsContent>
+            <TabsContent value='runs'>
+              <TimelineTab timeline={timeline} />
             </TabsContent>
             <TabsContent value='recommendations'>
               <RecommendationsTab recommendations={report.recommendations} />
-            </TabsContent>
-            <TabsContent value='checklist'>
-              <ChecklistTab checklist={report.checklist} />
             </TabsContent>
             <TabsContent value='raw'>
               <Card className='rounded-lg'>

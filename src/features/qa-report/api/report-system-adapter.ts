@@ -128,6 +128,22 @@ export function mapQaReportToTestReport(
         Viewport: item.viewport
       }
     })),
+    traceability: report.traceability?.map((item, index) => ({
+      id: `REQ-${String(index + 1).padStart(3, '0')}`,
+      requirement: item.requirement,
+      source: item.source,
+      status: mapStatus(item.status),
+      testCaseIds: item.testCases,
+      findingIds: item.findings,
+      notes: item.notes
+    })),
+    timeline: report.timeline.map((item, index) => ({
+      id: `run-event-${index + 1}`,
+      time: item.time,
+      title: item.title,
+      detail: item.detail,
+      status: mapStatus(item.status)
+    })),
     raw: {
       report,
       strategy
