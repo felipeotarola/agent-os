@@ -6,6 +6,7 @@ Purpose: generate a concise Cai briefing from local, non-sensitive context only,
 
 - Use local markdown, Agent OS status, cron/task state, and public/non-sensitive signals only.
 - Do not read private email, calendar, device notifications, bank data, secrets, or raw personal records for this brief unless Felipe explicitly approves that source.
+- Narrow approved exception: daily briefs may read the server-only Tibber token to fetch electricity price, but must never print the token.
 - Do not send the brief externally by default. Draft it locally or surface it only when there is a useful change, blocker, or decision.
 - Keep the output short: one useful screen, not a daily questionnaire.
 
@@ -20,6 +21,7 @@ Preferred safe inputs:
 - Agent OS `git status`, recent commits, docs, tasks, and local build/test results
 - Agent OS sources and decision records when they explain current priorities
 - Cron/task run summaries that are already visible in the runtime context
+- Tibber electricity price via `npm run price:tibber -- --brief`
 
 Approval-gated inputs:
 
@@ -31,6 +33,12 @@ Generate a local draft with:
 
 ```bash
 npm run brief:local
+```
+
+Check only the electricity-price line with:
+
+```bash
+npm run price:tibber -- --brief
 ```
 
 Route it through the heartbeat noise filter with:

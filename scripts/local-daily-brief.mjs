@@ -92,6 +92,19 @@ const safeAction = firstMatchingLine(proactive.text, [/^- Improve Agent OS code\
 
 const unavailable = [lifeOs, proactive, heartbeat, recentMemory].filter((file) => file.missing).map((file) => file.path);
 
+function tibberPriceSummary() {
+  try {
+    return execSync(`${process.execPath} ${resolve(repoRoot, 'scripts/tibber-electricity-price.mjs')} --brief`, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).trim();
+  } catch (error) {
+    const message = error.stderr?.toString().trim() || error.message;
+    return `- Elpris: kunde inte hämta Tibber just nu (${message}).`;
+  }
+}
+
 console.log(`# Daily Brief - ${date}`);
 console.log('');
 console.log('## Today');
@@ -110,6 +123,7 @@ if (memorySignal) {
 if (unavailable.length > 0) {
   console.log(`- Some optional inputs were unavailable: ${unavailable.join(', ')}`);
 }
+console.log(tibberPriceSummary());
 console.log('');
 console.log('## Suggested Next Action');
 console.log('');
@@ -123,4 +137,6 @@ console.log('');
 console.log('## Evidence');
 console.log('');
 console.log(`- Local-only sources read: ${[lifeOs.path, proactive.path, heartbeat.path, recentMemory.path].join(', ')}`);
-console.log('- Approval-gated sources intentionally not read: Gmail, Calendar, Slack/social notifications, device notifications, finance, secrets.');
+console.log(
+  '- Approval-gated sources intentionally not read: Gmail, Calendar, Slack/social notifications, device notifications, finance. Tibber secret read only for electricity price on request/daily brief.'
+);

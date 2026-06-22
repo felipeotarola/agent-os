@@ -30,6 +30,7 @@
     "self-evolution:research": "node scripts/self-evolution-research-lane.mjs",
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
+    "price:tibber": "node scripts/tibber-electricity-price.mjs",
     "tasks:life-os-export": "node scripts/export-life-os-task-candidates.mjs",
     "check:self-improvement-readiness": "node scripts/self-improvement-readiness.mjs",
     "check:repo-review-preflight": "node scripts/repo-review-preflight.mjs",
