@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertFixtures as assertCronToolPolicyFixtures } from './cron-tool-policy-preflight.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Map(process.argv.slice(2).map((arg) => {
@@ -156,6 +157,11 @@ function assertAutonomyLanes() {
       id: 'agent-eval-mandate-case',
       path: resolve(repo, 'evals', 'agent-behavior-v0.json'),
       patterns: [/"autonomous-self-evolution-mandate"/, /"research lane"/, /"implementation lane"/]
+    },
+    {
+      id: 'cron-tool-policy-preflight',
+      path: resolve(repo, 'scripts', 'cron-tool-policy-preflight.mjs'),
+      patterns: [/cron-tool-policy-preflight-v0/, /toolsAllow/, /missingRequiredToolFamilies/]
     }
   ];
 
@@ -178,14 +184,23 @@ function assertAutonomyLanes() {
   };
 }
 
+function assertCronToolPolicy() {
+  return assertCronToolPolicyFixtures();
+}
+
 const report = {
   generatedAt: new Date().toISOString(),
   repo,
   current: classifyReadiness(currentRepoInput()),
   fixtures: runFixtures ? assertFixtures() : undefined,
-  autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined
+  autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
+  cronToolPolicy: runFixtures ? assertCronToolPolicy() : undefined
 };
 
 console.log(JSON.stringify(report, null, 2));
 
-if (report.fixtures?.failed.length > 0 || report.autonomyLanes?.failed.length > 0) process.exit(1);
+if (
+  report.fixtures?.failed.length > 0 ||
+  report.autonomyLanes?.failed.length > 0 ||
+  report.cronToolPolicy?.failed.length > 0
+) process.exit(1);

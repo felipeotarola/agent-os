@@ -2,7 +2,7 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-05-25
+Last scan: 2026-06-24
 
 ## What strong agentic systems tend to have
 
@@ -157,6 +157,23 @@ Agent OS should provide the human cockpit layer:
 - what changed since last time
 
 ## Next candidate task
+
+### 2026-06-24 — Recency-weighted self-evolution candidate selection
+
+State: `ready-small`
+
+Evidence:
+- `npm run self-evolution:research` still selected the generic `Autonomous self-evolution lane hardening` candidate, even though that lane is already implemented and readiness checks pass.
+- Recent memory has higher-signal failures: noisy long-term memory promotion cleanup and the 2026-06-23 isolated cron/tooling issue where stale `toolsAllow` caused proactivity/cron failure while initial symptoms pointed elsewhere.
+- `npm run check:self-improvement-readiness` reports `synced` and all self-improvement/autonomy-lane fixtures pass, so the next leverage is not more lane setup; it is better candidate ranking.
+
+Hypothesis: `scripts/self-evolution-research-lane.mjs` should discount standing mandate/docs and prefer recent memory, Felipe corrections, and unresolved friction. This prevents the research lane from repeatedly resurfacing already-shipped infrastructure instead of the newest operational failure mode.
+
+Next action: update the research script scoring in the implementation lane with source/recency weighting and a guard that suppresses already-shipped generic self-evolution setup when readiness is green. Verify with `npm run self-evolution:research` plus `npm run check:self-improvement-readiness`.
+
+Follow-up implementation: added `scripts/cron-tool-policy-preflight.mjs` and `npm run check:cron-tool-policy` so fixture coverage catches cron payloads that mention file/repo/npm work but restrict `toolsAllow` to message-only before the failure shows up as a misleading file or cron error.
+
+### Previous candidates
 
 Continue Inbox Radar V2 rather than adding `/dashboard/review`.
 

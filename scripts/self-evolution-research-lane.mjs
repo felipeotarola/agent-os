@@ -30,6 +30,13 @@ const SIGNALS = [
     tieBreak: 3
   },
   {
+    id: 'isolated-cron-tooling-failure',
+    label: 'Isolated cron tooling failure',
+    patterns: [/\bisolated cron\b/i, /\btoolsAllow\b/i, /\bfile_access\b/i, /\bstale .*tools/i],
+    priority: 6,
+    tieBreak: 6
+  },
+  {
     id: 'cron-or-heartbeat-friction',
     label: 'Cron or heartbeat friction',
     patterns: [/\bcron\b/i, /\bheartbeat\b/i, /\bscheduler\b/i, /\bNO_ACTION\b/i, /\bHEARTBEAT_OK\b/i],
@@ -75,6 +82,52 @@ function recentWorkspaceMemoryFiles() {
     .map((name) => join(memoryDir, name));
 }
 
+function relativePath(path) {
+  return path.replace(`${workspaceRoot}/`, '').replace(`${repoRoot}/`, '');
+}
+
+function dateFromMemoryPath(path) {
+  const match = /memory\/(\d{4})-(\d{2})-(\d{2})\.md$/.exec(relativePath(path));
+  if (!match) return undefined;
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function hitWeight(path, signalId) {
+  const relPath = relativePath(path);
+  let weight = relPath.startsWith('memory/') ? 2.5 : 1;
+
+  const memoryTime = dateFromMemoryPath(path);
+  if (memoryTime) {
+    const ageDays = Math.max(0, (Date.now() - memoryTime) / 86_400_000);
+    if (ageDays <= 2) weight += 2;
+    else if (ageDays <= 7) weight += 1;
+  }
+
+  if (relPath.includes('AGENT_OS_RESEARCH_RADAR.md')) weight += 0.5;
+  if (signalId === 'self-evolution-mandate' && relPath.startsWith('docs/')) weight *= 0.25;
+
+  return weight;
+}
+
+function selfEvolutionReadinessIsCovered() {
+  const required = [
+    join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
+    join(repoRoot, 'scripts', 'self-evolution-research-lane.mjs'),
+    join(repoRoot, 'evals', 'agent-behavior-v0.json')
+  ];
+  if (!required.every((path) => existsSync(path))) return false;
+
+  const packageJson = readOptional(join(repoRoot, 'package.json'));
+  const evals = readOptional(join(repoRoot, 'evals', 'agent-behavior-v0.json'));
+  return packageJson.includes('"self-evolution:research"') && /\bself[- ]?evolution\b/i.test(evals);
+}
+
+function cronToolPolicyPreflightIsCovered() {
+  const script = join(repoRoot, 'scripts', 'cron-tool-policy-preflight.mjs');
+  const packageJson = readOptional(join(repoRoot, 'package.json'));
+  return existsSync(script) && packageJson.includes('"check:cron-tool-policy"');
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -100,11 +153,12 @@ function collectSignals(files) {
       for (const signal of SIGNALS) {
         if (!signal.patterns.some((pattern) => pattern.test(cleaned))) continue;
         const bucket = buckets.get(signal.id);
-        if (bucket.hits.length < 6) {
+        if (bucket.hits.length < 10) {
           bucket.hits.push({
-            path: path.replace(`${workspaceRoot}/`, '').replace(`${repoRoot}/`, ''),
+            path: relativePath(path),
             line: index + 1,
-            text: cleaned
+            text: cleaned,
+            weight: hitWeight(path, signal.id)
           });
         }
       }
@@ -115,8 +169,16 @@ function collectSignals(files) {
 }
 
 function chooseCandidate(signals) {
+  const readinessCovered = selfEvolutionReadinessIsCovered();
+  const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
   const scored = signals
-    .map((signal) => ({ ...signal, score: signal.priority * signal.hits.length }))
+    .map((signal) => {
+      const rawScore = signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0);
+      let score = rawScore;
+      if (readinessCovered && signal.id === 'self-evolution-mandate') score *= 0.15;
+      if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
+      return { ...signal, score };
+    })
     .filter((signal) => signal.hits.length > 0)
     .sort((a, b) => b.score - a.score || b.tieBreak - a.tieBreak);
 
@@ -140,6 +202,17 @@ function chooseCandidate(signals) {
       risk: 'low; docs/scripts/evals only unless the implementation lane later chooses a bounded code change',
       verification: 'npm run self-evolution:research && npm run check:self-improvement-readiness',
       nextAction: 'Keep the research lane separate from implementation and require readiness coverage.'
+    };
+  }
+
+  if (top.id === 'isolated-cron-tooling-failure') {
+    return {
+      title: 'Isolated cron tool-policy preflight',
+      state: 'ready-small',
+      payoff: 'Catches stale isolated-job tool allowlists before symptoms look like unrelated file or cron failures.',
+      risk: 'low; deterministic fixture or preflight script only',
+      verification: 'npm run self-evolution:research && npm run check:self-improvement-readiness',
+      nextAction: 'Add a local fixture or preflight that flags isolated cron jobs missing required OpenClaw tools before they run.'
     };
   }
 
@@ -186,6 +259,7 @@ function buildReport(signals, candidate) {
       id: signal.id,
       label: signal.label,
       hits: signal.hits.length,
+      score: Number((signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
       evidence: signal.hits.slice(0, 2)
     }))
   };
@@ -212,7 +286,7 @@ function toMarkdown(report) {
   ];
 
   for (const signal of report.signals) {
-    lines.push(`- ${signal.label}: ${signal.hits}`);
+    lines.push(`- ${signal.label}: ${signal.hits} (score ${signal.score})`);
     for (const hit of signal.evidence) {
       lines.push(`  - ${hit.text} (${hit.path}:${hit.line})`);
     }
@@ -221,11 +295,8 @@ function toMarkdown(report) {
   return `${lines.join('\n')}\n`;
 }
 
-const report = buildReport(collectSignals(sourceFiles()), undefined);
-report.candidate = chooseCandidate(report.signals.map((signal) => ({
-  ...SIGNALS.find((candidate) => candidate.id === signal.id),
-  hits: signal.evidence
-})));
+const signals = collectSignals(sourceFiles());
+const report = buildReport(signals, chooseCandidate(signals));
 
 const output = format === 'json' ? `${JSON.stringify(report, null, 2)}\n` : toMarkdown(report);
 
