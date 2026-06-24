@@ -23,6 +23,13 @@ const SIGNALS = [
     tieBreak: 2
   },
   {
+    id: 'memory-promotion-hygiene',
+    label: 'Memory promotion hygiene',
+    patterns: [/\bMEMORY\.md\b.*\b(noisy|raw|stale|cleanup|promot)/i, /\blong[- ]term memory\b.*\b(distill|raw|routine|validation|promotion|promoted)/i, /\bmemory promotions?\b/i],
+    priority: 6,
+    tieBreak: 7
+  },
+  {
     id: 'push-or-credential-failure',
     label: 'Push or credential failure',
     patterns: [/\b403\b/i, /\bgit push\b/i, /\bGITHUB_TOKEN\b/i, /\bcredential\b/i, /\bpermission\b/i],
@@ -168,20 +175,29 @@ function collectSignals(files) {
   return [...buckets.values()];
 }
 
-function chooseCandidate(signals) {
+function scoreSignals(signals) {
   const readinessCovered = selfEvolutionReadinessIsCovered();
   const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
-  const scored = signals
+
+  return signals
     .map((signal) => {
       const rawScore = signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0);
       let score = rawScore;
       if (readinessCovered && signal.id === 'self-evolution-mandate') score *= 0.15;
       if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
-      return { ...signal, score };
+      return {
+        ...signal,
+        rawScore,
+        score,
+        hits: [...signal.hits].sort((a, b) => (b.weight || 1) - (a.weight || 1))
+      };
     })
     .filter((signal) => signal.hits.length > 0)
     .sort((a, b) => b.score - a.score || b.tieBreak - a.tieBreak);
+}
 
+function chooseCandidate(signals) {
+  const scored = scoreSignals(signals);
   const top = scored[0];
   if (!top) {
     return {
@@ -227,6 +243,17 @@ function chooseCandidate(signals) {
     };
   }
 
+  if (top.id === 'memory-promotion-hygiene') {
+    return {
+      title: 'Long-term memory promotion hygiene check',
+      state: 'ready-small',
+      payoff: 'Prevents routine heartbeat, cron and validation logs from being promoted into durable memory when they should stay in daily notes.',
+      risk: 'low; deterministic local check or fixture only',
+      verification: 'npm run self-evolution:research && npm run check:self-improvement-readiness',
+      nextAction: 'Add a small memory-promotion fixture or checklist that accepts distilled durable facts and rejects raw routine validation chunks.'
+    };
+  }
+
   if (top.id === 'cron-or-heartbeat-friction') {
     return {
       title: 'Cron lane visibility preflight',
@@ -259,7 +286,8 @@ function buildReport(signals, candidate) {
       id: signal.id,
       label: signal.label,
       hits: signal.hits.length,
-      score: Number((signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
+      score: Number((signal.score ?? signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
+      rawScore: Number((signal.rawScore ?? signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
       evidence: signal.hits.slice(0, 2)
     }))
   };
@@ -286,7 +314,8 @@ function toMarkdown(report) {
   ];
 
   for (const signal of report.signals) {
-    lines.push(`- ${signal.label}: ${signal.hits} (score ${signal.score})`);
+    const scoreDetail = signal.rawScore === signal.score ? `score ${signal.score}` : `score ${signal.score}, raw ${signal.rawScore}`;
+    lines.push(`- ${signal.label}: ${signal.hits} (${scoreDetail})`);
     for (const hit of signal.evidence) {
       lines.push(`  - ${hit.text} (${hit.path}:${hit.line})`);
     }
@@ -295,7 +324,7 @@ function toMarkdown(report) {
   return `${lines.join('\n')}\n`;
 }
 
-const signals = collectSignals(sourceFiles());
+const signals = scoreSignals(collectSignals(sourceFiles()));
 const report = buildReport(signals, chooseCandidate(signals));
 
 const output = format === 'json' ? `${JSON.stringify(report, null, 2)}\n` : toMarkdown(report);
