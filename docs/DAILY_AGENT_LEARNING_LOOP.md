@@ -29,6 +29,7 @@ Write back only high-signal items:
 
 - Do not save secrets, raw tokens, BankID details, raw bank/account data or private message dumps.
 - Prefer distilled lessons over transcript copying.
+- Promote to `MEMORY.md` only when the item is durable, future-useful, and distilled into a stable fact, preference, decision, or lesson. Keep routine heartbeat/cron output, validation logs, stale transient blockers, and raw status chunks in daily memory or task events instead.
 - Prefer one small improvement over broad rewrites.
 - Use `LESSONS.md` for corrections/mistakes before promoting them to long-term rules.
 - Do not add UI surfaces unless they improve agent stability or recovery.

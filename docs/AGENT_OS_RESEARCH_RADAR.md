@@ -2,7 +2,7 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-06-24
+Last scan: 2026-06-25
 
 ## What strong agentic systems tend to have
 
@@ -157,6 +157,19 @@ Agent OS should provide the human cockpit layer:
 - what changed since last time
 
 ## Next candidate task
+
+### 2026-06-25 — Long-term memory promotion hygiene check
+
+State: `ready-small`
+
+Evidence:
+- `npm run self-evolution:research` selected `Long-term memory promotion hygiene check` as the top candidate with payoff focused on preventing routine heartbeat, cron, and validation logs from being promoted into durable memory.
+- Recent memory shows the same failure mode: `memory/2026-06-23.md` recorded noisy auto-promoted raw heartbeat/cron chunks and a stale push-blocker snapshot in `MEMORY.md`; `memory/2026-06-24.md` records cleanup of a raw auto-promoted heartbeat log under the 2026-06-23 memory-distillation rule.
+- This is higher leverage than adding more self-evolution lane infrastructure because the lane now selects recent operational failures, and the current failure affects Cai's long-term context quality directly.
+
+Hypothesis: add a small deterministic memory-promotion fixture or checklist that accepts distilled durable facts and rejects raw routine validation chunks, stale transient status, and heartbeat/cron log dumps.
+
+Next action: implement in the implementation lane as a narrow readiness/eval guard, then verify with `npm run self-evolution:research` and `npm run check:self-improvement-readiness`.
 
 ### 2026-06-24 — Recency-weighted self-evolution candidate selection
 

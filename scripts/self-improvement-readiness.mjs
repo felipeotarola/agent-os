@@ -81,6 +81,71 @@ export function classifyReadiness(input) {
   };
 }
 
+export function classifyMemoryPromotionCandidate(text) {
+  const normalized = String(text ?? '').replace(/[ \t]+/g, ' ').trim();
+  const lower = normalized.toLowerCase();
+
+  const rawOperationalLog = [
+    /^> agent-os@/m,
+    /\bbrief:heartbeat\b/,
+    /\bheartbeat route\b/i,
+    /\bstate file:\s*\/root\//i,
+    /\bnpm run (check|self-evolution|brief):/i,
+    /\bprocess exited with code \d+\b/i,
+    /\boriginal token count:\s*\d+\b/i,
+    /\bwall time:\s*\d/i
+  ].some((pattern) => pattern.test(normalized));
+
+  const transientStatus = [
+    /\bgit status\b/i,
+    /\bworktree has .*changes\b/i,
+    /\blocal worktree changes\b/i,
+    /\bstale push-blocker snapshot\b/i,
+    /\broutine (heartbeat|cron|validation)\b/i,
+    /\bHEARTBEAT_OK\b/
+  ].some((pattern) => pattern.test(normalized));
+
+  const durableSignal = [
+    /\bFelipe (corrected|clarified|decided|prefers|wants)\b/i,
+    /\bdurable (decision|preference|lesson|rule)\b/i,
+    /\bdo not mention Agent OS in QAA\b/i,
+    /\bQAA is the platform\b/i,
+    /\bSladdis is the agent\b/i
+  ].some((pattern) => pattern.test(normalized));
+
+  if (!normalized) {
+    return {
+      status: 'reject',
+      promote: false,
+      reason: 'empty memory candidate'
+    };
+  }
+
+  if (rawOperationalLog || transientStatus) {
+    return {
+      status: 'reject',
+      promote: false,
+      reason: rawOperationalLog
+        ? 'raw operational log belongs in daily notes or task evidence'
+        : 'transient status belongs in daily notes, not long-term memory'
+    };
+  }
+
+  if (durableSignal && lower.length <= 900) {
+    return {
+      status: 'accept',
+      promote: true,
+      reason: 'distilled durable preference, decision, or lesson'
+    };
+  }
+
+  return {
+    status: 'review',
+    promote: false,
+    reason: 'candidate needs human/agent distillation before MEMORY.md'
+  };
+}
+
 function currentRepoInput() {
   const status = git(['status', '--branch', '--short']);
   const [branchStatus = '', ...files] = status.split(/\r?\n/).filter(Boolean);
@@ -90,6 +155,47 @@ function currentRepoInput() {
     dirtyFiles: files.length,
     pushExitCode,
     pushStderr
+  };
+}
+
+function assertMemoryPromotionHygiene() {
+  const fixtures = [
+    {
+      id: 'accept-distilled-qaa-positioning',
+      input:
+        'Felipe clarified a durable product rule: do not mention Agent OS in QAA materials. QAA is the platform/workspace; Sladdis is the agent using QAA directly.',
+      expected: { status: 'accept', promote: true }
+    },
+    {
+      id: 'reject-raw-heartbeat-output',
+      input:
+        '> agent-os@1.0.0 brief:heartbeat\n## Heartbeat Route\n- State file: /root/.openclaw/workspace/memory/heartbeat-state.json\n- HEARTBEAT_OK',
+      expected: { status: 'reject', promote: false }
+    },
+    {
+      id: 'reject-stale-worktree-status',
+      input:
+        'Active Signals: Agent OS has 3 local worktree changes: M .gitignore; M docs/AGENT_OS_RESEARCH_RADAR.md; ?? remotion/',
+      expected: { status: 'reject', promote: false }
+    },
+    {
+      id: 'review-undistilled-idea',
+      input: 'Maybe build a smarter memory harvester later if the dashboard feels noisy.',
+      expected: { status: 'review', promote: false }
+    }
+  ];
+
+  const results = fixtures.map((fixture) => {
+    const actual = classifyMemoryPromotionCandidate(fixture.input);
+    const passed = Object.entries(fixture.expected).every(([key, value]) => actual[key] === value);
+    return { id: fixture.id, passed, expected: fixture.expected, actual };
+  });
+
+  return {
+    suite: 'memory-promotion-hygiene-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
   };
 }
 
@@ -193,6 +299,7 @@ const report = {
   repo,
   current: classifyReadiness(currentRepoInput()),
   fixtures: runFixtures ? assertFixtures() : undefined,
+  memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
   autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
   cronToolPolicy: runFixtures ? assertCronToolPolicy() : undefined
 };
@@ -201,6 +308,7 @@ console.log(JSON.stringify(report, null, 2));
 
 if (
   report.fixtures?.failed.length > 0 ||
+  report.memoryPromotionHygiene?.failed.length > 0 ||
   report.autonomyLanes?.failed.length > 0 ||
   report.cronToolPolicy?.failed.length > 0
 ) process.exit(1);

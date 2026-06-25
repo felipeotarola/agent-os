@@ -135,6 +135,16 @@ function cronToolPolicyPreflightIsCovered() {
   return existsSync(script) && packageJson.includes('"check:cron-tool-policy"');
 }
 
+function memoryPromotionHygieneIsCovered() {
+  const script = join(repoRoot, 'scripts', 'self-improvement-readiness.mjs');
+  const text = readOptional(script);
+  return (
+    /\bclassifyMemoryPromotionCandidate\b/.test(text) &&
+    /\bmemory-promotion-hygiene-v0\b/.test(text) &&
+    /\breject-raw-heartbeat-output\b/.test(text)
+  );
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -178,6 +188,7 @@ function collectSignals(files) {
 function scoreSignals(signals) {
   const readinessCovered = selfEvolutionReadinessIsCovered();
   const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
+  const memoryPromotionCovered = memoryPromotionHygieneIsCovered();
 
   return signals
     .map((signal) => {
@@ -185,6 +196,7 @@ function scoreSignals(signals) {
       let score = rawScore;
       if (readinessCovered && signal.id === 'self-evolution-mandate') score *= 0.15;
       if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
+      if (memoryPromotionCovered && signal.id === 'memory-promotion-hygiene') score *= 0.15;
       return {
         ...signal,
         rawScore,

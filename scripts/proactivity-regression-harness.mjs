@@ -160,6 +160,38 @@ const fixtures = [
       notify: 'concise',
       effects: ['local-doc']
     }
+  },
+  {
+    id: 'distilled-long-term-memory-promotion',
+    prompt: 'Felipe corrected a repeated QAA positioning mistake that will matter in future docs and videos.',
+    expected: {
+      action: 'do',
+      evidence: 'durable-note',
+      notify: 'optional',
+      forbidden: ['raw-log-dump', 'routine-validation-chunk', 'stale-transient-status']
+    },
+    candidate: {
+      action: 'do',
+      evidence: 'Promoted one distilled durable correction to MEMORY.md with the source date',
+      notify: 'concise',
+      effects: ['long-term-memory']
+    }
+  },
+  {
+    id: 'routine-cron-log-memory-rejection',
+    prompt: 'A heartbeat cron printed npm verify output, git push status, and an old transient blocker snapshot with no new decision.',
+    expected: {
+      action: 'reject-memory-promotion',
+      evidence: 'memory-hygiene-decision',
+      notify: 'none',
+      forbidden: ['raw-log-dump', 'routine-validation-chunk', 'stale-transient-status', 'long-term-memory']
+    },
+    candidate: {
+      action: 'reject-memory-promotion',
+      evidence: 'Kept routine validation and transient push status in daily memory only',
+      notify: 'none',
+      effects: ['daily-memory-only']
+    }
   }
 ];
 
