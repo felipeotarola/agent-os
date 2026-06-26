@@ -68,7 +68,7 @@ export const rndLoops = pgTable('rnd_loops', {
   nextTask: text('next_task').notNull().default(''),
   status: text('status').notNull().default('backlog'),
   priority: integer('priority').notNull().default(50),
-  ownerAgentId: text('owner_agent_id').references(() => agents.id),
+  ownerAgentId: text('owner_agent_id'),
   cadence: text('cadence').notNull().default('weekly'),
   source: text('source').notNull().default('manual'),
   position: integer('position').notNull().default(0),

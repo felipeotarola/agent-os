@@ -1471,7 +1471,7 @@ async function ensureRndLoopTable() {
       next_task text not null default '',
       status text not null default 'backlog',
       priority integer not null default 50,
-      owner_agent_id text references agents(id),
+      owner_agent_id text,
       cadence text not null default 'weekly',
       source text not null default 'manual',
       position integer not null default 0,
