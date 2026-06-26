@@ -12,16 +12,11 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getRndLoopBoard, RND_LOOP_COLUMN_TITLES } from '@/db/rnd-loops';
+import { RndLoopBoard } from './rnd-loop-board';
 
 export const metadata = {
   title: 'Agent OS: R&D Loops'
 };
-
-function priorityTone(priority: number) {
-  if (priority >= 80) return 'destructive';
-  if (priority >= 40) return 'default';
-  return 'secondary';
-}
 
 export default async function Page({
   searchParams
@@ -109,61 +104,7 @@ export default async function Page({
         </div>
       </form>
 
-      <div className='grid gap-4 xl:grid-cols-3 2xl:grid-cols-6'>
-        {board.columnOrder.map((column) => {
-          const loops = board.columns[column] ?? [];
-          return (
-            <section key={column} className='min-w-0 rounded-md border bg-card p-3'>
-              <div className='mb-3 flex items-center justify-between gap-2'>
-                <h2 className='text-sm font-semibold'>
-                  {RND_LOOP_COLUMN_TITLES[column] ?? column}
-                </h2>
-                <Badge variant='secondary' className='rounded-sm'>
-                  {loops.length}
-                </Badge>
-              </div>
-              <div className='space-y-2'>
-                {loops.map((loop) => (
-                  <article key={loop.id} className='rounded-md border bg-background p-3 shadow-xs'>
-                    <div className='flex items-start justify-between gap-2'>
-                      <h3 className='line-clamp-2 text-sm font-medium'>{loop.theme}</h3>
-                      <Badge
-                        variant={priorityTone(loop.priority)}
-                        className='shrink-0 rounded-sm px-1.5 text-[11px]'
-                      >
-                        {loop.priority}
-                      </Badge>
-                    </div>
-                    {loop.question && (
-                      <p className='mt-2 line-clamp-3 text-xs text-muted-foreground'>
-                        {loop.question}
-                      </p>
-                    )}
-                    {loop.hypothesis && (
-                      <p className='mt-2 line-clamp-2 text-xs text-muted-foreground'>
-                        Hypothesis: {loop.hypothesis}
-                      </p>
-                    )}
-                    <div className='mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground'>
-                      {loop.ownerAgentId && (
-                        <span className='rounded-sm bg-muted px-1.5 py-0.5'>
-                          {loop.ownerAgentId}
-                        </span>
-                      )}
-                      {loop.cadence && (
-                        <span className='rounded-sm bg-muted px-1.5 py-0.5'>{loop.cadence}</span>
-                      )}
-                      {loop.source && (
-                        <span className='rounded-sm bg-muted px-1.5 py-0.5'>{loop.source}</span>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      <RndLoopBoard board={board} columnTitles={RND_LOOP_COLUMN_TITLES} />
     </PageContainer>
   );
 }
