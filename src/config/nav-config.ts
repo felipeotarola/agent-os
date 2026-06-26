@@ -26,6 +26,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'R&D Loops',
+        url: '/dashboard/kanban/rnd-loops',
+        icon: 'bulb',
+        shortcut: ['r', 'd'],
+        items: []
+      },
+      {
         title: 'Knowledge Inbox',
         url: '/dashboard/knowledge',
         icon: 'sparkles',

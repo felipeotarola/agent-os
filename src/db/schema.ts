@@ -57,6 +57,26 @@ export const taskEvents = pgTable('task_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const rndLoops = pgTable('rnd_loops', {
+  id: text('id').primaryKey(),
+  theme: text('theme').notNull(),
+  question: text('question').notNull().default(''),
+  hypothesis: text('hypothesis').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  experiment: text('experiment').notNull().default(''),
+  result: text('result').notNull().default(''),
+  nextTask: text('next_task').notNull().default(''),
+  status: text('status').notNull().default('backlog'),
+  priority: integer('priority').notNull().default(50),
+  ownerAgentId: text('owner_agent_id').references(() => agents.id),
+  cadence: text('cadence').notNull().default('weekly'),
+  source: text('source').notNull().default('manual'),
+  position: integer('position').notNull().default(0),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export const inboxItems = pgTable('inbox_items', {
   id: text('id').primaryKey(),
   source: text('source').notNull(),

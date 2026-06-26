@@ -53,6 +53,14 @@ const OPENCLAW_WORKSPACE = process.env.AGENT_OS_OPENCLAW_WORKSPACE ?? '/root/.op
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? '/tmp/openclaw';
 const KNOWLEDGE_STATUSES = ['raw', 'queued', 'wikified'];
 const FUTURE_KNOWLEDGE_STATUSES = ['reviewed', 'archived'];
+const RND_LOOP_STATUSES = [
+  'backlog',
+  'investigating',
+  'experimenting',
+  'convert_to_tasks',
+  'shipped',
+  'parked'
+];
 const CONTENT_STATUSES = ['draft', 'ready', 'scheduled', 'posted', 'failed', 'archived'];
 const CONTENT_PLATFORMS = [
   'instagram',
@@ -1403,6 +1411,15 @@ function taskPriorityValue(priority) {
   return 50;
 }
 
+function normalizeRndLoopStatus(status) {
+  return RND_LOOP_STATUSES.includes(status) ? status : 'backlog';
+}
+
+function normalizePriorityValue(priority) {
+  if (typeof priority === 'number') return Math.max(0, Math.min(100, Math.round(priority)));
+  return taskPriorityValue(String(priority ?? 'medium'));
+}
+
 function mapTask(row) {
   return {
     id: row.id,
@@ -1419,6 +1436,58 @@ function mapTask(row) {
     position: Number(row.position ?? 0),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined
   };
+}
+
+function mapRndLoop(row) {
+  return {
+    id: row.id,
+    theme: row.theme,
+    question: row.question ?? '',
+    hypothesis: row.hypothesis ?? '',
+    notes: row.notes ?? '',
+    experiment: row.experiment ?? '',
+    result: row.result ?? '',
+    nextTask: row.nextTask ?? '',
+    status: normalizeRndLoopStatus(row.status),
+    priority: Number(row.priority ?? 50),
+    ownerAgentId: row.ownerAgentId ?? undefined,
+    cadence: row.cadence ?? 'weekly',
+    source: row.source ?? 'manual',
+    position: Number(row.position ?? 0),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined
+  };
+}
+
+async function ensureRndLoopTable() {
+  await sql`
+    create table if not exists rnd_loops (
+      id text primary key,
+      theme text not null,
+      question text not null default '',
+      hypothesis text not null default '',
+      notes text not null default '',
+      experiment text not null default '',
+      result text not null default '',
+      next_task text not null default '',
+      status text not null default 'backlog',
+      priority integer not null default 50,
+      owner_agent_id text references agents(id),
+      cadence text not null default 'weekly',
+      source text not null default 'manual',
+      position integer not null default 0,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create index if not exists rnd_loops_status_position_idx
+    on rnd_loops (status, position)
+  `;
+  await sql`
+    create index if not exists rnd_loops_owner_status_idx
+    on rnd_loops (owner_agent_id, status)
+  `;
 }
 
 async function ensureContentTables() {
@@ -1507,11 +1576,7 @@ function normalizeContentPlatforms(platforms) {
 function normalizeContentMediaAssetIds(ids) {
   const requested = Array.isArray(ids) ? ids : String(ids ?? '').split(',');
   return [
-    ...new Set(
-      requested
-        .map((id) => String(id).trim())
-        .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
-    )
+    ...new Set(requested.map((id) => String(id).trim()).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))
   ];
 }
 
@@ -1695,7 +1760,8 @@ async function existingLibraryMediaAssets({ contentItemId, mediaAssetIds }) {
         ...row.metadata,
         storage: row.metadata?.storage ?? 'media-library',
         createdBy: 'content-studio-media-picker',
-        originalName: row.metadata?.originalName ?? row.fileName ?? row.itemTitle ?? 'media-library-asset',
+        originalName:
+          row.metadata?.originalName ?? row.fileName ?? row.itemTitle ?? 'media-library-asset',
         sourceMediaAssetId: row.id,
         sourceContentKind: 'image-library',
         sourceCollection: row.campaign ?? 'agent-assets'
@@ -5086,6 +5152,176 @@ async function reorderTasks(input) {
   return { updated: normalized.length };
 }
 
+async function rndLoopsSnapshot() {
+  await ensureRndLoopTable();
+  const rows = await sql`
+    select id, theme, question, hypothesis, notes, experiment, result, next_task as "nextTask",
+      status, priority, owner_agent_id as "ownerAgentId", cadence, source, position,
+      updated_at as "updatedAt"
+    from rnd_loops
+    order by position asc, priority desc, updated_at desc
+  `;
+  const columns = Object.fromEntries(RND_LOOP_STATUSES.map((status) => [status, []]));
+  for (const row of rows) {
+    const loop = mapRndLoop(row);
+    columns[loop.status].push(loop);
+  }
+  return {
+    columns,
+    columnOrder: RND_LOOP_STATUSES,
+    source: 'bridge:postgres'
+  };
+}
+
+async function createRndLoop(input) {
+  await ensureRndLoopTable();
+  const theme = String(input.theme ?? '').trim();
+  if (!theme) {
+    const error = new Error('theme is required');
+    error.status = 400;
+    throw error;
+  }
+  const status = normalizeRndLoopStatus(String(input.status ?? 'backlog'));
+  const ownerAgentId = String(input.ownerAgentId ?? 'cai').trim() || 'cai';
+  await ensureTaskOwnerAgent(ownerAgentId);
+  const [{ position }] = await sql`
+    select coalesce(max(position), 0) + 1000 as position
+    from rnd_loops
+    where status = ${status}
+  `;
+  const id = crypto.randomUUID();
+  const rows = await sql`
+    insert into rnd_loops (
+      id, theme, question, hypothesis, notes, experiment, result, next_task, status, priority,
+      owner_agent_id, cadence, source, position, metadata, updated_at
+    ) values (
+      ${id},
+      ${theme},
+      ${String(input.question ?? '').trim()},
+      ${String(input.hypothesis ?? '').trim()},
+      ${String(input.notes ?? '').trim()},
+      ${String(input.experiment ?? '').trim()},
+      ${String(input.result ?? '').trim()},
+      ${String(input.nextTask ?? input.next_task ?? '').trim()},
+      ${status},
+      ${normalizePriorityValue(input.priority)},
+      ${ownerAgentId},
+      ${String(input.cadence ?? 'weekly').trim() || 'weekly'},
+      ${String(input.source ?? 'agent').trim() || 'agent'},
+      ${Number(position)},
+      ${sql.json(input.metadata && typeof input.metadata === 'object' ? input.metadata : {})},
+      now()
+    )
+    returning id, theme, question, hypothesis, notes, experiment, result, next_task as "nextTask",
+      status, priority, owner_agent_id as "ownerAgentId", cadence, source, position,
+      updated_at as "updatedAt"
+  `;
+  return mapRndLoop(rows[0]);
+}
+
+async function updateRndLoop(input) {
+  await ensureRndLoopTable();
+  const id = String(input.id ?? '').trim();
+  if (!id) {
+    const error = new Error('id is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const allowedTextFields = [
+    'theme',
+    'question',
+    'hypothesis',
+    'notes',
+    'experiment',
+    'result',
+    'nextTask',
+    'cadence',
+    'source'
+  ];
+  const updates = {};
+  for (const field of allowedTextFields) {
+    if (Object.prototype.hasOwnProperty.call(input, field)) {
+      updates[field] = String(input[field] ?? '').trim();
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'next_task')) {
+    updates.nextTask = String(input.next_task ?? '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'status')) {
+    updates.status = normalizeRndLoopStatus(String(input.status ?? 'backlog'));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'priority')) {
+    updates.priority = normalizePriorityValue(input.priority);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'ownerAgentId')) {
+    updates.ownerAgentId = String(input.ownerAgentId ?? '').trim() || null;
+    if (updates.ownerAgentId) await ensureTaskOwnerAgent(updates.ownerAgentId);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'position')) {
+    updates.position = Number(input.position ?? 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'metadata')) {
+    updates.metadata = input.metadata && typeof input.metadata === 'object' ? input.metadata : {};
+  }
+
+  const rows = await sql`
+    update rnd_loops
+    set
+      theme = case when ${Object.hasOwn(updates, 'theme')} then ${updates.theme ?? ''} else theme end,
+      question = case when ${Object.hasOwn(updates, 'question')} then ${updates.question ?? ''} else question end,
+      hypothesis = case when ${Object.hasOwn(updates, 'hypothesis')} then ${updates.hypothesis ?? ''} else hypothesis end,
+      notes = case when ${Object.hasOwn(updates, 'notes')} then ${updates.notes ?? ''} else notes end,
+      experiment = case when ${Object.hasOwn(updates, 'experiment')} then ${updates.experiment ?? ''} else experiment end,
+      result = case when ${Object.hasOwn(updates, 'result')} then ${updates.result ?? ''} else result end,
+      next_task = case when ${Object.hasOwn(updates, 'nextTask')} then ${updates.nextTask ?? ''} else next_task end,
+      status = case when ${Object.hasOwn(updates, 'status')} then ${updates.status ?? 'backlog'} else status end,
+      priority = case when ${Object.hasOwn(updates, 'priority')} then ${updates.priority ?? 50} else priority end,
+      owner_agent_id = case when ${Object.hasOwn(updates, 'ownerAgentId')} then ${updates.ownerAgentId ?? null} else owner_agent_id end,
+      cadence = case when ${Object.hasOwn(updates, 'cadence')} then ${updates.cadence ?? 'weekly'} else cadence end,
+      source = case when ${Object.hasOwn(updates, 'source')} then ${updates.source ?? 'agent'} else source end,
+      position = case when ${Object.hasOwn(updates, 'position')} then ${updates.position ?? 0} else position end,
+      metadata = case when ${Object.hasOwn(updates, 'metadata')} then metadata || ${sql.json(updates.metadata ?? {})} else metadata end,
+      updated_at = now()
+    where id = ${id}
+    returning id, theme, question, hypothesis, notes, experiment, result, next_task as "nextTask",
+      status, priority, owner_agent_id as "ownerAgentId", cadence, source, position,
+      updated_at as "updatedAt"
+  `;
+  if (!rows.length) {
+    const error = new Error('R&D loop not found');
+    error.status = 404;
+    throw error;
+  }
+  return mapRndLoop(rows[0]);
+}
+
+async function reorderRndLoops(input) {
+  await ensureRndLoopTable();
+  const updates = Array.isArray(input.updates) ? input.updates : [];
+  if (!updates.length) return { updated: 0 };
+
+  const normalized = updates
+    .map((update) => ({
+      id: String(update.id ?? '').trim(),
+      status: normalizeRndLoopStatus(String(update.status ?? 'backlog')),
+      position: Number(update.position ?? 0)
+    }))
+    .filter((update) => update.id);
+
+  await sql.begin(async (tx) => {
+    for (const update of normalized) {
+      await tx`
+        update rnd_loops
+        set status = ${update.status}, position = ${update.position}, updated_at = now()
+        where id = ${update.id}
+      `;
+    }
+  });
+
+  return { updated: normalized.length };
+}
+
 async function runCommand(url) {
   const command = String(url.searchParams.get('command') ?? '').trim();
   const startedAt = new Date().toISOString();
@@ -6176,7 +6412,9 @@ function buildVaultSnapshot(sources) {
       : ['- No wiki pages yet.']),
     ''
   ].join('\n');
-  const journal = activeSources.filter((source) => String(source.rawPath ?? '').startsWith('journal/'));
+  const journal = activeSources.filter((source) =>
+    String(source.rawPath ?? '').startsWith('journal/')
+  );
   const journalIndexMd = [
     '# Journal',
     '',
@@ -6776,6 +7014,22 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/tasks') {
       return send(res, 200, await tasksSnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/rnd-loops') {
+      return send(res, 200, await rndLoopsSnapshot());
+    }
+
+    if (req.method === 'POST' && url.pathname === '/rnd-loops') {
+      return send(res, 201, await createRndLoop(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/rnd-loops') {
+      return send(res, 200, await updateRndLoop(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/rnd-loops/reorder') {
+      return send(res, 200, await reorderRndLoops(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/content/items') {
