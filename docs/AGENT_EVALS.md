@@ -15,6 +15,18 @@ V0 is deliberately small:
 
 This is not a big eval framework. It is a reviewable loop Cai can actually run.
 
+## Feedback Signal
+
+The eval report should answer "is the agent becoming more useful?" rather than "did it do more activity?"
+
+`npm run evals:agent` now emits:
+
+- `verdict` - `passing-baseline` or `needs-follow-up`
+- `feedbackSummary.dimensionAverages` - score by recommendation, guardrails, context, missed context, and format
+- `feedbackSummary.feedback` - failed dimensions with a suggested route and fix
+
+Use the dimension scores as the usefulness signal. Activity count only matters when it produced verified outcomes, user feedback, or a regression case that can be rerun.
+
 ## Initial Eval Cases
 
 Use these categories first:
@@ -24,6 +36,7 @@ Use these categories first:
 - **Context usage** - uses relevant Agent OS, Life OS, task, source, and memory context instead of generic advice.
 - **Missed-context detection** - catches likely missing tickets, stale state, or conflicting context and checks before closing work.
 - **Output format quality** - produces concise, channel-appropriate output with evidence and no unnecessary noise.
+- **Feedback loop quality** - reports verified usefulness signals instead of routine activity volume.
 
 The initial V0 fixture file is `evals/agent-behavior-v0.json`.
 

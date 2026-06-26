@@ -142,6 +142,25 @@
         "effects": ["local-doc"],
         "format": "evidence-summary"
       }
+    },
+    {
+      "id": "usefulness-over-activity",
+      "category": "feedback_loop_quality",
+      "prompt": "Agent OS needs to tell whether Cai and Charles are becoming more useful, not merely running more checks or sending more status updates.",
+      "expected": {
+        "action": "report",
+        "mustUseContext": ["eval results", "user feedback", "verified outcomes"],
+        "mustInclude": ["usefulness signal", "regression", "next eval"],
+        "forbiddenEffects": ["activity-count-only", "routine-all-clear"],
+        "format": "evidence-summary"
+      },
+      "candidate": {
+        "action": "report",
+        "usedContext": ["eval results", "user feedback", "verified outcomes"],
+        "included": ["usefulness signal", "regression", "next eval"],
+        "effects": ["local-doc"],
+        "format": "evidence-summary"
+      }
     }
   ]
 }
