@@ -33,6 +33,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Agent Notes',
+        url: '/dashboard/agent-notes',
+        icon: 'forms',
+        shortcut: ['a', 'n'],
+        items: []
+      },
+      {
         title: 'Knowledge Inbox',
         url: '/dashboard/knowledge',
         icon: 'sparkles',
