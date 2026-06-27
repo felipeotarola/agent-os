@@ -51,6 +51,40 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 | `charles-slack-reply-verification` | Verify Charles Slack reply path                | 60       | `cai` | `life-os` | Read-only/status checks first; no external Slack messages unless explicitly authorized. |
 | `lysande-lead-workflow-test-plan`  | Turn Charles lead workflow test into checklist | 55       | `cai` | `life-os` | Internal checklist only; Max/Andreas outreach remains approval/owner-gated.             |
 
+## Research task candidates
+
+These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
+
+### `felipe-correction-regression-guard`
+
+```json
+{
+  "id": "felipe-correction-regression-guard",
+  "title": "Scope one Felipe-correction regression guard",
+  "description": "Turn the latest Felipe-correction signal into one bounded deterministic guard before touching product copy or prototype code.\n\n## Acceptance criteria\n\n- Pick exactly one repeated correction pattern from recent memory or `docs/AGENT_OS_RESEARCH_RADAR.md`.\n- Define forbidden frames and allowed contrast examples as fixtures.\n- Name the scan roots and explain why they are safe to check automatically.\n- Add the guard to `npm run verify` only after the standalone check passes.\n- Record verification output and any remaining blocker in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Do not edit QAA/Sladdis product direction while implementing the guard.\n- Do not touch untracked prototype assets unless the prototype lane is explicitly in scope.\n- Keep this as a deterministic local check; no external services, secrets, or outreach.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-06-26 Felipe correction follow-up scoping.\n- `/root/.openclaw/workspace/memory/2026-06-25.md` - repeated QAA/Testbench positioning corrections.",
+  "status": "backlog",
+  "priority": 65,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
+### `eval-readiness-gap-coverage`
+
+```json
+{
+  "id": "eval-readiness-gap-coverage",
+  "title": "Scope one eval/readiness gap guard",
+  "description": "Turn the current self-evolution research candidate into one bounded readiness or eval guard before touching implementation code.\n\n## Acceptance criteria\n\n- Pick exactly one recurring failure mode from `npm run self-evolution:research` where Agent OS lacks deterministic eval/readiness coverage.\n- Define the expected good and bad states as fixtures or stable assertions.\n- Name the command that should fail before the guard exists and pass after the guard is implemented.\n- Add the guard to `npm run verify` only after its standalone check passes.\n- Record verification output and any remaining blocker in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Keep this as local deterministic coverage; no external services, secrets, outreach, or model/provider changes.\n- Do not broaden the scope into product direction, UI redesign, or prototype assets.\n- Prefer one small guard over a general evaluation framework unless the evidence requires a larger plan.\n\n## Evidence\n\n- `npm run self-evolution:research` - 2026-06-27 selected `Eval or readiness gap follow-up` with next action `Write one candidate task with acceptance criteria`.\n- `docs/AUTONOMOUS_SELF_EVOLUTION.md` - prioritize adding eval/readiness coverage for a failure mode after repeated correction/workflow failures.",
+  "status": "backlog",
+  "priority": 62,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ## Mermaid diagrams
 
 Task descriptions may include Mermaid diagrams using fenced code blocks. The Kanban task detail dialog renders each block as a diagram preview while keeping the original text editable.

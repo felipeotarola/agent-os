@@ -2,7 +2,7 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-06-25
+Last scan: 2026-06-27
 
 ## What strong agentic systems tend to have
 
@@ -157,6 +157,62 @@ Agent OS should provide the human cockpit layer:
 - what changed since last time
 
 ## Next candidate task
+
+### 2026-06-27 — Self-evolution candidate de-dup and closure scoring
+
+State: `implemented-local`
+
+Evidence:
+- `npm run self-evolution:research` still selected `Felipe correction follow-up` even though `docs/TASKS.md` now contains `felipe-correction-regression-guard` with acceptance criteria and this radar already records the QAA/Testbench positioning guard as implemented locally.
+- The repeated output is now lower leverage than the original correction signal: the lane is missing a closure/de-dup rule that recognizes scoped, implemented, or already-backlogged candidates.
+- Current repo signal: `scripts/self-evolution-research-lane.mjs` already discounts some covered failure modes, but not generic Felipe-correction follow-ups after a matching task or guard exists.
+
+Hypothesis: teach the research lane to suppress or downgrade candidates that already have a matching `docs/TASKS.md` backlog item or a radar entry marked implemented/shipped, then choose the next unresolved signal.
+
+Result: added a narrow `felipeCorrectionFollowUpIsCovered()` scoring guard in `scripts/self-evolution-research-lane.mjs` and a readiness check fixture named `research-lane-correction-dedup`.
+
+Verification:
+- `npm run self-evolution:research` now selects `Eval or readiness gap follow-up` instead of `Felipe correction follow-up` while `felipe-correction-regression-guard` and QAA guard evidence exist.
+- `npm run check:self-improvement-readiness` passes with `research-lane-correction-dedup`.
+- `npm run check:qaa-positioning` passes.
+
+Next action: scope the new `Eval or readiness gap follow-up` candidate before any implementation work; do not touch QAA/Sladdis product copy or prototype assets.
+
+### 2026-06-26 — Felipe correction follow-up scoping
+
+State: `research`
+
+Evidence:
+- `npm run self-evolution:research` selected `Felipe correction follow-up` as the latest candidate from recent Felipe-correction signals.
+- The candidate is not yet bounded: payoff is clear enough to preserve the signal, but risk and verification are still unknown until scoped.
+- Attempting to persist the lane output with `npm run self-evolution:research -- --write=true` exposed a separate blocker: the default `reports/self-evolution-next.md` path cannot be written when `reports/` does not already exist.
+
+Result: fixed the persistence issue by making the research lane create the output directory before writing. Verified with `npm run self-evolution:research -- --write=true` and `npm run check:self-improvement-readiness`.
+
+Next action: write one concrete candidate task with acceptance criteria before implementation.
+
+Named blocker: `candidate-not-scoped`; persistence blocker resolved.
+
+### 2026-06-26 — QAA/Testbench positioning regression guard
+
+State: `implemented-local`
+
+Evidence:
+- `npm run self-evolution:research` selected `Felipe correction follow-up` as the top candidate from recent memory, with six Felipe-correction signals.
+- `memory/2026-06-25.md` records repeated corrections: QAA/Testbench is the workbench/system of record; Sladdis is the autonomous software-capable QA coworker; avoid framing it as generic AI testing, a chatbot, recorder, or dashboard.
+- `/root/.openclaw/workspace/LESSONS.md` now has two relevant rules: `2026-06-24 — QAA positioning must not route through Agent OS` and `2026-06-25 — QAA/Testbench story must center the coworker-workbench loop`.
+- Repo signal: current QAA Remotion prototype files are untracked/dirty, so an implementation guard should protect copy drift without editing the prototype in this research lane.
+
+Hypothesis: add a small deterministic copy/positioning guard for QAA/Testbench public-facing docs and Remotion/storyboard text. It should flag forbidden framing such as QAA-as-Sladdis-memory/brain, visible Agent OS routing in QAA-facing material, "old AI testing" as the enemy, and generic chatbot/dashboard/recorder positioning unless explicitly used as contrast.
+
+Result: added `scripts/qaa-positioning-guard.mjs`, wired `npm run check:qaa-positioning` into `npm run verify`, and covered both forbidden frames and allowed contrast examples with deterministic fixtures.
+
+Verification:
+- `npm run check:qaa-positioning`
+- `npm run check:proactivity && npm run check:qaa-positioning && npm run check:self-improvement-readiness`
+- `npm run self-evolution:research`
+
+Remaining note: Agent OS still has pre-existing local prototype changes under `remotion/` plus `.gitignore`; keep them separate from this guard unless the prototype lane is intentionally committed.
 
 ### 2026-06-25 — Long-term memory promotion hygiene check
 

@@ -255,6 +255,11 @@ function assertAutonomyLanes() {
       patterns: [/lane: 'research-only'/, /chooseCandidate/, /ready-small/]
     },
     {
+      id: 'research-lane-correction-dedup',
+      path: resolve(repo, 'scripts', 'self-evolution-research-lane.mjs'),
+      patterns: [/felipeCorrectionFollowUpIsCovered/, /signal\.id === 'felipe-correction'\) score \*= 0\.15/]
+    },
+    {
       id: 'package-research-command',
       path: resolve(repo, 'package.json'),
       patterns: [/"self-evolution:research": "node scripts\/self-evolution-research-lane\.mjs"/]

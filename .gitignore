@@ -51,6 +51,12 @@ next-env.d.ts
 backups/
 Caddyfile.pre-*
 
+# Local video/prototype build artifacts
+/remotion/**/node_modules/
+/remotion/**/out/
+/remotion/**/.remotion/
+/reports/
+
 # Local OpenClaw agent workspace files. These belong to the runtime, not the app repo.
 .openclaw/
 HEARTBEAT.md

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -145,6 +145,19 @@ function memoryPromotionHygieneIsCovered() {
   );
 }
 
+function felipeCorrectionFollowUpIsCovered() {
+  const packageJson = readOptional(join(repoRoot, 'package.json'));
+  const tasks = readOptional(join(repoRoot, 'docs', 'TASKS.md'));
+  const radar = readOptional(join(repoRoot, 'docs', 'AGENT_OS_RESEARCH_RADAR.md'));
+  return (
+    existsSync(join(repoRoot, 'scripts', 'qaa-positioning-guard.mjs')) &&
+    packageJson.includes('"check:qaa-positioning"') &&
+    /\bfelipe-correction-regression-guard\b/.test(tasks) &&
+    /\bQAA\/Testbench positioning regression guard\b/.test(radar) &&
+    /\bimplemented-local\b/.test(radar)
+  );
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -189,6 +202,7 @@ function scoreSignals(signals) {
   const readinessCovered = selfEvolutionReadinessIsCovered();
   const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
   const memoryPromotionCovered = memoryPromotionHygieneIsCovered();
+  const felipeCorrectionCovered = felipeCorrectionFollowUpIsCovered();
 
   return signals
     .map((signal) => {
@@ -197,6 +211,7 @@ function scoreSignals(signals) {
       if (readinessCovered && signal.id === 'self-evolution-mandate') score *= 0.15;
       if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
       if (memoryPromotionCovered && signal.id === 'memory-promotion-hygiene') score *= 0.15;
+      if (felipeCorrectionCovered && signal.id === 'felipe-correction') score *= 0.15;
       return {
         ...signal,
         rawScore,
@@ -342,6 +357,7 @@ const report = buildReport(signals, chooseCandidate(signals));
 const output = format === 'json' ? `${JSON.stringify(report, null, 2)}\n` : toMarkdown(report);
 
 if (write) {
+  mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, output);
 }
 
