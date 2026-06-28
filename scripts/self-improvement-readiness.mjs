@@ -20,6 +20,11 @@ function git(args) {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
 }
 
+function readOptional(path) {
+  if (!existsSync(path)) return '';
+  return readFileSync(path, 'utf8');
+}
+
 function parseBranchStatus(statusLine = '') {
   const ahead = Number(statusLine.match(/\[ahead (\d+)/)?.[1] || 0);
   const behind = Number(statusLine.match(/behind (\d+)/)?.[1] || 0);
@@ -146,6 +151,41 @@ export function classifyMemoryPromotionCandidate(text) {
   };
 }
 
+export function classifyResearchTaskCoverage(markdown, taskId) {
+  const text = String(markdown ?? '');
+  const marker = `### \`${taskId}\``;
+  const start = text.indexOf(marker);
+  const bodyStart = start >= 0 ? start + marker.length : -1;
+  const nextTask = bodyStart >= 0 ? text.indexOf('\n### `', bodyStart) : -1;
+  const end = nextTask >= 0 ? nextTask : text.length;
+  const section = bodyStart >= 0 ? text.slice(bodyStart, end) : '';
+  const checks = {
+    hasTask: section.length > 0,
+    hasAcceptanceCriteria: /## Acceptance criteria\b/.test(section),
+    hasGuardrails: /## Guardrails\b/.test(section),
+    hasEvidence: /## Evidence\b/.test(section),
+    namesStandaloneCommand: /\bnpm run [\w:-]+/.test(section),
+    mentionsVerifyWiring: /\bnpm run verify\b/.test(section)
+  };
+  const missing = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    return {
+      status: 'reject',
+      covered: false,
+      missing
+    };
+  }
+
+  return {
+    status: 'accept',
+    covered: true,
+    missing: []
+  };
+}
+
 function currentRepoInput() {
   const status = git(['status', '--branch', '--short']);
   const [branchStatus = '', ...files] = status.split(/\r?\n/).filter(Boolean);
@@ -155,6 +195,59 @@ function currentRepoInput() {
     dirtyFiles: files.length,
     pushExitCode,
     pushStderr
+  };
+}
+
+function assertResearchTaskCoverage() {
+  const goodTask = `### \`eval-readiness-gap-coverage\`
+
+## Acceptance criteria
+
+- Name the command: \`npm run check:self-improvement-readiness\`.
+- Add the guard to \`npm run verify\` after standalone pass.
+
+## Guardrails
+
+- Local deterministic checks only.
+
+## Evidence
+
+- Research lane selected an eval/readiness gap.
+`;
+  const badTask = `### \`eval-readiness-gap-coverage\`
+
+Loose idea without acceptance criteria or verification.
+`;
+  const tasks = readOptional(resolve(repo, 'docs', 'TASKS.md'));
+  const fixtures = [
+    {
+      id: 'accept-scoped-eval-readiness-task',
+      input: goodTask,
+      expected: { status: 'accept', covered: true }
+    },
+    {
+      id: 'reject-unscoped-eval-readiness-task',
+      input: badTask,
+      expected: { status: 'reject', covered: false }
+    },
+    {
+      id: 'repo-eval-readiness-task-is-covered',
+      input: tasks,
+      expected: { status: 'accept', covered: true }
+    }
+  ];
+
+  const results = fixtures.map((fixture) => {
+    const actual = classifyResearchTaskCoverage(fixture.input, 'eval-readiness-gap-coverage');
+    const passed = Object.entries(fixture.expected).every(([key, value]) => actual[key] === value);
+    return { id: fixture.id, passed, expected: fixture.expected, actual };
+  });
+
+  return {
+    suite: 'research-task-coverage-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
   };
 }
 
@@ -305,6 +398,7 @@ const report = {
   current: classifyReadiness(currentRepoInput()),
   fixtures: runFixtures ? assertFixtures() : undefined,
   memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
+  researchTaskCoverage: runFixtures ? assertResearchTaskCoverage() : undefined,
   autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
   cronToolPolicy: runFixtures ? assertCronToolPolicy() : undefined
 };
@@ -314,6 +408,7 @@ console.log(JSON.stringify(report, null, 2));
 if (
   report.fixtures?.failed.length > 0 ||
   report.memoryPromotionHygiene?.failed.length > 0 ||
+  report.researchTaskCoverage?.failed.length > 0 ||
   report.autonomyLanes?.failed.length > 0 ||
   report.cronToolPolicy?.failed.length > 0
 ) process.exit(1);

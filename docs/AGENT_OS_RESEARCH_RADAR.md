@@ -158,6 +158,25 @@ Agent OS should provide the human cockpit layer:
 
 ## Next candidate task
 
+### 2026-06-28 — Eval/readiness gap guard scoping
+
+State: `implemented-local`
+
+Evidence:
+- `npm run self-evolution:research` selected `Eval or readiness gap follow-up` with next action `Write one candidate task with acceptance criteria`.
+- `docs/TASKS.md` already contains `eval-readiness-gap-coverage`, including acceptance criteria, guardrails, evidence, and a bridge-free backlog shape.
+- Recent memory (`/root/.openclaw/workspace/memory/2026-06-27.md`) confirms the lane now avoids reopening the covered Felipe-correction candidate and should move to this eval/readiness gap.
+
+Hypothesis: implement one narrow deterministic guard for a recurring readiness/eval gap, using the scoped `eval-readiness-gap-coverage` task as the boundary. The implementation lane should pick the exact failure mode before touching code and keep it local, fixture-based, and wired into `npm run verify` only after the standalone check passes.
+
+Result: added `research-task-coverage-v0` to `scripts/self-improvement-readiness.mjs`. It has accept/reject fixtures for scoped eval/readiness task coverage and a real-doc assertion that `docs/TASKS.md` contains `eval-readiness-gap-coverage` with acceptance criteria, guardrails, evidence, a standalone command, and `npm run verify` wiring.
+
+Verification:
+- `npm run check:self-improvement-readiness` passes, including `research-task-coverage-v0` with 3/3 cases passing.
+- `npm run verify` passes. The run reported one non-blocking lint warning in the untracked Remotion prototype (`ConnectionDiagram` unused), then `tsc --noEmit` completed.
+
+Next action: commit this guard separately from the untracked Remotion prototype.
+
 ### 2026-06-27 — Self-evolution candidate de-dup and closure scoring
 
 State: `implemented-local`
