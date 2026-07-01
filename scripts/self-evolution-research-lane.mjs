@@ -158,6 +158,22 @@ function felipeCorrectionFollowUpIsCovered() {
   );
 }
 
+function researchTaskCoverageIsCovered() {
+  const tasks = readOptional(join(repoRoot, 'docs', 'TASKS.md'));
+  const readiness = readOptional(join(repoRoot, 'scripts', 'self-improvement-readiness.mjs'));
+  const radar = readOptional(join(repoRoot, 'docs', 'AGENT_OS_RESEARCH_RADAR.md'));
+  return (
+    /\beval-readiness-gap-coverage\b/.test(tasks) &&
+    /\bAcceptance criteria\b/.test(tasks) &&
+    /\bGuardrails\b/.test(tasks) &&
+    /\bEvidence\b/.test(tasks) &&
+    /\bresearch-task-coverage-v0\b/.test(readiness) &&
+    /\brepo-eval-readiness-task-is-covered\b/.test(readiness) &&
+    /\bresearch-task-coverage-v0\b/.test(radar) &&
+    /\bimplemented locally\b|\bimplemented-local\b/i.test(radar)
+  );
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -203,6 +219,7 @@ function scoreSignals(signals) {
   const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
   const memoryPromotionCovered = memoryPromotionHygieneIsCovered();
   const felipeCorrectionCovered = felipeCorrectionFollowUpIsCovered();
+  const researchTaskCoverageCovered = researchTaskCoverageIsCovered();
 
   return signals
     .map((signal) => {
@@ -212,6 +229,7 @@ function scoreSignals(signals) {
       if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
       if (memoryPromotionCovered && signal.id === 'memory-promotion-hygiene') score *= 0.15;
       if (felipeCorrectionCovered && signal.id === 'felipe-correction') score *= 0.15;
+      if (researchTaskCoverageCovered && signal.id === 'agent-eval-or-readiness') score *= 0.15;
       return {
         ...signal,
         rawScore,

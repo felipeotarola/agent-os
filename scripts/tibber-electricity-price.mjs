@@ -39,6 +39,16 @@ function formatSpotPrice(price) {
   return `${formatNumber(price.SEK_per_kWh)} SEK/kWh`;
 }
 
+function formatKwh(value) {
+  if (typeof value !== 'number') return null;
+  return `${formatNumber(value)} kWh`;
+}
+
+function formatMoney(value, currency = 'SEK') {
+  if (typeof value !== 'number') return null;
+  return `${formatNumber(value)} ${currency}`;
+}
+
 function formatHour(value) {
   if (!value) return 'okänd tid';
   return new Intl.DateTimeFormat('sv-SE', {
@@ -92,6 +102,50 @@ function mostExpensive(prices) {
 function nextCheaperThanCurrent(prices, current) {
   if (!current || typeof current.total !== 'number') return null;
   return upcoming(prices).find((price) => typeof price.total === 'number' && price.total < current.total) || null;
+}
+
+function latestClosedNode(nodes) {
+  const now = Date.now();
+  return [...(nodes || [])]
+    .reverse()
+    .find((node) => node?.to && Date.parse(node.to) <= now && !Number.isNaN(Date.parse(node.to)));
+}
+
+function formatEnergyFlow(home) {
+  const consumption = latestClosedNode(home.consumption?.nodes);
+  const production = latestClosedNode(home.production?.nodes);
+  const parts = [];
+  const consumptionAmount = consumption?.consumption;
+  const consumptionCost = consumption?.cost;
+  const productionAmount = production?.production;
+  const productionProfit = production?.profit;
+  const currency = consumption?.currency || production?.currency || 'SEK';
+
+  if (consumption) {
+    const amount = formatKwh(consumptionAmount);
+    const cost = formatMoney(consumptionCost, consumption.currency);
+    if (amount && cost) {
+      parts.push(`Köpt igår/senast färdiga dygn: ${amount}, ${cost}.`);
+    }
+  }
+
+  if (production) {
+    const amount = formatKwh(productionAmount);
+    const profit = formatMoney(productionProfit, production.currency);
+    if (amount && profit) {
+      parts.push(`Sålt/producerat samma dygn: ${amount}, ${profit}.`);
+    }
+  }
+
+  if (typeof consumptionCost === 'number' && typeof productionProfit === 'number') {
+    parts.push(`Netto elhandel: ${formatMoney(consumptionCost - productionProfit, currency)}.`);
+  }
+
+  return {
+    latestConsumption: consumption || null,
+    latestProduction: production || null,
+    text: parts.join(' ')
+  };
 }
 
 function levelSv(level) {
@@ -259,6 +313,7 @@ function summary(home) {
   const nextCheaper = nextCheaperThanCurrent(prices, current);
   const tomorrow = priceInfo.tomorrow || [];
   const cheapestTomorrow = cheapest(tomorrow);
+  const energyFlow = formatEnergyFlow(home);
 
   const lines = [
     `Elpris: nu ${formatPrice(current)} (${levelSv(current?.level)}), gäller från ${formatHour(
@@ -269,7 +324,7 @@ function summary(home) {
   if (cheapestRest) {
     lines.push(`Billigast kvar idag: ${formatHour(cheapestRest.startsAt)} ${formatPrice(cheapestRest)}.`);
   }
-  if (peakRest) {
+  if (peakRest && peakRest.startsAt !== cheapestRest?.startsAt) {
     lines.push(`Dyrast kvar idag: ${formatHour(peakRest.startsAt)} ${formatPrice(peakRest)}.`);
   }
   if (nextCheaper) {
@@ -280,6 +335,9 @@ function summary(home) {
   } else {
     lines.push('Morgondagens priser finns inte hos Tibber ännu.');
   }
+  if (energyFlow.text) {
+    lines.push(energyFlow.text);
+  }
 
   if (args.has('--json')) {
     return JSON.stringify(
@@ -289,7 +347,11 @@ function summary(home) {
         cheapestRestToday: cheapestRest,
         peakRestToday: peakRest,
         nextCheaper,
-        cheapestTomorrow
+        cheapestTomorrow,
+        energyFlow: {
+          latestConsumption: energyFlow.latestConsumption,
+          latestProduction: energyFlow.latestProduction
+        }
       },
       null,
       2
@@ -332,6 +394,28 @@ async function fetchPrices() {
             subscriptions {
               id
               status
+            }
+            consumption(resolution: DAILY, last: 7) {
+              nodes {
+                from
+                to
+                consumption
+                consumptionUnit
+                cost
+                currency
+                unitPrice
+              }
+            }
+            production(resolution: DAILY, last: 7) {
+              nodes {
+                from
+                to
+                production
+                productionUnit
+                profit
+                currency
+                unitPrice
+              }
             }
             currentSubscription {
               priceInfo {

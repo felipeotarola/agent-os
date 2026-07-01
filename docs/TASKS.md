@@ -55,6 +55,36 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `cron-lane-visibility-preflight-v0`
+
+```json
+{
+  "id": "cron-lane-visibility-preflight-v0",
+  "title": "Spec cron lane visibility preflight V0",
+  "description": "Make autonomous cron/heartbeat lanes auditable before changing any live schedules.\n\n## Acceptance criteria\n\n- Define one local preflight report shape covering heartbeat, daily learning, self-evolution research, and implementation lanes: cron id/name, lane type, last run, latest candidate or action, noise outcome, verification command, and blocker if any.\n- Add a dry-run or fixture-driven check that can flag a lane with no visible latest result without sending Telegram or touching live cron configuration.\n- Show how the preflight maps to existing docs/state files instead of adding a new dashboard surface.\n- Include explicit outcomes for `no-action`, `safe-action-done`, `decision-needed`, and `blocked`.\n- Record verification output in `docs/AGENT_OS_RESEARCH_RADAR.md` before any live cron/job changes.\n\n## Guardrails\n\n- Docs/fixtures/local read-only state only for V0; no scheduler edits, gateway/security changes, secrets, external sends, model/provider changes, or OpenClaw self-update.\n- Keep the noise rule intact: no routine all-clear Telegram messages.\n- Treat implementation-lane execution as approval-gated unless the candidate is already bounded, reversible, and verifiable.\n\n## Evidence\n\n- `npm run self-evolution:research -- --format=json` - 2026-06-30 selected `Cron lane visibility preflight` with state `ready-large` and next action `Create a small spec before changing live cron jobs`.\n- `docs/AUTONOMOUS_SELF_EVOLUTION.md` - separate research and implementation cron lanes, and require bounded/verifiable work before implementation.\n- `/root/.openclaw/workspace/PROACTIVE.md` - bounded autonomy should do one safe action or ask one decision, with evidence and low noise.",
+  "status": "backlog",
+  "priority": 68,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
+### `tool-call-approval-receipts-v0`
+
+```json
+{
+  "id": "tool-call-approval-receipts-v0",
+  "title": "Define tool-call approval receipts V0",
+  "description": "Turn Inbox Radar approvals into exact tool-call receipts before any risky action can execute or resume.\n\n## Acceptance criteria\n\n- Define a local receipt shape for pending and completed approvals: source run/session, tool name, parameters, risk class, requested action, reviewer decision, optional edited parameters, execution status, timestamp, and source links.\n- Add one fixture-driven check or doc example that rejects vague approvals without exact tool parameters.\n- Show how the receipt maps to an Inbox Radar item without creating a separate approval page.\n- Include deny and edit paths, not only approve.\n- Record the result in `docs/AGENT_OS_RESEARCH_RADAR.md` before any live bridge/tool integration.\n\n## Guardrails\n\n- Local/docs/fixtures only for V0; no real external sends, posts, deletes, purchases, credential changes, or secret-bearing tool calls.\n- Do not rely on chat transcript approval alone; the receipt must capture exact intended action and parameters.\n- Keep this inside Inbox Radar unless repeated use proves it needs a dedicated surface.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-06-29 tool-call approval receipts research.\n- n8n HITL tools docs - tool-specific review before AI Agent tool execution, with reviewer-visible tool name and parameters.\n- LangGraph interrupts docs - persisted pause/resume flow for approval, review/edit state, and interrupts inside tools.",
+  "status": "backlog",
+  "priority": 70,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `felipe-correction-regression-guard`
 
 ```json

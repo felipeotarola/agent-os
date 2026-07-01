@@ -2,7 +2,89 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-06-27
+Last scan: 2026-06-30
+
+## 2026-07-01 - Cron lane visibility preflight V0 spec
+
+State: `ready-small`
+
+Result: added `docs/CRON_LANE_VISIBILITY_PREFLIGHT.md` as the local/docs-first spec for auditing autonomous cron and heartbeat lanes before any live scheduler changes.
+
+The spec defines the report shape for heartbeat, daily learning, self-evolution research, implementation, and briefing lanes. It keeps V0 bounded to existing docs/state/commands, requires explicit `no-action`, `safe-action-done`, `decision-needed`, and `blocked` outcomes, and forbids Telegram sends, live cron mutation, secrets, broad gateway/security changes, or new dashboard surfaces.
+
+Verification output:
+- `npm run self-evolution:research -- --format=json` selected `Cron lane visibility preflight` with state `ready-large` and next action `Create a small spec before changing live cron jobs`.
+- `test -f docs/CRON_LANE_VISIBILITY_PREFLIGHT.md && rg "noiseOutcome|no-action|safe-action-done|decision-needed|blocked" docs/CRON_LANE_VISIBILITY_PREFLIGHT.md` passed.
+- `node --check scripts/cron-lane-visibility-preflight.mjs` passed.
+- `npm run check:cron-lane-visibility -- --json` passed 4/4 fixtures and emitted visible rows for heartbeat, daily-learning, research, implementation, and briefing lanes without Telegram sends or live cron changes.
+
+Next action: keep this local until Felipe approves any live cron/scheduler or dashboard wiring; the dry-run command is now ready as `npm run check:cron-lane-visibility`.
+
+## 2026-06-30 — Implementation lane stop: eval/readiness candidate still research
+
+State: `research`
+
+Evidence:
+- `npm run self-evolution:research` returned `Eval or readiness gap follow-up` with state `research` at 2026-06-30T09:05:13Z.
+- The lane output named the next action as: `Write one candidate task with acceptance criteria`.
+
+Next action: keep the work at candidate-task scoping until the research lane returns `ready-small`; do not implement from this lane while the latest command output is `research`.
+
+## 2026-06-30 — Research lane covered-candidate suppression
+
+State: `ready-small`
+
+Evidence:
+- `npm run self-evolution:research` still selected `Eval or readiness gap follow-up` on 2026-06-30.
+- `docs/TASKS.md` already contains `eval-readiness-gap-coverage` with acceptance criteria, guardrails, evidence, and bridge-free backlog shape.
+- This radar already records `research-task-coverage-v0` as implemented locally for the scoped eval/readiness task coverage.
+
+Hypothesis: extend the research lane closure/de-dup scoring beyond Felipe-correction candidates so covered eval/readiness candidates are downgraded when a matching `docs/TASKS.md` candidate and readiness guard evidence already exist.
+
+Payoff: prevents the daily research cron from repeatedly resurfacing stale covered work and lets it select the next unresolved Agent OS/self-learning signal, such as tool-call approval receipts.
+
+Risk: low if kept as a narrow scoring/check change with fixtures; no product code, external actions, secrets, or model/provider changes needed.
+
+Verification: `npm run self-evolution:research` should no longer select `Eval or readiness gap follow-up` while `eval-readiness-gap-coverage` and `research-task-coverage-v0` evidence exist; `npm run check:self-improvement-readiness` should pass.
+
+Result: added `researchTaskCoverageIsCovered()` to the research lane scoring. With `eval-readiness-gap-coverage`, `research-task-coverage-v0`, and radar implementation evidence present, `agent-eval-or-readiness` is now downgraded and the lane advances to `Cron lane visibility preflight`.
+
+Verification output:
+- `node --check scripts/self-evolution-research-lane.mjs` passed.
+- `npm run self-evolution:research -- --format=json` selected `Cron lane visibility preflight`; `agent-eval-or-readiness` scored `4.5` from raw `30`.
+- `npm run check:self-improvement-readiness` passed all fixture suites; current readiness remains `needs-local-work` because the worktree has uncommitted changes.
+
+Next action: implementation lane adds a generic covered-candidate suppression helper plus one fixture for eval/readiness coverage de-dup.
+
+## 2026-06-29 — Tool-call approval receipts, not just review queues
+
+High-signal pattern: production HITL is moving from "approve the final answer" to "pause before the risky tool call, show the exact parameters, let the human approve/deny/edit, then resume the same run with an audit receipt."
+
+Sources reviewed in this pass:
+
+- n8n docs: human review can be attached to specific AI Agent tools; the workflow pauses before execution, routes approval through channels like Slack/Telegram/Gmail, shows `$tool.name` and `$tool.parameters`, then executes or cancels.
+- LangGraph interrupts docs: graph execution can pause at arbitrary points, persist checkpoint state, surface JSON interrupt payloads, and resume with `Command(resume=...)`; docs explicitly cover approval/reject, review/edit state, and interrupts inside tools.
+- Claude Code Agent SDK hooks docs: hooks provide deterministic callbacks around lifecycle events such as tool calls and stop events.
+- OpenAI ChatGPT agent help: the agent can pause for clarification/confirmation and uses takeover mode for sensitive browser input, then tries to continue from prior workflow state.
+
+Why this matters for Agent OS:
+
+- Agent OS already has Inbox Radar and approval/review concepts, but the current model is mostly item-level review. The missing piece is a first-class **tool-call approval receipt**: exact intended tool, parameters, risk class, source run/session, reviewer decision, optional edited parameters, execution result, and resume cursor.
+- This should stay inside Inbox Radar, not become another page. The useful UI is a compact "pending tool call" item with approve/deny/edit actions and a durable receipt after completion.
+- This also closes a safety gap in proactive autonomy: Cai/OpenClaw can prepare high-value work, but any external/mutating action should have a deterministic gate that records what was approved, not merely "Felipe said ok" in chat.
+
+Safe internal build candidate:
+
+- Candidate state: `ready-small`.
+- Add a bridge-free task candidate: `tool-call-approval-receipts-v0` in `docs/TASKS.md`.
+- V0 should define the receipt schema and one fixture-driven check before wiring any live external action. No real sending, posting, deleting, purchasing, or secret-bearing tool calls.
+
+Reference links:
+
+- https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools.md
+- https://docs.langchain.com/oss/python/langgraph/interrupts
+- https://code.claude.com/docs/en/agent-sdk/hooks
+- https://help.openai.com/en/articles/11752874-chatgpt-agent
 
 ## What strong agentic systems tend to have
 
