@@ -4,6 +4,26 @@ Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assis
 
 Last scan: 2026-06-30
 
+## 2026-07-02 - Credential-aware publish recovery eval
+
+State: `implemented-local`
+
+Result: `npm run self-evolution:research` selected `Credential-aware publish recovery eval` as the next high-leverage Agent OS/self-learning candidate. The signal is repeated push/credential friction: local work can be verified and useful while publish fails due to token sourcing or GitHub access, so the learning loop must classify that as `local-ready-push-blocked` with blocker `git-push`, not as failed work.
+
+Candidate added: `credential-aware-publish-recovery-eval` in `docs/TASKS.md`.
+
+Expected payoff: fewer false failure reports from isolated cron/learning lanes and less retry noise when GitHub publish is the only external blocker.
+
+Risk: low if implemented as local deterministic fixtures only; no live push, no raw token reads, no credential changes.
+
+Implemented: added `git-push-credential-policy-v0` fixtures to `scripts/self-improvement-readiness.mjs`. The guard accepts the Agent OS token/askpass wrapper, rejects stale plain shell credential-helper behavior, and keeps the existing failed-push readiness fixture that reports `local-ready-push-blocked` with blocker `git-push`.
+
+Verification:
+- `npm run check:self-improvement-readiness` passed, including `gitPushCredentialPolicy` with 3/3 cases passing and no failed fixture suites.
+- `npm run evals:agent` passed with 8/8 cases and average `1`.
+
+Next action: commit/publish through `npm run git:push`.
+
 ## 2026-07-02 - Cron lane preflight covered-candidate suppression
 
 State: `implemented-local`

@@ -186,6 +186,36 @@ export function classifyResearchTaskCoverage(markdown, taskId) {
   };
 }
 
+export function classifyGitPushCredentialPolicy(scriptText) {
+  const text = String(scriptText ?? '');
+  const checks = {
+    hasAgentOsSecretsDir: /AGENT_OS_SECRETS_DIR/.test(text) && /secrets['"], ['"]agent-os/.test(text),
+    acceptsAgentOsTokenEnv: /AGENT_OS_GITHUB_TOKEN/.test(text),
+    acceptsFallbackGitHubTokenEnv: /GITHUB_TOKEN/.test(text) && /GH_TOKEN/.test(text),
+    usesAskpass: /GIT_ASKPASS/.test(text) && /askpass\.sh/.test(text),
+    disablesCredentialHelper: /credential\.helper=/.test(text),
+    disablesTerminalPrompt: /GIT_TERMINAL_PROMPT:\s*['"]0['"]/.test(text),
+    avoidsShellCredentialHelperOnly: !/credential-cache|cache --timeout|store --file|git-credential-store/.test(text)
+  };
+  const missing = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    return {
+      status: 'reject',
+      credentialAware: false,
+      missing
+    };
+  }
+
+  return {
+    status: 'accept',
+    credentialAware: true,
+    missing: []
+  };
+}
+
 function currentRepoInput() {
   const status = git(['status', '--branch', '--short']);
   const [branchStatus = '', ...files] = status.split(/\r?\n/).filter(Boolean);
@@ -195,6 +225,56 @@ function currentRepoInput() {
     dirtyFiles: files.length,
     pushExitCode,
     pushStderr
+  };
+}
+
+function assertGitPushCredentialPolicy() {
+  const goodScript = `
+const OPENCLAW_HOME = process.env.OPENCLAW_HOME || '/root/.openclaw';
+const secretsDir = process.env.AGENT_OS_SECRETS_DIR || join(OPENCLAW_HOME, 'secrets', 'agent-os');
+const tokenNames = ['AGENT_OS_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN'];
+await writeFile('askpass.sh', '#!/bin/sh');
+spawn('git', ['-c', 'credential.helper=', 'push'], {
+  env: { ...process.env, GIT_ASKPASS: 'askpass.sh', GIT_TERMINAL_PROMPT: '0' }
+});
+`;
+  const staleShellCredentialScript = `
+const tokenNames = ['GITHUB_TOKEN'];
+spawn('git', ['push'], {
+  env: { ...process.env, GIT_TERMINAL_PROMPT: '1' }
+});
+// Relies on credential-cache instead of an Agent OS askpass/token file path.
+`;
+  const wrapper = readOptional(resolve(repo, 'scripts', 'git-push-agent-os-token.mjs'));
+  const fixtures = [
+    {
+      id: 'accept-agent-os-token-askpass-wrapper',
+      input: goodScript,
+      expected: { status: 'accept', credentialAware: true }
+    },
+    {
+      id: 'reject-stale-shell-credential-helper',
+      input: staleShellCredentialScript,
+      expected: { status: 'reject', credentialAware: false }
+    },
+    {
+      id: 'repo-git-push-wrapper-is-credential-aware',
+      input: wrapper,
+      expected: { status: 'accept', credentialAware: true }
+    }
+  ];
+
+  const results = fixtures.map((fixture) => {
+    const actual = classifyGitPushCredentialPolicy(fixture.input);
+    const passed = Object.entries(fixture.expected).every(([key, value]) => actual[key] === value);
+    return { id: fixture.id, passed, expected: fixture.expected, actual };
+  });
+
+  return {
+    suite: 'git-push-credential-policy-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
   };
 }
 
@@ -397,6 +477,7 @@ const report = {
   repo,
   current: classifyReadiness(currentRepoInput()),
   fixtures: runFixtures ? assertFixtures() : undefined,
+  gitPushCredentialPolicy: runFixtures ? assertGitPushCredentialPolicy() : undefined,
   memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
   researchTaskCoverage: runFixtures ? assertResearchTaskCoverage() : undefined,
   autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
@@ -407,6 +488,7 @@ console.log(JSON.stringify(report, null, 2));
 
 if (
   report.fixtures?.failed.length > 0 ||
+  report.gitPushCredentialPolicy?.failed.length > 0 ||
   report.memoryPromotionHygiene?.failed.length > 0 ||
   report.researchTaskCoverage?.failed.length > 0 ||
   report.autonomyLanes?.failed.length > 0 ||

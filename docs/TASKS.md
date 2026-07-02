@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `credential-aware-publish-recovery-eval`
+
+```json
+{
+  "id": "credential-aware-publish-recovery-eval",
+  "title": "Add credential-aware publish recovery eval",
+  "description": "Prevent isolated learning/self-evolution lanes from treating verified local Agent OS work as failed when only GitHub publish is blocked.\n\n## Acceptance criteria\n\n- Add or extend deterministic fixtures for Agent OS token sourcing and push-blocked reporting.\n- Cover the preferred publish path: `npm run git:push` uses Agent OS-managed token sources instead of shell credential helpers.\n- Cover the recovery path where verified local work plus failed publish becomes `local-ready-push-blocked` with blocker `git-push`, not a failed learning result.\n- Include a negative fixture for stale/plain shell credential behavior or missing Agent OS token evidence without reading or printing any secret values.\n- Keep the standalone command as `npm run check:self-improvement-readiness`; wire into `npm run verify` only after the standalone check passes.\n- Record verification output in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local deterministic fixtures/docs only; do not read raw tokens, print secrets, rotate credentials, change model/provider defaults, or attempt live external push from the eval itself.\n- Do not edit product code from the research lane.\n- Treat actual publish as best-effort and report the named blocker instead of retry-looping.\n\n## Evidence\n\n- `npm run self-evolution:research` - 2026-07-02 selected `Credential-aware publish recovery eval` with state `ready-small`.\n- `docs/DAILY_AGENT_LEARNING_LOOP.md` - requires `npm run git:push` and `local-ready-push-blocked` after failed publish.\n- `scripts/git-push-agent-os-token.mjs` - current wrapper selects Agent OS token env/files and disables git credential helper for push.",
+  "status": "done",
+  "priority": 72,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `cron-lane-visibility-preflight-v0`
 
 ```json
