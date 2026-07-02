@@ -24,6 +24,14 @@ Verification:
 
 Next action: commit/publish through `npm run git:push`.
 
+Follow-up: added covered-candidate suppression in `scripts/self-evolution-research-lane.mjs` for this implemented credential/push eval. The research lane now downgrades `push-or-credential-failure` when the task candidate, readiness fixtures, radar implementation evidence, and eval verification are all present.
+
+Follow-up verification:
+- `node --check scripts/self-evolution-research-lane.mjs` passed.
+- `npm run self-evolution:research -- --format=json` now selects `Long-term memory promotion hygiene check`; `push-or-credential-failure` is downgraded to score `8.4` from raw `56`.
+- `npm run check:self-improvement-readiness` passed all fixture suites; current repo status remains `needs-local-work` because this local patch is uncommitted.
+- `npm run evals:agent` passed 8/8 with verdict `passing-baseline`.
+
 ## 2026-07-02 - Cron lane preflight covered-candidate suppression
 
 State: `implemented-local`

@@ -190,6 +190,22 @@ function cronLaneVisibilityPreflightIsCovered() {
   );
 }
 
+function credentialAwarePublishRecoveryIsCovered() {
+  const tasks = readOptional(join(repoRoot, 'docs', 'TASKS.md'));
+  const readiness = readOptional(join(repoRoot, 'scripts', 'self-improvement-readiness.mjs'));
+  const radar = readOptional(join(repoRoot, 'docs', 'AGENT_OS_RESEARCH_RADAR.md'));
+  return (
+    /\bcredential-aware-publish-recovery-eval\b/.test(tasks) &&
+    /\bgit-push-credential-policy-v0\b/.test(readiness) &&
+    /\brepo-git-push-wrapper-is-credential-aware\b/.test(readiness) &&
+    /\bclean-ahead-push-blocked\b/.test(readiness) &&
+    /\bCredential-aware publish recovery eval\b/.test(radar) &&
+    /\bimplemented-local\b/.test(radar) &&
+    /\bnpm run check:self-improvement-readiness\b/.test(radar) &&
+    /\bnpm run evals:agent\b/.test(radar)
+  );
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -237,6 +253,7 @@ function scoreSignals(signals) {
   const felipeCorrectionCovered = felipeCorrectionFollowUpIsCovered();
   const researchTaskCoverageCovered = researchTaskCoverageIsCovered();
   const cronLaneVisibilityCovered = cronLaneVisibilityPreflightIsCovered();
+  const credentialAwarePublishRecoveryCovered = credentialAwarePublishRecoveryIsCovered();
 
   return signals
     .map((signal) => {
@@ -248,6 +265,7 @@ function scoreSignals(signals) {
       if (felipeCorrectionCovered && signal.id === 'felipe-correction') score *= 0.15;
       if (researchTaskCoverageCovered && signal.id === 'agent-eval-or-readiness') score *= 0.15;
       if (cronLaneVisibilityCovered && signal.id === 'cron-or-heartbeat-friction') score *= 0.15;
+      if (credentialAwarePublishRecoveryCovered && signal.id === 'push-or-credential-failure') score *= 0.15;
       return {
         ...signal,
         rawScore,
