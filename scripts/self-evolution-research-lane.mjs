@@ -174,6 +174,22 @@ function researchTaskCoverageIsCovered() {
   );
 }
 
+function cronLaneVisibilityPreflightIsCovered() {
+  const packageJson = readOptional(join(repoRoot, 'package.json'));
+  const tasks = readOptional(join(repoRoot, 'docs', 'TASKS.md'));
+  const radar = readOptional(join(repoRoot, 'docs', 'AGENT_OS_RESEARCH_RADAR.md'));
+  const spec = readOptional(join(repoRoot, 'docs', 'CRON_LANE_VISIBILITY_PREFLIGHT.md'));
+  return (
+    existsSync(join(repoRoot, 'scripts', 'cron-lane-visibility-preflight.mjs')) &&
+    packageJson.includes('"check:cron-lane-visibility"') &&
+    /\bcron-lane-visibility-preflight-v0\b/.test(tasks) &&
+    /\bCron lane visibility preflight V0 spec\b/.test(radar) &&
+    /\bnpm run check:cron-lane-visibility\b/.test(radar) &&
+    /\bnoiseOutcome\b/.test(spec) &&
+    /\bdecision-needed\b/.test(spec)
+  );
+}
+
 function sourceFiles() {
   return [
     join(repoRoot, 'docs', 'AUTONOMOUS_SELF_EVOLUTION.md'),
@@ -220,6 +236,7 @@ function scoreSignals(signals) {
   const memoryPromotionCovered = memoryPromotionHygieneIsCovered();
   const felipeCorrectionCovered = felipeCorrectionFollowUpIsCovered();
   const researchTaskCoverageCovered = researchTaskCoverageIsCovered();
+  const cronLaneVisibilityCovered = cronLaneVisibilityPreflightIsCovered();
 
   return signals
     .map((signal) => {
@@ -230,6 +247,7 @@ function scoreSignals(signals) {
       if (memoryPromotionCovered && signal.id === 'memory-promotion-hygiene') score *= 0.15;
       if (felipeCorrectionCovered && signal.id === 'felipe-correction') score *= 0.15;
       if (researchTaskCoverageCovered && signal.id === 'agent-eval-or-readiness') score *= 0.15;
+      if (cronLaneVisibilityCovered && signal.id === 'cron-or-heartbeat-friction') score *= 0.15;
       return {
         ...signal,
         rawScore,

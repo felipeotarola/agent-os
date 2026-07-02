@@ -4,6 +4,21 @@ Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assis
 
 Last scan: 2026-06-30
 
+## 2026-07-02 - Cron lane preflight covered-candidate suppression
+
+State: `implemented-local`
+
+Result: updated `scripts/self-evolution-research-lane.mjs` so the research lane recognizes `cron-lane-visibility-preflight-v0` as covered when the spec, script, package command, task candidate, and radar evidence are present. This prevents the lane from repeatedly selecting the already-shipped "Create a small spec before changing live cron jobs" next action.
+
+Verification output:
+- `node --check scripts/self-evolution-research-lane.mjs` passed.
+- `npm run self-evolution:research -- --format=json` now selects `Credential-aware publish recovery eval`; `cron-or-heartbeat-friction` is downgraded to score `4.5` from raw `30`.
+- `npm run check:self-improvement-readiness` passed all fixture suites; current repo status remains `needs-local-work` because this local patch is uncommitted.
+- `npm run check:cron-lane-visibility -- --json` passed 4/4 fixtures.
+- `npm run evals:agent` passed 8/8 with verdict `passing-baseline`.
+
+Next action: scope the selected `Credential-aware publish recovery eval` before implementing anything broader.
+
 ## 2026-07-01 - Cron lane visibility preflight V0 spec
 
 State: `ready-small`
