@@ -130,6 +130,21 @@ These are bridge-free candidates from Agent OS research/self-evolution lanes. Pr
 }
 ```
 
+### `correction-to-lesson-router-v0`
+
+```json
+{
+  "id": "correction-to-lesson-router-v0",
+  "title": "Route Felipe corrections into durable lessons",
+  "description": "Make the weekly/daily learning loop handle Felipe corrections through a small, consistent path instead of rediscovering the same correction signals.\n\n## Acceptance criteria\n\n- Scan recent daily memory for Felipe corrections or explicit preference changes.\n- Classify each correction into exactly one destination: daily memory only, `LESSONS.md`, `MEMORY.md`, or a concrete Agent OS task candidate.\n- Skip corrections already covered by a matching lesson, durable memory entry, guard, or task candidate.\n- Produce one concise summary that names the source memory file and chosen destination without copying raw chat.\n- Verify with `npm run lab:weekly -- --format=json` and a no-match-tolerant `rg` check for this task id.\n\n## Guardrails\n\n- Local docs/memory/task-candidate work only; no external messages, raw private chat dumps, secrets, model/provider changes, or live board mutation.\n- Prefer no-op when a correction is already captured; do not create duplicate lessons.\n- Keep this as a routing habit or small deterministic helper before adding UI.\n\n## Evidence\n\n- `npm run lab:weekly -- --format=json` - 2026-07-04 found 4 Felipe-correction signals and suggested `Correction-to-lesson router`.\n- `/root/.openclaw/workspace/LESSONS.md` - already contains recent distilled correction lessons through 2026-06-29, so the missing piece is routing/coverage rather than another one-off lesson.",
+  "status": "backlog",
+  "priority": 64,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `eval-readiness-gap-coverage`
 
 ```json
