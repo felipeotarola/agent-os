@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `memory-promotion-covered-candidate-suppression-v0`
+
+```json
+{
+  "id": "memory-promotion-covered-candidate-suppression-v0",
+  "title": "Suppress covered memory-promotion hygiene candidate",
+  "description": "Stop the self-evolution research lane from reselecting long-term memory promotion hygiene after the deterministic readiness fixture is already present and passing.\n\n## Acceptance criteria\n\n- Treat `memory-promotion-hygiene-v0` as covered when `scripts/self-improvement-readiness.mjs` includes `classifyMemoryPromotionCandidate`, the `memory-promotion-hygiene-v0` suite, and the raw heartbeat/stale status rejection fixtures.\n- Downgrade or close the `memory-promotion-hygiene` signal enough that `npm run self-evolution:research -- --format=json` selects the next unresolved candidate instead of `Long-term memory promotion hygiene check` while those fixtures pass.\n- Keep the existing memory-promotion fixture behavior unchanged: distilled durable facts are accepted, raw heartbeat output and stale transient status are rejected, and undistilled ideas require review.\n- Verify with `npm run self-evolution:research -- --format=json` and `npm run check:self-improvement-readiness`.\n- Record the result in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Research-lane scoring/docs only; do not edit product UI, read secrets, change model/provider defaults, send external messages, or alter live scheduler/security policy.\n- Do not weaken the actual long-term memory hygiene guard; only stop the research lane from treating covered work as the next action.\n\n## Evidence\n\n- `npm run self-evolution:research` - 2026-07-03 selected `Long-term memory promotion hygiene check` with state `ready-small`.\n- `npm run check:self-improvement-readiness` - 2026-07-03 passed `memory-promotion-hygiene-v0` with 4/4 fixtures, including `reject-raw-heartbeat-output` and `reject-stale-worktree-status`.\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-06-25 already scoped the memory-promotion hygiene candidate as ready-small.",
+  "status": "done",
+  "priority": 66,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `credential-aware-publish-recovery-eval`
 
 ```json

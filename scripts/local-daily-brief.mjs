@@ -105,6 +105,19 @@ function tibberPriceSummary() {
   }
 }
 
+function polestarVehicleSummary() {
+  try {
+    return execSync(`${process.execPath} ${resolve(repoRoot, 'scripts/polestar-vehicle-brief.mjs')} --brief`, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).trim();
+  } catch (error) {
+    const message = error.stderr?.toString().trim() || error.message;
+    return `- Bil: kunde inte hämta Polestar just nu (${message}).`;
+  }
+}
+
 console.log(`# Daily Brief - ${date}`);
 console.log('');
 console.log('## Today');
@@ -124,6 +137,7 @@ if (unavailable.length > 0) {
   console.log(`- Some optional inputs were unavailable: ${unavailable.join(', ')}`);
 }
 console.log(tibberPriceSummary());
+console.log(polestarVehicleSummary());
 console.log('');
 console.log('## Suggested Next Action');
 console.log('');
@@ -138,5 +152,5 @@ console.log('## Evidence');
 console.log('');
 console.log(`- Local-only sources read: ${[lifeOs.path, proactive.path, heartbeat.path, recentMemory.path].join(', ')}`);
 console.log(
-  '- Approval-gated sources intentionally not read: Gmail, Calendar, Slack/social notifications, device notifications, finance. Tibber secret read only for electricity price on request/daily brief.'
+  '- Approval-gated sources intentionally not read: Gmail, Calendar, Slack/social notifications, device notifications, finance. Tibber and Polestar secrets read only for request/daily brief status checks.'
 );

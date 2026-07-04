@@ -141,7 +141,8 @@ function memoryPromotionHygieneIsCovered() {
   return (
     /\bclassifyMemoryPromotionCandidate\b/.test(text) &&
     /\bmemory-promotion-hygiene-v0\b/.test(text) &&
-    /\breject-raw-heartbeat-output\b/.test(text)
+    /\breject-raw-heartbeat-output\b/.test(text) &&
+    /\breject-stale-worktree-status\b/.test(text)
   );
 }
 
@@ -247,27 +248,25 @@ function collectSignals(files) {
 }
 
 function scoreSignals(signals) {
-  const readinessCovered = selfEvolutionReadinessIsCovered();
-  const cronToolPolicyCovered = cronToolPolicyPreflightIsCovered();
-  const memoryPromotionCovered = memoryPromotionHygieneIsCovered();
-  const felipeCorrectionCovered = felipeCorrectionFollowUpIsCovered();
-  const researchTaskCoverageCovered = researchTaskCoverageIsCovered();
-  const cronLaneVisibilityCovered = cronLaneVisibilityPreflightIsCovered();
-  const credentialAwarePublishRecoveryCovered = credentialAwarePublishRecoveryIsCovered();
+  const coveredBySignal = new Map([
+    ['self-evolution-mandate', selfEvolutionReadinessIsCovered()],
+    ['isolated-cron-tooling-failure', cronToolPolicyPreflightIsCovered()],
+    ['memory-promotion-hygiene', memoryPromotionHygieneIsCovered()],
+    ['felipe-correction', felipeCorrectionFollowUpIsCovered()],
+    ['agent-eval-or-readiness', researchTaskCoverageIsCovered()],
+    ['cron-or-heartbeat-friction', cronLaneVisibilityPreflightIsCovered()],
+    ['push-or-credential-failure', credentialAwarePublishRecoveryIsCovered()]
+  ]);
 
   return signals
     .map((signal) => {
       const rawScore = signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0);
+      const covered = coveredBySignal.get(signal.id) === true;
       let score = rawScore;
-      if (readinessCovered && signal.id === 'self-evolution-mandate') score *= 0.15;
-      if (cronToolPolicyCovered && signal.id === 'isolated-cron-tooling-failure') score *= 0.15;
-      if (memoryPromotionCovered && signal.id === 'memory-promotion-hygiene') score *= 0.15;
-      if (felipeCorrectionCovered && signal.id === 'felipe-correction') score *= 0.15;
-      if (researchTaskCoverageCovered && signal.id === 'agent-eval-or-readiness') score *= 0.15;
-      if (cronLaneVisibilityCovered && signal.id === 'cron-or-heartbeat-friction') score *= 0.15;
-      if (credentialAwarePublishRecoveryCovered && signal.id === 'push-or-credential-failure') score *= 0.15;
+      if (covered) score *= 0.15;
       return {
         ...signal,
+        covered,
         rawScore,
         score,
         hits: [...signal.hits].sort((a, b) => (b.weight || 1) - (a.weight || 1))
@@ -279,7 +278,7 @@ function scoreSignals(signals) {
 
 function chooseCandidate(signals) {
   const scored = scoreSignals(signals);
-  const top = scored[0];
+  const top = scored.find((signal) => !signal.covered);
   if (!top) {
     return {
       title: 'No self-evolution candidate',
@@ -369,6 +368,7 @@ function buildReport(signals, candidate) {
       hits: signal.hits.length,
       score: Number((signal.score ?? signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
       rawScore: Number((signal.rawScore ?? signal.priority * signal.hits.reduce((sum, hit) => sum + (hit.weight || 1), 0)).toFixed(2)),
+      covered: signal.covered === true,
       evidence: signal.hits.slice(0, 2)
     }))
   };

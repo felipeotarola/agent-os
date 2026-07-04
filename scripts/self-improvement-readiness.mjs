@@ -430,7 +430,7 @@ function assertAutonomyLanes() {
     {
       id: 'research-lane-correction-dedup',
       path: resolve(repo, 'scripts', 'self-evolution-research-lane.mjs'),
-      patterns: [/felipeCorrectionFollowUpIsCovered/, /signal\.id === 'felipe-correction'\) score \*= 0\.15/]
+      patterns: [/felipeCorrectionFollowUpIsCovered/, /coveredBySignal/, /\['felipe-correction', felipeCorrectionFollowUpIsCovered\(\)\]/]
     },
     {
       id: 'package-research-command',

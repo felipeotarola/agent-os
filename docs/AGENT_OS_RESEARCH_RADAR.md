@@ -4,6 +4,32 @@ Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assis
 
 Last scan: 2026-06-30
 
+## 2026-07-03 - Memory-promotion covered-candidate suppression
+
+State: `implemented-local`
+
+Result: `npm run self-evolution:research` selected `Long-term memory promotion hygiene check`, but `npm run check:self-improvement-readiness` already passes the `memory-promotion-hygiene-v0` suite with 4/4 fixtures. The underlying hygiene guard exists: distilled durable facts are accepted, raw heartbeat output and stale transient worktree/status chunks are rejected, and undistilled ideas require review.
+
+Candidate added: `memory-promotion-covered-candidate-suppression-v0` in `docs/TASKS.md`.
+
+Expected payoff: the research lane stops spending future cron turns on a covered memory hygiene guard and advances to the next unresolved Agent OS/self-learning signal.
+
+Risk: low if limited to research-lane covered-candidate scoring; do not weaken the actual memory promotion classifier or readiness fixtures.
+
+Verification evidence:
+- `npm run self-evolution:research` selected `Long-term memory promotion hygiene check` with state `ready-small`.
+- `npm run check:self-improvement-readiness` passed, including `memory-promotion-hygiene-v0` with 4/4 cases.
+- Current repo status is `needs-local-work` because of existing uncommitted local files plus this docs-only backlog update.
+
+Next action: implementation lane should tighten covered-candidate suppression for `memory-promotion-hygiene` so `npm run self-evolution:research -- --format=json` selects the next unresolved candidate while the existing readiness fixtures pass.
+
+Implementation result: updated `scripts/self-evolution-research-lane.mjs` so covered signals are marked explicitly and skipped during candidate selection. The memory-promotion coverage predicate now also requires the stale-worktree rejection fixture, and the research report exposes `covered: true` for suppressed signals.
+
+Verification:
+- `node --check scripts/self-evolution-research-lane.mjs && node --check scripts/self-improvement-readiness.mjs` passed.
+- `npm run self-evolution:research -- --format=json` returned `No self-evolution candidate` with all current signals marked `covered: true`.
+- `npm run check:self-improvement-readiness` passed, including `memory-promotion-hygiene-v0` with 4/4 cases.
+
 ## 2026-07-02 - Credential-aware publish recovery eval
 
 State: `implemented-local`

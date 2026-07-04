@@ -1,0 +1,23 @@
+{
+  "name": "qaa-sladdis-platform-film",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts QaaSladdisPlatform out/qaa-sladdis-platform.mp4",
+    "render:still": "remotion still src/index.ts QaaSladdisPlatform out/poster.png --frame=510",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.482",
+    "remotion": "4.0.482",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.7.2"
+  }
+}
