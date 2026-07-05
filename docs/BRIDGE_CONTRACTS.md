@@ -184,6 +184,8 @@ Allowed `status` values: `active`, `handled`, `dismissed`, `snoozed`. Unknown st
 
 Response is the normalized item. On conflict, the bridge updates the item and merges `metadata` with existing metadata (`existing || incoming`).
 
+For approval-gated tool calls, producers should set `kind: "approval"` and store the V0 receipt under `metadata.approvalReceipt`. The receipt contract is documented in `docs/TOOL_CALL_APPROVAL_RECEIPTS.md` and requires exact `toolName`, `parameters`, `parameterHash`, `riskClass`, `requestedAction`, reviewer decision, execution status, and source run/session context. Vague chat approvals without exact parameters must not execute or resume the tool call.
+
 Producer helper:
 
 ```bash

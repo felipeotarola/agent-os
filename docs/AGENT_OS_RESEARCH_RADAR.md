@@ -4,6 +4,31 @@ Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assis
 
 Last scan: 2026-06-30
 
+## 2026-07-05 - Tool-call approval receipts V0
+
+State: `implemented-local`
+
+Result: implemented the local V0 contract for approval-gated tool calls before any risky action can execute or resume. The contract keeps this inside Inbox Radar with `kind: "approval"` and `metadata.approvalReceipt`, and requires exact tool name, parameters, parameter hash, risk class, reviewer decision, execution status, and source run/session context.
+
+Implemented:
+
+- Added `docs/TOOL_CALL_APPROVAL_RECEIPTS.md` with receipt shape, pending/completed states, approve/deny/edit paths, and guardrails.
+- Linked the receipt contract from `docs/INBOX_RADAR.md` and `docs/BRIDGE_CONTRACTS.md`.
+- Added `tool-call-approval-receipts-v0` fixtures to `scripts/self-improvement-readiness.mjs`.
+- Marked `tool-call-approval-receipts-v0` done in `docs/TASKS.md`.
+
+Verification:
+
+- `node --check scripts/self-improvement-readiness.mjs` passed.
+- `npm run check:self-improvement-readiness` passed, including `tool-call-approval-receipts-v0` with 5/5 fixtures:
+  - accepts exact pending receipts as non-executable
+  - accepts exact approved receipts as executable
+  - rejects vague chat approvals without exact tool parameters
+  - rejects edited decisions without edited parameters
+  - verifies the V0 docs define the required contract fields
+
+Guardrail: V0 is docs and deterministic fixtures only. It does not execute external sends, posts, deletes, purchases, credential changes, or secret-bearing tool calls.
+
 ## 2026-07-05 - Correction-to-lesson router
 
 State: `implemented-local`

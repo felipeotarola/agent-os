@@ -216,6 +216,52 @@ export function classifyGitPushCredentialPolicy(scriptText) {
   };
 }
 
+export function classifyToolCallApprovalReceipt(receipt) {
+  const value = receipt && typeof receipt === 'object' ? receipt : {};
+  const hasSourceContext = Boolean(value.sourceRunId || value.sourceSessionKey);
+  const parameters =
+    value.parameters && typeof value.parameters === 'object' && !Array.isArray(value.parameters)
+      ? value.parameters
+      : null;
+  const parameterCount = parameters ? Object.keys(parameters).length : 0;
+  const executableDecision = ['approved', 'edited'].includes(value.reviewerDecision);
+  const editedParameters =
+    value.editedParameters && typeof value.editedParameters === 'object' && !Array.isArray(value.editedParameters)
+      ? value.editedParameters
+      : null;
+  const checks = {
+    hasContract: value.contract === 'agent-os.tool-call-approval-receipt.v0',
+    hasToolName: typeof value.toolName === 'string' && value.toolName.includes('.'),
+    hasRiskClass: typeof value.riskClass === 'string' && value.riskClass.length > 0,
+    hasRequestedAction: typeof value.requestedAction === 'string' && value.requestedAction.length > 0,
+    hasParameters: parameterCount > 0,
+    hasParameterHash: /^sha256-[a-z0-9-]+/i.test(String(value.parameterHash ?? '')),
+    hasReviewerDecision: ['pending', 'approved', 'denied', 'edited'].includes(value.reviewerDecision),
+    hasExecutionStatus: ['not-executed', 'executed', 'cancelled', 'failed', 'superseded'].includes(
+      value.executionStatus
+    ),
+    hasSourceContext,
+    editedDecisionHasEditedParameters: value.reviewerDecision !== 'edited' || Boolean(editedParameters)
+  };
+  const missing = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    return {
+      status: 'reject',
+      executable: false,
+      missing
+    };
+  }
+
+  return {
+    status: 'accept',
+    executable: executableDecision,
+    missing: []
+  };
+}
+
 function currentRepoInput() {
   const status = git(['status', '--branch', '--short']);
   const [branchStatus = '', ...files] = status.split(/\r?\n/).filter(Boolean);
@@ -272,6 +318,98 @@ spawn('git', ['push'], {
 
   return {
     suite: 'git-push-credential-policy-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
+  };
+}
+
+function assertToolCallApprovalReceipts() {
+  const exactPendingReceipt = {
+    contract: 'agent-os.tool-call-approval-receipt.v0',
+    sourceRunId: 'run_123',
+    toolName: 'message.send',
+    riskClass: 'external-message',
+    requestedAction: 'Send one Telegram update to Felipe',
+    parameters: {
+      channel: 'telegram',
+      target: '343551190',
+      accountId: 'default',
+      message: 'Kort svensk uppdatering.'
+    },
+    parameterHash: 'sha256-demo-hash',
+    reviewerDecision: 'pending',
+    executionStatus: 'not-executed'
+  };
+  const approvedReceipt = {
+    ...exactPendingReceipt,
+    reviewerDecision: 'approved'
+  };
+  const vagueChatApproval = {
+    contract: 'agent-os.tool-call-approval-receipt.v0',
+    sourceRunId: 'run_123',
+    requestedAction: 'Felipe said ok, send it',
+    reviewerDecision: 'approved',
+    executionStatus: 'not-executed'
+  };
+  const editedWithoutParameters = {
+    ...exactPendingReceipt,
+    reviewerDecision: 'edited',
+    editedParameters: null
+  };
+  const docs = readOptional(resolve(repo, 'docs', 'TOOL_CALL_APPROVAL_RECEIPTS.md'));
+
+  const fixtures = [
+    {
+      id: 'accept-exact-pending-tool-call-receipt',
+      input: exactPendingReceipt,
+      expected: { status: 'accept', executable: false }
+    },
+    {
+      id: 'accept-exact-approved-tool-call-receipt',
+      input: approvedReceipt,
+      expected: { status: 'accept', executable: true }
+    },
+    {
+      id: 'reject-vague-chat-approval',
+      input: vagueChatApproval,
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-edited-decision-without-edited-parameters',
+      input: editedWithoutParameters,
+      expected: { status: 'reject', executable: false }
+    }
+  ];
+
+  const results = fixtures.map((fixture) => {
+    const actual = classifyToolCallApprovalReceipt(fixture.input);
+    const passed = Object.entries(fixture.expected).every(([key, value]) => actual[key] === value);
+    return { id: fixture.id, passed, expected: fixture.expected, actual };
+  });
+  const docPatterns = [
+    /agent-os\.tool-call-approval-receipt\.v0/,
+    /metadata\.approvalReceipt/,
+    /toolName/,
+    /parameters/,
+    /parameterHash/,
+    /reviewerDecision/,
+    /executionStatus/,
+    /Vague approvals/
+  ];
+  const docPassed = docs.length > 0 && docPatterns.every((pattern) => pattern.test(docs));
+  results.push({
+    id: 'docs-define-tool-call-approval-receipts-v0',
+    passed: docPassed,
+    expected: { documented: true },
+    actual: {
+      documented: docPassed,
+      missingPatterns: docPatterns.filter((pattern) => !pattern.test(docs)).map((pattern) => pattern.source)
+    }
+  });
+
+  return {
+    suite: 'tool-call-approval-receipts-v0',
     cases: results.length,
     failed: results.filter((result) => !result.passed).map((result) => result.id),
     results
@@ -478,6 +616,7 @@ const report = {
   current: classifyReadiness(currentRepoInput()),
   fixtures: runFixtures ? assertFixtures() : undefined,
   gitPushCredentialPolicy: runFixtures ? assertGitPushCredentialPolicy() : undefined,
+  toolCallApprovalReceipts: runFixtures ? assertToolCallApprovalReceipts() : undefined,
   memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
   researchTaskCoverage: runFixtures ? assertResearchTaskCoverage() : undefined,
   autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
@@ -489,6 +628,7 @@ console.log(JSON.stringify(report, null, 2));
 if (
   report.fixtures?.failed.length > 0 ||
   report.gitPushCredentialPolicy?.failed.length > 0 ||
+  report.toolCallApprovalReceipts?.failed.length > 0 ||
   report.memoryPromotionHygiene?.failed.length > 0 ||
   report.researchTaskCoverage?.failed.length > 0 ||
   report.autonomyLanes?.failed.length > 0 ||

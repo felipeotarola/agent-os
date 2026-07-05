@@ -50,6 +50,8 @@ node scripts/create-inbox-item.mjs \
 
 The helper requires `AGENT_OS_BRIDGE_URL` and `AGENT_OS_BRIDGE_TOKEN`, upserts by stable `--id`, and should be preferred over ad-hoc files for attention items Felipe may need to review.
 
+Approval-gated tool calls should use `kind: "approval"` and include a V0 tool-call approval receipt in `metadata.approvalReceipt`. See `docs/TOOL_CALL_APPROVAL_RECEIPTS.md`. A chat approval without exact tool parameters is not enough to execute or resume a risky action.
+
 ## Guardrails
 
 - No destructive actions.

@@ -107,7 +107,7 @@ These are bridge-free candidates from Agent OS research/self-evolution lanes. Pr
   "id": "tool-call-approval-receipts-v0",
   "title": "Define tool-call approval receipts V0",
   "description": "Turn Inbox Radar approvals into exact tool-call receipts before any risky action can execute or resume.\n\n## Acceptance criteria\n\n- Define a local receipt shape for pending and completed approvals: source run/session, tool name, parameters, risk class, requested action, reviewer decision, optional edited parameters, execution status, timestamp, and source links.\n- Add one fixture-driven check or doc example that rejects vague approvals without exact tool parameters.\n- Show how the receipt maps to an Inbox Radar item without creating a separate approval page.\n- Include deny and edit paths, not only approve.\n- Record the result in `docs/AGENT_OS_RESEARCH_RADAR.md` before any live bridge/tool integration.\n\n## Guardrails\n\n- Local/docs/fixtures only for V0; no real external sends, posts, deletes, purchases, credential changes, or secret-bearing tool calls.\n- Do not rely on chat transcript approval alone; the receipt must capture exact intended action and parameters.\n- Keep this inside Inbox Radar unless repeated use proves it needs a dedicated surface.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-06-29 tool-call approval receipts research.\n- n8n HITL tools docs - tool-specific review before AI Agent tool execution, with reviewer-visible tool name and parameters.\n- LangGraph interrupts docs - persisted pause/resume flow for approval, review/edit state, and interrupts inside tools.",
-  "status": "backlog",
+  "status": "done",
   "priority": 70,
   "ownerAgentId": "cai",
   "source": "radar",
