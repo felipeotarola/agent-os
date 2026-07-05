@@ -8,9 +8,13 @@ const docsPath = resolve(repoRoot, 'docs/TASKS.md');
 const defaultOutputPath = resolve(repoRoot, 'data/private/life-os-task-candidates.json');
 
 function parseArgs(argv) {
-  const args = { output: defaultOutputPath, stdout: false };
+  const args = { output: defaultOutputPath, stdout: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--help' || arg === '-h') {
+      args.help = true;
+      continue;
+    }
     if (arg === '--stdout') {
       args.stdout = true;
       continue;
@@ -25,6 +29,15 @@ function parseArgs(argv) {
     throw new Error(`Unexpected argument: ${arg}`);
   }
   return args;
+}
+
+function printHelp() {
+  console.log(`Usage: npm run tasks:life-os-export -- [options]
+
+Options:
+  --stdout           Print task candidates as JSON instead of writing a file.
+  --output <path>    Write task candidates to a custom file path.
+  -h, --help         Show this help text.`);
 }
 
 function tableCellText(value) {
@@ -69,6 +82,11 @@ function parseLifeOsCandidates(markdown) {
 }
 
 const args = parseArgs(process.argv.slice(2));
+if (args.help) {
+  printHelp();
+  process.exit(0);
+}
+
 if (!existsSync(docsPath)) throw new Error(`Missing ${docsPath}`);
 
 const tasks = parseLifeOsCandidates(readFileSync(docsPath, 'utf8'));
