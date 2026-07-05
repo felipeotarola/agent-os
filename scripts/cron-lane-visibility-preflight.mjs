@@ -112,7 +112,7 @@ function reportRows({ repo = repoRoot, workspace = workspaceRoot } = {}) {
       laneType: 'implementation',
       lastRunAt: null,
       latestCandidateOrAction: /cron-lane-visibility-preflight-v0/.test(tasks)
-        ? 'backlog task exists for cron-lane-visibility-preflight-v0'
+        ? 'task record exists for cron-lane-visibility-preflight-v0'
         : null,
       noiseOutcome: 'safe-action-done',
       verificationCommand: 'npm run check:cron-lane-visibility',
