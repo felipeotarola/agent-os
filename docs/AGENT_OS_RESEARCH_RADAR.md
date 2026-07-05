@@ -4,6 +4,19 @@ Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assis
 
 Last scan: 2026-06-30
 
+## 2026-07-05 - Correction-to-lesson router
+
+State: `implemented-local`
+
+Result: added `scripts/correction-lesson-router.mjs` and `npm run lessons:corrections` so weekly/daily learning loops can classify recent Felipe correction signals before creating duplicate lessons or tasks.
+
+Current routing result: recent Tibber/Polestar standalone-status corrections route to covered `LESSONS.md` guidance, and the repeated correction-routing signal routes to the now-done `correction-to-lesson-router-v0` task candidate.
+
+Verification:
+- `node --check scripts/correction-lesson-router.mjs` passed.
+- `npm run lessons:corrections -- --format=json` found 7 recent correction-like signals; all routed to covered `LESSONS.md` guidance or the done Agent OS task candidate.
+- `npm run lab:weekly -- --format=json` still names `Correction-to-lesson router` as the suggested experiment, now with a runnable local command as the concrete output.
+
 ## 2026-07-03 - Memory-promotion covered-candidate suppression
 
 State: `implemented-local`

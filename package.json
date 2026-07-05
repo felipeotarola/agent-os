@@ -35,6 +35,7 @@
     "car:polestar:brief": "node scripts/polestar-vehicle-brief.mjs",
     "price:tibber": "node scripts/tibber-electricity-price.mjs",
     "tasks:life-os-export": "node scripts/export-life-os-task-candidates.mjs",
+    "lessons:corrections": "node scripts/correction-lesson-router.mjs",
     "check:self-improvement-readiness": "node scripts/self-improvement-readiness.mjs",
     "check:cron-tool-policy": "node scripts/cron-tool-policy-preflight.mjs",
     "check:cron-lane-visibility": "node scripts/cron-lane-visibility-preflight.mjs",
