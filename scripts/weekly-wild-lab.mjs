@@ -96,6 +96,16 @@ function lessonsAddedThisWeek(lessonsText) {
     .map((line) => line.replace(/^###\s*/, '').trim());
 }
 
+function packageScriptExists(scriptName) {
+  const packageText = readOptional(join(repoRoot, 'package.json'));
+  return new RegExp(`"${scriptName}"\\s*:`).test(packageText);
+}
+
+function correctionRouterShipped() {
+  return existsSync(join(repoRoot, 'scripts', 'correction-lesson-router.mjs'))
+    && packageScriptExists('lessons:corrections');
+}
+
 function chooseExperiment(signals) {
   const failureCount = signals.find((signal) => signal.id === 'failure')?.hits.length || 0;
   const blockerCount = signals.find((signal) => signal.id === 'blocker')?.hits.length || 0;
@@ -111,6 +121,15 @@ function chooseExperiment(signals) {
   }
 
   if (correctionCount > 0) {
+    if (correctionRouterShipped()) {
+      return {
+        title: 'Correction coverage check',
+        why: 'Felipe corrections are high-signal, and the local router already exists.',
+        next: 'Run `npm run lessons:corrections -- --format=json`; add a lesson or task only if it finds an uncovered correction.',
+        output: 'One routed correction summary, or no-op evidence that recent corrections are already covered.'
+      };
+    }
+
     return {
       title: 'Correction-to-lesson router',
       why: 'Felipe corrections are the strongest reward signal and should be promoted with a small, consistent path.',

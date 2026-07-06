@@ -29,9 +29,20 @@ const ROUTES = [
     id: 'correction-routing-loop',
     destination: 'Agent OS task candidate',
     status: 'covered',
-    patterns: [/\bcorrection-to-lesson-router-v0\b/i, /\bFelipe-correction signals?\b/i, /\bcorrection lesson router\b/i, /\bconsistent routing\b/i],
+    patterns: [/\bcorrection-to-lesson-router-v0\b/i, /\bFelipe-correction signals?\b/i, /\bcorrection lesson router\b/i, /\bcorrection router\b/i, /\bconsistent routing\b/i],
     coverage: [{ path: 'docs/TASKS.md', pattern: /correction-to-lesson-router-v0/i }],
     summary: 'Felipe correction signals need one routing pass before adding duplicate lessons.'
+  },
+  {
+    id: 'tool-call-approval-receipts-v0',
+    destination: 'Agent OS task candidate',
+    status: 'covered',
+    patterns: [/\btool-call approval receipts?\b/i, /\bapproval receipts?\b/i],
+    coverage: [
+      { path: 'docs/TASKS.md', pattern: /tool-call-approval-receipts-v0/i },
+      { path: 'docs/TOOL_CALL_APPROVAL_RECEIPTS.md', pattern: /agent-os\.tool-call-approval-receipt\.v0/i }
+    ],
+    summary: 'Approval-gated tool calls need exact local receipts before risky execution or resume.'
   },
   {
     id: 'qaa-positioning-coworker-workbench',
