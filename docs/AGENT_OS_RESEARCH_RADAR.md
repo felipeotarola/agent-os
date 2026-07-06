@@ -2,7 +2,43 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-06-30
+Last scan: 2026-07-06
+
+## 2026-07-06 - Approval resume freshness guard
+
+State: `implemented-local`
+
+High-signal pattern: approval-gated agents are not just "pause, approve, resume." Long-lived pending approvals need a freshness/version check before execution, because the approval can outlive the agent graph, tool policy, SDK version, context object, or safety classification that produced it.
+
+Sources reviewed in this pass:
+
+- OpenAI Agents SDK HITL docs: tool calls can pause as `interruptions`, resume from the same `RunState`, and nested `agent.asTool()` approvals surface on the outer run. The docs also call out pre-approval input guardrails, rerunning guardrails after approval, serialized state containing app context/runtime metadata, and versioning pending tasks when approval waits through agent/SDK changes.
+- AgenticOS @ SOSP 2026 workshop: the research agenda frames agent systems as long-running workloads that need OS-level primitives for isolation, scheduling, observability, provenance, debugging, long-lived state, and security around agent-invoked tools/data flows.
+
+Why this matters for Agent OS:
+
+- `tool-call-approval-receipts-v0` now records exact parameters and reviewer decision, but it does not yet say when a pending approval becomes stale or what must be revalidated before a resumed tool call executes.
+- The missing guard is small and local: every executable approval receipt should include a freshness envelope with `expiresAt`, `policyVersion`, `agentGraphVersion` or source commit, `toolSchemaVersion`, and `preApprovalGuardrailStatus`. If any of those drift before execution, the receipt should become `superseded` and a new approval item should be created instead of silently resuming.
+- This is more useful than another dashboard surface. It hardens the existing Inbox Radar approval model against delayed human review and code/policy drift.
+
+Safe internal build candidate:
+
+- Candidate state: `ready-small`.
+- Add a bridge-free task candidate: `approval-resume-freshness-guard-v0` in `docs/TASKS.md`.
+- V0 should extend docs and deterministic fixtures only. No real external sends, posts, deletes, purchases, credential changes, secret-bearing tool calls, live scheduler changes, or model/provider changes.
+
+Reference links:
+
+- https://openai.github.io/openai-agents-js/guides/human-in-the-loop/
+- https://os-for-agent.github.io/
+
+Implementation result: extended `docs/TOOL_CALL_APPROVAL_RECEIPTS.md` with a required freshness envelope for executable approval receipts and added deterministic readiness fixtures for fresh, missing-envelope, expired, and drifted-policy receipts.
+
+Verification:
+- `node --check scripts/self-improvement-readiness.mjs` passed.
+- `npm run check:self-improvement-readiness` passed, including `tool-call-approval-receipts-v0` with 8/8 cases passing.
+
+Guardrail: V0 remains docs and deterministic fixtures only. Stale approvals become `executionStatus: "superseded"` and require a fresh approval item instead of executing.
 
 ## 2026-07-05 - Tool-call approval receipts V0
 

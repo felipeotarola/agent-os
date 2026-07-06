@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `approval-resume-freshness-guard-v0`
+
+```json
+{
+  "id": "approval-resume-freshness-guard-v0",
+  "title": "Add approval resume freshness guard V0",
+  "description": "Prevent delayed approval receipts from executing after the agent graph, tool schema, policy, or safety context that produced them has drifted.\n\n## Acceptance criteria\n\n- Extend `docs/TOOL_CALL_APPROVAL_RECEIPTS.md` with a freshness envelope for executable receipts: `expiresAt`, `policyVersion`, `agentGraphVersion` or source commit, `toolSchemaVersion`, `preApprovalGuardrailStatus`, and `lastRevalidatedAt`.\n- Mark executable approval receipts invalid when the freshness envelope is missing, expired, or mismatched against the current local policy/schema version.\n- Add deterministic fixtures to `scripts/self-improvement-readiness.mjs` that accept a fresh approved receipt and reject stale, missing-version, and drifted-policy receipts.\n- Keep the Inbox Radar mapping unchanged; stale approvals become `executionStatus: \"superseded\"` and require a new approval item instead of silently resuming.\n- Verify with `npm run check:self-improvement-readiness` and record the result in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local docs/fixtures only for V0; no real external sends, posts, deletes, purchases, credential changes, secret-bearing tool calls, live scheduler changes, or model/provider changes.\n- Do not weaken the existing exact-parameter approval receipt requirements.\n- Do not create a separate approval dashboard unless repeated use proves Inbox Radar is insufficient.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-07-06 approval resume freshness guard research.\n- OpenAI Agents SDK HITL docs - paused runs can serialize and resume `RunState`, rerun input guardrails after approval, and require versioning logic for long-lived pending tasks.\n- AgenticOS @ SOSP 2026 - highlights long-lived state, provenance/debugging, isolation, scheduling, and security as OS-level primitives for agent workloads.",
+  "status": "done",
+  "priority": 69,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `memory-promotion-covered-candidate-suppression-v0`
 
 ```json

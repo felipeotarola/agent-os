@@ -218,6 +218,12 @@ export function classifyGitPushCredentialPolicy(scriptText) {
 
 export function classifyToolCallApprovalReceipt(receipt) {
   const value = receipt && typeof receipt === 'object' ? receipt : {};
+  const freshnessContext = {
+    now: new Date('2026-07-06T10:00:00.000Z'),
+    policyVersion: 'tool-call-policy.v0',
+    agentGraphVersion: 'agent-os-local.v0',
+    toolSchemaVersion: 'message-tool.v0'
+  };
   const hasSourceContext = Boolean(value.sourceRunId || value.sourceSessionKey);
   const parameters =
     value.parameters && typeof value.parameters === 'object' && !Array.isArray(value.parameters)
@@ -229,6 +235,33 @@ export function classifyToolCallApprovalReceipt(receipt) {
     value.editedParameters && typeof value.editedParameters === 'object' && !Array.isArray(value.editedParameters)
       ? value.editedParameters
       : null;
+  const freshnessEnvelope =
+    value.freshnessEnvelope && typeof value.freshnessEnvelope === 'object' && !Array.isArray(value.freshnessEnvelope)
+      ? value.freshnessEnvelope
+      : null;
+  const expiresAt = freshnessEnvelope ? new Date(String(freshnessEnvelope.expiresAt ?? '')) : null;
+  const lastRevalidatedAt =
+    freshnessEnvelope?.lastRevalidatedAt === null
+      ? null
+      : freshnessEnvelope?.lastRevalidatedAt
+        ? new Date(String(freshnessEnvelope.lastRevalidatedAt))
+        : undefined;
+  const freshnessChecks = {
+    hasFreshnessEnvelope: Boolean(freshnessEnvelope),
+    hasFutureExpiry: Boolean(expiresAt && !Number.isNaN(expiresAt.valueOf()) && expiresAt > freshnessContext.now),
+    matchesPolicyVersion: freshnessEnvelope?.policyVersion === freshnessContext.policyVersion,
+    matchesAgentGraphVersion: freshnessEnvelope?.agentGraphVersion === freshnessContext.agentGraphVersion,
+    matchesToolSchemaVersion: freshnessEnvelope?.toolSchemaVersion === freshnessContext.toolSchemaVersion,
+    preApprovalGuardrailPassed: freshnessEnvelope?.preApprovalGuardrailStatus === 'passed',
+    hasValidLastRevalidatedAt:
+      freshnessEnvelope?.lastRevalidatedAt === null ||
+      Boolean(lastRevalidatedAt && !Number.isNaN(lastRevalidatedAt.valueOf()))
+  };
+  const freshnessMissing = executableDecision
+    ? Object.entries(freshnessChecks)
+        .filter(([, passed]) => !passed)
+        .map(([key]) => key)
+    : [];
   const checks = {
     hasContract: value.contract === 'agent-os.tool-call-approval-receipt.v0',
     hasToolName: typeof value.toolName === 'string' && value.toolName.includes('.'),
@@ -243,9 +276,12 @@ export function classifyToolCallApprovalReceipt(receipt) {
     hasSourceContext,
     editedDecisionHasEditedParameters: value.reviewerDecision !== 'edited' || Boolean(editedParameters)
   };
-  const missing = Object.entries(checks)
-    .filter(([, passed]) => !passed)
-    .map(([key]) => key);
+  const missing = [
+    ...Object.entries(checks)
+      .filter(([, passed]) => !passed)
+      .map(([key]) => key),
+    ...freshnessMissing
+  ];
 
   if (missing.length > 0) {
     return {
@@ -325,6 +361,14 @@ spawn('git', ['push'], {
 }
 
 function assertToolCallApprovalReceipts() {
+  const freshEnvelope = {
+    expiresAt: '2026-07-06T10:15:00.000Z',
+    policyVersion: 'tool-call-policy.v0',
+    agentGraphVersion: 'agent-os-local.v0',
+    toolSchemaVersion: 'message-tool.v0',
+    preApprovalGuardrailStatus: 'passed',
+    lastRevalidatedAt: '2026-07-06T10:01:00.000Z'
+  };
   const exactPendingReceipt = {
     contract: 'agent-os.tool-call-approval-receipt.v0',
     sourceRunId: 'run_123',
@@ -339,6 +383,7 @@ function assertToolCallApprovalReceipts() {
     },
     parameterHash: 'sha256-demo-hash',
     reviewerDecision: 'pending',
+    freshnessEnvelope: freshEnvelope,
     executionStatus: 'not-executed'
   };
   const approvedReceipt = {
@@ -356,6 +401,24 @@ function assertToolCallApprovalReceipts() {
     ...exactPendingReceipt,
     reviewerDecision: 'edited',
     editedParameters: null
+  };
+  const approvedWithoutFreshness = {
+    ...approvedReceipt,
+    freshnessEnvelope: null
+  };
+  const approvedExpired = {
+    ...approvedReceipt,
+    freshnessEnvelope: {
+      ...freshEnvelope,
+      expiresAt: '2026-07-06T09:59:00.000Z'
+    }
+  };
+  const approvedPolicyDrift = {
+    ...approvedReceipt,
+    freshnessEnvelope: {
+      ...freshEnvelope,
+      policyVersion: 'tool-call-policy.old'
+    }
   };
   const docs = readOptional(resolve(repo, 'docs', 'TOOL_CALL_APPROVAL_RECEIPTS.md'));
 
@@ -379,6 +442,21 @@ function assertToolCallApprovalReceipts() {
       id: 'reject-edited-decision-without-edited-parameters',
       input: editedWithoutParameters,
       expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-approved-receipt-without-freshness-envelope',
+      input: approvedWithoutFreshness,
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-expired-approved-receipt',
+      input: approvedExpired,
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-policy-drift-approved-receipt',
+      input: approvedPolicyDrift,
+      expected: { status: 'reject', executable: false }
     }
   ];
 
@@ -395,6 +473,11 @@ function assertToolCallApprovalReceipts() {
     /parameterHash/,
     /reviewerDecision/,
     /executionStatus/,
+    /freshnessEnvelope/,
+    /policyVersion/,
+    /toolSchemaVersion/,
+    /preApprovalGuardrailStatus/,
+    /superseded/,
     /Vague approvals/
   ];
   const docPassed = docs.length > 0 && docPatterns.every((pattern) => pattern.test(docs));
