@@ -45,6 +45,20 @@ const ROUTES = [
     summary: 'Approval-gated tool calls need exact local receipts before risky execution or resume.'
   },
   {
+    id: 'optional-context-file-tolerance',
+    destination: 'LESSONS.md',
+    status: 'covered',
+    patterns: [
+      /\bmissing-current-memory-file\b/i,
+      /\bmissing.*daily memory file\b/i,
+      /\bcurrent daily memory file did not exist\b/i,
+      /\boptional memory\/docs\b/i,
+      /\bmissing or racing files\b/i
+    ],
+    coverage: [{ path: 'LESSONS.md', pattern: /Proactive learning loops must tolerate missing or racing files/i }],
+    summary: 'Optional memory/doc reads should degrade or create the current daily note instead of failing proactive loops.'
+  },
+  {
     id: 'qaa-positioning-coworker-workbench',
     destination: 'LESSONS.md',
     status: 'covered',
