@@ -552,6 +552,46 @@ Loose idea without acceptance criteria or verification.
   };
 }
 
+function assertFelipeCorrectionRegressionGuardCoverage() {
+  const tasks = readOptional(resolve(repo, 'docs', 'TASKS.md'));
+  const packageJson = readOptional(resolve(repo, 'package.json'));
+  const qaaGuard = readOptional(resolve(repo, 'scripts', 'qaa-positioning-guard.mjs'));
+  const radar = readOptional(resolve(repo, 'docs', 'AGENT_OS_RESEARCH_RADAR.md'));
+  const taskCoverage = classifyResearchTaskCoverage(tasks, 'felipe-correction-regression-guard');
+  const checks = {
+    taskIsScoped: taskCoverage.covered,
+    qaaGuardDefinesForbiddenFrames:
+      /agent-os-routing/.test(qaaGuard) &&
+      /qaa-as-agent-memory/.test(qaaGuard) &&
+      /generic-product-frame/.test(qaaGuard) &&
+      /old-ai-testing-enemy/.test(qaaGuard),
+    qaaGuardHasAllowedContrastFixtures:
+      /accept-coworker-workbench-positioning/.test(qaaGuard) &&
+      /accept-chatbot-as-contrast/.test(qaaGuard),
+    packageHasStandaloneCommand: /"check:qaa-positioning": "node scripts\/qaa-positioning-guard\.mjs"/.test(packageJson),
+    packageVerifyRunsGuard: /"verify": ".*npm run check:qaa-positioning/.test(packageJson),
+    radarRecordsImplementation:
+      /QAA\/Testbench positioning regression guard/.test(radar) &&
+      /State: `implemented-local`/.test(radar)
+  };
+  const missing = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+  const result = {
+    id: 'repo-felipe-correction-regression-guard-is-covered',
+    passed: missing.length === 0,
+    taskCoverage,
+    missing
+  };
+
+  return {
+    suite: 'felipe-correction-regression-guard-v0',
+    cases: 1,
+    failed: result.passed ? [] : [result.id],
+    results: [result]
+  };
+}
+
 function assertMemoryPromotionHygiene() {
   const fixtures = [
     {
@@ -702,6 +742,7 @@ const report = {
   toolCallApprovalReceipts: runFixtures ? assertToolCallApprovalReceipts() : undefined,
   memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
   researchTaskCoverage: runFixtures ? assertResearchTaskCoverage() : undefined,
+  felipeCorrectionRegressionGuardCoverage: runFixtures ? assertFelipeCorrectionRegressionGuardCoverage() : undefined,
   autonomyLanes: runFixtures ? assertAutonomyLanes() : undefined,
   cronToolPolicy: runFixtures ? assertCronToolPolicy() : undefined
 };
@@ -714,6 +755,7 @@ if (
   report.toolCallApprovalReceipts?.failed.length > 0 ||
   report.memoryPromotionHygiene?.failed.length > 0 ||
   report.researchTaskCoverage?.failed.length > 0 ||
+  report.felipeCorrectionRegressionGuardCoverage?.failed.length > 0 ||
   report.autonomyLanes?.failed.length > 0 ||
   report.cronToolPolicy?.failed.length > 0
 ) process.exit(1);
