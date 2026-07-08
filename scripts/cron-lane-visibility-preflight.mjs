@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(repoRoot, '..');
 const args = new Set(process.argv.slice(2));
+const wantsJson = args.has('--json') || args.has('--format=json');
 
 function readOptional(path) {
   if (!existsSync(path)) return '';
@@ -32,6 +34,31 @@ function latestDailyMemoryDate(memoryDir) {
 
 function extractLastScan(text) {
   return text.match(/^Last scan:\s*(.+)$/m)?.[1]?.trim() || null;
+}
+
+function currentResearchReport(repo) {
+  try {
+    const output = execFileSync(
+      process.execPath,
+      [join(repo, 'scripts', 'self-evolution-research-lane.mjs'), '--format=json'],
+      {
+        cwd: repo,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      }
+    );
+    return JSON.parse(output);
+  } catch {
+    return null;
+  }
+}
+
+function researchNoiseOutcome(candidate) {
+  if (!candidate) return 'blocked';
+  if (candidate.state === 'no-action') return 'no-action';
+  if (candidate.state === 'blocked') return 'blocked';
+  if (candidate.state === 'ready-large') return 'decision-needed';
+  return 'safe-action-done';
 }
 
 function hasLatestResult(row) {
@@ -67,6 +94,8 @@ function reportRows({ repo = repoRoot, workspace = workspaceRoot } = {}) {
   const tasks = readOptional(join(repo, 'docs', 'TASKS.md'));
   const latestMemory = latestDailyMemoryDate(join(workspace, 'memory'));
   const localBrief = heartbeat.localDailyBrief || {};
+  const research = currentResearchReport(repo);
+  const researchCandidate = research?.candidate || null;
 
   return classifyReportRows([
     {
@@ -97,14 +126,14 @@ function reportRows({ repo = repoRoot, workspace = workspaceRoot } = {}) {
       cronId: 'self-evolution-research',
       name: 'Self-Evolution Research Lane',
       laneType: 'research',
-      lastRunAt: extractLastScan(radar),
-      latestCandidateOrAction: /Cron lane visibility preflight/i.test(radar)
-        ? 'selected Cron lane visibility preflight and recorded local spec evidence'
+      lastRunAt: research?.generatedAt || extractLastScan(radar),
+      latestCandidateOrAction: researchCandidate
+        ? `${researchCandidate.title} (${researchCandidate.state})`
         : null,
-      noiseOutcome: 'safe-action-done',
+      noiseOutcome: researchNoiseOutcome(researchCandidate),
       verificationCommand: 'npm run self-evolution:research -- --format=json',
-      blocker: null,
-      source: 'docs/AGENT_OS_RESEARCH_RADAR.md'
+      blocker: researchCandidate?.state === 'blocked' ? researchCandidate.nextAction : null,
+      source: research ? 'scripts/self-evolution-research-lane.mjs' : 'docs/AGENT_OS_RESEARCH_RADAR.md'
     },
     {
       cronId: 'self-evolution-implementation',
@@ -200,7 +229,7 @@ function main() {
     fixtures: assertFixtures()
   };
 
-  if (args.has('--json')) {
+  if (wantsJson) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     for (const row of report.rows) {
