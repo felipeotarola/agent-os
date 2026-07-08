@@ -51,6 +51,7 @@ const ROUTES = [
     patterns: [
       /\bmissing-current-memory-file\b/i,
       /\bmissing.*daily memory file\b/i,
+      /\bmissing daily-memory-file\b/i,
       /\bcurrent daily memory file did not exist\b/i,
       /\boptional memory\/docs\b/i,
       /\bmissing or racing files\b/i
