@@ -27,6 +27,24 @@ Approval-gated inputs:
 
 - Gmail, Google Calendar, Drive, Slack, social notifications, device notifications, location, financial records, secrets, and any source requiring OAuth/account access.
 
+## Gmail / Calendar Approval Path
+
+Do not run these commands in unattended cron until Felipe has explicitly approved the source and account. After approval, keep the first pass read-only, bounded, and citation-friendly:
+
+```bash
+gog auth list
+gog gmail search 'in:inbox newer_than:2d' --max 10 --json --no-input
+gog calendar events primary --from <start-iso> --to <end-iso> --json --no-input
+```
+
+Daily-brief use should summarize only:
+
+- urgent unread threads or direct asks that need attention
+- calendar events in the next 24-48 hours
+- degraded setup state, such as missing Calendar scopes
+
+Do not include raw message bodies, full attendee lists, contact details, attachments, tokens, or private calendar descriptions in the brief state. Mail sends, drafts, replies, calendar creates, RSVPs, event updates, Drive reads, and contact reads remain separate approval-gated actions.
+
 ## Template
 
 Generate a local draft with:
