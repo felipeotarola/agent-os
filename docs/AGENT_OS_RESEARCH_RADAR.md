@@ -2,7 +2,27 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-07-06
+Last scan: 2026-07-09
+
+## 2026-07-09 - Cron preflight live research freshness
+
+State: `shipped`
+
+High-signal pattern: autonomous lane visibility checks must read the live underlying lane output, not stale docs or cached assumptions. The cron preflight briefly reported `Cron lane visibility preflight` as the self-evolution research candidate even while `npm run self-evolution:research -- --format=json` returned `No self-evolution candidate`.
+
+Why this matters for Agent OS:
+
+- The research lane noise rule depends on exact candidate state. A stale preflight can make a quiet `no-action` lane look actionable or make a real candidate invisible.
+- The fix is small and local: `scripts/cron-lane-visibility-preflight.mjs` now honors `--format=json` and shells directly into `scripts/self-evolution-research-lane.mjs --format=json` when building the research row.
+- This is more useful than a new dashboard surface because it hardens the existing preflight contract: every lane row must name fresh evidence, a verification command, and a blocker only when one actually exists.
+
+Verification:
+
+- `npm run check:cron-lane-visibility -- --format=json` now reports Self-Evolution Research Lane as `No self-evolution candidate (no-action)` with source `scripts/self-evolution-research-lane.mjs`.
+- `npm run self-evolution:research -- --format=json` returns `No self-evolution candidate` with state `no-action`.
+- 2026-07-08 daily memory records the original drift, fix, and verification set.
+
+Next action: no implementation follow-up. Keep this as shipped evidence; only reopen if preflight rows again diverge from their underlying lane commands.
 
 ## 2026-07-06 - Approval resume freshness guard
 
