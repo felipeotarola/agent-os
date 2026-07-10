@@ -1,6 +1,9 @@
 # Exclude cleanup/reference files from Vercel build
 __CLEANUP__
 
+# Local video prototypes are self-contained and not part of the Next app build.
+remotion/
+
 # Never upload local secrets/env via Vercel CLI deploys.
 .env
 .env.*
