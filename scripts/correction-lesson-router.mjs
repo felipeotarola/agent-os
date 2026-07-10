@@ -101,6 +101,14 @@ function relativePath(path) {
 }
 
 function isCorrectionLine(line) {
+  if ([
+    /\blessons:corrections\b/i,
+    /\brouted recent correction signals?\b/i,
+    /\bcorrection-like signals?\b/i
+  ].some((pattern) => pattern.test(line))) {
+    return false;
+  }
+
   return [
     /\bFelipe (asked|said|pointed out|corrected|clarified|chose|prefers|wants)\b/i,
     /\bcorrection\b/i,
