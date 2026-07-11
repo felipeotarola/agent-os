@@ -104,7 +104,9 @@ function isCorrectionLine(line) {
   if ([
     /\blessons:corrections\b/i,
     /\brouted recent correction signals?\b/i,
-    /\bcorrection-like signals?\b/i
+    /\bcorrection-like signals?\b/i,
+    /^Reviewed\b/i,
+    /^Saved one durable lesson\b/i
   ].some((pattern) => pattern.test(line))) {
     return false;
   }
