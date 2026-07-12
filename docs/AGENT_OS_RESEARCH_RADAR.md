@@ -1,5 +1,11 @@
 # Agent OS Research Radar
 
+## 2026-07-12 - Cron-safe review preflight
+
+Implemented `scripts/cron-review-preflight.mjs` and `npm run check:cron-review-preflight` as one deterministic decision point for isolated review/learning jobs. Missing optional files now produce `continue-with-partial-evidence`; a synced branch skips push; an ahead branch permits push; and a failed push preserves the local result as `local-ready-push-blocked` with blocker `git-push`.
+
+Verification: `node --check scripts/cron-review-preflight.mjs` and `npm run check:cron-review-preflight -- --optional=/tmp/intentionally-missing-cron-evidence` pass four fixtures. The check is wired into `npm run verify` and performs no external action.
+
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
 Last scan: 2026-07-09

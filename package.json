@@ -40,10 +40,11 @@
     "check:cron-tool-policy": "node scripts/cron-tool-policy-preflight.mjs",
     "check:cron-lane-visibility": "node scripts/cron-lane-visibility-preflight.mjs",
     "check:repo-review-preflight": "node scripts/repo-review-preflight.mjs",
+    "check:cron-review-preflight": "node scripts/cron-review-preflight.mjs",
     "git:push": "node scripts/git-push-agent-os-token.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run check:runtime-mocks && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
+    "verify": "npm run check:runtime-mocks && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
     "evals:agent": "node scripts/agent-evals.mjs"
   },
   "dependencies": {
