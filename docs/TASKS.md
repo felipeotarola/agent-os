@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `qaa-sbab-demo-security-gate`
+
+```json
+{
+  "id": "qaa-sbab-demo-security-gate",
+  "title": "Verify and close QAA data-isolation gaps before SBAB demo",
+  "description": "Treat QAA data isolation as the first release gate before the planned August SBAB demo. The repository currently contains Supabase RLS policies that allow anonymous global reads and, for several QA workspace/API tables, anonymous writes. Verify the deployed policy state before changing it, then replace permissive access with explicit project/tenant membership and controlled public-report server routes.\n\n## Acceptance criteria\n\n- Inventory the effective deployed RLS policies for projects, test cases/results/defects, workspace context/test data/retests/agent notes, API testing, evidence, and Work Board tables without printing secrets or customer data.\n- Add a regression test proving anonymous clients cannot read or mutate private-project records and authenticated users cannot cross project/tenant boundaries.\n- Keep explicitly public QA reports available only through scoped server routes or narrowly defined public policies.\n- Verify agent-token flows still enforce project scope, expiry, revocation, and audit logging.\n- Record the verification commands and outcome before declaring QAA demo-ready.\n\n## Guardrails\n\n- Do not change the live database, secrets, production auth, or public sharing behavior without Felipe's explicit approval.\n- Use synthetic fixtures only; no SBAB or customer data.\n- Preserve a rollback path for every policy migration.\n\n## Evidence\n\n- `QAA/supabase/migrations/202606160001_create_qa_tables.sql` - anonymous global reads for core QA tables.\n- `QAA/supabase/migrations/202606160002_create_qa_projects.sql` - anonymous project reads and inserts.\n- `QAA/supabase/migrations/202606220003_create_qa_workspace.sql` - anonymous reads/writes for workspace context, test data, retests, and agent notes.\n- `QAA/supabase/migrations/202606230001_create_qa_api_testing.sql` - anonymous reads/writes for API testing tables and evidence inserts.\n- Read-only Sladdis/QAA review on 2026-07-13; live app worked, lint passed, and unit tests passed 17/17.",
+  "status": "backlog",
+  "priority": 90,
+  "ownerAgentId": "cai",
+  "source": "proactive",
+  "dueAt": null
+}
+```
+
 ### `approval-resume-freshness-guard-v0`
 
 ```json
