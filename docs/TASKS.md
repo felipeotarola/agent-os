@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `delegated-operation-handle-v0`
+
+```json
+{
+  "id": "delegated-operation-handle-v0",
+  "title": "Define durable delegated-operation handles V0",
+  "description": "Keep long-running external or delegated tool work attached to its Agent OS source task, approval, and Radar item through a connector-neutral operation handle.\n\n## Acceptance criteria\n\n- Define a local handle shape with source connector, remote task ID, source task/run/approval IDs, `working|input_required|completed|failed|cancelled` status, created/updated timestamps, TTL/poll hint, result or error reference, and a non-secret authorization-context reference.\n- Keep observation separate from mutation: status reads are pure/retryable; input responses and cancellation are explicit writes. Do not mark a handle created until its status can be read.\n- Map `input_required` to exactly one existing Inbox Radar item per stable input-request key, deduplicating repeated polls and responses. Do not add a new dashboard page.\n- Represent cancellation as `cancellation-requested` locally until a subsequent status read observes terminal `cancelled`; an acknowledgement alone is not completion.\n- Add deterministic fixtures for immediate result versus async handle, repeated input-request deduplication, expired handle, cancellation acknowledgement before observed cancellation, and authorization-context mismatch.\n- Record verification in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Docs and local deterministic fixtures only for V0; no live MCP calls, polling service, external writes, secrets, scheduler changes, or provider-specific dependency.\n- Store references and safe metadata, never credentials or raw sensitive result payloads.\n- Treat the current MCP Tasks wire shape as incubating; preserve a connector-neutral Agent OS contract.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-07-13 durable delegated-operation handle research.\n- MCP SEP-2663 Tasks Extension - durable task state, stable input-request keys, pure `tasks/get`, explicit `tasks/update`, ack-only cancellation, and durable creation requirement.\n- LangGraph interrupts docs - resumed nodes rerun from the start, so pre-interrupt side effects must be idempotent or isolated.",
+  "status": "backlog",
+  "priority": 74,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `qaa-sbab-demo-security-gate`
 
 ```json

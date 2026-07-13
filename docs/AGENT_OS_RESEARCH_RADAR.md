@@ -1,14 +1,39 @@
 # Agent OS Research Radar
 
+Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
+
+Last scan: 2026-07-13
+
+## 2026-07-13 - Durable delegated-operation handles
+
+State: `ready-small`
+
+High-signal pattern: a long-running tool call should be acknowledged with a durable, inspectable operation handle before the caller treats it as started. The new MCP Tasks extension makes that handle a small state machine rather than an opaque session: `working`, `input_required`, `completed`, `failed`, or `cancelled`, with TTL/poll hints, result/error, explicit update and cancellation calls, and stable keys for outstanding input requests.
+
+Why this matters for Agent OS:
+
+- Agent OS can display tasks, sessions, and handoffs, but it has no connector-neutral receipt for an external or delegated operation that may finish immediately or return an asynchronous handle. A provider-specific job can therefore become detached from its originating task, approval, or Radar item.
+- `input_required` is the important cockpit state. It should create exactly one Inbox Radar item per stable input-request key; repeated polls must not nag Felipe or submit the same response twice.
+- Cancellation is a request, not proof of termination. The MCP extension deliberately makes `tasks/cancel` acknowledgement eventually consistent; Agent OS should show `cancellation-requested` until a later read observes `cancelled`.
+- The protocol split is useful locally even without an MCP integration: reads remain pure and retryable, while input responses and cancellation are explicit writes. A handle is not considered created until its read endpoint can resolve it.
+
+Safe internal build candidate:
+
+- Add bridge-free task candidate `delegated-operation-handle-v0` to `docs/TASKS.md`.
+- V0 is a local contract and deterministic fixtures only. Map remote handles into existing task events and Inbox Radar instead of adding another dashboard page or polling service.
+
+Sources reviewed:
+
+- https://modelcontextprotocol.io/seps/2663-tasks-extension
+- https://docs.langchain.com/oss/python/langgraph/interrupts
+
+Note: SEP-2663 is Final on the MCP Extensions track, but the Tasks extension is still an incubating extension rather than stable core protocol. Build the internal invariant, not a hard dependency on the current wire shape.
+
 ## 2026-07-12 - Cron-safe review preflight
 
 Implemented `scripts/cron-review-preflight.mjs` and `npm run check:cron-review-preflight` as one deterministic decision point for isolated review/learning jobs. Missing optional files now produce `continue-with-partial-evidence`; a synced branch skips push; an ahead branch permits push; and a failed push preserves the local result as `local-ready-push-blocked` with blocker `git-push`.
 
 Verification: `node --check scripts/cron-review-preflight.mjs` and `npm run check:cron-review-preflight -- --optional=/tmp/intentionally-missing-cron-evidence` pass four fixtures. The check is wired into `npm run verify` and performs no external action.
-
-Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
-
-Last scan: 2026-07-09
 
 ## 2026-07-09 - Cron preflight live research freshness
 
