@@ -38,7 +38,17 @@ function databaseSource() {
 const dbSource = databaseSource();
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const bridgeVersion = String(packageJson.version ?? 'unknown');
-const OPENCLAW_CLI = '/usr/lib/node_modules/openclaw/dist/entry.js';
+const OPENCLAW_CLI_CANDIDATES = [
+  process.env.OPENCLAW_CLI_PATH,
+  '/usr/lib/node_modules/openclaw/dist/index.js',
+  '/usr/lib/node_modules/openclaw/dist/entry.js'
+].filter(Boolean);
+const OPENCLAW_CLI = OPENCLAW_CLI_CANDIDATES.find((candidate) => existsSync(candidate));
+if (!OPENCLAW_CLI) {
+  throw new Error(
+    `OpenClaw CLI not found. Checked: ${OPENCLAW_CLI_CANDIDATES.join(', ')}. Set OPENCLAW_CLI_PATH explicitly.`
+  );
+}
 const GOG_CLI = process.env.GOG_CLI ?? 'gog';
 const GMAIL_ACCOUNT = process.env.AGENT_OS_GMAIL_ACCOUNT ?? 'feot1000@gmail.com';
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH ?? '/root/.openclaw/openclaw.json';
@@ -136,6 +146,23 @@ function configuredAgents() {
   }
 }
 
+async function openclawAgentsSnapshot() {
+  try {
+    const agents = await cachedRuntimeValue('openclaw-agents', 5000, () =>
+      openclawJson(['agents', 'list', '--json'], { timeout: 12000 })
+    );
+    if (!Array.isArray(agents))
+      throw new Error('OpenClaw agents list returned a non-array payload');
+    return { agents, source: 'openclaw-cli:agents-list', error: null };
+  } catch (error) {
+    return {
+      agents: configuredAgents(),
+      source: 'bridge:AGENT_OS_AGENTS_JSON:fallback',
+      error: error.message
+    };
+  }
+}
+
 async function taskOwnerAgents() {
   return await sql`
     select id, name, role, status
@@ -185,12 +212,21 @@ async function ensureTaskOwnerAgent(ownerAgentId) {
 }
 
 async function openclawJson(args, options = {}) {
-  const { stdout } = await execFileAsync('node', [OPENCLAW_CLI, ...args], {
-    timeout: options.timeout ?? 20000,
-    maxBuffer: 1024 * 1024 * 4,
-    env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
-  });
-  return JSON.parse(stdout);
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { stdout } = await execFileAsync('node', [OPENCLAW_CLI, ...args], {
+        timeout: options.timeout ?? 20000,
+        maxBuffer: 1024 * 1024 * 4,
+        env: { ...process.env, NO_COLOR: '1', PATH: `/app/bridge/bin:${process.env.PATH ?? ''}` }
+      });
+      return JSON.parse(stdout);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+  throw lastError;
 }
 
 async function openclawText(args, options = {}) {
@@ -1265,13 +1301,16 @@ async function assistantReadinessFiles() {
 
 async function systemStatus() {
   const checkedAt = new Date().toISOString();
-  const [dbResult, knowledgeResult, memory, openclaw, subagents] = await Promise.allSettled([
-    sql`select 1 as ok, now() as now`,
-    sql`select status, count(*)::int as count from knowledge_sources group by status`,
-    memoryStatus(),
-    openclawStatus(),
-    subagentRunsSnapshot()
-  ]);
+  const [dbResult, knowledgeResult, memory, openclaw, subagents, agents] = await Promise.allSettled(
+    [
+      sql`select 1 as ok, now() as now`,
+      sql`select status, count(*)::int as count from knowledge_sources group by status`,
+      memoryStatus(),
+      openclawStatus(),
+      subagentRunsSnapshot(),
+      openclawAgentsSnapshot()
+    ]
+  );
 
   const dbRows = dbResult.status === 'fulfilled' ? dbResult.value : [];
   const knowledgeRows = knowledgeResult.status === 'fulfilled' ? knowledgeResult.value : [];
@@ -1305,6 +1344,14 @@ async function systemStatus() {
           error: subagents.reason?.message ?? 'subagent snapshot failed',
           checkedAt
         };
+  const agentsValue =
+    agents.status === 'fulfilled'
+      ? agents.value
+      : {
+          agents: configuredAgents(),
+          source: 'bridge:AGENT_OS_AGENTS_JSON:fallback',
+          error: agents.reason?.message ?? 'OpenClaw agent inventory failed'
+        };
 
   if (dbResult.status === 'rejected') {
     console.error('System status DB check failed', dbResult.reason);
@@ -1324,7 +1371,13 @@ async function systemStatus() {
   const memoryAgents = Array.isArray(memoryValue.status) ? memoryValue.status : [];
   const dbOnline = dbRows[0]?.ok === 1;
   return {
-    ok: Boolean(dbOnline && openclawValue.available && !memoryValue.error && subagentValue.ok),
+    ok: Boolean(
+      dbOnline &&
+      openclawValue.available &&
+      !memoryValue.error &&
+      subagentValue.ok &&
+      !agentsValue.error
+    ),
     contract: 'agent-os.bridge.status.v1',
     bridge: {
       status: 'online',
@@ -1339,7 +1392,11 @@ async function systemStatus() {
       error: dbResult.status === 'rejected' ? dbResult.reason?.message : null
     },
     openclaw: openclawValue,
-    agents: { count: configuredAgents().length, source: 'bridge:AGENT_OS_AGENTS_JSON' },
+    agents: {
+      count: agentsValue.agents.length,
+      source: agentsValue.source,
+      error: agentsValue.error
+    },
     knowledge: {
       raw: knowledgeCounts.raw ?? 0,
       queued: knowledgeCounts.queued ?? 0,
@@ -2409,7 +2466,8 @@ async function taskDispatchSummary() {
     order by t.priority desc, t.updated_at asc, t.position asc
     limit 50
   `;
-  const agentsById = new Map(configuredAgents().map((agent) => [agent.id, agent]));
+  const agentSnapshot = await openclawAgentsSnapshot();
+  const agentsById = new Map(agentSnapshot.agents.map((agent) => [agent.id, agent]));
   const tasks = rows.map(mapTask).filter((task) => {
     if (!actionableStatuses.includes(task.status)) return false;
     if (task.status !== 'waiting' || !task.dueDate) return true;
@@ -5335,11 +5393,12 @@ async function runCommand(url) {
     };
   }
   if (command === 'agents-list') {
+    const snapshot = await openclawAgentsSnapshot();
     return {
       command,
       startedAt,
       finishedAt: new Date().toISOString(),
-      result: { agents: configuredAgents() }
+      result: snapshot
     };
   }
   if (command === 'memory-status') {
@@ -6904,7 +6963,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/agents') {
-      return send(res, 200, { agents: configuredAgents(), source: 'bridge:AGENT_OS_AGENTS_JSON' });
+      return send(res, 200, await openclawAgentsSnapshot());
     }
 
     if (req.method === 'GET' && url.pathname === '/task-owner-agents') {

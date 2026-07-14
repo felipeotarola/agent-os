@@ -26,6 +26,7 @@ services:
     volumes:
       - ./:/app:ro
       - /root/.openclaw:/root/.openclaw:ro
+      - /root/.openclaw/state:/root/.openclaw/state:rw
       - /root/.openclaw/secrets/agent-os:/root/.openclaw/secrets/agent-os:rw
       - /root/.openclaw/identity:/root/.openclaw/identity:rw
       - /root/.openclaw/agents/main/sessions:/root/.openclaw/agents/main/sessions:rw

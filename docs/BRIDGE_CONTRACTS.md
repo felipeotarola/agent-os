@@ -24,7 +24,7 @@ Contract: `agent-os.bridge.status.v1`. This endpoint is backwards-compatible wit
     "source": "openclaw-cli:version",
     "error": null
   },
-  "agents": { "count": 3, "source": "bridge:AGENT_OS_AGENTS_JSON" },
+  "agents": { "count": 5, "source": "openclaw-cli:agents-list", "error": null },
   "knowledge": {
     "raw": 0,
     "queued": 0,
@@ -64,6 +64,15 @@ Contract: `agent-os.bridge.status.v1`. This endpoint is backwards-compatible wit
 ```
 
 `lastSync.knowledgeUpdatedAt` is explicit `null` until the bridge has a reliable knowledge sync timestamp. Errors are returned as strings without secrets/tokens.
+
+The bridge discovers the installed OpenClaw CLI from `OPENCLAW_CLI_PATH`, then the current
+`dist/index.js`, with legacy `dist/entry.js` as a compatibility fallback. Agent inventory comes
+from `openclaw agents list --json`; `AGENT_OS_AGENTS_JSON` is used only as an explicit degraded
+fallback and is labelled as such in `source`.
+
+The bridge container mounts the OpenClaw home read-only, with a narrow read-write exception for
+`/root/.openclaw/state`. Current OpenClaw CLI reads update health state, so this exception is
+required for runtime inspection without granting write access to the full OpenClaw home.
 
 ## `GET /system/subagents`
 
