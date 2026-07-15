@@ -106,6 +106,9 @@ export async function getActionCenterSnapshot(): Promise<ActionCenterSnapshot> {
   }
 
   for (const source of knowledge.sources) {
+    const controlPlaneException = source.metadata?.reviewRequired === true;
+    const legacyReview = !source.metadata?.memoryRoute;
+    if (!controlPlaneException && !legacyReview) continue;
     if (!['raw', 'extracted', 'wikified', 'reviewed'].includes(source.status)) continue;
     const label =
       source.status === 'raw'

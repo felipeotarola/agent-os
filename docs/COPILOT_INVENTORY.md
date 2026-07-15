@@ -1,5 +1,9 @@
 # Copilot / Agent OS Inventory
 
+> Memory architecture update: Knowledge is now a narrow Knowledge Studio. Session signals are
+> classified by the deterministic memory control plane; only exceptions require human review.
+> See `docs/MEMORY_CONTROL_PLANE.md`. Existing lifecycle endpoints remain compatible.
+
 Date: 2026-05-18
 
 ## What exists now

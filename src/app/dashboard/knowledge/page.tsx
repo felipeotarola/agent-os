@@ -319,19 +319,22 @@ function SourceActions({ source }: { source: KnowledgeSource }) {
 }
 
 function ReviewQueue({ sources }: { sources: KnowledgeSource[] }) {
-  const reviewable = sources.filter((source) =>
-    ['raw', 'extracted', 'wikified', 'reviewed'].includes(normalizeStatus(source.status))
-  );
+  const reviewable = sources.filter((source) => {
+    if (!['raw', 'extracted', 'wikified', 'reviewed'].includes(normalizeStatus(source.status)))
+      return false;
+    if (!source.metadata?.memoryRoute) return true;
+    return source.metadata.reviewRequired === true;
+  });
 
   return (
     <Card>
       <CardHeader>
         <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
           <div>
-            <CardTitle>Review queue</CardTitle>
+            <CardTitle>Exception review</CardTitle>
             <CardDescription>
-              Snabb triage: behåll, wikifiera, reviewa, promotera eller arkivera. Permanent delete
-              ligger fortfarande separat.
+              Manuell triage för knowledge-källor och legacy-poster. Agentminne routas automatiskt;
+              endast känsliga, motsägande eller osäkra minnessignaler ska hamna här.
             </CardDescription>
           </div>
           <Badge variant='outline'>{reviewable.length} pending</Badge>
@@ -581,8 +584,8 @@ function KnowledgeRightRail({
         <CardHeader>
           <CardTitle>Agent session harvester</CardTitle>
           <CardDescription>
-            Importerar långa/högsignal-sessioner från Cai, Charles och Sladdis som reviewbara
-            Knowledge-källor. Inget promoteras automatiskt.
+            Importerar högsignal-sessioner från det dynamiska agentregistret. Kontrollplanet
+            klassificerar signaler automatiskt och skickar endast undantag till review.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -616,11 +619,12 @@ function KnowledgeRightRail({
               </div>
             </div>
             <div className='text-muted-foreground text-xs leading-5'>
-              Skapar status <code>extracted</code> med rå transcript-excerpt och separata reviewbara
-              decision/TODO/preference-items. Review/Wikify/Promote görs separat.
+              Sessionspår och extraherade signaler stannar som källmaterial; full råtranscript
+              lagras inte som standard. Säkra signaler skrivs idempotent till daily memory,
+              MEMORY.md, lesson candidates eller Tasks; wiki stannar här och brus arkiveras.
             </div>
             <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Skördar...'>
-              Harvest sessions to inbox
+              Run memory control plane
             </SubmitButton>
           </form>
           <Button asChild variant='outline' className='mt-3 w-full'>
@@ -634,9 +638,8 @@ function KnowledgeRightRail({
         <CardHeader>
           <CardTitle>Memory harvester</CardTitle>
           <CardDescription>
-            Speglar MEMORY.md, daily notes, DREAMS och dreaming/short-term recall till Knowledge
-            Inbox som reviewbara källor. Det här är varför minnen inte alltid syntes här tidigare:
-            QMD-memory och Knowledge DB är separata lager.
+            Speglar minnesfiler till Knowledge Studio för audit, källspårning och vault-export.
+            QMD/OpenClaw förblir recall-lagret; den här vyn är inte promotionvägen.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -653,8 +656,8 @@ function KnowledgeRightRail({
               />
             </div>
             <div className='text-muted-foreground text-xs leading-5'>
-              Importerar balanserat per agent som <code>extracted</code>; inget blir
-              promoted/context-ready utan review.
+              Importerar balanserat per agent som <code>extracted</code> utan att ändra agentens
+              minnesfiler.
             </div>
             <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Synkar...'>
               Sync memory to Knowledge
@@ -758,10 +761,10 @@ export default async function KnowledgePage({
             <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
               cockpit · context governance · OpenClaw runtime
             </Badge>
-            <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Knowledge inbox</h1>
+            <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Knowledge Studio</h1>
             <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
-              Följ varje källa från rå input till granskad context-kandidat. Agent OS visar och styr
-              livscykeln; OpenClaw kör arbetet.
+              Källor, dokument, research, sessionsutdrag och wiki. Agentminne hanteras automatiskt
+              av kontrollplanet; den här sidan är drill-down och undantagsgranskning.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>

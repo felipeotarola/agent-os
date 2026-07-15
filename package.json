@@ -6,6 +6,9 @@
     "name": "Agent OS"
   },
   "scripts": {
+    "check:memory-control-plane": "node scripts/memory-control-plane-contract.mjs",
+    "check:memory-control-plane-runner": "node scripts/memory-control-plane-runner-contract.mjs",
+    "memory:control-plane": "node scripts/run-memory-control-plane.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -44,7 +47,7 @@
     "git:push": "node scripts/git-push-agent-os-token.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run check:runtime-mocks && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
+    "verify": "npm run check:runtime-mocks && npm run check:memory-control-plane && npm run check:memory-control-plane-runner && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
     "evals:agent": "node scripts/agent-evals.mjs"
   },
   "dependencies": {

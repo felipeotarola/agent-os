@@ -8,6 +8,12 @@ import { promisify } from 'node:util';
 import { put } from '@vercel/blob';
 import { handleUpload } from '@vercel/blob/client';
 import postgres from 'postgres';
+import {
+  classifyMemorySignal,
+  materializeMemoryFileRoute,
+  previewMemoryRoute,
+  routedKnowledgeStatus
+} from './memory-control-plane.mjs';
 
 const port = Number(process.env.BRIDGE_PORT ?? 8787);
 const token = process.env.AGENT_OS_BRIDGE_TOKEN;
@@ -965,12 +971,47 @@ async function harvestSessionKnowledge(input = {}) {
   const limit = Math.min(Number(input.limit ?? 5), 20);
   const minScore = Number(input.minScore ?? 35);
   const signalsPerSession = Math.min(Number(input.signalsPerSession ?? 8), 12);
+  const includeRawTranscript = Boolean(input.includeRawTranscript);
   const dryRun = Boolean(input.dryRun);
   const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
   const selected = inventory.candidates
     .filter((candidate) => !candidate.alreadyImported)
     .slice(0, limit);
   const imported = [];
+  const preview = [];
+
+  if (dryRun) {
+    for (const candidate of selected) {
+      const text = readTextSlice(candidate.path, 90000);
+      const signals = extractSessionDecisionItems(
+        candidate.agentId,
+        candidate.path,
+        text,
+        signalsPerSession
+      );
+      preview.push({
+        title: candidate.title,
+        agentId: candidate.agentId,
+        score: candidate.score,
+        sourceUrl: candidate.sourceUrl,
+        signals: signals.map((signal) => {
+          const plan = previewMemoryRoute(signal);
+          return {
+            hash: signal.hash,
+            title: signal.title,
+            type: signal.type,
+            priority: signal.priority,
+            route: plan.route,
+            confidence: plan.confidence,
+            reviewRequired: plan.reviewRequired,
+            exceptionReasons: plan.exceptionReasons,
+            status: plan.status,
+            materialization: plan.materialization
+          };
+        })
+      });
+    }
+  }
 
   if (!dryRun) {
     for (const candidate of selected) {
@@ -997,8 +1038,10 @@ async function harvestSessionKnowledge(input = {}) {
           ? signals.map((signal) => `- [${signal.priority}/${signal.type}] ${signal.summary}`)
           : ['- No high-confidence durable decision/action items extracted deterministically.']),
         '',
-        '## Raw transcript excerpt',
-        text.slice(0, 60000)
+        '## Raw transcript',
+        includeRawTranscript
+          ? text.slice(0, 60000)
+          : 'Raw transcript storage is disabled by default. The source path and extracted signals preserve audit lineage.'
       ].join('\n');
       const slug = slugify(candidate.title) || crypto.randomUUID();
       const rawPath = `knowledge/sessions/${new Date().toISOString().slice(0, 10)}-${slug}.md`;
@@ -1019,15 +1062,46 @@ async function harvestSessionKnowledge(input = {}) {
         if (exists.length) continue;
 
         const signalRawPath = `knowledge/sessions/signals/${new Date().toISOString().slice(0, 10)}-${signal.hash}.md`;
+        const classification = classifyMemorySignal(signal);
+        const routedStatus = routedKnowledgeStatus(classification);
+        const fileMaterialization = materializeMemoryFileRoute({
+          workspace: agentWorkspaceDir(candidate.agentId),
+          signal,
+          classification,
+          provenanceId: signal.hash,
+          dryRun
+        });
+        let taskMaterialization = { outcome: 'not-task-route', taskId: null };
+        if (classification.route === 'task' && !classification.reviewRequired) {
+          const taskSource = `memory-control-plane:${signal.hash}`;
+          const existingTask = await sql`
+            select id from tasks where source = ${taskSource} limit 1
+          `;
+          if (existingTask.length) {
+            taskMaterialization = { outcome: 'duplicate', taskId: existingTask[0].id };
+          } else {
+            const taskId = crypto.randomUUID();
+            const ownerRows = await sql`select id from agents where id = ${candidate.agentId} limit 1`;
+            const ownerAgentId = ownerRows[0]?.id ?? null;
+            await sql`
+              insert into tasks (id, title, description, status, priority, owner_agent_id, source)
+              values (${taskId}, ${signal.summary.slice(0, 140)}, ${`Automatically routed from ${candidate.sourceUrl}; provenance ${signal.hash}; originating agent ${candidate.agentId}`}, 'todo', ${signal.priority === 'high' ? 80 : 50}, ${ownerAgentId}, ${taskSource})
+            `;
+            taskMaterialization = { outcome: 'created', taskId };
+          }
+        }
         await sql`
           insert into knowledge_sources (id, title, kind, status, source_url, raw_content, raw_path, summary, metadata)
-          values (${signal.id}, ${signal.title}, ${signal.type}, 'extracted', ${sourceUrl}, ${signal.rawContent}, ${signalRawPath}, ${signal.summary}, ${sql.json({ createdFrom: 'session-decision-extractor', parentSourceId: id, agentId: candidate.agentId, sessionPath: candidate.path, sessionSourceUrl: candidate.sourceUrl, signalHash: signal.hash, signalType: signal.type, priority: signal.priority, harvestedAt: new Date().toISOString() })})
+          values (${signal.id}, ${signal.title}, ${signal.type}, ${routedStatus}, ${sourceUrl}, ${signal.rawContent}, ${signalRawPath}, ${signal.summary}, ${sql.json({ createdFrom: 'memory-control-plane', compatibilitySource: 'session-decision-extractor', parentSourceId: id, agentId: candidate.agentId, sessionPath: candidate.path, sessionSourceUrl: candidate.sourceUrl, signalHash: signal.hash, signalType: signal.type, priority: signal.priority, memoryRoute: classification.route, routeConfidence: classification.confidence, routeReasons: classification.reasons, reviewRequired: classification.reviewRequired, exceptionReasons: classification.exceptionReasons, materialization: { file: fileMaterialization, task: taskMaterialization }, routedAt: new Date().toISOString(), harvestedAt: new Date().toISOString() })})
         `;
         importedSignals.push({
           id: signal.id,
           title: signal.title,
           type: signal.type,
           priority: signal.priority,
+          route: classification.route,
+          reviewRequired: classification.reviewRequired,
+          materialization: { file: fileMaterialization, task: taskMaterialization },
           rawPath: signalRawPath
         });
       }
@@ -1043,17 +1117,21 @@ async function harvestSessionKnowledge(input = {}) {
     }
   }
 
-  await auditEvent(
-    'session_harvest',
-    `Session harvester ${dryRun ? 'previewed' : 'imported'} ${dryRun ? selected.length : imported.length} session sources`,
-    { dryRun, minScore, limit, signalsPerSession, imported },
-    5
-  );
+  if (!dryRun) {
+    await auditEvent(
+      'session_harvest',
+      `Session harvester imported ${imported.length} session sources`,
+      { dryRun, minScore, limit, signalsPerSession, includeRawTranscript, imported },
+      5
+    );
+  }
   return {
     contract: 'agent-os.session-knowledge-harvest.v1',
     generatedAt: new Date().toISOString(),
     dryRun,
+    includeRawTranscript,
     selected,
+    preview,
     imported
   };
 }
@@ -6582,7 +6660,7 @@ function buildVaultSnapshot(sources) {
 async function knowledgeSnapshot() {
   const [sources, counts] = await Promise.all([
     sql`
-      select id, title, kind, status, source_url as "sourceUrl", summary, raw_path as "rawPath", wiki_path as "wikiPath", wiki_content as "wikiContent", created_at as "createdAt"
+      select id, title, kind, status, source_url as "sourceUrl", summary, raw_path as "rawPath", wiki_path as "wikiPath", wiki_content as "wikiContent", metadata, created_at as "createdAt"
       from knowledge_sources
       order by created_at desc
       limit 80
@@ -6611,7 +6689,7 @@ async function knowledgeSnapshot() {
       {
         label: 'Context-ready',
         value: String(lifecycleCounts.promoted),
-        detail: 'Reviewed and approved for OpenClaw context'
+        detail: 'Auto-routed or legacy context-ready sources'
       }
     ],
     vault

@@ -27,6 +27,12 @@ services:
       - ./:/app:ro
       - /root/.openclaw:/root/.openclaw:ro
       - /root/.openclaw/state:/root/.openclaw/state:rw
+      # Narrow writable memory roots for the control-plane materializer. OpenClaw home stays RO.
+      - /root/.openclaw/workspace:/root/.openclaw/workspace:rw
+      - /root/.openclaw/agents/charles/workspace:/root/.openclaw/agents/charles/workspace:rw
+      - /root/.openclaw/agents/sladdis/workspace:/root/.openclaw/agents/sladdis/workspace:rw
+      - /root/.openclaw/agents/linda/workspace:/root/.openclaw/agents/linda/workspace:rw
+      - /root/.openclaw/agents/agnes/workspace:/root/.openclaw/agents/agnes/workspace:rw
       - /root/.openclaw/secrets/agent-os:/root/.openclaw/secrets/agent-os:rw
       - /root/.openclaw/identity:/root/.openclaw/identity:rw
       - /root/.openclaw/agents/main/sessions:/root/.openclaw/agents/main/sessions:rw

@@ -16,6 +16,7 @@ export type KnowledgeSnapshot = {
     rawPath: string;
     wikiPath: string | null;
     wikiContent: string;
+    metadata?: Record<string, unknown>;
     createdAt: Date;
   }>;
   stats: Array<{ label: string; value: string; detail: string }>;
@@ -74,6 +75,7 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
       rawPath: source.rawPath,
       wikiPath: source.wikiPath,
       wikiContent: source.wikiContent,
+      metadata: (source.metadata ?? {}) as Record<string, unknown>,
       createdAt: source.createdAt
     }));
 
@@ -92,7 +94,7 @@ export async function getKnowledgeSnapshot(): Promise<KnowledgeSnapshot> {
         {
           label: 'Context-ready',
           value: String(lifecycleCounts.promoted),
-          detail: 'Reviewed and approved for OpenClaw context'
+          detail: 'Auto-routed or legacy context-ready sources'
         }
       ],
       vault: buildVaultSnapshot(mappedSources)
