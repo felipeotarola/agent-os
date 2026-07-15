@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { classifyMemorySignal, isEligibleSessionArtifactName, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
+import { classifyMemorySignal, isCandidateFresh, isEligibleSessionArtifactName, isExplicitTaskIntent, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
 
 const fixtures = [
   [{ type: 'todo', summary: 'Next step: implement the documented bridge contract tomorrow.' }, 'task', false, 'promoted'],
@@ -43,6 +43,35 @@ assert.equal(isEligibleSessionArtifactName('c4fd701b.jsonl'), false);
 assert.equal(isEligibleSessionArtifactName('80688438-app-server.md'), false);
 assert.equal(isEligibleSessionArtifactName('valid-session.md'), true);
 console.log('transport-envelope regression: 7/7');
+
+const directiveFixtures = [
+  'TODO: ship the guarded runner.',
+  'Next step: verify the live bridge.',
+  'Nästa steg: kör kontraktstestet.',
+  '- [ ] Add the missing regression.',
+  'Action item: document the activation boundary.',
+  'Kan du implementera den säkra kontrollen?',
+  'Implementera den godkända P1-ändringen.'
+];
+for (const summary of directiveFixtures) {
+  assert.equal(isExplicitTaskIntent(summary), true);
+  assert.equal(classifyMemorySignal({ type: 'todo', summary }).route, 'task');
+}
+const incidentalFixtures = [
+  'The pricing card says next step is revenue growth for the customer story.',
+  'Our product narrative mentions a todo list as a useful dashboard pattern.',
+  'Revenue projections describe the next step in the funnel without requesting work.',
+  'This mid-sentence TODO reference belongs to copied documentation, not an action.'
+];
+for (const summary of incidentalFixtures) {
+  assert.equal(isExplicitTaskIntent(summary), false);
+  assert.notEqual(classifyMemorySignal({ type: 'todo', summary }).route, 'task');
+}
+assert.equal(isCandidateFresh({ mtimeMs: Date.parse('2026-07-15T08:00:01Z') }, { since: '2026-07-15T08:00:00Z' }), true);
+assert.equal(isCandidateFresh({ mtimeMs: Date.parse('2026-07-15T08:00:00Z') }, { since: '2026-07-15T08:00:00Z' }), false);
+assert.equal(isCandidateFresh({ mtimeMs: 1 }, { backfill: true }), true);
+assert.equal(isCandidateFresh({ mtimeMs: 1 }, { dryRun: true }), true);
+console.log('task-intent and freshness regression: 26/26');
 
 const root = mkdtempSync(path.join(tmpdir(), 'agent-os-memory-'));
 try {

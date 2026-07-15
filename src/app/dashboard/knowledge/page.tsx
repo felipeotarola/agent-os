@@ -619,12 +619,12 @@ function KnowledgeRightRail({
               </div>
             </div>
             <div className='text-muted-foreground text-xs leading-5'>
-              Sessionspår och extraherade signaler stannar som källmaterial; full råtranscript
-              lagras inte som standard. Säkra signaler skrivs idempotent till daily memory,
-              MEMORY.md, lesson candidates eller Tasks; wiki stannar här och brus arkiveras.
+              Den manuella formen är alltid preview/review-safe: den klassificerar utan SQL-,
+              minnes- eller task-writes och kan inte backfilla gamla sessioner. Aktivering sker
+              endast via den watermark-skyddade lokala runnern.
             </div>
             <SubmitButton className='w-full' disabled={!dbOnline} pendingText='Skördar...'>
-              Run memory control plane
+              Preview memory routes
             </SubmitButton>
           </form>
           <Button asChild variant='outline' className='mt-3 w-full'>

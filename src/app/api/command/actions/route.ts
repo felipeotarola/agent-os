@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     await bridgeRequest('/knowledge/sessions/harvest', {
       method: 'POST',
-      body: JSON.stringify({ limit, minScore, signalsPerSession, dryRun: false })
+      body: JSON.stringify({ limit, minScore, signalsPerSession, dryRun: true })
     });
 
     return redirect(request, { action, status: 'ok' });

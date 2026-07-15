@@ -14,6 +14,25 @@ export const MEMORY_ROUTES = [
   'discard'
 ];
 
+export function isExplicitTaskIntent(text) {
+  const value = String(text ?? '').trim();
+  return (
+    /^(?:[-*]\s*)?(?:TODO|Next step|Nästa steg)\s*:/i.test(value) ||
+    /^(?:[-*]\s*)?\[[ xX]\]\s+\S/.test(value) ||
+    /^(?:[-*]\s*)?(?:Action item|Åtgärdspunkt)\s*:/i.test(value) ||
+    /^(?:please|kan du|could you|would you)\b/i.test(value) ||
+    /^(?:implement|implementera|fix|fixa|create|skapa|update|uppdatera|run|kör)\b/i.test(value) ||
+    /^(?:User|Human|Felipe)\s*:\s*(?:please|kan du|could you|would you|implementera|skapa|fixa|uppdatera|kör|gör)\b/i.test(value) ||
+    /^(?:Felipe asked|User requested)\s+(?:to\s+)?\S/i.test(value)
+  );
+}
+
+export function isCandidateFresh({ mtimeMs }, { since, backfill = false, dryRun = false } = {}) {
+  if (backfill || dryRun) return true;
+  const sinceMs = Date.parse(String(since ?? ''));
+  return Number.isFinite(sinceMs) && Number(mtimeMs) > sinceMs;
+}
+
 export function isTransportEnvelopeLine(line) {
   const value = String(line ?? '').trim();
   if (!value) return false;
@@ -45,7 +64,7 @@ export function classifyMemorySignal(signal) {
     route = 'discard';
     confidence = 0.96;
     reasons.push('empty-or-transient');
-  } else if (type === 'todo') {
+  } else if (type === 'todo' && isExplicitTaskIntent(text)) {
     route = 'task';
     confidence = 0.9;
     reasons.push('explicit-action');

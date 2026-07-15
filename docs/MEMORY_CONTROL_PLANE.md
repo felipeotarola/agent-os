@@ -41,6 +41,13 @@ dashboard visit. It reads `AGENT_OS_BRIDGE_TOKEN` (or an explicit
 `AGENT_OS_BRIDGE_TOKEN_FILE`) and never includes the token in output. Use `--dry-run` for preview.
 Dry-run reads and classifies selected sessions and returns planned routes/materialization outcomes,
 but performs no SQL inserts, file writes, task writes or audit-event writes.
+The default runner stores a freshness watermark at
+`/root/.openclaw/state/memory-control-plane-watermark.json`. Its first live invocation initializes
+the watermark to the current time and performs zero bridge mutations. Later successful live runs
+only select session artifacts whose mtime is newer than the previous watermark, then advance it.
+Failed and dry runs never advance it. Legacy sessions require the explicit `--backfill` opt-in.
+The dashboard form is permanently preview-only and cannot silently backfill or materialize old
+sessions.
 The intended integration point is the existing daily-learning loop; add the command there after
 deployment verification. This change deliberately does not mutate cron configuration.
 

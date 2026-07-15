@@ -10,6 +10,8 @@ import { handleUpload } from '@vercel/blob/client';
 import postgres from 'postgres';
 import {
   classifyMemorySignal,
+  isExplicitTaskIntent,
+  isCandidateFresh,
   isTransportEnvelopeLine,
   isEligibleSessionArtifactName,
   materializeMemoryFileRoute,
@@ -862,7 +864,7 @@ function hashText(value) {
 }
 
 function sessionSignalType(line) {
-  if (/\b(todo|next step|nästa steg|ska göra|follow[- ]?up|open todo)\b/i.test(line)) return 'todo';
+  if (isExplicitTaskIntent(line)) return 'todo';
   if (/\b(decision|beslut|decided|bestämdes|valde|ska vara|should be)\b/i.test(line))
     return 'decision';
   if (/\b(prefers?|preference|vill ha|style|tone|persona|rules?)\b/i.test(line))
@@ -903,10 +905,12 @@ function extractSessionDecisionItems(agentId, path, text, limit = 8) {
     .map((line) => cleanSessionSignalLine(line))
     .filter((line) => line.length >= 24 && !isSensitiveSessionLine(line));
 
-  const signalLines = lines.filter((line) =>
-    /remember|kom ihåg|beslut|decision|decided|todo|nästa steg|next step|Felipe asked|Felipe said|ska|bör|should|prefers?|vill ha|implemented|created|fixed|pushed|validated|lesson|Agent OS|Lysande|Charles|Sladdis|Cai/i.test(
-      line
-    )
+  const signalLines = lines.filter(
+    (line) =>
+      isExplicitTaskIntent(line) ||
+      /remember|kom ihåg|beslut|decision|decided|Felipe said|ska|bör|should|prefers?|vill ha|implemented|created|fixed|pushed|validated|lesson|Agent OS|Lysande|Charles|Sladdis|Cai/i.test(
+        line
+      )
   );
 
   const seen = new Set();
@@ -986,9 +990,15 @@ async function harvestSessionKnowledge(input = {}) {
   const signalsPerSession = Math.min(Number(input.signalsPerSession ?? 8), 12);
   const includeRawTranscript = Boolean(input.includeRawTranscript);
   const dryRun = Boolean(input.dryRun);
+  const backfill = Boolean(input.backfill);
+  const sinceMs = input.since ? Date.parse(String(input.since)) : Number.NaN;
+  if (!dryRun && !backfill && !Number.isFinite(sinceMs)) {
+    throw new Error('Live memory control-plane runs require a valid since watermark or explicit backfill');
+  }
   const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
   const selected = inventory.candidates
     .filter((candidate) => !candidate.alreadyImported)
+    .filter((candidate) => isCandidateFresh(candidate, { since: input.since, backfill, dryRun }))
     .slice(0, limit);
   const imported = [];
   const preview = [];
