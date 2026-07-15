@@ -17,6 +17,28 @@ if (!source.includes("source: 'openclaw-cli:agents-list'")) {
   throw new Error('Bridge must label the live OpenClaw agent inventory source');
 }
 
+const registryRequirements = [
+  "contract: 'agent-os.openclaw-agent-registry.v1'",
+  "openclawJson(['config', 'get', 'bindings', '--json']",
+  'async function runtimeAgentIds()',
+  'sessionCandidateFiles(agentIds)',
+  'memoryCandidateFiles(agentIds)',
+  'sessions: agentIds.map(assistantSessionStatus)'
+];
+for (const requirement of registryRequirements) {
+  if (!source.includes(requirement)) {
+    throw new Error(`P1 shared agent registry contract missing: ${requirement}`);
+  }
+}
+
+for (const staleList of [
+  'SESSION_HARVEST_AGENTS',
+  'MEMORY_HARVEST_AGENTS',
+  'ASSISTANT_READINESS_AGENTS'
+]) {
+  if (source.includes(staleList)) throw new Error(`Static P1 agent list remains: ${staleList}`);
+}
+
 if (!source.includes('for (let attempt = 0; attempt < 2; attempt += 1)')) {
   throw new Error('Bridge OpenClaw JSON reads must retry one transient CLI/state failure');
 }

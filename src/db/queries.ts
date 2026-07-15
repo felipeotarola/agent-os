@@ -85,14 +85,14 @@ const fallbackSnapshot: CockpitSnapshot = {
       tone: 'Offline'
     },
     {
-      label: 'Öppna tasks',
+      label: 'Öppna Agent OS-tasks',
       value: '—',
       detail: 'Starta lokal Postgres med npm run db:up',
       tone: 'Väntar'
     },
     { label: 'Agenter online', value: '—', detail: 'DB-lagret är inte anslutet', tone: 'Fallback' },
     {
-      label: 'Subagents',
+      label: 'OpenClaw runtime runs',
       value: '—',
       detail: 'Bridge saknas; OpenClaw task-källa kan inte läsas',
       tone: 'Unavailable'
@@ -163,7 +163,7 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
           tone: 'DB live'
         },
         {
-          label: 'Öppna tasks',
+          label: 'Öppna Agent OS-tasks',
           value: String(openTasks),
           detail: `${waitingTasks} väntar, ${runningTasks} körs`,
           tone: 'Levande'
@@ -175,7 +175,7 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
           tone: 'Redo'
         },
         {
-          label: 'Subagents',
+          label: 'OpenClaw runtime runs',
           value: '—',
           detail: 'Bridge saknas; OpenClaw task-källa kan inte läsas via direkt DB-fallback',
           tone: 'Unavailable'

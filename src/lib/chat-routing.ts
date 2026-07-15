@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth/session';
-import { chatAgentSessionKeys, type ChatAgentId } from '@/lib/chat-session-keys';
+import {
+  chatAgentSessionKeys,
+  sessionKeyForAgent,
+  type ChatAgentId
+} from '@/lib/chat-session-keys';
 
 export { chatAgentSessionKeys, type ChatAgentId };
 
@@ -8,7 +12,7 @@ const MAX_MESSAGE_CHARS = 12_000;
 const MAX_ATTACHMENT_COUNT = 5;
 
 export function isChatAgentId(value: unknown): value is ChatAgentId {
-  return typeof value === 'string' && value in chatAgentSessionKeys;
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(value);
 }
 
 export async function requireChatSession(request: NextRequest) {
@@ -39,7 +43,7 @@ export function resolveChatRoute(input: Record<string, unknown>) {
 
   return {
     agentId: agent,
-    sessionKey: chatAgentSessionKeys[agent]
+    sessionKey: sessionKeyForAgent(agent)
   };
 }
 

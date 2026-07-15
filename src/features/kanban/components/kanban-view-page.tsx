@@ -60,8 +60,8 @@ export default async function KanbanViewPage({
 
   return (
     <PageContainer
-      pageTitle='Tasks'
-      pageDescription='Real Agent OS task board backed by Supabase'
+      pageTitle='Agent OS Tasks'
+      pageDescription='Product work stored in Agent OS/Postgres. OpenClaw runtime runs are shown separately in Cockpit and Topology.'
       pageHeaderAction={<NewTaskDialog agents={agents} />}
     >
       <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>

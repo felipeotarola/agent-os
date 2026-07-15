@@ -113,10 +113,7 @@ const AFFILIATE_PLATFORM_RULES = {
     prohibitedClaims: ['guaranteed', 'cure', 'risk-free']
   }
 };
-const SESSION_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
 const SESSION_HARVEST_DIRS = ['qmd/sessions', 'sessions'];
-const MEMORY_HARVEST_AGENTS = ['main', 'charles', 'sladdis', 'linda'];
-const ASSISTANT_READINESS_AGENTS = ['main', 'charles', 'sladdis'];
 const runtimeCache = new Map();
 
 function readManagedSecretSync(name) {
@@ -161,6 +158,57 @@ async function openclawAgentsSnapshot() {
       error: error.message
     };
   }
+}
+
+function normalizeRuntimeBinding(binding) {
+  const match = binding?.match && typeof binding.match === 'object' ? binding.match : {};
+  return {
+    type: String(binding?.type ?? 'route'),
+    agentId: String(binding?.agentId ?? '').trim(),
+    channel: String(match.channel ?? 'unknown'),
+    accountId: match.accountId ? String(match.accountId) : null,
+    peer: match.peer ? String(match.peer) : null
+  };
+}
+
+async function agentRegistrySnapshot() {
+  const agentSnapshot = await openclawAgentsSnapshot();
+  let bindings = [];
+  let bindingsSource = 'openclaw-cli:config-get-bindings';
+  let bindingsError = null;
+  try {
+    const raw = await cachedRuntimeValue('openclaw-bindings', 5000, () =>
+      openclawJson(['config', 'get', 'bindings', '--json'], { timeout: 12000 })
+    );
+    if (!Array.isArray(raw))
+      throw new Error('OpenClaw bindings config returned a non-array payload');
+    bindings = raw.map(normalizeRuntimeBinding).filter((binding) => binding.agentId);
+  } catch (error) {
+    bindingsError = error.message;
+    bindingsSource = 'unavailable';
+  }
+  const agents = agentSnapshot.agents.map((agent) => ({
+    ...agent,
+    runtimeId: agent.id,
+    displayName: agent.identityName ?? agent.name ?? agent.id,
+    routes: bindings.filter((binding) => binding.agentId === agent.id),
+    capabilities: { chat: true, sessions: true, memory: true, readiness: true }
+  }));
+  return {
+    contract: 'agent-os.openclaw-agent-registry.v1',
+    generatedAt: new Date().toISOString(),
+    agents,
+    bindings,
+    source: agentSnapshot.source,
+    error: agentSnapshot.error,
+    bindingsSource,
+    bindingsError
+  };
+}
+
+async function runtimeAgentIds() {
+  const registry = await agentRegistrySnapshot();
+  return registry.agents.map((agent) => agent.id);
 }
 
 async function taskOwnerAgents() {
@@ -513,9 +561,9 @@ function agentWorkspaceDir(agentId) {
   return agentId === 'main' ? OPENCLAW_WORKSPACE : `${sessionAgentRoot(agentId)}/workspace`;
 }
 
-function sessionCandidateFiles() {
+function sessionCandidateFiles(agentIds) {
   const files = [];
-  for (const agentId of SESSION_HARVEST_AGENTS) {
+  for (const agentId of agentIds) {
     for (const dir of SESSION_HARVEST_DIRS) {
       const root = `${sessionAgentRoot(agentId)}/${dir}`;
       if (!existsSync(root)) continue;
@@ -557,9 +605,9 @@ function walkMarkdownFiles(root, maxDepth = 4, depth = 0) {
   return files;
 }
 
-function memoryCandidateFiles() {
+function memoryCandidateFiles(agentIds) {
   const files = [];
-  for (const agentId of MEMORY_HARVEST_AGENTS) {
+  for (const agentId of agentIds) {
     const workspace = agentWorkspaceDir(agentId);
     const roots = [
       `${workspace}/MEMORY.md`,
@@ -600,16 +648,16 @@ function memoryCandidateFiles() {
     .toSorted((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-function selectMemoryCandidates(limitPerAgent) {
+function selectMemoryCandidates(limitPerAgent, agentIds) {
   const byAgent = new Map();
-  for (const candidate of memoryCandidateFiles()) {
+  for (const candidate of memoryCandidateFiles(agentIds)) {
     const rows = byAgent.get(candidate.agentId) ?? [];
     rows.push(candidate);
     byAgent.set(candidate.agentId, rows);
   }
 
   const selected = [];
-  for (const agentId of MEMORY_HARVEST_AGENTS) {
+  for (const agentId of agentIds) {
     const rows = byAgent.get(agentId) ?? [];
     const core = rows.filter(
       (row) => row.path.endsWith('/MEMORY.md') || row.path.endsWith('/DREAMS.md')
@@ -620,8 +668,7 @@ function selectMemoryCandidates(limitPerAgent) {
   }
 
   return selected.toSorted((a, b) => {
-    const agentDelta =
-      MEMORY_HARVEST_AGENTS.indexOf(a.agentId) - MEMORY_HARVEST_AGENTS.indexOf(b.agentId);
+    const agentDelta = agentIds.indexOf(a.agentId) - agentIds.indexOf(b.agentId);
     if (agentDelta !== 0) return agentDelta;
     return b.mtimeMs - a.mtimeMs;
   });
@@ -661,7 +708,8 @@ function memorySummary(text, path) {
 async function harvestMemoryKnowledge(input = {}) {
   const limit = Math.min(Number(input.limit ?? 20), 80);
   const dryRun = Boolean(input.dryRun);
-  const candidates = selectMemoryCandidates(limit);
+  const agentIds = await runtimeAgentIds();
+  const candidates = selectMemoryCandidates(limit, agentIds);
   const imported = [];
   const updated = [];
 
@@ -881,13 +929,14 @@ function extractSessionDecisionItems(agentId, path, text, limit = 8) {
 }
 
 async function sessionKnowledgeInventory({ limit = 25, minScore = 35 } = {}) {
+  const agentIds = await runtimeAgentIds();
   const existing = await sql`
     select source_url as "sourceUrl"
     from knowledge_sources
     where kind in ('agent-session', 'chat-session')
   `;
   const seen = new Set(existing.map((row) => row.sourceUrl));
-  const candidates = sessionCandidateFiles()
+  const candidates = sessionCandidateFiles(agentIds)
     .map((file) => {
       const text = readTextSlice(file.path, 90000);
       const score = sessionSignalScore(text);
@@ -1276,6 +1325,7 @@ function assistantSessionStatus(agentId) {
 }
 
 async function assistantReadinessFiles() {
+  const agentIds = await runtimeAgentIds();
   const logPath = path.join(
     OPENCLAW_LOG_DIR,
     `openclaw-${new Date().toISOString().slice(0, 10)}.log`
@@ -1295,7 +1345,8 @@ async function assistantReadinessFiles() {
       assistantWorkspaceFile('MEMORY.md', false),
       assistantWorkspaceFile('DREAMS.md', false)
     ],
-    sessions: ASSISTANT_READINESS_AGENTS.map(assistantSessionStatus)
+    sessions: agentIds.map(assistantSessionStatus),
+    agentRegistrySource: 'agent-os.openclaw-agent-registry.v1'
   };
 }
 
@@ -6963,7 +7014,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/agents') {
-      return send(res, 200, await openclawAgentsSnapshot());
+      return send(res, 200, await agentRegistrySnapshot());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/agent-registry') {
+      return send(res, 200, await agentRegistrySnapshot());
     }
 
     if (req.method === 'GET' && url.pathname === '/task-owner-agents') {

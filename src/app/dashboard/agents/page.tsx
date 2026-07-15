@@ -19,7 +19,10 @@ const agentGlow = [
 export default async function AgentsPage() {
   const { agents, source } = await getOpenClawAgents();
   const defaultAgent = agents.find((agent) => agent.isDefault);
-  const routedCount = agents.reduce((sum, agent) => sum + (agent.bindings ?? 0), 0);
+  const routedCount = agents.reduce(
+    (sum, agent) => sum + (agent.routes?.length ?? agent.bindings ?? 0),
+    0
+  );
 
   return (
     <PageContainer>
@@ -120,7 +123,9 @@ export default async function AgentsPage() {
                   </div>
                   <div className='rounded-xl border bg-background/45 p-3'>
                     <div className='text-muted-foreground'>Bindings</div>
-                    <div className='mt-1 text-xl font-semibold'>{agent.bindings ?? 0}</div>
+                    <div className='mt-1 text-xl font-semibold'>
+                      {agent.routes?.length ?? agent.bindings ?? 0}
+                    </div>
                   </div>
                 </div>
                 <div className='space-y-2 text-xs'>

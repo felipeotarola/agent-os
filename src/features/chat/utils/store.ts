@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { chatAgents, defaultWelcomeByAgent } from './data';
+import { chatAgents, welcomeForAgent } from './data';
 import type { AgentId, ChatMessage } from './types';
 
 type MessagesByAgent = Record<AgentId, ChatMessage[]>;
@@ -11,6 +11,7 @@ type ChatState = {
   isLoadingHistory: boolean;
   isSending: boolean;
   error: string | null;
+  configureAgents: (agents: import('./types').ChatAgent[]) => void;
 
   selectAgent: (agentId: AgentId) => void;
   setDraft: (text: string) => void;
@@ -33,9 +34,9 @@ const initialMessages = Object.fromEntries(
       {
         id: agent.id + '-welcome',
         role: 'assistant',
-        content: defaultWelcomeByAgent[agent.id],
+        content: welcomeForAgent(agent),
         createdAt: INITIAL_WELCOME_TIMESTAMP,
-        parts: [{ type: 'text', text: defaultWelcomeByAgent[agent.id] }]
+        parts: [{ type: 'text', text: welcomeForAgent(agent) }]
       }
     ]
   ])
@@ -135,6 +136,29 @@ export const useChatStore = create<ChatState>()((set) => ({
   isLoadingHistory: false,
   isSending: false,
   error: null,
+
+  configureAgents: (agents) =>
+    set((state) => {
+      const messagesByAgent = { ...state.messagesByAgent };
+      for (const agent of agents) {
+        if (!messagesByAgent[agent.id]) {
+          const welcome = welcomeForAgent(agent);
+          messagesByAgent[agent.id] = [
+            {
+              id: `${agent.id}-welcome`,
+              role: 'assistant',
+              content: welcome,
+              createdAt: INITIAL_WELCOME_TIMESTAMP,
+              parts: [{ type: 'text', text: welcome }]
+            }
+          ];
+        }
+      }
+      const selectedAgentId = agents.some((agent) => agent.id === state.selectedAgentId)
+        ? state.selectedAgentId
+        : (agents[0]?.id ?? state.selectedAgentId);
+      return { messagesByAgent, selectedAgentId };
+    }),
 
   selectAgent: (agentId) => set({ selectedAgentId: agentId, error: null }),
   setDraft: (text) => set({ draft: text }),

@@ -1,4 +1,4 @@
-export type AgentId = 'cai' | 'charles' | 'sladdis';
+export type AgentId = string;
 
 export type ChatAgent = {
   id: AgentId;

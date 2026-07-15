@@ -24,7 +24,7 @@ export function ConversationList({
         <div className='flex items-center justify-between gap-3'>
           <div>
             <p className='text-sm font-semibold'>Agent chat</p>
-            <p className='text-muted-foreground text-xs'>Cai · Charles · Sladdis</p>
+            <p className='text-muted-foreground text-xs'>Live OpenClaw agent registry</p>
           </div>
           <Badge variant='outline' className='rounded-full'>
             Live API
@@ -34,7 +34,7 @@ export function ConversationList({
       <div className='min-h-0 flex-1 space-y-2 overflow-y-auto p-3' role='list' aria-label='Agents'>
         {agents.map((agent) => {
           const isActive = agent.id === selectedId;
-          const lastMessage = messagesByAgent[agent.id].at(-1);
+          const lastMessage = messagesByAgent[agent.id]?.at(-1);
 
           return (
             <button

@@ -47,8 +47,23 @@ function buildTopologyDiagram({
     })
     .join('\n');
 
+  const channelNodes = [
+    ...new Set(agents.flatMap((agent) => agent.routes ?? []).map((route) => route.channel))
+  ]
+    .map((channel) => `    channel_${safeNodeId(channel)}["${channel}"]`)
+    .join('\n');
+  const bindingEdges = agents
+    .flatMap((agent) =>
+      (agent.routes ?? []).map((route) => {
+        const detail = route.accountId ? `|${route.accountId}|` : '';
+        return `    channel_${safeNodeId(route.channel)} -->${detail} agent_${safeNodeId(agent.id)}`;
+      })
+    )
+    .join('\n');
+  const defaultAgent = agents.find((agent) => agent.isDefault) ?? agents[0];
+  const orchestratorId = defaultAgent ? `agent_${safeNodeId(defaultAgent.id)}` : 'agent_main';
+
   return `flowchart LR
-  Felipe["Felipe"] --> Telegram["Telegram<br/>direct channel"]
   Felipe --> WebUI["Web UI"]
 
   subgraph AgentOS["Agent OS Dashboard"]
@@ -60,7 +75,6 @@ function buildTopologyDiagram({
     Topology["Topology"]
   end
 
-  Telegram --> Gateway
   WebUI --> Cockpit
   Cockpit --> Bridge
   Radar --> Bridge
@@ -80,10 +94,14 @@ ${agentNodes || '    agent_main["⚛️ Cai<br/>main"]'}
   end
 ${agentEdges || '    Gateway --> agent_main\n    agent_main --> Memory'}
 
-  agent_main -. orchestrates .-> Subagents
+  subgraph Channels["Runtime channel bindings"]
+${channelNodes || '    channel_none["No bindings reported"]'}
+  end
+${bindingEdges}
+
+  ${orchestratorId} -. orchestrates .-> Subagents
   Cron --> Gateway
-  Gateway --> Slack["Slack bindings<br/>Charles / Lysande"]
-  Gateway --> Telegram
+  Gateway --> Channels
 
   Bridge --> GitHub["GitHub"]
   Bridge --> Vercel["Vercel"]
@@ -92,7 +110,7 @@ ${agentEdges || '    Gateway --> agent_main\n    agent_main --> Memory'}
 }
 
 const topologyLayers = [
-  ['Channels', 'Telegram/Web UI in, Slack/Telegram bindings out.'],
+  ['Channels', 'Live OpenClaw bindings grouped by channel and account.'],
   ['OpenClaw runtime', 'Gateway, agents, sessions, subagents, cron and memory/QMD.'],
   ['Agent OS bridge', 'Safe server boundary for Postgres, OpenClaw and external signal reads.'],
   ['Cockpit surfaces', 'Radar, Action Center, Tasks, Knowledge and Topology views.'],
@@ -123,7 +141,7 @@ export default async function TopologyPage() {
       detail: `${system.memory.summary?.chunks ?? 0} chunks`
     },
     {
-      label: 'Subagents',
+      label: 'OpenClaw runtime runs',
       value: String(system.subagents?.runningCount ?? 0),
       detail: system.subagents?.source ?? 'no source'
     }
@@ -139,9 +157,9 @@ export default async function TopologyPage() {
             </Badge>
             <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>System Topology</h1>
             <p className='text-muted-foreground max-w-3xl text-sm md:text-base'>
-              En operator-karta över Cai/main, Charles, Sladdis, kanaler, bridge, Postgres,
-              Memory/QMD, cron och cockpit-ytorna. v0 är Mermaid/bridge-driven; live React Flow kan
-              komma senare.
+              En operator-karta över Agent OS och det aktuella OpenClaw-registret. Agenter och
+              kanalbindningar kommer från runtime; bridge, Postgres, Memory/QMD och cockpit-ytorna
+              visas separat.
             </p>
           </div>
           <div className='rounded-xl border bg-card p-4 text-sm'>

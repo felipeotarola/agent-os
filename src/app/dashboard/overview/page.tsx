@@ -932,7 +932,7 @@ export default async function OverviewPage() {
               <CardHeader className='pb-3'>
                 <div className='flex items-start justify-between gap-3'>
                   <div>
-                    <CardTitle>Prioriterade tasks</CardTitle>
+                    <CardTitle>Prioriterade Agent OS-tasks</CardTitle>
                     <CardDescription>Det här är kön att titta på först.</CardDescription>
                   </div>
                   <Link href='/dashboard/kanban' className='text-primary text-xs hover:underline'>

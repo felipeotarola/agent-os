@@ -11,12 +11,26 @@ const openClawAgentSchema = z.object({
   agentDir: z.string().optional(),
   model: z.string().optional(),
   bindings: z.number().optional(),
-  isDefault: z.boolean().optional()
+  isDefault: z.boolean().optional(),
+  displayName: z.string().optional(),
+  routes: z
+    .array(
+      z.object({
+        type: z.string(),
+        agentId: z.string(),
+        channel: z.string(),
+        accountId: z.string().nullable(),
+        peer: z.string().nullable()
+      })
+    )
+    .optional()
 });
 
 const openClawAgentsSchema = z.object({
   agents: z.array(openClawAgentSchema),
-  source: z.string()
+  source: z.string(),
+  bindingsSource: z.string().optional(),
+  bindingsError: z.string().nullable().optional()
 });
 
 export type OpenClawAgent = z.infer<typeof openClawAgentSchema>;
@@ -35,19 +49,6 @@ const taskOwnerAgentsSchema = z.object({
 
 export type TaskOwnerAgent = z.infer<typeof taskOwnerAgentSchema>;
 
-const lindaAgent: OpenClawAgent = {
-  id: 'linda',
-  name: 'Linda',
-  identityName: 'Linda',
-  identityEmoji: '📈',
-  identitySource: 'workspace',
-  model: 'openai-codex/gpt-5.5',
-  workspace: '/root/.openclaw/agents/linda/workspace',
-  agentDir: '/root/.openclaw/agents/linda',
-  bindings: 1,
-  isDefault: false
-};
-
 const fallbackAgents: OpenClawAgent[] = [
   {
     id: 'main',
@@ -56,8 +57,7 @@ const fallbackAgents: OpenClawAgent[] = [
     model: 'openai-codex/gpt-5.5',
     workspace: '/root/.openclaw/workspace',
     isDefault: true
-  },
-  lindaAgent
+  }
 ];
 
 const fallbackTaskOwnerAgents: TaskOwnerAgent[] = [
@@ -68,23 +68,17 @@ const fallbackTaskOwnerAgents: TaskOwnerAgent[] = [
   { id: 'worker-pool', name: 'Worker pool', role: 'Implementation', status: 'online' }
 ];
 
-function withLinda(agents: OpenClawAgent[]) {
-  return agents.some((agent) => agent.id === 'linda' || agent.identityName === 'Linda')
-    ? agents
-    : [...agents, lindaAgent];
-}
-
 export async function getOpenClawAgents() {
   if (hasBridge()) {
     try {
       const snapshot = openClawAgentsSchema.parse(await bridgeRequest('/agents'));
-      return { ...snapshot, agents: withLinda(snapshot.agents) };
+      return snapshot;
     } catch (error) {
       console.error('OpenClaw agents bridge request failed', error);
     }
   }
 
-  return { agents: withLinda(fallbackAgents), source: 'fallback' };
+  return { agents: fallbackAgents, source: 'fallback', bindingsSource: 'unavailable' };
 }
 
 export async function getTaskOwnerAgents() {

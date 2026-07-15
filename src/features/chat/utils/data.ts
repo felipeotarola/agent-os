@@ -24,9 +24,16 @@ export const chatAgents: ChatAgent[] = [
   }
 ];
 
-export const defaultWelcomeByAgent = {
+export const defaultWelcomeByAgent: Record<string, string> = {
   cai: 'Cai ready. Pick an agent, write the task, and I’ll route it through the chat API when the backend is available.',
   charles: 'Charles here. Give me the messy context and I’ll turn it into a strategy thread.',
   sladdis:
     'Sladdis online. Give me a link and I’ll explore it, suggest tests, run checks, and report findings.'
-} satisfies Record<ChatAgent['id'], string>;
+};
+
+export function welcomeForAgent(agent: ChatAgent) {
+  return (
+    defaultWelcomeByAgent[agent.id] ??
+    `${agent.name} ready. Send a message to start an OpenClaw runtime session.`
+  );
+}

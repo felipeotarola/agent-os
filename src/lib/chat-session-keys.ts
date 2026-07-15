@@ -6,4 +6,10 @@ export const chatAgentSessionKeys = {
   sladdis: 'agent:sladdis:main'
 } as const;
 
-export type ChatAgentId = keyof typeof chatAgentSessionKeys;
+export type ChatAgentId = string;
+
+export function sessionKeyForAgent(agentId: string) {
+  return (
+    chatAgentSessionKeys[agentId as keyof typeof chatAgentSessionKeys] ?? `agent:${agentId}:main`
+  );
+}

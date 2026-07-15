@@ -1,7 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect } from 'react';
-import { chatAgents } from '../utils/data';
+import { FormEvent, useCallback, useEffect, useMemo } from 'react';
 import { displayableMessages, displayableMessagesByAgent } from '../utils/display';
 import {
   extractMessages,
@@ -17,11 +16,6 @@ import type { AgentId, ChatMessage } from '../utils/types';
 import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 import { ConversationSelect } from './conversation-select';
-
-const agentById = Object.fromEntries(chatAgents.map((agent) => [agent.id, agent])) as Record<
-  AgentId,
-  (typeof chatAgents)[number]
->;
 
 const historyReconcileDelayMs = 12_000;
 
@@ -70,7 +64,11 @@ async function fetchHistory(agentId: AgentId) {
   return extractMessages(payload);
 }
 
-export function Messenger() {
+export function Messenger({ agents }: { agents: import('../utils/types').ChatAgent[] }) {
+  const agentById = useMemo(
+    () => Object.fromEntries(agents.map((agent) => [agent.id, agent])),
+    [agents]
+  );
   const {
     selectedAgentId,
     messagesByAgent,
@@ -86,12 +84,15 @@ export function Messenger() {
     replaceMessage,
     setIsLoadingHistory,
     setIsSending,
-    setError
+    setError,
+    configureAgents
   } = useChatStore();
 
-  const selectedAgent = agentById[selectedAgentId];
+  const selectedAgent = agentById[selectedAgentId] ?? agents[0];
   const displayMessagesByAgent = displayableMessagesByAgent(messagesByAgent);
   const messages = displayableMessages(messagesByAgent[selectedAgentId]);
+
+  useEffect(() => configureAgents(agents), [agents, configureAgents]);
 
   const loadHistory = useCallback(
     async (agentId: AgentId) => {
@@ -261,6 +262,7 @@ export function Messenger() {
     },
     [
       addMessage,
+      agentById,
       draft,
       isSending,
       loadHistory,
@@ -275,17 +277,13 @@ export function Messenger() {
   return (
     <div className='flex h-[calc(100dvh-5rem)] min-h-[620px] overflow-hidden rounded-3xl border bg-background shadow-sm sm:h-[calc(100dvh-7rem)]'>
       <ConversationList
-        agents={chatAgents}
+        agents={agents}
         selectedId={selectedAgentId}
         messagesByAgent={displayMessagesByAgent}
         onSelect={selectAgent}
       />
       <div className='flex min-w-0 flex-1 flex-col'>
-        <ConversationSelect
-          agents={chatAgents}
-          selectedId={selectedAgentId}
-          onSelect={selectAgent}
-        />
+        <ConversationSelect agents={agents} selectedId={selectedAgentId} onSelect={selectAgent} />
         <ChatArea
           agent={selectedAgent}
           messages={messages}
