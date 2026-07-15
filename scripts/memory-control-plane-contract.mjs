@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { classifyMemorySignal, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
+import { classifyMemorySignal, isEligibleSessionArtifactName, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
 
 const fixtures = [
   [{ type: 'todo', summary: 'Next step: implement the documented bridge contract tomorrow.' }, 'task', false, 'promoted'],
@@ -28,6 +28,21 @@ assert.deepEqual(previewTask.materialization, { outcome: 'dry-run', target: 'age
 const previewException = previewMemoryRoute({ type: 'preference', summary: 'Felipe always prefers this strategy everywhere.' });
 assert.equal(previewException.materialization.outcome, 'blocked-exception');
 console.log('memory routing preview contract: 2/2');
+
+const envelope = '{"type":"response_item","todo":"next step: create a fake task","session_id":"c4fd701b"}';
+assert.equal(isTransportEnvelopeLine(envelope), true);
+assert.equal(isTransportEnvelopeLine('User: Next step: document the valid markdown workflow.'), false);
+assert.equal(
+  [envelope, 'User: Next step: document the valid markdown workflow.']
+    .filter((line) => !isTransportEnvelopeLine(line))
+    .some((line) => line.includes('fake task')),
+  false
+);
+assert.equal(classifyMemorySignal({ type: 'todo', summary: 'Next step: document the valid markdown workflow.' }).route, 'task');
+assert.equal(isEligibleSessionArtifactName('c4fd701b.jsonl'), false);
+assert.equal(isEligibleSessionArtifactName('80688438-app-server.md'), false);
+assert.equal(isEligibleSessionArtifactName('valid-session.md'), true);
+console.log('transport-envelope regression: 7/7');
 
 const root = mkdtempSync(path.join(tmpdir(), 'agent-os-memory-'));
 try {

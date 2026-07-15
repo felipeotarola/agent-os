@@ -10,6 +10,8 @@ import { handleUpload } from '@vercel/blob/client';
 import postgres from 'postgres';
 import {
   classifyMemorySignal,
+  isTransportEnvelopeLine,
+  isEligibleSessionArtifactName,
   materializeMemoryFileRoute,
   previewMemoryRoute,
   routedKnowledgeStatus
@@ -574,8 +576,7 @@ function sessionCandidateFiles(agentIds) {
       const root = `${sessionAgentRoot(agentId)}/${dir}`;
       if (!existsSync(root)) continue;
       for (const name of readdirSync(root)) {
-        if (name.includes('trajectory') || name.includes('checkpoint')) continue;
-        if (!name.endsWith('.md') && !name.endsWith('.jsonl')) continue;
+        if (!isEligibleSessionArtifactName(name)) continue;
         const path = `${root}/${name}`;
         try {
           const stat = statSync(path);
@@ -587,7 +588,18 @@ function sessionCandidateFiles(agentIds) {
       }
     }
   }
-  return files;
+  const seen = new Set();
+  return files
+    .toSorted((a, b) => b.mtimeMs - a.mtimeMs)
+    .filter((file) => {
+      const sessionId = file.name
+        .replace(/\.(md|markdown)$/i, '')
+        .replace(/[-_.](copy|export|transcript|session|backup)([-_.]\d+)?$/i, '');
+      const key = `${file.agentId}:${sessionId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function walkMarkdownFiles(root, maxDepth = 4, depth = 0) {
@@ -887,6 +899,7 @@ function cleanSessionSignalLine(line) {
 function extractSessionDecisionItems(agentId, path, text, limit = 8) {
   const lines = text
     .split('\n')
+    .filter((line) => !isTransportEnvelopeLine(line))
     .map((line) => cleanSessionSignalLine(line))
     .filter((line) => line.length >= 24 && !isSensitiveSessionLine(line));
 

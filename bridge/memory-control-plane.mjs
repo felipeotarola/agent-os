@@ -14,6 +14,26 @@ export const MEMORY_ROUTES = [
   'discard'
 ];
 
+export function isTransportEnvelopeLine(line) {
+  const value = String(line ?? '').trim();
+  if (!value) return false;
+  if (value.startsWith('{') || value.startsWith('[')) return true;
+  if (/^(data|event):/i.test(value)) {
+    const payload = value.replace(/^(data|event):\s*/i, '');
+    if (payload.startsWith('{') || payload.startsWith('[')) return true;
+  }
+  if (/\b(app[-_ ]server|transport envelope|trajectory|checkpoint)\b/i.test(value)) return true;
+  return false;
+}
+
+export function isEligibleSessionArtifactName(name) {
+  const value = String(name ?? '');
+  return (
+    /\.(md|markdown)$/i.test(value) &&
+    !/trajectory|checkpoint|backup|app[-_]?server|transport|envelope/i.test(value)
+  );
+}
+
 export function classifyMemorySignal(signal) {
   const text = String(signal?.summary ?? '').trim();
   const type = String(signal?.type ?? 'session-signal');

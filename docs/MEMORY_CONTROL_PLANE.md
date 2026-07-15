@@ -47,3 +47,7 @@ deployment verification. This change deliberately does not mutate cron configura
 Raw transcript bodies are no longer copied into Postgres by default. Session path, summary,
 extracted signals and hashes preserve provenance. `includeRawTranscript` is an explicit bridge-only
 compatibility option for controlled debugging, not part of the standard runner.
+
+Only `.md`/`.markdown` session artifacts are eligible. JSON/JSONL transport logs, trajectories,
+checkpoints, backups and app-server envelopes are excluded and equivalent session exports are
+deduplicated. Embedded JSON envelope lines are rejected again during signal extraction.
