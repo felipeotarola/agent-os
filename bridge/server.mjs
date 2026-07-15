@@ -48,11 +48,12 @@ function databaseSource() {
 const dbSource = databaseSource();
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const bridgeVersion = String(packageJson.version ?? 'unknown');
-const OPENCLAW_CLI_CANDIDATES = [
-  process.env.OPENCLAW_CLI_PATH,
-  '/usr/lib/node_modules/openclaw/dist/index.js',
-  '/usr/lib/node_modules/openclaw/dist/entry.js'
-].filter(Boolean);
+const OPENCLAW_CLI_CANDIDATES = process.env.OPENCLAW_CLI_PATH
+  ? [process.env.OPENCLAW_CLI_PATH]
+  : [
+      '/usr/lib/node_modules/openclaw/dist/index.js',
+      '/usr/lib/node_modules/openclaw/dist/entry.js'
+    ];
 const OPENCLAW_CLI = OPENCLAW_CLI_CANDIDATES.find((candidate) => existsSync(candidate));
 if (!OPENCLAW_CLI) {
   throw new Error(
