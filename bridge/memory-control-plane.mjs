@@ -1,6 +1,7 @@
 const SENSITIVE = /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank|otp|2fa|private key|health|diagnos)/i;
 const CONTRADICTION = /\b(but actually|correction|ignore previous|instead of|contradict|rättelse|nej,?\s|inte längre|ersätt)/i;
 const PREFERENCE = /\b(prefer|preference|vill ha|jag vill|always|never|alltid|aldrig|strategy|strategi|policy|regel)/i;
+const CLIPPED_ENDING = /(?:\b(?:and|or|but|because|that|which|to|with|for|och|eller|men|att|som|med|för|eftersom)|[,;:–—-])$/i;
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,32 @@ export const MEMORY_ROUTES = [
   'knowledge-wiki',
   'discard'
 ];
+
+export function isCompleteMemorySummary(text) {
+  const value = String(text ?? '').trim();
+  if (value.length < 24) return false;
+  if (/\.{3}$|…$/.test(value)) return false;
+  return !CLIPPED_ENDING.test(value);
+}
+
+function semanticTokens(text) {
+  return new Set(
+    String(text ?? '')
+      .toLocaleLowerCase('sv')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((token) => token.length >= 4)
+  );
+}
+
+export function isSemanticallyCovered(summary, existingText, threshold = 0.72) {
+  const candidate = semanticTokens(summary);
+  if (candidate.size < 4) return false;
+  const existing = semanticTokens(existingText);
+  let overlap = 0;
+  for (const token of candidate) if (existing.has(token)) overlap += 1;
+  return overlap / candidate.size >= threshold;
+}
 
 export function isExplicitTaskIntent(text) {
   const value = String(text ?? '').trim();
@@ -89,6 +116,7 @@ export function classifyMemorySignal(signal) {
   if (CONTRADICTION.test(text)) exceptionReasons.push('contradictory');
   if (PREFERENCE.test(text) && ['preference', 'decision'].includes(type))
     exceptionReasons.push('strategy-or-preference-change');
+  if (route !== 'discard' && !isCompleteMemorySummary(text)) exceptionReasons.push('possibly-clipped-summary');
   if (confidence < 0.8) exceptionReasons.push('low-confidence');
 
   return {
@@ -130,6 +158,19 @@ function destinationFor(route, workspace, date) {
   return null;
 }
 
+function lessonCoverageText(workspace, date) {
+  const candidates = [
+    path.join(workspace, 'MEMORY.md'),
+    path.join(workspace, 'LESSONS.md'),
+    path.join(workspace, 'LESSONS_CANDIDATES.md'),
+    path.join(workspace, 'memory', `${date}.md`)
+  ];
+  return candidates
+    .filter((file) => existsSync(file))
+    .map((file) => readFileSync(file, 'utf8'))
+    .join('\n');
+}
+
 export function materializeMemoryFileRoute({
   workspace,
   signal,
@@ -143,6 +184,12 @@ export function materializeMemoryFileRoute({
   }
   if (classification.route === 'long-term-memory' && classification.confidence < 0.8) {
     return { outcome: 'blocked-confidence', path: null, written: false };
+  }
+  if (
+    classification.route === 'lesson-candidate' &&
+    isSemanticallyCovered(signal.summary, lessonCoverageText(workspace, date))
+  ) {
+    return { outcome: 'duplicate-semantic', path: null, written: false };
   }
   const destination = destinationFor(classification.route, workspace, date);
   if (!destination) return { outcome: 'not-file-route', path: null, written: false };

@@ -2,7 +2,21 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-07-13
+Last scan: 2026-07-16
+
+## 2026-07-16 - Memory-route completeness and semantic dedup guard
+
+State: `implemented-verified`
+
+Evidence: the 2026-07-15 automatic memory-control-plane run materialized several summaries that end mid-sentence and proposed a Charles Slack-DM lesson already present in `LESSONS.md`. The current `scripts/memory-control-plane-contract.mjs` verifies provenance-id idempotency, but it has no fixture that rejects clipped text or a lesson candidate already covered by durable memory/lessons.
+
+Expected payoff: keep automatic memory and lesson routes self-contained and prevent repeated lessons from adding retrieval noise. Risk is low if V0 stays local and deterministic; ambiguous items must route to review rather than be silently discarded.
+
+Verification hypothesis: extend the memory-control-plane contract with fixtures that reject obvious clipped fragments, accept complete standalone summaries, and suppress or review lesson candidates semantically covered by current daily memory, `MEMORY.md`, `LESSONS.md`, or pending candidates.
+
+Implemented: `bridge/memory-control-plane.mjs` now routes obviously clipped summaries to review and suppresses lesson candidates already semantically covered by current daily memory, `MEMORY.md`, `LESSONS.md`, or pending candidates. The guard is deterministic and does not rewrite existing memory.
+
+Verification: `npm run check:memory-control-plane` passes the new completeness/semantic-coverage fixtures (7/7) and materialization fixture (5/5); `npm run verify` passes end to end on 2026-07-16.
 
 ## 2026-07-13 - Durable delegated-operation handles
 

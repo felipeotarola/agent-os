@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { classifyMemorySignal, isCandidateFresh, isEligibleSessionArtifactName, isExplicitTaskIntent, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
+import { classifyMemorySignal, isCandidateFresh, isCompleteMemorySummary, isEligibleSessionArtifactName, isExplicitTaskIntent, isSemanticallyCovered, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
 
 const fixtures = [
   [{ type: 'todo', summary: 'Next step: implement the documented bridge contract tomorrow.' }, 'task', false, 'promoted'],
@@ -73,6 +73,35 @@ assert.equal(isCandidateFresh({ mtimeMs: 1 }, { backfill: true }), true);
 assert.equal(isCandidateFresh({ mtimeMs: 1 }, { dryRun: true }), true);
 console.log('task-intent and freshness regression: 26/26');
 
+const completenessFixtures = [
+  ['A complete standalone memory summary with enough context.', true],
+  ['The worker should preserve the trace and', false],
+  ['A summary copied from a bounded response...', false],
+  ['A summary that ends with punctuation and a clear outcome.', true]
+];
+for (const [summary, expected] of completenessFixtures) {
+  assert.equal(isCompleteMemorySummary(summary), expected);
+}
+assert.equal(
+  classifyMemorySignal({ type: 'technical-lesson', summary: 'The worker should preserve the trace and' }).exceptionReasons.includes('possibly-clipped-summary'),
+  true
+);
+assert.equal(
+  isSemanticallyCovered(
+    'Sladdis must verify Slack direct messages with a real delivery check.',
+    'Lesson: Sladdis must verify Slack direct messages through a real delivery check before reporting success.'
+  ),
+  true
+);
+assert.equal(
+  isSemanticallyCovered(
+    'Playwright artifacts should retain traces after failed automation runs.',
+    'Lesson: Slack direct messages require a real delivery check.'
+  ),
+  false
+);
+console.log('summary completeness and semantic coverage regression: 7/7');
+
 const root = mkdtempSync(path.join(tmpdir(), 'agent-os-memory-'));
 try {
   const dailySignal = { type: 'agent-note', summary: 'Completed a useful bounded implementation with verified evidence.' };
@@ -91,11 +120,20 @@ try {
   const exceptionClass = classifyMemorySignal(exception);
   assert.equal(materializeMemoryFileRoute({ workspace: root, signal: exception, classification: exceptionClass, provenanceId: 'blocked-1' }).outcome, 'blocked-exception');
 
+  const coveredLesson = { type: 'technical-lesson', summary: 'Regression guards must verify every adapter change with contract evidence.' };
+  const coveredClass = classifyMemorySignal(coveredLesson);
+  const lessonsPath = path.join(root, 'LESSONS.md');
+  writeFileSync(lessonsPath, '# Lessons\n\nRegression guards must verify every adapter change with contract evidence.\n');
+  assert.equal(
+    materializeMemoryFileRoute({ workspace: root, signal: coveredLesson, classification: coveredClass, provenanceId: 'covered-1' }).outcome,
+    'duplicate-semantic'
+  );
+
   const dryWorkspace = path.join(root, 'dry');
   const dry = materializeMemoryFileRoute({ workspace: dryWorkspace, signal: dailySignal, classification: dailyClass, provenanceId: 'dry-1', dryRun: true });
   assert.equal(dry.outcome, 'dry-run');
   assert.equal(existsSync(dryWorkspace), false);
-  console.log('memory materialization contract: write/idempotency/exception/dry-run 4/4');
+  console.log('memory materialization contract: write/idempotency/exception/semantic-dedup/dry-run 5/5');
 } finally {
   rmSync(root, { recursive: true, force: true });
 }
