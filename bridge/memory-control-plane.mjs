@@ -19,6 +19,10 @@ export function isCompleteMemorySummary(text) {
   const value = String(text ?? '').trim();
   if (value.length < 24) return false;
   if (/\.{3}$|…$/.test(value)) return false;
+  // Harvested transcript chunks are capped at a few hundred characters. A long
+  // chunk without terminal punctuation is therefore much more likely to be a
+  // sliced response than a standalone memory summary.
+  if (value.length >= 300 && !/[.!?…][\])}"'’”`*_]*$/.test(value)) return false;
   return !CLIPPED_ENDING.test(value);
 }
 

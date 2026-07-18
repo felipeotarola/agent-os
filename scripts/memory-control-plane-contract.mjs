@@ -77,6 +77,8 @@ const completenessFixtures = [
   ['A complete standalone memory summary with enough context.', true],
   ['The worker should preserve the trace and', false],
   ['A summary copied from a bounded response...', false],
+  ['This is a long transcript chunk that contains useful-looking context but is not a standalone memory. '.repeat(4) + 'The extractor sliced the response in the middle of a wor', false],
+  ['This is a long but complete standalone summary with enough context to exceed the transcript guard. '.repeat(4) + 'The verified outcome is preserved.', true],
   ['A summary that ends with punctuation and a clear outcome.', true]
 ];
 for (const [summary, expected] of completenessFixtures) {
@@ -100,7 +102,7 @@ assert.equal(
   ),
   false
 );
-console.log('summary completeness and semantic coverage regression: 7/7');
+console.log('summary completeness and semantic coverage regression: 9/9');
 
 const root = mkdtempSync(path.join(tmpdir(), 'agent-os-memory-'));
 try {
