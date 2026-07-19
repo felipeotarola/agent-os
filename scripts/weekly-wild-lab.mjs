@@ -20,7 +20,7 @@ const SIGNALS = [
   {
     id: 'failure',
     label: 'Failed or degraded workflows',
-    patterns: [/\bfailed\b/i, /\berror\b/i, /\bdegraded\b/i, /\bblocked\b/i, /\b403\b/i, /\bunavailable\b/i],
+    patterns: [/\bfailed\b/i, /\berror\b/i, /\bdegraded\b/i, /\bblocked\b/i, /\bbroken\b/i, /\btimeout\b/i, /\bconflicted\b/i, /\b403\b/i, /\bunavailable\b/i],
     ignore: [/\bno failed\b/i, /\bpassed\b.*\bfailed\b/i]
   },
   {
@@ -39,6 +39,9 @@ const SIGNALS = [
     patterns: [/\bblocked by\b/i, /\bnamed blocker\b/i, /\bpush.*403\b/i, /\bpermission .*denied\b/i]
   }
 ];
+
+const RESOLVED_FAILURE = /\b(completed|fixed|implemented|passed|repaired|resolved|healthy|workaround)\b/i;
+const STILL_ACTIONABLE_FAILURE = /\b(remains?|still|currently|again|continues? (to|failing)|unavailable until|failed to|blocked by)\b/i;
 
 function readOptional(path) {
   if (!existsSync(path)) return '';
@@ -77,6 +80,10 @@ function collectSignals(files) {
       for (const signal of SIGNALS) {
         if (!signal.patterns.some((pattern) => pattern.test(cleaned))) continue;
         if (signal.ignore?.some((pattern) => pattern.test(cleaned))) continue;
+        // Do not keep proposing already-shipped repairs as fresh failures. A line
+        // with explicit ongoing language remains actionable even if it also
+        // mentions an earlier fix or healthy component.
+        if (signal.id === 'failure' && RESOLVED_FAILURE.test(cleaned) && !STILL_ACTIONABLE_FAILURE.test(cleaned)) continue;
         const bucket = buckets.get(signal.id);
         if (bucket.hits.length < 8) {
           bucket.hits.push({ path, line: index + 1, text: cleaned });

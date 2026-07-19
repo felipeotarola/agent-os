@@ -32,6 +32,7 @@
     "check:qa-strategy": "node scripts/qa-strategy-contract-harness.mjs",
     "check:qaa-positioning": "node scripts/qaa-positioning-guard.mjs",
     "lab:weekly": "node scripts/weekly-wild-lab.mjs",
+    "check:weekly-wild-lab": "node scripts/weekly-wild-lab-contract.mjs",
     "self-evolution:research": "node scripts/self-evolution-research-lane.mjs",
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
@@ -48,7 +49,7 @@
     "git:push": "node scripts/git-push-agent-os-token.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run check:runtime-mocks && npm run check:memory-control-plane && npm run check:memory-control-plane-runner && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
+    "verify": "npm run check:runtime-mocks && npm run check:memory-control-plane && npm run check:memory-control-plane-runner && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:weekly-wild-lab && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
     "evals:agent": "node scripts/agent-evals.mjs"
   },
   "dependencies": {
