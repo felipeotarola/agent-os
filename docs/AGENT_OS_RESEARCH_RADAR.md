@@ -2,7 +2,41 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-07-16
+Last scan: 2026-07-20
+
+## 2026-07-20 - Enforced execution scope, not informational roots
+
+State: `implemented-local`
+
+High-signal pattern: the cockpit must distinguish an agent's displayed or requested scope from the boundary actually enforced at execution time. MCP's final SEP-2577 deprecates Roots partly because roots are only informational guidance: servers are not required to respect them. The proposed replacements are explicit tool parameters, resource URIs, server configuration, or environment variables. The SEP also notes that roots disclose filesystem structure and can invite traversal attempts outside the intended boundary.
+
+Why this matters for Agent OS:
+
+- Agent OS documents read-only connectors and guarded internal writes, but it has no connector-neutral receipt proving which paths, resource IDs, action classes, and enforcement layer constrained a particular operation.
+- A capability badge or advertised workspace root can therefore look like a security boundary without proving that the tool adapter, process sandbox, API token, or server-side authorization enforced it.
+- This belongs beside approval receipts and delegated-operation handles: approval answers _who accepted which action_; an execution-scope receipt answers _what the runtime could actually touch_.
+
+Safe internal build candidate:
+
+- Add bridge-free task candidate `enforced-execution-scope-receipt-v0` to `docs/TASKS.md`.
+- V0 is a local contract and deterministic fixtures only. Require requested scope, effective scope, enforcement mechanism, policy/version hash, and post-run observed-resource summary; fail closed when effective scope is broader or unverifiable.
+- Do not build an MCP compatibility layer or a new dashboard. Surface violations through existing Inbox Radar and attach receipts to existing task/run/approval records.
+
+Source reviewed:
+
+- https://modelcontextprotocol.io/seps/2577-deprecate-roots-sampling-and-logging
+
+Note: SEP-2577 is a final standards-track migration signal, but its page says deprecation begins in the specification release that includes it. Build the local invariant, not an assumption about an unreleased wire version.
+
+Implementation result:
+
+- Added `docs/EXECUTION_SCOPE_RECEIPTS.md` with the connector-neutral receipt contract and explicit rule that informational roots/capability labels are not enforcement evidence.
+- Added `execution-scope-receipts-v0` deterministic readiness fixtures. They accept an exact scoped read-only connector and reject informational-root-only, broader effective scope, policy drift, and out-of-scope observations.
+
+Verification:
+
+- `node --check scripts/self-improvement-readiness.mjs` passed.
+- `npm run check:self-improvement-readiness` passed, including `execution-scope-receipts-v0` with 6/6 cases passing.
 
 ## 2026-07-16 - Memory-route completeness and semantic dedup guard
 
@@ -100,6 +134,7 @@ Reference links:
 Implementation result: extended `docs/TOOL_CALL_APPROVAL_RECEIPTS.md` with a required freshness envelope for executable approval receipts and added deterministic readiness fixtures for fresh, missing-envelope, expired, and drifted-policy receipts.
 
 Verification:
+
 - `node --check scripts/self-improvement-readiness.mjs` passed.
 - `npm run check:self-improvement-readiness` passed, including `tool-call-approval-receipts-v0` with 8/8 cases passing.
 
@@ -139,6 +174,7 @@ Result: added `scripts/correction-lesson-router.mjs` and `npm run lessons:correc
 Current routing result: recent Tibber/Polestar standalone-status corrections route to covered `LESSONS.md` guidance, missing daily-memory-file/proactive-loop failures route to the covered optional-context-file lesson, and the repeated correction-routing signal routes to the now-done `correction-to-lesson-router-v0` task candidate.
 
 Verification:
+
 - `node --check scripts/correction-lesson-router.mjs` passed.
 - `npm run lessons:corrections -- --format=json` found 9 recent correction-like signals; all routed to covered `LESSONS.md` guidance or done Agent OS task candidates.
 - `npm run lab:weekly -- --format=json` still names `Correction-to-lesson router` as the suggested experiment, now with a runnable local command as the concrete output.
@@ -156,6 +192,7 @@ Expected payoff: the research lane stops spending future cron turns on a covered
 Risk: low if limited to research-lane covered-candidate scoring; do not weaken the actual memory promotion classifier or readiness fixtures.
 
 Verification evidence:
+
 - `npm run self-evolution:research` selected `Long-term memory promotion hygiene check` with state `ready-small`.
 - `npm run check:self-improvement-readiness` passed, including `memory-promotion-hygiene-v0` with 4/4 cases.
 - Current repo status is `needs-local-work` because of existing uncommitted local files plus this docs-only backlog update.
@@ -165,6 +202,7 @@ Next action: implementation lane should tighten covered-candidate suppression fo
 Implementation result: updated `scripts/self-evolution-research-lane.mjs` so covered signals are marked explicitly and skipped during candidate selection. The memory-promotion coverage predicate now also requires the stale-worktree rejection fixture, and the research report exposes `covered: true` for suppressed signals.
 
 Verification:
+
 - `node --check scripts/self-evolution-research-lane.mjs && node --check scripts/self-improvement-readiness.mjs` passed.
 - `npm run self-evolution:research -- --format=json` returned `No self-evolution candidate` with all current signals marked `covered: true`.
 - `npm run check:self-improvement-readiness` passed, including `memory-promotion-hygiene-v0` with 4/4 cases.
@@ -184,6 +222,7 @@ Risk: low if implemented as local deterministic fixtures only; no live push, no 
 Implemented: added `git-push-credential-policy-v0` fixtures to `scripts/self-improvement-readiness.mjs`. The guard accepts the Agent OS token/askpass wrapper, rejects stale plain shell credential-helper behavior, and keeps the existing failed-push readiness fixture that reports `local-ready-push-blocked` with blocker `git-push`.
 
 Verification:
+
 - `npm run check:self-improvement-readiness` passed, including `gitPushCredentialPolicy` with 3/3 cases passing and no failed fixture suites.
 - `npm run evals:agent` passed with 8/8 cases and average `1`.
 
@@ -192,6 +231,7 @@ Next action: commit/publish through `npm run git:push`.
 Follow-up: added covered-candidate suppression in `scripts/self-evolution-research-lane.mjs` for this implemented credential/push eval. The research lane now downgrades `push-or-credential-failure` when the task candidate, readiness fixtures, radar implementation evidence, and eval verification are all present.
 
 Follow-up verification:
+
 - `node --check scripts/self-evolution-research-lane.mjs` passed.
 - `npm run self-evolution:research -- --format=json` now selects `Long-term memory promotion hygiene check`; `push-or-credential-failure` is downgraded to score `8.4` from raw `56`.
 - `npm run check:self-improvement-readiness` passed all fixture suites; current repo status remains `needs-local-work` because this local patch is uncommitted.
@@ -204,6 +244,7 @@ State: `implemented-local`
 Result: updated `scripts/self-evolution-research-lane.mjs` so the research lane recognizes `cron-lane-visibility-preflight-v0` as covered when the spec, script, package command, task candidate, and radar evidence are present. This prevents the lane from repeatedly selecting the already-shipped "Create a small spec before changing live cron jobs" next action.
 
 Verification output:
+
 - `node --check scripts/self-evolution-research-lane.mjs` passed.
 - `npm run self-evolution:research -- --format=json` now selects `Credential-aware publish recovery eval`; `cron-or-heartbeat-friction` is downgraded to score `4.5` from raw `30`.
 - `npm run check:self-improvement-readiness` passed all fixture suites; current repo status remains `needs-local-work` because this local patch is uncommitted.
@@ -221,6 +262,7 @@ Result: added `docs/CRON_LANE_VISIBILITY_PREFLIGHT.md` as the local/docs-first s
 The spec defines the report shape for heartbeat, daily learning, self-evolution research, implementation, and briefing lanes. It keeps V0 bounded to existing docs/state/commands, requires explicit `no-action`, `safe-action-done`, `decision-needed`, and `blocked` outcomes, and forbids Telegram sends, live cron mutation, secrets, broad gateway/security changes, or new dashboard surfaces.
 
 Verification output:
+
 - `npm run self-evolution:research -- --format=json` selected `Cron lane visibility preflight` with state `ready-large` and next action `Create a small spec before changing live cron jobs`.
 - `test -f docs/CRON_LANE_VISIBILITY_PREFLIGHT.md && rg "noiseOutcome|no-action|safe-action-done|decision-needed|blocked" docs/CRON_LANE_VISIBILITY_PREFLIGHT.md` passed.
 - `node --check scripts/cron-lane-visibility-preflight.mjs` passed.
@@ -233,6 +275,7 @@ Next action: keep this local until Felipe approves any live cron/scheduler or da
 State: `research`
 
 Evidence:
+
 - `npm run self-evolution:research` returned `Eval or readiness gap follow-up` with state `research` at 2026-06-30T09:05:13Z.
 - The lane output named the next action as: `Write one candidate task with acceptance criteria`.
 
@@ -243,6 +286,7 @@ Next action: keep the work at candidate-task scoping until the research lane ret
 State: `ready-small`
 
 Evidence:
+
 - `npm run self-evolution:research` still selected `Eval or readiness gap follow-up` on 2026-06-30.
 - `docs/TASKS.md` already contains `eval-readiness-gap-coverage` with acceptance criteria, guardrails, evidence, and bridge-free backlog shape.
 - This radar already records `research-task-coverage-v0` as implemented locally for the scoped eval/readiness task coverage.
@@ -258,6 +302,7 @@ Verification: `npm run self-evolution:research` should no longer select `Eval or
 Result: added `researchTaskCoverageIsCovered()` to the research lane scoring. With `eval-readiness-gap-coverage`, `research-task-coverage-v0`, and radar implementation evidence present, `agent-eval-or-readiness` is now downgraded and the lane advances to `Cron lane visibility preflight`.
 
 Verification output:
+
 - `node --check scripts/self-evolution-research-lane.mjs` passed.
 - `npm run self-evolution:research -- --format=json` selected `Cron lane visibility preflight`; `agent-eval-or-readiness` scored `4.5` from raw `30`.
 - `npm run check:self-improvement-readiness` passed all fixture suites; current readiness remains `needs-local-work` because the worktree has uncommitted changes.
@@ -357,6 +402,7 @@ Sources reviewed in this pass:
 Why: this converts proactivity into safe autonomy without creating another dashboard silo. Cai can prepare things, but Felipe reviews one consolidated cockpit instead of chasing Telegram or checking yet another page.
 
 V1:
+
 - Extend Radar items with `kind`: `signal`, `review`, `approval`, `draft`, `handoff`, `task`
 - Keep existing Radar state/actions: handled, snooze, create task, open source
 - Add queue filters inside `/dashboard/radar`: All, Review, Approvals, Signals, Tasks
@@ -371,6 +417,7 @@ Status: V1 documented in `docs/AGENT_HANDOFF.md`.
 Why: reduces lost context and makes orchestration more reliable.
 
 V1 handoff fields:
+
 - goal
 - status
 - owner
@@ -388,6 +435,7 @@ V1 handoff fields:
 Why: this is the “Cai noticed something” surface, but it should not become a separate page unless it proves it needs one.
 
 V1:
+
 - represent opportunities as Radar `kind=signal` or `kind=review`
 - include confidence + effort + risk in metadata
 - action buttons: create task, dismiss/handled, ask Felipe, schedule follow-up
@@ -397,6 +445,7 @@ V1:
 Why: makes repeated work less chat-dependent.
 
 V1 templates:
+
 - Small Agent OS UI improvement
 - Connector health repair
 - Competitor/product research
@@ -408,6 +457,7 @@ V1 templates:
 Why: teaches the system what was actually useful.
 
 V1:
+
 - thumbs up/down on briefs/tasks/proactive actions
 - “too noisy / useful / wrong / risky” tags
 - weekly summary of what to adjust
@@ -417,11 +467,13 @@ V1:
 Why: most memory checks only prove recall works. Agent OS needs to know whether memory/proactivity changes outcomes: fewer repeated mistakes, fewer unnecessary turns, safer approvals, better task completion, lower cost.
 
 High-signal pattern from Microsoft STATE-Bench:
+
 - evaluate agents in stateful multi-turn scenarios with tools and a simulated user, not static Q&A
 - score final state / task completion, reliability across repeated runs, cost/turn/tool efficiency, and UX/consent quality
 - compare memory configurations by measuring behavior improvement, not retrieval accuracy alone
 
 Safe internal V1 for Agent OS:
+
 - create 10-20 local “Felipe cockpit” scenarios: convert inbox signal to task, prepare approval item, recover from stale connector, promote memory, reject unsafe external action
 - run each scenario against fixed fixture state with memory enabled/disabled or old/new prompts
 - score: task completed, approval safety, unnecessary messages/tool calls, uses known preferences correctly, avoids leaking private context
@@ -430,6 +482,7 @@ Safe internal V1 for Agent OS:
 ## OpenClaw vs Agent OS split
 
 OpenClaw already provides primitives:
+
 - agents
 - tools
 - cron
@@ -439,6 +492,7 @@ OpenClaw already provides primitives:
 - config/permissions
 
 Agent OS should provide the human cockpit layer:
+
 - what needs attention
 - what can be approved
 - what is running
@@ -453,6 +507,7 @@ Agent OS should provide the human cockpit layer:
 State: `implemented-local`
 
 Evidence:
+
 - `npm run self-evolution:research` selected `Eval or readiness gap follow-up` with next action `Write one candidate task with acceptance criteria`.
 - `docs/TASKS.md` already contains `eval-readiness-gap-coverage`, including acceptance criteria, guardrails, evidence, and a bridge-free backlog shape.
 - Recent memory (`/root/.openclaw/workspace/memory/2026-06-27.md`) confirms the lane now avoids reopening the covered Felipe-correction candidate and should move to this eval/readiness gap.
@@ -462,6 +517,7 @@ Hypothesis: implement one narrow deterministic guard for a recurring readiness/e
 Result: added `research-task-coverage-v0` to `scripts/self-improvement-readiness.mjs`. It has accept/reject fixtures for scoped eval/readiness task coverage and a real-doc assertion that `docs/TASKS.md` contains `eval-readiness-gap-coverage` with acceptance criteria, guardrails, evidence, a standalone command, and `npm run verify` wiring.
 
 Verification:
+
 - `npm run check:self-improvement-readiness` passes, including `research-task-coverage-v0` with 3/3 cases passing.
 - `npm run verify` passes. The run reported one non-blocking lint warning in the untracked Remotion prototype (`ConnectionDiagram` unused), then `tsc --noEmit` completed.
 
@@ -472,6 +528,7 @@ Next action: commit this guard separately from the untracked Remotion prototype.
 State: `implemented-local`
 
 Evidence:
+
 - `npm run self-evolution:research` still selected `Felipe correction follow-up` even though `docs/TASKS.md` now contains `felipe-correction-regression-guard` with acceptance criteria and this radar already records the QAA/Testbench positioning guard as implemented locally.
 - The repeated output is now lower leverage than the original correction signal: the lane is missing a closure/de-dup rule that recognizes scoped, implemented, or already-backlogged candidates.
 - Current repo signal: `scripts/self-evolution-research-lane.mjs` already discounts some covered failure modes, but not generic Felipe-correction follow-ups after a matching task or guard exists.
@@ -481,6 +538,7 @@ Hypothesis: teach the research lane to suppress or downgrade candidates that alr
 Result: added a narrow `felipeCorrectionFollowUpIsCovered()` scoring guard in `scripts/self-evolution-research-lane.mjs` and a readiness check fixture named `research-lane-correction-dedup`.
 
 Verification:
+
 - `npm run self-evolution:research` now selects `Eval or readiness gap follow-up` instead of `Felipe correction follow-up` while `felipe-correction-regression-guard` and QAA guard evidence exist.
 - `npm run check:self-improvement-readiness` passes with `research-lane-correction-dedup`.
 - `npm run check:qaa-positioning` passes.
@@ -492,6 +550,7 @@ Next action: scope the new `Eval or readiness gap follow-up` candidate before an
 State: `research`
 
 Evidence:
+
 - `npm run self-evolution:research` selected `Felipe correction follow-up` as the latest candidate from recent Felipe-correction signals.
 - The candidate is not yet bounded: payoff is clear enough to preserve the signal, but risk and verification are still unknown until scoped.
 - Attempting to persist the lane output with `npm run self-evolution:research -- --write=true` exposed a separate blocker: the default `reports/self-evolution-next.md` path cannot be written when `reports/` does not already exist.
@@ -507,6 +566,7 @@ Named blocker: `candidate-not-scoped`; persistence blocker resolved.
 State: `implemented-local`
 
 Evidence:
+
 - `npm run self-evolution:research` selected `Felipe correction follow-up` as the top candidate from recent memory, with six Felipe-correction signals.
 - `memory/2026-06-25.md` records repeated corrections: QAA/Testbench is the workbench/system of record; Sladdis is the autonomous software-capable QA coworker; avoid framing it as generic AI testing, a chatbot, recorder, or dashboard.
 - `/root/.openclaw/workspace/LESSONS.md` now has two relevant rules: `2026-06-24 — QAA positioning must not route through Agent OS` and `2026-06-25 — QAA/Testbench story must center the coworker-workbench loop`.
@@ -517,6 +577,7 @@ Hypothesis: add a small deterministic copy/positioning guard for QAA/Testbench p
 Result: added `scripts/qaa-positioning-guard.mjs`, wired `npm run check:qaa-positioning` into `npm run verify`, and covered both forbidden frames and allowed contrast examples with deterministic fixtures.
 
 Verification:
+
 - `npm run check:qaa-positioning`
 - `npm run check:proactivity && npm run check:qaa-positioning && npm run check:self-improvement-readiness`
 - `npm run self-evolution:research`
@@ -528,6 +589,7 @@ Remaining note: Agent OS still has pre-existing local prototype changes under `r
 State: `ready-small`
 
 Evidence:
+
 - `npm run self-evolution:research` selected `Long-term memory promotion hygiene check` as the top candidate with payoff focused on preventing routine heartbeat, cron, and validation logs from being promoted into durable memory.
 - Recent memory shows the same failure mode: `memory/2026-06-23.md` recorded noisy auto-promoted raw heartbeat/cron chunks and a stale push-blocker snapshot in `MEMORY.md`; `memory/2026-06-24.md` records cleanup of a raw auto-promoted heartbeat log under the 2026-06-23 memory-distillation rule.
 - This is higher leverage than adding more self-evolution lane infrastructure because the lane now selects recent operational failures, and the current failure affects Cai's long-term context quality directly.
@@ -541,6 +603,7 @@ Next action: implement in the implementation lane as a narrow readiness/eval gua
 State: `ready-small`
 
 Evidence:
+
 - `npm run self-evolution:research` still selected the generic `Autonomous self-evolution lane hardening` candidate, even though that lane is already implemented and readiness checks pass.
 - Recent memory has higher-signal failures: noisy long-term memory promotion cleanup and the 2026-06-23 isolated cron/tooling issue where stale `toolsAllow` caused proactivity/cron failure while initial symptoms pointed elsewhere.
 - `npm run check:self-improvement-readiness` reports `synced` and all self-improvement/autonomy-lane fixtures pass, so the next leverage is not more lane setup; it is better candidate ranking.

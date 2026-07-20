@@ -298,6 +298,66 @@ export function classifyToolCallApprovalReceipt(receipt) {
   };
 }
 
+export function classifyExecutionScopeReceipt(receipt) {
+  const value = receipt && typeof receipt === 'object' ? receipt : {};
+  const policyContext = {
+    policyVersion: 'agent-os-execution-scope.v0',
+    policyHash: 'sha256-agent-os-execution-scope-v0'
+  };
+  const scopeKeys = ['paths', 'resourceIds', 'actionClasses'];
+  const allowedMechanisms = new Set([
+    'process-sandbox',
+    'tool-adapter',
+    'server-authorization',
+    'scoped-credential'
+  ]);
+  const asScope = (scope) => (scope && typeof scope === 'object' && !Array.isArray(scope) ? scope : null);
+  const asItems = (scope, key) => (Array.isArray(scope?.[key]) ? scope[key].map(String) : []);
+  const requestedScope = asScope(value.requestedScope);
+  const effectiveScope = asScope(value.effectiveScope);
+  const observed = asScope(value.observedResourceSummary);
+  const sourceContext = Boolean(value.sourceTaskId || value.sourceRunId || value.sourceApprovalId);
+  const requestedItems = scopeKeys.flatMap((key) => asItems(requestedScope, key));
+  const effectiveItems = scopeKeys.flatMap((key) => asItems(effectiveScope, key));
+  const observedItems = scopeKeys.flatMap((key) => asItems(observed, key));
+  const hasBroaderEffectiveScope = scopeKeys.some((key) =>
+    asItems(effectiveScope, key).some((item) => !asItems(requestedScope, key).includes(item))
+  );
+  const hasOutOfScopeObservation = scopeKeys.some((key) =>
+    asItems(observed, key).some((item) => !asItems(effectiveScope, key).includes(item))
+  );
+  const checks = {
+    hasContract: value.contract === 'agent-os.execution-scope-receipt.v0',
+    hasSourceContext: sourceContext,
+    hasRequestedScope: requestedItems.length > 0,
+    hasEffectiveScope: effectiveItems.length > 0,
+    hasEnforcementMechanism: allowedMechanisms.has(value.enforcementMechanism),
+    hasPolicyVersion: value.policyVersion === policyContext.policyVersion,
+    hasPolicyHash: value.policyHash === policyContext.policyHash,
+    hasTimestamp: !Number.isNaN(new Date(String(value.createdAt ?? '')).valueOf()),
+    hasObservedSummary: Boolean(observed),
+    effectiveScopeIsNotBroader: !hasBroaderEffectiveScope,
+    observationsStayInEffectiveScope: !hasOutOfScopeObservation
+  };
+  const missing = Object.entries(checks)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    return {
+      status: 'reject',
+      executable: false,
+      missing,
+      violations: [
+        ...(hasBroaderEffectiveScope ? ['effective-scope-broader-than-requested'] : []),
+        ...(hasOutOfScopeObservation ? ['observed-resource-outside-effective-scope'] : [])
+      ]
+    };
+  }
+
+  return { status: 'accept', executable: true, missing: [], violations: [] };
+}
+
 function currentRepoInput() {
   const status = git(['status', '--branch', '--short']);
   const [branchStatus = '', ...files] = status.split(/\r?\n/).filter(Boolean);
@@ -493,6 +553,89 @@ function assertToolCallApprovalReceipts() {
 
   return {
     suite: 'tool-call-approval-receipts-v0',
+    cases: results.length,
+    failed: results.filter((result) => !result.passed).map((result) => result.id),
+    results
+  };
+}
+
+function assertExecutionScopeReceipts() {
+  const exactReadOnlyReceipt = {
+    contract: 'agent-os.execution-scope-receipt.v0',
+    sourceTaskId: 'task_123',
+    sourceRunId: 'run_123',
+    requestedScope: {
+      resourceIds: ['calendar:primary'],
+      actionClasses: ['read']
+    },
+    effectiveScope: {
+      resourceIds: ['calendar:primary'],
+      actionClasses: ['read']
+    },
+    enforcementMechanism: 'scoped-credential',
+    policyVersion: 'agent-os-execution-scope.v0',
+    policyHash: 'sha256-agent-os-execution-scope-v0',
+    createdAt: '2026-07-20T08:30:00.000Z',
+    observedResourceSummary: {
+      resourceIds: ['calendar:primary'],
+      actionClasses: ['read']
+    }
+  };
+  const docs = readOptional(resolve(repo, 'docs', 'EXECUTION_SCOPE_RECEIPTS.md'));
+  const fixtures = [
+    { id: 'accept-exact-scoped-read-only-connector', input: exactReadOnlyReceipt, expected: { status: 'accept', executable: true } },
+    {
+      id: 'reject-informational-root-only',
+      input: { ...exactReadOnlyReceipt, enforcementMechanism: 'informational-root' },
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-broader-effective-scope',
+      input: {
+        ...exactReadOnlyReceipt,
+        effectiveScope: { resourceIds: ['calendar:primary', 'calendar:secondary'], actionClasses: ['read'] }
+      },
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-policy-drift',
+      input: { ...exactReadOnlyReceipt, policyVersion: 'agent-os-execution-scope.old' },
+      expected: { status: 'reject', executable: false }
+    },
+    {
+      id: 'reject-out-of-scope-observation',
+      input: {
+        ...exactReadOnlyReceipt,
+        observedResourceSummary: { resourceIds: ['calendar:secondary'], actionClasses: ['read'] }
+      },
+      expected: { status: 'reject', executable: false }
+    }
+  ];
+  const results = fixtures.map((fixture) => {
+    const actual = classifyExecutionScopeReceipt(fixture.input);
+    const passed = Object.entries(fixture.expected).every(([key, value]) => actual[key] === value);
+    return { id: fixture.id, passed, expected: fixture.expected, actual };
+  });
+  const docPatterns = [
+    /agent-os\.execution-scope-receipt\.v0/,
+    /requestedScope/,
+    /effectiveScope/,
+    /enforcementMechanism/,
+    /policyVersion/,
+    /observedResourceSummary/,
+    /informational/i,
+    /Inbox Radar/
+  ];
+  const docPassed = docs.length > 0 && docPatterns.every((pattern) => pattern.test(docs));
+  results.push({
+    id: 'docs-define-execution-scope-receipts-v0',
+    passed: docPassed,
+    expected: { documented: true },
+    actual: { documented: docPassed, missingPatterns: docPatterns.filter((pattern) => !pattern.test(docs)).map((pattern) => pattern.source) }
+  });
+
+  return {
+    suite: 'execution-scope-receipts-v0',
     cases: results.length,
     failed: results.filter((result) => !result.passed).map((result) => result.id),
     results
@@ -740,6 +883,7 @@ const report = {
   fixtures: runFixtures ? assertFixtures() : undefined,
   gitPushCredentialPolicy: runFixtures ? assertGitPushCredentialPolicy() : undefined,
   toolCallApprovalReceipts: runFixtures ? assertToolCallApprovalReceipts() : undefined,
+  executionScopeReceipts: runFixtures ? assertExecutionScopeReceipts() : undefined,
   memoryPromotionHygiene: runFixtures ? assertMemoryPromotionHygiene() : undefined,
   researchTaskCoverage: runFixtures ? assertResearchTaskCoverage() : undefined,
   felipeCorrectionRegressionGuardCoverage: runFixtures ? assertFelipeCorrectionRegressionGuardCoverage() : undefined,
@@ -753,6 +897,7 @@ if (
   report.fixtures?.failed.length > 0 ||
   report.gitPushCredentialPolicy?.failed.length > 0 ||
   report.toolCallApprovalReceipts?.failed.length > 0 ||
+  report.executionScopeReceipts?.failed.length > 0 ||
   report.memoryPromotionHygiene?.failed.length > 0 ||
   report.researchTaskCoverage?.failed.length > 0 ||
   report.felipeCorrectionRegressionGuardCoverage?.failed.length > 0 ||

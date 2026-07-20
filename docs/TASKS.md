@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `enforced-execution-scope-receipt-v0`
+
+```json
+{
+  "id": "enforced-execution-scope-receipt-v0",
+  "title": "Define enforced execution-scope receipts V0",
+  "description": "Prove the boundary actually enforced for an agent operation instead of treating advertised roots, connector labels, or requested scope as security controls.\n\n## Acceptance criteria\n\n- Define a local receipt with source task/run/approval IDs, requested paths/resource IDs/action classes, effective scope, enforcement mechanism (`process-sandbox|tool-adapter|server-authorization|scoped-credential`), policy version/hash, timestamps, and a non-sensitive observed-resource summary.\n- Treat UI capability labels and protocol-advertised roots as context only, never as enforcement evidence.\n- Reject or route to review when effective scope is broader than requested, the enforcement mechanism is absent, the policy version has drifted, or observed resources fall outside effective scope.\n- Attach the receipt to existing task/run/approval records and route violations through existing Inbox Radar; do not add a dashboard page.\n- Add deterministic fixtures for exact enforced scope, informational-root-only rejection, broader effective scope, policy drift, out-of-scope observation, and a scoped read-only connector.\n- Record verification in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Docs and local deterministic fixtures only for V0; no live MCP calls, sandbox changes, credential changes, external writes, secrets, scheduler changes, or provider-specific dependency.\n- Store normalized identifiers and summaries, never credentials, raw sensitive payloads, or unnecessary filesystem disclosure.\n- Preserve a connector-neutral Agent OS contract; do not depend on MCP Roots or its wire lifecycle.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-07-20 enforced execution scope research.\n- MCP SEP-2577 - Roots are informational rather than enforced; explicit parameters/configuration are preferred, and filesystem disclosure/traversal are named security concerns.",
+  "status": "done",
+  "priority": 72,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `delegated-operation-handle-v0`
 
 ```json
