@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `ephemeral-coding-sandbox-spike-v0`
+
+```json
+{
+  "id": "ephemeral-coding-sandbox-spike-v0",
+  "title": "Prototype an ephemeral coding-worker sandbox",
+  "description": "Validate an optional task-level isolation layer for coding workers. The runner must use a copied task workspace, an immutable pinned image, no host home/Docker socket/SSH agent, network denied by default, no long-lived credentials, resource limits, artifact-only patch handoff, host-side scope validation, and verified teardown. Start with deterministic contract fixtures and a synthetic repository; no production agent routing, secrets, deployments, or external writes.\n\n## Acceptance criteria\n\n- Define a sandbox run receipt that binds task, effective scope, image digest, network policy, credential mode, limits, artifacts, and teardown.\n- Prove with fixtures that broad mounts, absent enforcement, network escalation, secret injection, out-of-scope patches, and failed teardown are rejected or routed to review.\n- Run a rootless disposable-container spike against synthetic code with network disabled.\n- Record a clear container-versus-microVM escalation policy.\n- Do not change live agent execution or credential configuration without Felipe's separate approval.\n\n## Evidence\n\n- `docs/EPHEMERAL_CODING_SANDBOX.md` - proposed V0 architecture and guardrails.\n- `docs/EXECUTION_SCOPE_RECEIPTS.md` - existing fail-closed effective-scope contract.",
+  "status": "backlog",
+  "priority": 72,
+  "ownerAgentId": "cai",
+  "source": "proactive",
+  "dueAt": null
+}
+```
+
 ### `enforced-execution-scope-receipt-v0`
 
 ```json
