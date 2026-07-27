@@ -14,7 +14,6 @@ git clone \
   --single-branch \
   https://github.com/felipeotarola/agent-os.git
 cd agent-os
-sha256sum --check recovery/openclaw-backup-v1/CHECKSUMS.sha256
 ```
 
 Independently compare the value in
@@ -29,14 +28,18 @@ export GNUPGHOME="$PWD/.recovery-gnupg"
 install -d -m 0700 "$GNUPGHOME"
 gpg --batch --import \
   recovery/openclaw-backup-v1/origin-signing-public.asc
+gpg --batch --verify \
+  recovery/openclaw-backup-v1/CHECKSUMS.sha256.asc \
+  recovery/openclaw-backup-v1/CHECKSUMS.sha256
 gpg --batch --with-colons --fingerprint |
   awk -F: '$1 == "fpr" { print $10 }'
+sha256sum --check recovery/openclaw-backup-v1/CHECKSUMS.sha256
 ```
 
 The displayed primary fingerprint must be exactly:
 
 ```text
-9E49C2F57BCD887ACCF531E69AB4901020F94CDA
+11EAFE1BD7AD1BEE296B24565C8124C33417F2D7
 ```
 
 Import the separately held recovery private key into this isolated keyring.
@@ -45,7 +48,7 @@ backup store itself.
 
 ## Recovery dependencies
 
-- Node.js 22 or newer, including `node:sqlite`
+- Node.js 22.13.0 or newer, including unflagged `node:sqlite`
 - GnuPG
 - GNU tar
 - zstd
