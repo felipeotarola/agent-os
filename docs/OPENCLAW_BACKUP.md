@@ -45,11 +45,13 @@ As of 2026-07-28:
   `/dev/mapper/openclaw-cryptswap` AES-XTS mapping backed by `/swapfile`. The
   former plaintext backing area received a full raw overwrite during migration.
   Old provider snapshots may still contain blocks from before that scrub.
-- The origin-signing key is configured. The offline recovery encryption key has
-  not been supplied, so `OPENCLAW_BACKUP_GPG_RECIPIENT` is deliberately absent.
-- The v2 full-encrypted-object-set probe exists in source, but the production
-  probe route currently is not deployed/configured and
-  `OPENCLAW_BACKUP_REMOTE_PROBE_URL` is absent.
+- The origin-signing key and offline recovery recipient are configured. The VPS
+  contains only the recovery recipient's public key; its private key remains
+  offline.
+- The v2 full-encrypted-object-set probe was deployed to the isolated production
+  ingest project on 2026-07-28 and `OPENCLAW_BACKUP_REMOTE_PROBE_URL` is
+  configured. Its receipt-bound proof remains pending until the first real
+  encrypted upload.
 - The published `openclaw-backup-recovery-v1` branch still exposes legacy
   v1-only recovery tooling. The local v1.2 kit contains the current v2 import
   closure and its checksum manifest and detached signature validate locally,
@@ -487,9 +489,11 @@ protect against a fully compromised VPS that can use the local signing key.
 The upload route and private store are already deployed. The source also
 contains `POST /api/openclaw-backup/probe`, an HMAC-authenticated,
 metadata-only v2 check for the complete ordered encrypted object set in one
-upload receipt. The current production deployment returns `404` for that route,
-so the complete ingest source cohort must be verified and deployed from
-`infra/openclaw-backup-ingest`.
+upload receipt. The complete source cohort was verified (10/10 tests) and
+deployed to the production ingest project on 2026-07-28. An unauthenticated
+request returns `401`, confirming the route is present and retains its HMAC
+authentication boundary; a valid full-object proof requires the first real
+encrypted upload.
 
 The probe accepts at most 128 exact receipt objects, consumes its one-time
 authorization nonce before any reads, derives every immutable pathname, and
