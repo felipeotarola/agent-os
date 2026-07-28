@@ -1,0 +1,22 @@
+{
+  "name": "openclaw-backup-ingest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "verify": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "tsx": "4.22.1",
+    "typescript": "5.7.2"
+  },
+  "engines": {
+    "node": ">=22 <25"
+  }
+}

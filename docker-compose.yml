@@ -18,6 +18,7 @@ services:
     working_dir: /app
     command: node bridge/server.mjs
     environment:
+      BRIDGE_HOST: 127.0.0.1
       BRIDGE_PORT: 8787
       BRIDGE_DATABASE_URL: ${BRIDGE_DATABASE_URL:-postgres://agent_os:${POSTGRES_PASSWORD:-agent_os_local_password}@127.0.0.1:${POSTGRES_PORT:-5433}/${POSTGRES_DB:-agent_os}}
       AGENT_OS_BRIDGE_TOKEN: ${AGENT_OS_BRIDGE_TOKEN:?AGENT_OS_BRIDGE_TOKEN is required}

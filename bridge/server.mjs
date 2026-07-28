@@ -20,6 +20,7 @@ import {
 } from './memory-control-plane.mjs';
 
 const port = Number(process.env.BRIDGE_PORT ?? 8787);
+const host = process.env.BRIDGE_HOST ?? '127.0.0.1';
 const token = process.env.AGENT_OS_BRIDGE_TOKEN;
 const databaseUrl = process.env.BRIDGE_DATABASE_URL ?? process.env.DATABASE_URL;
 
@@ -7396,6 +7397,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
-  console.warn(`Agent OS bridge listening on ${port}`);
+server.listen(port, host, () => {
+  console.warn(`Agent OS bridge listening on ${host}:${port}`);
 });

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["arn1"],
+  "functions": {
+    "api/openclaw-backup/upload-url.ts": {
+      "maxDuration": 10
+    },
+    "api/openclaw-backup/probe.ts": {
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/openclaw-backup/upload-url",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'none'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/api/openclaw-backup/probe",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'none'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ]
+}

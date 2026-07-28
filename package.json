@@ -28,7 +28,10 @@
     "db:studio": "drizzle-kit studio",
     "check:runtime-mocks": "node scripts/check-runtime-mocks.mjs && node scripts/check-theme-containers.mjs && node scripts/check-openclaw-runtime-contract.mjs && node scripts/check-openclaw-runtime-contract-fixtures.mjs",
     "check:openclaw-runtime": "node scripts/check-openclaw-runtime-contract.mjs --runtime",
+    "check:openclaw-backup": "node scripts/openclaw-backup-contract.mjs && node scripts/openclaw-backup-upload-contract.mjs && node scripts/openclaw-backup-integration.mjs && node scripts/openclaw-backup-retention-contract.mjs",
+    "check:openclaw-backup:secure": "node scripts/openclaw-backup-integration.mjs --require-secure",
     "check:proactivity": "node scripts/proactivity-regression-harness.mjs",
+    "check:context-proactivity": "node scripts/context-dependent-proactivity-eval.mjs",
     "check:qa-strategy": "node scripts/qa-strategy-contract-harness.mjs",
     "check:qaa-positioning": "node scripts/qaa-positioning-guard.mjs",
     "lab:weekly": "node scripts/weekly-wild-lab.mjs",
@@ -49,7 +52,7 @@
     "git:push": "node scripts/git-push-agent-os-token.mjs",
     "prebuild": "npm run check:runtime-mocks",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run check:runtime-mocks && npm run check:memory-control-plane && npm run check:memory-control-plane-runner && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:weekly-wild-lab && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
+    "verify": "npm run check:runtime-mocks && npm run check:openclaw-backup && npm run check:memory-control-plane && npm run check:memory-control-plane-runner && npm run check:proactivity && npm run evals:agent && npm run check:self-improvement-readiness && npm run check:cron-tool-policy && npm run check:cron-lane-visibility && npm run check:cron-review-preflight && npm run check:weekly-wild-lab && npm run check:qa-strategy && npm run check:qaa-positioning && npm run check:repo-review-preflight && npm run lint && npm run typecheck",
     "evals:agent": "node scripts/agent-evals.mjs"
   },
   "dependencies": {
@@ -153,5 +156,8 @@
     "!(scripts)/**/*.{js,jsx,tsx,ts,css,less,scss,sass}": [
       "oxfmt --write"
     ]
+  },
+  "engines": {
+    "node": ">=22.13 <25"
   }
 }

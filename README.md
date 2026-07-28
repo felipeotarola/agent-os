@@ -60,3 +60,5 @@ See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
 - `docs/DURABLE_ARTIFACTS.md` — rules for preserving briefs, research, decisions, eval reports, instruction changes, and workflow outputs.
 - `docs/KNOWLEDGE_VAULT.md` — generated Obsidian-compatible vault structure and DB metadata mirror.
 - `docs/RUNWAY_PICTURE.md` — safe 30-60 day income/runway surface and guardrails.
+- `docs/OPENCLAW_BACKUP.md` — layered Hetzner/Blob backup architecture,
+  credential boundaries, activation steps, and clean-machine restore runbook.
