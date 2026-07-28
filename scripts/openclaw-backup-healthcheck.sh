@@ -52,6 +52,7 @@ warn() {
 swap_is_confidential() {
   local swap_count
   local swap_source
+  local swap_source_path
   local mapped_source
   local crypt_status
   swap_count=$(
@@ -60,12 +61,21 @@ swap_is_confidential() {
   )
   [[ "$swap_count" == 1 ]] || return 1
   swap_source=$(awk 'NR == 2 { print $1 }' /proc/swaps)
+  if [[ "$swap_source" == /dev/* ]]; then
+    swap_source_path=$swap_source
+  elif [[ "$swap_source" == /* ]]; then
+    # Some kernels abbreviate device-mapper sources as /dm-N in
+    # /proc/swaps rather than /dev/dm-N.
+    swap_source_path="/dev$swap_source"
+  else
+    return 1
+  fi
   mapped_source=$(
     readlink -f "/dev/mapper/$CRYPTSWAP_NAME" 2>/dev/null ||
       true
   )
   [[ -n "$mapped_source" &&
-    $(readlink -f "$swap_source" 2>/dev/null || true) == "$mapped_source" ]] ||
+    $(readlink -f "$swap_source_path" 2>/dev/null || true) == "$mapped_source" ]] ||
     return 1
   crypt_status=$(cryptsetup status "$CRYPTSWAP_NAME" 2>/dev/null) ||
     return 1
