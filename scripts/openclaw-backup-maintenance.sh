@@ -311,12 +311,7 @@ swap_configuration_is_reviewed() {
       /^[[:space:]]*($|#)/ { next }
       $1 == "openclaw-cryptswap" {
         mappings += 1
-        if (
-          NF == 4 &&
-          $2 == "/swapfile" &&
-          $3 == "/dev/urandom" &&
-          $4 == "plain,cipher=aes-xts-plain64,size=256,hash=sha256,swap"
-        ) {
+        if (NF == 4 && $2 == "/swapfile" && $3 == "/dev/urandom" && $4 == "plain,cipher=aes-xts-plain64,size=256,hash=sha256,swap") {
           exact += 1
         }
       }
@@ -332,15 +327,7 @@ swap_configuration_is_reviewed() {
       /^[[:space:]]*($|#)/ { next }
       $3 == "swap" {
         swaps += 1
-        if (
-          NF == 6 &&
-          $1 == "/dev/mapper/openclaw-cryptswap" &&
-          $2 == "none" &&
-          $3 == "swap" &&
-          $4 == "sw,nofail" &&
-          $5 == "0" &&
-          $6 == "0"
-        ) {
+        if (NF == 6 && $1 == "/dev/mapper/openclaw-cryptswap" && $2 == "none" && $3 == "swap" && $4 == "sw,nofail" && $5 == "0" && $6 == "0") {
           exact += 1
         }
       }
