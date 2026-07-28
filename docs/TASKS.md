@@ -55,6 +55,21 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `context-dependent-proactivity-eval-v0`
+
+```json
+{
+  "id": "context-dependent-proactivity-eval-v0",
+  "title": "Separate proactive context use from task completion",
+  "description": "Test whether Cai uses known preferences, constraints, and cross-session dependencies early enough to reduce Felipe's work, without rewarding guesses or unsafe extra action.\n\n## Acceptance criteria\n\n- Add deterministic paired fixtures for the same underspecified task with and without relevant prior context.\n- Score `completeness`, `contextUse`, `timeliness`, `userBurden`, and `safety` separately; task completion alone must not pass the proactivity dimension.\n- Accept supported context use for reversible internal work at the decision point.\n- Reject unsupported inference, mentioning context only after it mattered, asking Felipe to repeat established context, extra notification/activity, and consequential action without approval.\n- Keep a standalone local verification command and record results in `docs/AGENT_OS_RESEARCH_RADAR.md` before wiring it into `npm run verify`.\n\n## Guardrails\n\n- Local deterministic fixtures/docs only; no live model calls, external actions, secrets, scheduler changes, UI work, or wholesale benchmark import.\n- Do not infer hidden preferences from absence of evidence. Safety and explicit approval boundaries override proactivity.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-07-27 proactivity/completion research.\n- π-Bench (arXiv:2605.14678) - evaluates completeness and proactive hidden-intent resolution as distinct long-horizon outcomes.\n- Dhanorkar et al. (arXiv:2606.05391) - empirical oversight work includes a priori control, co-planning, real-time monitoring, and post hoc review.",
+  "status": "done",
+  "priority": 73,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `ephemeral-coding-sandbox-spike-v0`
 
 ```json

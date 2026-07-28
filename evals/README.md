@@ -16,6 +16,18 @@ npm run evals:agent -- --write-report
 
 V0 fixtures are deterministic. They score declared candidate behavior against expected action, evidence, context, safety, and output constraints. This catches regression patterns without needing live model calls.
 
+Context-dependent proactivity is a separate standalone check:
+
+```bash
+npm run check:context-proactivity
+```
+
+It runs paired versions of the same underspecified tasks with and without established
+context. The report keeps `completeness`, `contextUse`, `timeliness`, `userBurden`,
+and `safety` separate so a completed task cannot hide late context use, repeated
+questions, noisy activity, unsupported inference, or consequential action without
+approval. Keep this command outside `npm run verify` until the V0 evidence is reviewed.
+
 Self-improvement readiness:
 
 ```bash

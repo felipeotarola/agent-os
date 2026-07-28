@@ -2,7 +2,38 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-07-20
+Last scan: 2026-07-27
+
+## 2026-07-27 - Proactivity must be scored separately from completion
+
+State: `implemented-local`
+
+High-signal pattern: a personal assistant can finish the explicit task while still failing as an assistant. π-Bench separates task completeness from proactivity: whether the agent resolves hidden preferences, constraints, and cross-session dependencies early enough to reduce later user work. Its 100 multi-turn tasks show that these are distinct outcomes and that prior interactions help resolve later implicit intent. This matches Agent OS's operating goal better than activity counts or task completion alone.
+
+Why this matters for Agent OS:
+
+- `scripts/proactivity-regression-harness.mjs` currently checks whether a hand-authored candidate chose `do|ask|silent`, supplied some evidence, avoided forbidden effects, and kept notifications concise. It does not test whether a completed result applied a known constraint, surfaced a downstream dependency at the useful moment, or avoided asking Felipe to repeat established context.
+- Proactivity can also become unsafe overreach. A useful eval must reward early handling of known, relevant context for reversible internal work while rejecting guesses that trigger external, destructive, costly, or sensitive actions.
+- The smallest useful addition is a paired counterfactual fixture: the same underspecified task with and without relevant prior context. The score should improve only when the prior-context run applies the supported constraint at the correct step; unsupported inference, late mention after the decision, repeated questions, and consequential action without approval should fail.
+
+Safe internal build candidate:
+
+- Add bridge-free candidate `context-dependent-proactivity-eval-v0` to `docs/TASKS.md`.
+- V0 should add a few deterministic paired fixtures and report separate `completeness`, `contextUse`, `timeliness`, `userBurden`, and `safety` dimensions. Do not import the full benchmark, call a live model, add UI, or reward extra activity/messages.
+
+Sources reviewed:
+
+- https://arxiv.org/abs/2605.14678
+- https://arxiv.org/abs/2606.05391
+
+Note: π-Bench is a May 2026 preprint, and the oversight study is an exploratory interview study with 17 experienced developers. Use their measurement/design patterns as local hypotheses, not as universal performance claims.
+
+Implementation evidence (2026-07-27):
+
+- Added six paired counterfactual fixtures (12 deterministic runs) in `evals/context-dependent-proactivity-v0.json`.
+- Added standalone `npm run check:context-proactivity`; it reports `completeness`, `contextUse`, `timeliness`, `userBurden`, and `safety` independently and requires all non-completeness dimensions for `proactivityPass`.
+- The fixtures accept supported context at the decision point and reject late context, repeated established questions, unsupported inference, extra activity, and consequential action without approval.
+- Verification: `npm run check:context-proactivity` passed 12/12 runs with `completenessOnlyCannotPass: true`. The command remains intentionally outside `npm run verify` pending review.
 
 ## 2026-07-20 - Enforced execution scope, not informational roots
 
@@ -501,6 +532,26 @@ Agent OS should provide the human cockpit layer:
 - what changed since last time
 
 ## Next candidate task
+
+### 2026-07-28 — Evidence-driven R&D loop board
+
+State: `ready-large`
+
+Evidence:
+
+- `npm run self-evolution:research` returned `no-action` because its currently ranked memory-promotion, correction-routing, cron-visibility and readiness signals are already covered.
+- `/root/.openclaw/workspace/memory/2026-07-27.md` contains Felipe's explicit request for a task board for R&D loops in Agent OS.
+- Agent OS already has a Postgres-backed task board (`README.md`), so the higher-leverage path is to extend the existing work model rather than create another dashboard.
+
+Hypothesis: model an R&D loop as an evidence-bearing task lifecycle: question/hypothesis, bounded experiment, expected signal, artifact/evidence, verdict (`adopt`, `iterate`, `retire`), and follow-up. The board should make active experiments, waits, owners and retired ideas visible while preventing speculative research from silently becoming implementation work.
+
+Payoff: turns self-learning and Wild Lab work into reviewable, resumable loops; reduces duplicated experiments and makes weekly improvement measurable by verified adoption or explicit retirement.
+
+Risk: a generic new board would duplicate Tasks and create process overhead. Keep the design as a task-type/workflow extension, with no product-code change until the data model, transitions and acceptance fixtures are specified.
+
+Verification: deterministic lifecycle fixtures must prove that an R&D item cannot be marked adopted without evidence/verdict, can be retired with a recorded lesson, and links implementation work back to the originating experiment.
+
+Next action: write a PR-sized spec against the existing Tasks model, including schema/API/UI impact, lifecycle fixtures, migration/rollback and the smallest useful board view.
 
 ### 2026-06-28 — Eval/readiness gap guard scoping
 
