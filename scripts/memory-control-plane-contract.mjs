@@ -10,6 +10,7 @@ const fixtures = [
   [{ type: 'product-context', summary: 'Research source documents the product architecture and wiki model.' }, 'knowledge-wiki', false, 'extracted'],
   [{ type: 'preference', summary: 'Felipe prefers this strategy and never wants manual promotion.' }, 'long-term-memory', true, 'reviewed'],
   [{ type: 'session-signal', summary: 'HEARTBEAT_OK' }, 'discard', false, 'archived'],
+  [{ type: 'session-signal', summary: 'Är det något vi bör implementera direkt' }, 'discard', false, 'archived'],
   [{ type: 'decision', summary: 'Use API token secret abc for this decision.' }, 'long-term-memory', true, 'reviewed']
 ];
 

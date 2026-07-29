@@ -2,6 +2,7 @@ const SENSITIVE = /\b(password|token|secret|api[_ -]?key|authorization|bearer|co
 const CONTRADICTION = /\b(but actually|correction|ignore previous|instead of|contradict|rättelse|nej,?\s|inte längre|ersätt)/i;
 const PREFERENCE = /\b(prefer|preference|vill ha|jag vill|always|never|alltid|aldrig|strategy|strategi|policy|regel)/i;
 const CLIPPED_ENDING = /(?:\b(?:and|or|but|because|that|which|to|with|for|och|eller|men|att|som|med|för|eftersom)|[,;:–—-])$/i;
+const BARE_QUESTION = /^(?:what|why|how|when|where|who|which|is|are|can|could|would|should|do|does|did|vad|varför|hur|när|var|vem|vilken|vilka|är|kan|kunde|skulle|bör|borde|har|finns)\b/i;
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -91,10 +92,14 @@ export function classifyMemorySignal(signal) {
   let route = 'daily-memory';
   let confidence = 0.82;
 
-  if (text.length < 24 || /\b(heartbeat_ok|no change|status only|maybe later)\b/i.test(text)) {
+  if (
+    text.length < 24 ||
+    /\b(heartbeat_ok|no change|status only|maybe later)\b/i.test(text) ||
+    (type !== 'todo' && text.length <= 180 && BARE_QUESTION.test(text))
+  ) {
     route = 'discard';
     confidence = 0.96;
-    reasons.push('empty-or-transient');
+    reasons.push(BARE_QUESTION.test(text) ? 'bare-question' : 'empty-or-transient');
   } else if (type === 'todo' && isExplicitTaskIntent(text)) {
     route = 'task';
     confidence = 0.9;
