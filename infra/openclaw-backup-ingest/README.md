@@ -9,12 +9,16 @@ The current production deployment is
 `https://openclaw-backup-ingest.vercel.app`. It is connected only in Production
 to the private `openclaw-backup-primary` store in `arn1`. Runtime OIDC was
 verified with a real signed-URL canary; Preview and Development remain
-unconfigured. The deployed upload route is active, but the current production
-deployment returns `404` for the probe route and predates the v2 full-object-set
-probe in this source tree. Verify and deploy this complete source cohort, then
-install the matching v2 uploader/probe/retention runtime on the VPS before
-configuring the probe URL. Do not mix v1 receipts or marker-only probe evidence
-with the v2 retention contract.
+unconfigured. The deployed upload and v2 probe routes are active. The current
+source makes the metadata-only probe write-free so it can verify a completed
+store even when Blob refuses further writes. This exact source cohort is
+deployed and has confirmed a real 18-object, 1,681,840,609-byte production
+receipt. The production fetch adapter deliberately ignores Vercel's second
+runtime-context argument, and the signed private `HEAD` uses identity encoding
+so the original ciphertext length remains available for exact comparison.
+Install the matching v2
+uploader/probe/retention runtime on the VPS and do not mix v1 receipts or
+marker-only probe evidence with the v2 retention contract.
 
 ## Required environment
 
@@ -124,19 +128,25 @@ canonical order:
 The route accepts 2–128 objects and at most 64 KiB of request JSON. Numbered
 parts must be contiguous and ordered, `manifest.json.gpg` must be last, and the
 canonical object root must match the host-derived immutable pathnames. After
-authentication it consumes the one-time nonce before any metadata read, then
-performs bounded-concurrency `head` calls for every object. Each result must
+authentication it performs bounded-concurrency `head` calls for every object.
+Each result must
 match pathname, size, `application/octet-stream`, and ETag. A successful
 `openclaw-backup-remote-probe/v2` response repeats only the set ID, object
 count, total bytes, object root, and completion-marker pathname. It never lists
 a prefix or returns object bytes.
 
 The HMAC timestamp limits an intercepted authorization request to five minutes.
-Both upload authorization and probe calls atomically consume their signed nonce
-by creating a non-overwritable private marker below
-`openclaw-backup-auth-nonces/v1/`. A replay therefore fails before another URL
-is issued or a probe performs any `head`. Retention maintenance must eventually
-remove expired nonce markers; the ingest function itself has no delete route.
+Upload authorization atomically consumes its signed nonce by creating a
+non-overwritable private marker below
+`openclaw-backup-auth-nonces/v1/`, so replay cannot mint another write
+capability. Probe requests remain bound to an exact random nonce, timestamp,
+host, route, authority, and body, but do not persist the nonce in Blob. A
+captured fresh probe can therefore repeat only the same bounded exact `head`
+checks; it cannot write or create positive evidence without matching current
+metadata. Strict read-probe replay prevention would require a separate
+available atomic KV with TTL. Retention maintenance must eventually remove
+expired upload-authorization nonce markers; the ingest function itself has no
+delete route.
 
 If an upload succeeds but its response is lost, do not mint again for the same
 immutable set. The host deliberately has no `HEAD` permission; abandon that set
@@ -156,9 +166,10 @@ ID and create a new one.
 - Vercel Blob has no documented WORM/Object Lock or undelete guarantee. A
   separately administered immutable copy remains required for stronger
   ransomware and control-plane-loss protection.
-- Remote backup retention and authorization-nonce cleanup are not implemented
-  here. They require a separate privileged identity that never resides on the
-  backup host and must preserve each recovery-key cohort's floor.
+- Remote backup retention and upload-authorization nonce cleanup are not
+  implemented here. They require a separate privileged identity that never
+  resides on the backup host and must preserve each recovery-key cohort's
+  floor.
 
 ## Verify
 

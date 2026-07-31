@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import {
   lstat,
   open,
@@ -10,7 +11,7 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import {
   assertTrustedDirectoryHierarchy,
   recoveryUid
@@ -198,11 +199,25 @@ async function main() {
   );
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  main().catch((error) => {
-    process.stderr.write(
-      `openclaw_backup_manifest_recovery_error: ${error.message}\n`
-    );
-    process.exitCode = 1;
-  });
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  const mainKeepAlive = setInterval(() => {}, 1_000);
+  main()
+    .catch((error) => {
+      process.stderr.write(
+        `openclaw_backup_manifest_recovery_error: ${error.message}\n`
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      clearInterval(mainKeepAlive);
+    });
 }

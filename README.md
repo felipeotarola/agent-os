@@ -15,7 +15,6 @@ Local-first cockpit for Felipe × Cai.
 - Memory: memory search/save surface
 - Permissions: notification/permission state
 - Settings: real system/data-source status and guardrails
-- Trading Lab: paper-only BTC research/backtesting workspace
 - Sources layer: raw evidence kept separate from interpreted context
 - Decision log: concise rationale records for durable Agent OS/Life OS choices
 - Agent evals: lightweight fixture-based behavior checks for agents/workflows

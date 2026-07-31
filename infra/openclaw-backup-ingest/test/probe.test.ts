@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { HeadBlobResult, PutBlobResult } from '@vercel/blob';
-import { handleProbeRequest } from '../api/openclaw-backup/probe.js';
+import {
+  BlobAccessError,
+  BlobRequestAbortedError,
+  BlobServiceNotAvailable,
+  BlobServiceRateLimited,
+  BlobStoreNotFoundError,
+  BlobStoreSuspendedError,
+  BlobUnknownError,
+  type HeadBlobResult
+} from '@vercel/blob';
+import probeFunction, { handleProbeRequest } from '../api/openclaw-backup/probe.js';
 import {
   BACKUP_CONTENT_TYPE,
   REMOTE_PROBE_PATH,
@@ -97,23 +106,14 @@ function exactMetadata(pathname: string, overrides: Partial<HeadBlobResult> = {}
   };
 }
 
-async function consumeNonce(pathname: string): Promise<PutBlobResult> {
-  return {
-    url: `https://store.private.blob.vercel-storage.com/${pathname}`,
-    downloadUrl: `https://store.private.blob.vercel-storage.com/${pathname}?download=1`,
-    pathname,
-    contentType: 'text/plain; charset=utf-8',
-    contentDisposition: 'attachment',
-    etag: 'nonce-etag'
-  };
-}
+test('production fetch adapter cannot treat Vercel runtime context as HeadBlob', () => {
+  assert.equal(probeFunction.fetch.length, 1);
+});
 
 test('probe returns only exact full-object-set metadata', async () => {
   configureEnvironment();
-  const response = await handleProbeRequest(
-    signedProbeRequest(),
-    async (pathname) => exactMetadata(pathname),
-    consumeNonce
+  const response = await handleProbeRequest(signedProbeRequest(), async (pathname) =>
+    exactMetadata(pathname)
   );
   assert.equal(response.status, 200);
   const result = (await response.json()) as Record<string, unknown>;
@@ -139,45 +139,62 @@ test('probe rejects noncanonical sets and mismatched remote metadata', async () 
   };
   const wrongFileResponse = await handleProbeRequest(
     signedProbeRequest(wrongFile),
-    async (pathname) => exactMetadata(pathname),
-    consumeNonce
+    async (pathname) => exactMetadata(pathname)
   );
   assert.equal(wrongFileResponse.status, 400);
 
-  const mismatchResponse = await handleProbeRequest(
-    signedProbeRequest(),
-    async (pathname) => {
-      const metadata = exactMetadata(pathname);
-      return { ...metadata, size: metadata.size + 1 };
-    },
-    consumeNonce
-  );
+  const mismatchResponse = await handleProbeRequest(signedProbeRequest(), async (pathname) => {
+    const metadata = exactMetadata(pathname);
+    return { ...metadata, size: metadata.size + 1 };
+  });
   assert.equal(mismatchResponse.status, 502);
 });
 
-test('probe authentication is bound to the probe pathname', async () => {
+test('probe returns bounded safe Blob metadata failure codes', async () => {
   configureEnvironment();
-  const response = await handleProbeRequest(
-    signedProbeRequest(BODY, '/api/openclaw-backup/upload-url'),
-    async (pathname) => exactMetadata(pathname),
-    consumeNonce
-  );
-  assert.equal(response.status, 401);
+  const cases = [
+    [new BlobStoreSuspendedError(), 507, 'blob-store-suspended'],
+    [new BlobServiceRateLimited(1), 429, 'blob-store-rate-limited'],
+    [new BlobServiceNotAvailable(), 503, 'blob-store-unavailable'],
+    [new BlobRequestAbortedError(), 504, 'blob-store-timeout'],
+    [new TypeError('fetch failed'), 503, 'blob-metadata-type-error'],
+    [new BlobAccessError(), 502, 'blob-store-access-denied'],
+    [new BlobStoreNotFoundError(), 502, 'blob-store-not-found'],
+    [new BlobUnknownError(), 502, 'blob-store-unknown-error']
+  ] as const;
+  for (const [failure, expectedStatus, expectedCode] of cases) {
+    const response = await handleProbeRequest(signedProbeRequest(), async () => {
+      throw failure;
+    });
+    assert.equal(response.status, expectedStatus);
+    assert.equal(((await response.json()) as { error: string }).error, expectedCode);
+  }
 });
 
-test('probe consumes its nonce before any remote metadata reads', async () => {
+test('probe authentication is bound to the probe pathname before any reads', async () => {
   configureEnvironment();
   let headCalls = 0;
   const response = await handleProbeRequest(
-    signedProbeRequest(),
+    signedProbeRequest(BODY, '/api/openclaw-backup/upload-url'),
     async (pathname) => {
       headCalls += 1;
       return exactMetadata(pathname);
-    },
-    async () => {
-      throw new Error('nonce already exists');
     }
   );
-  assert.equal(response.status, 409);
+  assert.equal(response.status, 401);
   assert.equal(headCalls, 0);
+});
+
+test('a fresh authenticated replay repeats every exact metadata read', async () => {
+  configureEnvironment();
+  let headCalls = 0;
+  const readExactMetadata = async (pathname: string): Promise<HeadBlobResult> => {
+    headCalls += 1;
+    return exactMetadata(pathname);
+  };
+  const first = await handleProbeRequest(signedProbeRequest(), readExactMetadata);
+  const replay = await handleProbeRequest(signedProbeRequest(), readExactMetadata);
+  assert.equal(first.status, 200);
+  assert.equal(replay.status, 200);
+  assert.equal(headCalls, REMOTE_OBJECTS.length * 2);
 });

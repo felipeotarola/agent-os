@@ -12,7 +12,7 @@ INSTALL_ROOT=/usr/local/libexec/openclaw-backup
 RELEASES_ROOT="$INSTALL_ROOT/releases"
 CURRENT_LINK="$INSTALL_ROOT/current"
 RUNTIME_GNUPGHOME=/etc/openclaw-backup/gnupg
-RUNTIME_SIGNER=11EAFE1BD7AD1BEE296B24565C8124C33417F2D7
+RUNTIME_SIGNER=A21CDBA4C148498DD96AE3B25BD3DABE32ED63DD
 SUPABASE_CA_DESTINATION=/etc/openclaw-backup/supabase-prod-ca-2021.crt
 SUPABASE_CA_SHA256=700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7
 
@@ -37,6 +37,7 @@ RUNTIME_FILES=(
 UNIT_FILES=(
   README.md
   openclaw-backup-alert@.service
+  openclaw-backup-gpg-agent.service
   openclaw-backup-healthcheck.service
   openclaw-backup-healthcheck.timer
   openclaw-backup-maintenance-guard.service
@@ -79,6 +80,7 @@ verify_runtime_release() {
   local actual_manifest_paths
   local expected_file_paths
   local actual_file_paths
+  local expected_checksum_lines
   local runtime_file
   local runtime_mode
 
@@ -109,13 +111,14 @@ verify_runtime_release() {
       LC_ALL=C sort
   )
 
+  expected_checksum_lines=$((${#RUNTIME_FILES[@]} + ${#UNIT_FILES[@]}))
   if [[ ! -d "$release_path" || -L "$release_path" ||
     $(stat -c '%u:%a:%F' "$release_path" 2>/dev/null || true) != '0:750:directory' ||
     $(stat -c '%u:%a:%F' "$release_path/systemd" 2>/dev/null || true) != '0:750:directory' ||
     $(stat -c '%u:%a:%F' "$release_path/RUNTIME_CHECKSUMS.sha256" 2>/dev/null || true) != '0:640:regular file' ||
     $(stat -c '%u:%a:%F' "$release_path/RUNTIME_CHECKSUMS.sha256.asc" 2>/dev/null || true) != '0:640:regular file' ||
     $(sha256sum "$release_path/RUNTIME_CHECKSUMS.sha256" 2>/dev/null | awk '{ print $1 }') != "$release_id" ||
-    $(wc -l <"$release_path/RUNTIME_CHECKSUMS.sha256" 2>/dev/null || true) -ne 22 ]] ||
+    $(wc -l <"$release_path/RUNTIME_CHECKSUMS.sha256" 2>/dev/null || true) -ne $expected_checksum_lines ]] ||
     grep -Evq \
       '^[a-f0-9]{64}  (systemd/)?[A-Za-z0-9@._-]+$' \
       "$release_path/RUNTIME_CHECKSUMS.sha256" ||
@@ -301,6 +304,7 @@ for file in "${UNIT_FILES[@]}"; do
     "/etc/systemd/system/$file"
 done
 systemd-analyze verify \
+  /etc/systemd/system/openclaw-backup-gpg-agent.service \
   /etc/systemd/system/openclaw-backup-maintenance.service \
   /etc/systemd/system/openclaw-backup-maintenance-guard.service \
   /etc/systemd/system/openclaw-backup-maintenance.timer \

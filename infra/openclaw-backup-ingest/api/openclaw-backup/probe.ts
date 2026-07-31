@@ -1,10 +1,22 @@
-import { BlobNotFoundError, head, put } from '@vercel/blob';
+import {
+  BlobAccessError,
+  BlobError,
+  BlobNotFoundError,
+  BlobRequestAbortedError,
+  BlobServiceNotAvailable,
+  BlobServiceRateLimited,
+  BlobStoreNotFoundError,
+  BlobStoreSuspendedError,
+  BlobUnknownError,
+  issueSignedToken,
+  presignUrl,
+  type HeadBlobResult
+} from '@vercel/blob';
 import {
   BACKUP_CONTENT_TYPE,
   ContractValidationError,
   MAX_PROBE_REQUEST_BODY_BYTES,
   REMOTE_PROBE_PATH,
-  buildAuthorizationNoncePathname,
   isValidHostId,
   isValidIngestAuthority,
   parseRemoteProbeRequestBody,
@@ -17,6 +29,14 @@ interface RouteEnvironment {
   storeId: string;
 }
 
+type HeadBlob = (
+  pathname: string,
+  options: {
+    storeId: string;
+    abortSignal: AbortSignal;
+  }
+) => Promise<HeadBlobResult>;
+
 class HttpError extends Error {
   public readonly status: number;
   public readonly code: string;
@@ -26,6 +46,306 @@ class HttpError extends Error {
     this.name = 'HttpError';
     this.status = status;
     this.code = code;
+  }
+}
+
+function blobHeadFailure(error: unknown): HttpError {
+  if (error instanceof HttpError) {
+    return error;
+  }
+  if (error instanceof BlobNotFoundError) {
+    return new HttpError(
+      404,
+      'encrypted-object-set-incomplete',
+      'One or more encrypted backup objects were not found.'
+    );
+  }
+  if (error instanceof BlobStoreSuspendedError) {
+    return new HttpError(
+      507,
+      'blob-store-suspended',
+      'The dedicated backup store is suspended or over quota.'
+    );
+  }
+  if (error instanceof BlobServiceRateLimited) {
+    return new HttpError(
+      429,
+      'blob-store-rate-limited',
+      'The dedicated backup store rate limit was reached.'
+    );
+  }
+  if (error instanceof BlobServiceNotAvailable) {
+    return new HttpError(
+      503,
+      'blob-store-unavailable',
+      'The dedicated backup store is temporarily unavailable.'
+    );
+  }
+  if (
+    error instanceof BlobRequestAbortedError ||
+    (error instanceof DOMException &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError'))
+  ) {
+    return new HttpError(
+      504,
+      'blob-store-timeout',
+      'The dedicated backup store did not answer in time.'
+    );
+  }
+  if (error instanceof TypeError) {
+    logBlobStageFailure('metadata', error);
+    return new HttpError(
+      503,
+      'blob-metadata-type-error',
+      'The dedicated backup store metadata request could not be completed.'
+    );
+  }
+  if (error instanceof BlobAccessError) {
+    return new HttpError(
+      502,
+      'blob-store-access-denied',
+      'The backup probe identity cannot read metadata from the dedicated store.'
+    );
+  }
+  if (error instanceof BlobStoreNotFoundError) {
+    return new HttpError(
+      502,
+      'blob-store-not-found',
+      'The configured dedicated backup store was not found.'
+    );
+  }
+  if (error instanceof BlobUnknownError) {
+    return new HttpError(
+      502,
+      'blob-store-unknown-error',
+      'The dedicated backup store returned an unknown error.'
+    );
+  }
+  if (error instanceof BlobError) {
+    return new HttpError(
+      502,
+      'blob-store-request-rejected',
+      'The dedicated backup store rejected the metadata request.'
+    );
+  }
+  console.error(
+    JSON.stringify({
+      event: 'openclaw_backup_blob_head_failure',
+      errorType: error instanceof Error ? error.constructor.name : typeof error
+    })
+  );
+  return new HttpError(
+    502,
+    'encrypted-object-set-probe-failed',
+    'Could not verify the encrypted backup object set.'
+  );
+}
+
+function logBlobStageFailure(
+  stage:
+    | 'delegation'
+    | 'presign'
+    | 'delegation-validation'
+    | 'object-head'
+    | 'response-metadata'
+    | 'metadata',
+  error: unknown
+): void {
+  const cause =
+    error instanceof Error && 'cause' in error && error.cause && typeof error.cause === 'object'
+      ? error.cause
+      : undefined;
+  console.error(
+    JSON.stringify({
+      event: 'openclaw_backup_blob_stage_failure',
+      stage,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      causeType:
+        cause && 'constructor' in cause && cause.constructor ? cause.constructor.name : undefined,
+      causeCode: cause && 'code' in cause && typeof cause.code === 'string' ? cause.code : undefined
+    })
+  );
+}
+
+async function headPrivateBlobMetadata(
+  pathname: string,
+  options: {
+    storeId: string;
+    abortSignal: AbortSignal;
+  }
+): Promise<HeadBlobResult> {
+  const validUntil = Date.now() + 30_000;
+  let signedToken;
+  try {
+    signedToken = await issueSignedToken({
+      storeId: options.storeId,
+      pathname,
+      operations: ['head'],
+      validUntil,
+      abortSignal: options.abortSignal
+    });
+  } catch (error) {
+    logBlobStageFailure('delegation', error);
+    if (error instanceof TypeError) {
+      throw new HttpError(
+        503,
+        'blob-delegation-network-error',
+        'The Blob service could not issue a bounded HEAD delegation.'
+      );
+    }
+    throw error;
+  }
+  let presignedUrl;
+  let parsedUrl;
+  try {
+    ({ presignedUrl } = await presignUrl(signedToken, {
+      operation: 'head',
+      pathname,
+      access: 'private',
+      validUntil
+    }));
+    parsedUrl = new URL(presignedUrl);
+  } catch (error) {
+    logBlobStageFailure('presign', error);
+    if (error instanceof TypeError) {
+      throw new HttpError(
+        502,
+        'blob-head-presign-error',
+        'The bounded Blob HEAD delegation could not be presigned.'
+      );
+    }
+    throw error;
+  }
+  try {
+    const normalizedStoreId = options.storeId.replace(/^store_/, '').toLowerCase();
+    if (
+      parsedUrl.protocol !== 'https:' ||
+      parsedUrl.username ||
+      parsedUrl.password ||
+      parsedUrl.port ||
+      parsedUrl.hostname !== `${normalizedStoreId}.private.blob.vercel-storage.com` ||
+      parsedUrl.pathname !== `/${pathname}` ||
+      !parsedUrl.search
+    ) {
+      throw new HttpError(
+        502,
+        'blob-head-delegation-invalid',
+        'The Blob service returned an invalid HEAD delegation.'
+      );
+    }
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    logBlobStageFailure('delegation-validation', error);
+    if (error instanceof TypeError) {
+      throw new HttpError(
+        502,
+        'blob-head-delegation-validation-error',
+        'The bounded Blob HEAD delegation could not be validated.'
+      );
+    }
+    throw error;
+  }
+
+  let response;
+  try {
+    response = await fetch(presignedUrl, {
+      method: 'HEAD',
+      headers: {
+        'accept-encoding': 'identity'
+      },
+      redirect: 'error',
+      cache: 'no-store',
+      signal: options.abortSignal
+    });
+  } catch (error) {
+    logBlobStageFailure('object-head', error);
+    if (error instanceof TypeError) {
+      throw new HttpError(
+        503,
+        'blob-object-head-network-error',
+        'The private Blob object host could not complete a bounded HEAD request.'
+      );
+    }
+    throw error;
+  }
+  try {
+    if (response.status === 404) {
+      throw new BlobNotFoundError();
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new BlobAccessError();
+    }
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('retry-after');
+      throw new BlobServiceRateLimited(
+        retryAfter && /^[0-9]{1,6}$/.test(retryAfter) ? Number(retryAfter) : undefined
+      );
+    }
+    if (response.status >= 500) {
+      throw new BlobServiceNotAvailable();
+    }
+    if (response.status !== 200) {
+      throw new BlobUnknownError();
+    }
+
+    const contentLength = response.headers.get('content-length') ?? '';
+    const contentType = response.headers.get('content-type') ?? '';
+    const etag = response.headers.get('etag') ?? '';
+    if (
+      !/^[1-9][0-9]*$/.test(contentLength) ||
+      !Number.isSafeInteger(Number(contentLength)) ||
+      !contentType ||
+      !etag
+    ) {
+      const headerNames: string[] = [];
+      response.headers.forEach((_value, name) => {
+        headerNames.push(name);
+      });
+      console.error(
+        JSON.stringify({
+          event: 'openclaw_backup_blob_head_metadata_incomplete',
+          status: response.status,
+          contentLengthPresent: Boolean(contentLength),
+          contentLengthDecimal: /^[1-9][0-9]*$/.test(contentLength),
+          contentLengthSafeInteger: Number.isSafeInteger(Number(contentLength)),
+          contentTypePresent: Boolean(contentType),
+          etagPresent: Boolean(etag),
+          headerNames: headerNames.sort()
+        })
+      );
+      throw new HttpError(
+        502,
+        'encrypted-object-metadata-invalid',
+        'Encrypted backup object metadata was incomplete.'
+      );
+    }
+
+    return {
+      url: `${parsedUrl.origin}${parsedUrl.pathname}`,
+      downloadUrl: `${parsedUrl.origin}${parsedUrl.pathname}?download=1`,
+      pathname,
+      size: Number(contentLength),
+      uploadedAt: new Date(0),
+      contentType,
+      contentDisposition: response.headers.get('content-disposition') ?? '',
+      cacheControl: response.headers.get('cache-control') ?? '',
+      etag
+    };
+  } catch (error) {
+    if (error instanceof HttpError || error instanceof BlobError) {
+      throw error;
+    }
+    logBlobStageFailure('response-metadata', error);
+    if (error instanceof TypeError) {
+      throw new HttpError(
+        502,
+        'blob-head-response-metadata-error',
+        'The private Blob HEAD response metadata could not be validated.'
+      );
+    }
+    throw error;
   }
 }
 
@@ -139,8 +459,7 @@ async function mapWithConcurrency<T>(
 
 export async function handleProbeRequest(
   request: Request,
-  headBlob: typeof head = head,
-  putBlob: typeof put = put
+  headBlob: HeadBlob = headPrivateBlobMetadata
 ): Promise<Response> {
   try {
     if (request.method !== 'POST') {
@@ -183,39 +502,26 @@ export async function handleProbeRequest(
     }
 
     const { body, remoteObjects } = parseRemoteProbeRequestBody(rawBody, hostId);
-    const noncePathname = buildAuthorizationNoncePathname(hostId, timestamp, nonce);
-    try {
-      await putBlob(noncePathname, `probe\n${body.setId}\n${body.objectRootSha256}\n`, {
-        access: 'private',
-        addRandomSuffix: false,
-        allowOverwrite: false,
-        cacheControlMaxAge: 60,
-        contentType: 'text/plain; charset=utf-8',
-        storeId: environment.storeId
-      });
-    } catch {
-      throw new HttpError(
-        409,
-        'authorization-replayed-or-unavailable',
-        'Authorization nonce could not be consumed.'
-      );
-    }
+    // This route is deliberately metadata-only. Its nonce remains bound into
+    // the HMAC request and the five-minute freshness window, but is not stored
+    // in Blob: a probe must still work when a completed store is write-blocked.
+    // Replays can only repeat the same bounded exact HEAD checks; they cannot
+    // mint write authority or create positive evidence without fresh matches.
     await mapWithConcurrency(remoteObjects, 8, async (object) => {
       let metadata;
+      const abortController = new AbortController();
+      const abortTimer = setTimeout(() => {
+        abortController.abort();
+      }, 8_000);
       try {
         metadata = await headBlob(object.pathname, {
           storeId: environment.storeId,
-          abortSignal: AbortSignal.timeout(8_000)
+          abortSignal: abortController.signal
         });
       } catch (error) {
-        if (error instanceof BlobNotFoundError) {
-          throw new HttpError(
-            404,
-            'encrypted-object-set-incomplete',
-            'One or more encrypted backup objects were not found.'
-          );
-        }
-        throw error;
+        throw blobHeadFailure(error);
+      } finally {
+        clearTimeout(abortTimer);
       }
       if (
         metadata.pathname !== object.pathname ||
@@ -264,7 +570,12 @@ export async function handleProbeRequest(
 }
 
 const probeFunction = {
-  fetch: handleProbeRequest
+  fetch(request: Request): Promise<Response> {
+    // Vercel supplies a runtime context as the second fetch argument. Keep the
+    // test-only HeadBlob injection on handleProbeRequest out of that call
+    // signature so the runtime context can never replace the metadata reader.
+    return handleProbeRequest(request);
+  }
 };
 
 export default probeFunction;

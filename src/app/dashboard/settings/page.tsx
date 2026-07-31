@@ -108,11 +108,6 @@ export default async function SettingsPage() {
       detail: 'Store opportunities and catalog health'
     },
     {
-      title: 'Trading Lab',
-      href: '/dashboard/trading-lab',
-      detail: 'Local research and paper-trading lab'
-    },
-    {
       title: 'QA Strategy',
       href: '/dashboard/qa-knowledge',
       detail: 'QA offer and strategy knowledge'

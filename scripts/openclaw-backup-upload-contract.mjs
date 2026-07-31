@@ -7,15 +7,19 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   writeFile
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  BLOB_API_VERSION,
   UPLOAD_URL_PATH,
+  buildBlobPutHeaders,
   loadUploadPlan,
   parseUploadArgs,
+  parseBlobPutHttpResponse,
   readIngestSecret,
   serializeUploadUrlRequestBody,
   signCanonicalAuthRequest,
@@ -28,7 +32,8 @@ import {
 import {
   parseCompletionMarker,
   parseProbeArgs,
-  validateProbeEndpoint
+  validateProbeEndpoint,
+  validateRemoteProbeHttpResponse
 } from './probe-openclaw-backup.mjs';
 
 async function main() {
@@ -36,11 +41,33 @@ async function main() {
   testArgumentAndEndpointGuardrails();
   testRemoteProbeGuardrails();
   testSignedUploadUrlBoundary();
+  testBlobPutResponseBoundary();
   testPrivateStoreReceiptBoundary();
   await testActualSdkPresignBoundary();
   await testSecretFileBoundary();
   await testUploadPlanOrdering();
+  await testNetworkClientTopLevelLivenessContract();
   process.stdout.write('openclaw_backup_upload_contract_ok\n');
+}
+
+async function testNetworkClientTopLevelLivenessContract() {
+  const clients = [
+    ['upload', new URL('./upload-openclaw-backup.mjs', import.meta.url)],
+    ['probe', new URL('./probe-openclaw-backup.mjs', import.meta.url)]
+  ];
+  for (const [label, url] of clients) {
+    const source = await readFile(url, 'utf8');
+    assert.match(
+      source,
+      /const mainKeepAlive = setInterval\(\(\) => \{\}, 1_000\);/,
+      `${label} client must retain a referenced handle until main settles`
+    );
+    assert.match(
+      source,
+      /\.finally\(\(\) => \{\s*clearInterval\(mainKeepAlive\);\s*\}\);/,
+      `${label} client must release its top-level keepalive after main settles`
+    );
+  }
 }
 
 function testRemoteProbeGuardrails() {
@@ -76,10 +103,26 @@ function testRemoteProbeGuardrails() {
     () => parseCompletionMarker(pathname, 'different-host', setId),
     /configured host/
   );
+  assert.throws(
+    () =>
+      validateRemoteProbeHttpResponse(
+        new Response('{}', { status: 409 }),
+        { error: 'authorization-replayed-or-unavailable' },
+        { hostId: 'hetzner-openclaw-primary' },
+        {
+          setId,
+          objectCount: 2,
+          totalBytes: 5096,
+          objectRootSha256: 'b'.repeat(64),
+          pathname
+        }
+      ),
+    /HTTP 409 \(authorization-replayed-or-unavailable\)/
+  );
 }
 
 function testPrivateStoreReceiptBoundary() {
-  const storeId = 'store_fixture01';
+  const storeId = 'store_Fixture01';
   const item = {
     hostId: 'hetzner-openclaw-primary',
     filename: 'openclaw-backup.part-00000.gpg',
@@ -119,6 +162,101 @@ function testPrivateStoreReceiptBoundary() {
         item
       ),
     /pinned private store/
+  );
+  assert.throws(
+    () =>
+      validateBlobPutResponse(
+        {
+          ...receipt,
+          downloadUrl: `${receipt.url}?download=yes`
+        },
+        storeId,
+        item
+      ),
+    /pinned private store/
+  );
+  assert.throws(
+    () =>
+      validateBlobPutResponse(
+        {
+          url: receipt.url,
+          pathname,
+          contentType: 'application/octet-stream',
+          contentDisposition: receipt.contentDisposition,
+          uploadedAt: new Date().toISOString(),
+          size: item.sizeBytes
+        },
+        storeId,
+        item
+      ),
+    /invalid object receipt/
+  );
+}
+
+function testBlobPutResponseBoundary() {
+  const receipt = {
+    url:
+      'https://fixture01.private.blob.vercel-storage.com/' +
+      'openclaw-backups/v1/host/set/hash/file.gpg',
+    downloadUrl:
+      'https://fixture01.private.blob.vercel-storage.com/' +
+      'openclaw-backups/v1/host/set/hash/file.gpg?download=1',
+    pathname: 'openclaw-backups/v1/host/set/hash/file.gpg',
+    contentType: 'application/octet-stream',
+    contentDisposition: 'attachment; filename="file.gpg"',
+    etag: '"fixture-etag"'
+  };
+  const response = new Response(JSON.stringify(receipt), {
+    status: 200,
+    headers: { 'content-type': 'application/json; charset=utf-8' }
+  });
+  assert.deepEqual(
+    parseBlobPutHttpResponse(response, JSON.stringify(receipt)),
+    receipt
+  );
+  assert.throws(
+    () =>
+      parseBlobPutHttpResponse(
+        new Response('{}', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' }
+        }),
+        '{}'
+      ),
+    /invalid content type/
+  );
+  assert.throws(
+    () =>
+      parseBlobPutHttpResponse(
+        new Response('not-json', {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        }),
+        'not-json'
+      ),
+    /invalid JSON/
+  );
+  assert.throws(
+    () =>
+      parseBlobPutHttpResponse(
+        new Response('[]', {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        }),
+        '[]'
+      ),
+    /invalid JSON object/
+  );
+  assert.throws(
+    () =>
+      parseBlobPutHttpResponse(
+        new Response('{}', {
+          status: 409,
+          headers: { 'content-type': 'application/json' }
+        }),
+        '{}'
+      ),
+    /HTTP 409/
   );
 }
 
@@ -320,6 +458,18 @@ async function testActualSdkPresignBoundary() {
     ).href,
     presignedUrl
   );
+  const headers = buildBlobPutHeaders(presignedUrl, item.sizeBytes);
+  assert.equal(headers['content-type'], 'application/octet-stream');
+  assert.equal(headers['content-length'], String(item.sizeBytes));
+  assert.equal(headers['x-api-version'], BLOB_API_VERSION);
+  assert.equal(headers['x-vercel-blob-store-id'], 'fixture01');
+  assert.equal(headers['x-api-blob-request-attempt'], '0');
+  assert.match(
+    headers['x-api-blob-request-id'],
+    /^fixture01:[0-9]+:[a-f0-9]{16}$/
+  );
+  assert.equal(headers['x-vercel-blob-access'], 'private');
+  assert.equal(headers['x-content-type'], 'application/octet-stream');
 }
 
 function testArgumentAndEndpointGuardrails() {

@@ -722,7 +722,7 @@ function memorySummary(text, path) {
     .filter((line) => line && !line.startsWith('<!--') && !line.startsWith('---'));
   const heading = lines.find((line) => line.startsWith('#'));
   const signal = lines.find((line) =>
-    /Felipe|decision|beslut|remember|todo|Agent OS|Lysande|Linda|Charles|Cai/i.test(line)
+    /Felipe|decision|beslut|remember|todo|Agent OS|Lysande|Charles|Cai/i.test(line)
   );
   return (signal || heading || lines[0] || path).replace(/^#+\s*/, '').slice(0, 1000);
 }

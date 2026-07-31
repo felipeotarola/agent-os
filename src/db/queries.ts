@@ -64,17 +64,6 @@ export type CockpitSnapshot = {
   dbOnline: boolean;
 };
 
-const lindaOverviewAgent = {
-  name: 'Linda',
-  role: 'Paper trading research',
-  detail: 'BTC-first paper trading, market research, backtests, and trading journal briefs',
-  status: 'online'
-};
-
-function withLindaAgent(agents: CockpitSnapshot['agents']) {
-  return agents.some((agent) => agent.name === 'Linda') ? agents : [...agents, lindaOverviewAgent];
-}
-
 const fallbackSnapshot: CockpitSnapshot = {
   dbOnline: false,
   stats: [
@@ -99,7 +88,7 @@ const fallbackSnapshot: CockpitSnapshot = {
     }
   ],
   tasks: [],
-  agents: [lindaOverviewAgent],
+  agents: [],
   subagents: {
     ok: false,
     source: 'fallback:no-bridge-or-db',
@@ -121,7 +110,7 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
         cacheMs: 8000,
         timeoutMs: 2500
       });
-      return { ...snapshot, agents: withLindaAgent(snapshot.agents) };
+      return snapshot;
     } catch (error) {
       console.error('Overview bridge snapshot failed', error);
     }
@@ -191,14 +180,12 @@ export async function getCockpitSnapshot(): Promise<CockpitSnapshot> {
         priority: String(task.priority ?? ''),
         updatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : null
       })),
-      agents: withLindaAgent(
-        agentRows.map((agent) => ({
-          name: agent.name,
-          role: agent.role,
-          detail: agent.detail,
-          status: agent.status
-        }))
-      ),
+      agents: agentRows.map((agent) => ({
+        name: agent.name,
+        role: agent.role,
+        detail: agent.detail,
+        status: agent.status
+      })),
       subagents: {
         ok: false,
         source: 'fallback:direct-db',

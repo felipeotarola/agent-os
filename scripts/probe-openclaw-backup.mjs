@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { randomBytes } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import {
   lstat,
   readFile,
   realpath
 } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import {
   computeRemoteObjectRootSha256,
   expectedBlobPathname,
@@ -363,9 +364,38 @@ async function executeProbe(options, plan) {
     redirect: 'error',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
-  const result = await readBoundedJson(response);
   if (
-    response.status !== 200 ||
+    response.headers.get('content-type')?.split(';', 1)[0].trim() !==
+    'application/json'
+  ) {
+    throw new Error('Remote probe returned an invalid content type');
+  }
+  const result = await readBoundedJson(response);
+  return validateRemoteProbeHttpResponse(
+    response,
+    result,
+    options,
+    plan
+  );
+}
+
+export function validateRemoteProbeHttpResponse(
+  response,
+  result,
+  options,
+  plan
+) {
+  if (response.status !== 200) {
+    const errorCode =
+      typeof result?.error === 'string' &&
+      /^[a-z0-9][a-z0-9-]{0,127}$/.test(result.error)
+        ? ` (${result.error})`
+        : '';
+    throw new Error(
+      `Remote probe failed with HTTP ${response.status}${errorCode}`
+    );
+  }
+  if (
     result?.schema !== 'openclaw-backup-remote-probe/v2' ||
     result.ok !== true ||
     result.hostId !== options.hostId ||
@@ -427,11 +457,28 @@ async function main() {
   );
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  main().catch((error) => {
-    process.stderr.write(
-      `openclaw_backup_remote_probe_error: ${error.message}\n`
-    );
-    process.exitCode = 1;
-  });
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  // An unresolved fetch promise alone is not guaranteed to keep Node alive.
+  // Retain one referenced handle until the signed probe has produced either a
+  // complete JSON result or an explicit error.
+  const mainKeepAlive = setInterval(() => {}, 1_000);
+  main()
+    .catch((error) => {
+      process.stderr.write(
+        `openclaw_backup_remote_probe_error: ${error.message}\n`
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      clearInterval(mainKeepAlive);
+    });
 }

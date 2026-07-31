@@ -16,9 +16,11 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import {
   assertPathCollectionWithinLimits,
+  assertProtectedTreeSnapshotTransition,
   buildInventory,
   collectOpenClawArchiveEntries,
   inspectBrowserWriters,
@@ -26,6 +28,8 @@ import {
   makeSetId,
   parseArgs,
   rebuildableReason,
+  runBoundedCommandToFile,
+  runCommandFromFile,
   snapshotSqliteDatabase
 } from './openclaw-backup.mjs';
 import {
@@ -46,16 +50,268 @@ async function main() {
     await testDryRunContract(testRoot);
     await testInvalidDatabaseFailClosed(testRoot);
     await testSqliteSnapshot(testRoot);
+    await testSqliteSnapshotKeepsProcessAlive(testRoot);
+    await testProtectedTreeSnapshotTransition();
+    await testPostgresStreamLifecycle(testRoot);
+    await testTopLevelMainProducesOutput(testRoot);
     await testOuterVerification(testRoot);
     await testTrustedDirectoryHierarchy(testRoot);
     await testPrivateLockSymlinkRefusal(testRoot);
     await testZeroByteMaintenanceLockChecks();
+    await testPrivateRunsRootContract();
+    await testPersistentGpgAgentContract();
     testNoOptionalMountInfoFields();
     testPathCardinalityCeilings();
     process.stdout.write('openclaw_backup_contract_ok\n');
   } finally {
     await rm(testRoot, { recursive: true, force: true });
   }
+}
+
+async function testProtectedTreeSnapshotTransition() {
+  const entry = (path, overrides = {}) => ({
+    path,
+    kind: 'file',
+    dev: '1',
+    ino: '2',
+    mode: '33152',
+    uid: '0',
+    gid: '0',
+    size: '32768',
+    nlink: '1',
+    mtimeNs: '100',
+    ctimeNs: '100',
+    ...overrides
+  });
+  const databasePath = 'state/openclaw.sqlite';
+  const shmPath = `${databasePath}-shm`;
+  const initial = [
+    entry(databasePath, { size: '4096' }),
+    entry(`${databasePath}-wal`, { size: '8192' }),
+    entry(`${databasePath}-journal`, { size: '4096' }),
+    entry(shmPath),
+    entry('state/untracked.sqlite-shm'),
+    entry('workspace/config.json', { size: '64' })
+  ];
+  const allowed = structuredClone(initial);
+  allowed[1].ctimeNs = '201';
+  allowed[2].ctimeNs = '202';
+  allowed[3].mtimeNs = '203';
+  allowed[3].ctimeNs = '204';
+  assert.deepEqual(
+    assertProtectedTreeSnapshotTransition(
+      initial,
+      allowed,
+      {
+        sqliteDatabases: [
+          { relativePath: databasePath }
+        ]
+      }
+    ),
+    {
+      allowedPaths: 3,
+      allowedMetadataChanges: 3
+    }
+  );
+  const rejectedMutations = [
+    [0, 'mtimeNs', '200'],
+    [1, 'mtimeNs', '200'],
+    [1, 'size', '8193'],
+    [2, 'mtimeNs', '200'],
+    [2, 'size', '4097'],
+    [3, 'size', '32769'],
+    [3, 'ino', '3'],
+    [3, 'dev', '2'],
+    [3, 'mode', '33188'],
+    [3, 'uid', '1'],
+    [3, 'gid', '1'],
+    [3, 'nlink', '2'],
+    [3, 'kind', 'symlink'],
+    [4, 'mtimeNs', '200'],
+    [5, 'mode', '33188']
+  ];
+  for (const [index, field, value] of rejectedMutations) {
+    const changed = structuredClone(initial);
+    changed[index][field] = value;
+    assert.throws(
+      () =>
+        assertProtectedTreeSnapshotTransition(
+          initial,
+          changed,
+          {
+            sqliteDatabases: [
+              { relativePath: databasePath }
+            ]
+          }
+        ),
+      /Protected OpenClaw tree changed during SQLite snapshots/
+    );
+  }
+  assert.throws(
+    () =>
+      assertProtectedTreeSnapshotTransition(
+        initial,
+        [
+          ...initial,
+          entry('workspace/new-file')
+        ],
+        {
+          sqliteDatabases: [
+            { relativePath: databasePath }
+          ]
+        }
+      ),
+    /Protected OpenClaw tree changed during SQLite snapshots/
+  );
+  const replaced = structuredClone(initial);
+  replaced[5].path = 'workspace/replacement.json';
+  assert.throws(
+    () =>
+      assertProtectedTreeSnapshotTransition(
+        initial,
+        replaced,
+        {
+          sqliteDatabases: [
+            { relativePath: databasePath }
+          ]
+        }
+      ),
+    /Protected OpenClaw tree changed during SQLite snapshots/
+  );
+  assert.throws(
+    () =>
+      assertProtectedTreeSnapshotTransition(
+        initial,
+        initial.slice(0, -1),
+        {
+          sqliteDatabases: [
+            { relativePath: databasePath }
+          ]
+        }
+      ),
+    /Protected OpenClaw tree changed during SQLite snapshots/
+  );
+
+  const creator = await readFile(
+    new URL('./openclaw-backup.mjs', import.meta.url),
+    'utf8'
+  );
+  const executeStart = creator.indexOf(
+    'async function executeBackup'
+  );
+  const executeEnd = creator.indexOf(
+    '\nasync function runToFile',
+    executeStart
+  );
+  assert.ok(
+    executeStart >= 0 && executeEnd > executeStart,
+    'backup execution source boundaries must be discoverable'
+  );
+  const execution = creator.slice(executeStart, executeEnd);
+  const protectedInitial = execution.indexOf(
+    'const protectedTreeStateInitial'
+  );
+  const sqliteStart = execution.indexOf(
+    "trace('sqlite-snapshots:start')"
+  );
+  const sqliteComplete = execution.indexOf(
+    "trace('sqlite-snapshots:complete')"
+  );
+  const protectedPostSqlite = execution.indexOf(
+    "trace('protected-tree-post-sqlite:start')"
+  );
+  const transitionCheck = execution.indexOf(
+    'assertProtectedTreeSnapshotTransition'
+  );
+  const postBaselineAssignment = execution.indexOf(
+    'protectedTreeStateBefore =\n        protectedTreeStateAfterSqlite'
+  );
+  const finalExactComparison = execution.indexOf(
+    'JSON.stringify(protectedTreeStateAfter) !=='
+  );
+  assert.ok(
+    protectedInitial >= 0 &&
+      sqliteStart > protectedInitial &&
+      sqliteComplete > sqliteStart &&
+      protectedPostSqlite > sqliteComplete &&
+      transitionCheck > protectedPostSqlite &&
+      postBaselineAssignment > transitionCheck &&
+      finalExactComparison > postBaselineAssignment,
+    'quiesced protected-tree transition must bracket SQLite snapshots'
+  );
+}
+
+async function testPersistentGpgAgentContract() {
+  const [maintenance, health, creator, maintenanceUnit, healthUnit, agentUnit] =
+    await Promise.all([
+      readFile(
+        new URL('./openclaw-backup-maintenance.sh', import.meta.url),
+        'utf8'
+      ),
+      readFile(
+        new URL('./openclaw-backup-healthcheck.sh', import.meta.url),
+        'utf8'
+      ),
+      readFile(new URL('./openclaw-backup.mjs', import.meta.url), 'utf8'),
+      readFile(
+        new URL(
+          '../infra/openclaw-backup-systemd/openclaw-backup-maintenance.service',
+          import.meta.url
+        ),
+        'utf8'
+      ),
+      readFile(
+        new URL(
+          '../infra/openclaw-backup-systemd/openclaw-backup-healthcheck.service',
+          import.meta.url
+        ),
+        'utf8'
+      ),
+      readFile(
+        new URL(
+          '../infra/openclaw-backup-systemd/openclaw-backup-gpg-agent.service',
+          import.meta.url
+        ),
+        'utf8'
+      )
+    ]);
+  assert.doesNotMatch(
+    maintenance,
+    /gpgconf[\s\S]{0,120}--launch/,
+    'maintenance must not launch an agent inside its hardened cgroup'
+  );
+  assert.match(
+    maintenance,
+    /gpg --batch --no-autostart --with-colons --list-secret-keys/,
+    'maintenance signing-key preflight must fail closed without the persistent agent'
+  );
+  assert.match(
+    health,
+    /--no-autostart --list-secret-keys/,
+    'health signing-key lookup must not spawn an ad-hoc agent'
+  );
+  assert.match(
+    creator,
+    /'--no-autostart',[\s\S]{0,120}'GPG signing-key lookup'/,
+    'creator signing-key lookup must not spawn an ad-hoc agent'
+  );
+  for (const unit of [maintenanceUnit, healthUnit]) {
+    assert.match(unit, /^Requires=openclaw-backup-gpg-agent\.service$/m);
+    assert.match(
+      unit,
+      /^After=.*openclaw-backup-gpg-agent\.service$/m
+    );
+  }
+  assert.match(agentUnit, /^RemainAfterExit=yes$/m);
+  assert.match(
+    agentUnit,
+    /^ExecStart=.*gpgconf .*--launch gpg-agent$/m
+  );
+  assert.match(agentUnit, /^ProtectSystem=strict$/m);
+  assert.match(
+    agentUnit,
+    /^ReadWritePaths=\/etc\/openclaw-backup\/gnupg$/m
+  );
 }
 
 async function testZeroByteMaintenanceLockChecks() {
@@ -92,6 +348,99 @@ async function testZeroByteMaintenanceLockChecks() {
       source,
       new RegExp(`-f /proc/self/fd/${descriptor}[\\s\\S]*stat -Lc '%u:%a:%h:%s' /proc/self/fd/${descriptor}[^\\n]*'0:600:1:0'`),
       `maintenance lock descriptor ${descriptor} must use the same invariant`
+    );
+  }
+}
+
+async function testPrivateRunsRootContract() {
+  const scripts = [
+    {
+      label: 'maintenance',
+      source: await readFile(
+        new URL('./openclaw-backup-maintenance.sh', import.meta.url),
+        'utf8'
+      ),
+      firstEvidenceUse: 'RUN_DIR="$RUNS_ROOT/$RUN_ID"'
+    },
+    {
+      label: 'healthcheck',
+      source: await readFile(
+        new URL('./openclaw-backup-healthcheck.sh', import.meta.url),
+        'utf8'
+      ),
+      firstEvidenceUse:
+        'find "$RUNS_ROOT" -mindepth 2 -maxdepth 2'
+    }
+  ];
+  for (const { label, source, firstEvidenceUse } of scripts) {
+    assert.match(
+      source,
+      /^RUNS_ROOT="\$STATE_ROOT\/runs"$/m,
+      `${label} must pin its evidence runs root below the private state root`
+    );
+    assert.match(
+      source,
+      /if \[\[ -L "\$directory" \|\|[\s\S]{0,80}-e "\$directory" && ! -d "\$directory" \]\]; then/,
+      `${label} must reject symlink and non-directory runs roots`
+    );
+    const parentDeclaration = source.indexOf(
+      'local parent_directory=${directory%/*}'
+    );
+    const parentModeCheck = source.indexOf(
+      '$(stat -c \'%u:%g:%a\' "$parent_directory"'
+    );
+    const parentCanonicalCheck = source.indexOf(
+      '$(realpath --canonicalize-existing "$parent_directory"'
+    );
+    const directPathCheck = source.indexOf(
+      'if [[ -L "$directory"'
+    );
+    assert.ok(
+      parentDeclaration >= 0 &&
+        parentModeCheck > parentDeclaration &&
+        parentCanonicalCheck > parentModeCheck &&
+        directPathCheck > parentCanonicalCheck,
+      `${label} must validate the private canonical parent before creation`
+    );
+    assert.match(
+      source,
+      /stat -c '%u:%g' "\$directory"[\s\S]{0,80}!= '0:0'/,
+      `${label} must reject an existing runs root with non-root ownership`
+    );
+    assert.match(
+      source,
+      /install -o root -g root -m 0700 -d -- "\$directory"/,
+      `${label} must create a missing runs root with private root ownership`
+    );
+    assert.match(
+      source,
+      /chmod 0700 -- "\$directory"/,
+      `${label} must enforce the private mode on an existing runs root`
+    );
+    assert.match(
+      source,
+      /stat -c '%u:%g:%a' "\$directory"[\s\S]{0,120}!= '0:0:700'[\s\S]{0,160}realpath --canonicalize-existing "\$directory"/,
+      `${label} must verify exact metadata and reject symlink traversal`
+    );
+    const enforcement = source.indexOf(
+      'ensure_private_root_directory "$RUNS_ROOT"'
+    );
+    const evidenceUse = source.indexOf(firstEvidenceUse);
+    const existingPathCheck = source.indexOf(
+      '$(realpath --canonicalize-existing "$directory"'
+    );
+    const modeEnforcement = source.indexOf(
+      'chmod 0700 -- "$directory"'
+    );
+    assert.ok(
+      enforcement >= 0 &&
+        evidenceUse > enforcement,
+      `${label} must enforce runs-root metadata before evidence use`
+    );
+    assert.ok(
+      existingPathCheck >= 0 &&
+        modeEnforcement > existingPathCheck,
+      `${label} must reject ancestor traversal before changing an existing directory`
     );
   }
 }
@@ -619,6 +968,376 @@ async function testSqliteSnapshot(testRoot) {
   const row = snapshot.prepare('SELECT value FROM fixture').get();
   snapshot.close();
   assert.equal(row.value, 'kept');
+}
+
+async function testSqliteSnapshotKeepsProcessAlive(testRoot) {
+  const source = join(testRoot, '.openclaw', 'state', 'openclaw.sqlite');
+  const destination = join(
+    testRoot,
+    'snapshot-final-operation',
+    'openclaw.sqlite'
+  );
+  const moduleUrl = new URL('./openclaw-backup.mjs', import.meta.url).href;
+  const script = `
+    import { snapshotSqliteDatabase } from ${JSON.stringify(moduleUrl)};
+    await snapshotSqliteDatabase(process.argv[1], process.argv[2]);
+    process.stdout.write('snapshot-complete\\n');
+  `;
+  const child = spawn(
+    process.execPath,
+    ['--input-type=module', '--eval', script, source, destination],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  const stdout = [];
+  const stderr = [];
+  let timedOut = false;
+  child.stdout.on('data', (chunk) => stdout.push(chunk));
+  child.stderr.on('data', (chunk) => stderr.push(chunk));
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill('SIGKILL');
+  }, 5_000);
+  const [code, signal] = await once(child, 'close');
+  clearTimeout(timeout);
+  assert.equal(
+    timedOut,
+    false,
+    'SQLite liveness subprocess hung'
+  );
+  assert.equal(
+    code,
+    0,
+    `SQLite liveness subprocess failed (${signal || 'no signal'}): ` +
+      Buffer.concat(stderr).toString('utf8')
+  );
+  assert.equal(Buffer.concat(stdout).toString('utf8'), 'snapshot-complete\n');
+
+  const snapshot = new DatabaseSync(destination, { readOnly: true });
+  const row = snapshot.prepare('SELECT value FROM fixture').get();
+  snapshot.close();
+  assert.equal(row.value, 'kept');
+}
+
+async function testPostgresStreamLifecycle(testRoot) {
+  const destination = join(
+    testRoot,
+    'postgres-stream-lifecycle',
+    'agent-os.dump'
+  );
+  await mkdir(join(destination, '..'), {
+    recursive: true,
+    mode: 0o700
+  });
+  const fakeBin = join(testRoot, 'postgres-stream-fake-bin');
+  await mkdir(fakeBin, { mode: 0o700 });
+  const fakeDocker = join(fakeBin, 'docker');
+  await writeFile(
+    fakeDocker,
+    [
+      '#!/bin/sh',
+      'case "${OPENCLAW_FAKE_DOCKER_EARLY_EXIT:-0}" in',
+      '  success)',
+      "    printf '%s\\n' '1; 1259 16384 TABLE public fixture postgres'",
+      '    exit 0',
+      '    ;;',
+      '  nonzero)',
+      "    printf '%s\\n' '1; 1259 16384 TABLE public fixture postgres'",
+      '    exit 42',
+      '    ;;',
+      '  forbidden)',
+      "    printf '%s\\n' '1; 0 0 ACL public fixture postgres'",
+      '    exit 0',
+      '    ;;',
+      'esac',
+      'cat >/dev/null',
+      "printf '%s\\n' '1; 1259 16384 TABLE public fixture postgres'",
+      ''
+    ].join('\n'),
+    { mode: 0o700 }
+  );
+  await chmod(fakeDocker, 0o700);
+  const moduleUrl = new URL('./openclaw-backup.mjs', import.meta.url).href;
+  const externalModuleUrl =
+    new URL('./openclaw-backup-external.mjs', import.meta.url).href;
+  const script = `
+    import {
+      readFile,
+      stat,
+      symlink,
+      writeFile
+    } from 'node:fs/promises';
+    import {
+      runBoundedCommandToFile,
+      runCommandFromFile
+    } from ${JSON.stringify(moduleUrl)};
+    import {
+      verifySupabasePublicDump
+    } from ${JSON.stringify(externalModuleUrl)};
+
+    const payload = 'PGDMP-postgres-stream-fixture';
+    const bytes = await runBoundedCommandToFile(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        ${JSON.stringify(
+          "process.stdout.write('PGDMP-postgres-stream-fixture')"
+        )}
+      ],
+      process.argv[1],
+      {
+        label: 'PostgreSQL dump fixture',
+        maxBytes: 64,
+        timeoutMs: 5_000
+      }
+    );
+    const captured = await readFile(process.argv[1]);
+    if (
+      bytes !== Buffer.byteLength(payload) ||
+      captured.toString('ascii', 0, 5) !== 'PGDMP' ||
+      captured.toString('utf8') !== payload
+    ) {
+      throw new Error('bounded PostgreSQL dump capture is invalid');
+    }
+    const boundedPartialPath = process.argv[1] + '.bounded-partial';
+    let boundedError;
+    try {
+      await runBoundedCommandToFile(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          ${JSON.stringify(
+            "process.stdout.write('PGDMP-postgres-stream-too-large')"
+          )}
+        ],
+        boundedPartialPath,
+        {
+          label: 'oversized PostgreSQL dump fixture',
+          maxBytes: 5,
+          timeoutMs: 5_000
+        }
+      );
+    } catch (error) {
+      boundedError = error;
+    }
+    const boundedPartialInfo = await stat(boundedPartialPath);
+    if (
+      !/bounded output contract/.test(boundedError?.message || '') ||
+      boundedPartialInfo.size > 5
+    ) {
+      throw new Error('bounded PostgreSQL partial write was not finalized');
+    }
+    await runCommandFromFile(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        ${JSON.stringify(`
+          const chunks = [];
+          process.stdin.on('data', (chunk) => chunks.push(chunk));
+          process.stdin.on('end', () => {
+            const input = Buffer.concat(chunks);
+            if (input.toString('ascii', 0, 5) !== 'PGDMP') {
+              process.exitCode = 1;
+            }
+          });
+        `)}
+      ],
+      process.argv[1],
+      {
+        label: 'PostgreSQL read-stream fixture',
+        timeoutMs: 5_000
+      }
+    );
+    const previousPath = process.env.PATH;
+    process.env.PATH = process.argv[2] + ':' + previousPath;
+    try {
+      const externalVerification =
+        await verifySupabasePublicDump(process.argv[1]);
+      if (externalVerification.tocEntries !== 1) {
+        throw new Error('external PostgreSQL dump listing is invalid');
+      }
+
+      const earlyClosePath = process.argv[1] + '.early-close';
+      const earlyClosePayload = Buffer.alloc(8 * 1024 * 1024);
+      earlyClosePayload.write('PGDMP', 0, 'ascii');
+      await writeFile(earlyClosePath, earlyClosePayload, {
+        mode: 0o600
+      });
+      process.env.OPENCLAW_FAKE_DOCKER_EARLY_EXIT = 'success';
+      const earlyCloseVerification =
+        await verifySupabasePublicDump(earlyClosePath);
+      if (earlyCloseVerification.tocEntries !== 1) {
+        throw new Error(
+          'early-close PostgreSQL dump listing is invalid'
+        );
+      }
+      await runCommandFromFile(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          'process.exit(0)'
+        ],
+        earlyClosePath,
+        {
+          label: 'early-close PostgreSQL read-stream fixture',
+          timeoutMs: 5_000,
+          allowEarlyConsumerClose: true
+        }
+      );
+
+      process.env.OPENCLAW_FAKE_DOCKER_EARLY_EXIT = 'nonzero';
+      let nonzeroError;
+      try {
+        await verifySupabasePublicDump(earlyClosePath);
+      } catch (error) {
+        nonzeroError = error;
+      }
+      if (
+        !/Supabase public dump listing failed/.test(
+          nonzeroError?.message || ''
+        )
+      ) {
+        throw new Error(
+          'early-close child failure was incorrectly accepted'
+        );
+      }
+
+      process.env.OPENCLAW_FAKE_DOCKER_EARLY_EXIT = 'forbidden';
+      let forbiddenTocError;
+      try {
+        await verifySupabasePublicDump(earlyClosePath);
+      } catch (error) {
+        forbiddenTocError = error;
+      }
+      if (
+        !/Supabase public dump TOC violates policy/.test(
+          forbiddenTocError?.message || ''
+        )
+      ) {
+        throw new Error(
+          'early-close forbidden TOC was incorrectly accepted'
+        );
+      }
+      delete process.env.OPENCLAW_FAKE_DOCKER_EARLY_EXIT;
+
+      const symlinkPath = process.argv[1] + '.symlink';
+      await symlink(process.argv[1], symlinkPath);
+      let symlinkError;
+      try {
+        await verifySupabasePublicDump(symlinkPath);
+      } catch (error) {
+        symlinkError = error;
+      }
+      if (symlinkError?.code !== 'ELOOP') {
+        throw new Error(
+          'external PostgreSQL verification followed a symlink'
+        );
+      }
+    } finally {
+      process.env.PATH = previousPath;
+    }
+    process.stdout.write('postgres-stream-complete\\n');
+  `;
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      script,
+      destination,
+      fakeBin
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  const stdout = [];
+  const stderr = [];
+  let timedOut = false;
+  child.stdout.on('data', (chunk) => stdout.push(chunk));
+  child.stderr.on('data', (chunk) => stderr.push(chunk));
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill('SIGKILL');
+  }, 10_000);
+  const [code, signal] = await once(child, 'close');
+  clearTimeout(timeout);
+  assert.equal(
+    timedOut,
+    false,
+    'PostgreSQL stream lifecycle subprocess hung'
+  );
+  assert.equal(
+    code,
+    0,
+    `PostgreSQL stream lifecycle subprocess failed (${signal || 'no signal'}): ` +
+      Buffer.concat(stderr).toString('utf8')
+  );
+  assert.equal(
+    Buffer.concat(stdout).toString('utf8'),
+    'postgres-stream-complete\n',
+    'PostgreSQL stream lifecycle silently exited before finalization'
+  );
+  const captured = await readFile(destination);
+  assert.equal(captured.toString('ascii', 0, 5), 'PGDMP');
+  assert.equal(
+    captured.toString('utf8'),
+    'PGDMP-postgres-stream-fixture'
+  );
+}
+
+async function testTopLevelMainProducesOutput(testRoot) {
+  const scripts = [
+    'openclaw-backup.mjs',
+    'upload-openclaw-backup.mjs',
+    'probe-openclaw-backup.mjs',
+    'recover-openclaw-backup-manifest.mjs',
+    'verify-openclaw-backup.mjs',
+    'restore-openclaw-backup.mjs',
+    'retain-openclaw-backups.mjs'
+  ];
+  for (const script of scripts) {
+    const source = fileURLToPath(new URL(`./${script}`, import.meta.url));
+    const installedEntrypoint = join(
+      testRoot,
+      `installed-current-${script}`
+    );
+    await symlink(source, installedEntrypoint);
+    const child = spawn(
+      process.execPath,
+      [installedEntrypoint, '--help'],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    const stdout = [];
+    const stderr = [];
+    let timedOut = false;
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, 5_000);
+    const [code, signal] = await once(child, 'close');
+    clearTimeout(timeout);
+    assert.equal(
+      timedOut,
+      false,
+      `${script} hung through its installed-runtime symlink`
+    );
+    assert.equal(
+      code,
+      0,
+      `${script} failed through its installed-runtime symlink ` +
+        `(${signal || 'no signal'}): ` +
+        Buffer.concat(stderr).toString('utf8')
+    );
+    assert.match(
+      Buffer.concat(stdout).toString('utf8'),
+      /^Usage:\s*$/m,
+      `${script} silently exited through its installed-runtime symlink`
+    );
+  }
 }
 
 async function testOuterVerification(testRoot) {

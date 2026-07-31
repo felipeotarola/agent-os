@@ -2,26 +2,26 @@
 
 ## Status
 
-The backup implementation is intentionally not activated. The current source
+The backup scheduler is intentionally not activated. The current source
 contains the creator, verifier, v2 uploader and full-object probe, manifest
 recovery, fenced restore, maintenance runner, boot recovery guard, health
-check, failure alert, and fail-closed local retention. The current source has
-passed its deterministic contracts and the full secure synthetic end-to-end
-test. It must still be installed as one signed runtime/unit cohort before the
-first production maintenance run.
+check, failure alert, and fail-closed local retention. Its deterministic
+contracts pass, the creator/restore path previously passed the full secure
+synthetic end-to-end test, and the VPS runs one signed runtime/unit cohort.
 
-As of 2026-07-28:
+As of 2026-07-29:
 
 - Hetzner Cloud Backups are enabled for the VPS, but an isolated Hetzner restore
   drill has not yet been recorded.
-- The isolated Vercel ingest project and private backup Blob store are deployed;
-  its put-only canary passed. The production deployment still returns `404` for
-  the probe route.
+- The isolated Vercel ingest project, private backup Blob store, upload route,
+  and v2 probe route are deployed. The put-only canary passed.
 - The boot recovery guard is enabled, and the six-hour health timer is enabled
   and active. The installed content-addressed runtime and systemd unit copies
-  match the current source cohort. A direct installed-runtime health check
-  passed on 2026-07-28 with readiness pending only on the deliberately absent
-  recovery recipient and remote-probe configuration.
+  at release
+  `c6801e6c60a6902c61dbf525e2a4e6ee93a92b5bb6c16ffd866cb04c0003c0fa`
+  are checksum- and origin-signature-verified. A direct installed-runtime
+  health check passes in readiness mode. All seven installed CLI entrypoints,
+  including retention, are regression-tested through the `current` symlink.
 - Normal CI runs the integration harness in limited mode: it checks the
   synthetic read-only production/auth contracts but deliberately skips backup
   creation unless secure test roots are supplied. The full secure E2E has
@@ -34,10 +34,20 @@ As of 2026-07-28:
   release identity, and installed units on every run. The installer itself is
   included in that signed runtime manifest. The services also use a read-only
   system view with explicit write paths and kernel/control-plane protections.
+  Both maintenance and health now fail closed unless the state and evidence
+  runs roots are canonical root-owned directories with mode `0700`; the
+  production runs root has been corrected to that mode.
 - The daily maintenance timer is installed but disabled, and
   `/etc/openclaw-backup/scheduler-enabled` is absent.
-- No production encrypted set, remote recovery receipt, or clean-machine
-  application restore drill exists yet.
+- Production set `20260729T210013Z-2c2d0bad462bad60` was created locally,
+  sealed read-only, independently verified, and uploaded as 18 private
+  encrypted objects totalling 1,681,840,609 bytes. Its v2 upload receipt is
+  complete and includes every object ETag plus the encrypted manifest
+  completion marker. The deployed write-free probe confirmed the exact 18
+  objects, byte total, ETags, object root, and completion marker on
+  2026-07-29; the root-owned v2 probe receipt and completed-set marker are
+  installed under run `20260729T205756Z`. A clean-machine application restore
+  drill still does not exist.
 - `/etc/openclaw-backup/uploader.env` now selects
   `/run/openclaw-backup-tmp`. Current unit source creates that exact path as a
   service-private 1536 MiB `rw,nosuid,nodev,noexec,noswap` tmpfs.
@@ -48,10 +58,14 @@ As of 2026-07-28:
 - The origin-signing key and offline recovery recipient are configured. The VPS
   contains only the recovery recipient's public key; its private key remains
   offline.
-- The v2 full-encrypted-object-set probe was deployed to the isolated production
-  ingest project on 2026-07-28 and `OPENCLAW_BACKUP_REMOTE_PROBE_URL` is
-  configured. Its receipt-bound proof remains pending until the first real
-  encrypted upload.
+- `OPENCLAW_BACKUP_REMOTE_PROBE_URL` is configured and production deployment
+  `dpl_BW6zPwAaEUUx9F1GhcaSinwc6mHh` runs the write-free v2 probe. Vercel
+  currently reports the dedicated store as available with active billing and
+  no exceeded-quota flag. Its live size is still about 1.78 GB, including one
+  exact 96 MiB object from an interrupted, receipt-less upload; no broad Blob
+  credential or delete route was introduced merely to remove that orphan.
+  Capacity and spend policy for the declared remote retention floor therefore
+  remains an activation gate even though the current completed set is readable.
 - The published `openclaw-backup-recovery-v1` branch still exposes legacy
   v1-only recovery tooling. The local v1.2 kit contains the current v2 import
   closure and its checksum manifest and detached signature validate locally,
@@ -59,15 +73,17 @@ As of 2026-07-28:
   bootstrap and must not be relied on until both steps are complete.
 - A fail-closed local encrypted-set retention CLI and deterministic contract are
   implemented. It is deliberately standalone and not scheduled or invoked by
-  maintenance. Remote Blob retention and nonce cleanup are not implemented.
+  maintenance. Its production dry-run retained both current key-cohort sets and
+  selected zero deletions. Remote Blob retention and upload nonce cleanup are
+  not implemented.
 
 The health timer therefore emits
 `openclaw_backup_readiness_pending` plus explicit pre-activation warnings while
 continuing to validate the rest of the system. It deliberately does not emit a
-green `openclaw_backup_health_ok` before activation. The missing recipient and
-probe become hard failures after the scheduler gate is created. Do not create
-that gate or enable the maintenance timer until the activation sequence below
-is complete.
+green `openclaw_backup_health_ok` before activation. The remaining recovery and
+capacity gates become hard failures after the scheduler gate is created. Do
+not create that gate or enable the maintenance timer until the activation
+sequence below is complete.
 
 The deployed recovery plane is:
 
@@ -277,8 +293,11 @@ suspected host compromise.
 
 The isolated Vercel ingest project holds the matching HMAC secret and uses its
 runtime OIDC identity with access to one dedicated private Blob store. It runs
-only in the production environment, atomically consumes each signed request
-nonce, and mints only five-minute, exact-path, new-object `PUT` URLs.
+only in the production environment. Upload authorization atomically consumes
+each signed request nonce and mints only five-minute, exact-path, new-object
+`PUT` URLs. The metadata-only probe remains HMAC-, nonce-, and freshness-bound
+but deliberately writes no nonce marker, so a completed write-blocked store
+can still be checked.
 
 Vercel's OIDC identity is store-wide rather than mint-only. Compromise of the
 isolated deployment could therefore still read or delete that store. A separate
@@ -489,20 +508,25 @@ protect against a fully compromised VPS that can use the local signing key.
 The upload route and private store are already deployed. The source also
 contains `POST /api/openclaw-backup/probe`, an HMAC-authenticated,
 metadata-only v2 check for the complete ordered encrypted object set in one
-upload receipt. The complete source cohort was verified (10/10 tests) and
-deployed to the production ingest project on 2026-07-28. An unauthenticated
-request returns `401`, confirming the route is present and retains its HMAC
-authentication boundary; a valid full-object proof requires the first real
-encrypted upload.
+upload receipt. The complete source cohort was verified (12/12 tests) and
+deployed to the production ingest project on 2026-07-29. The production fetch
+adapter cannot confuse Vercel's runtime context with the injected metadata
+reader, and direct private `HEAD` requests require identity encoding so the
+ciphertext byte length remains observable. The real production receipt has
+successfully confirmed all 18 encrypted objects without listing, reading
+object bodies, or writing a probe nonce.
 
-The probe accepts at most 128 exact receipt objects, consumes its one-time
-authorization nonce before any reads, derives every immutable pathname, and
-performs bounded-concurrency `HEAD` calls. It verifies path, byte count, content
-type, and ETag, then returns the receipt-bound object count, total bytes, object
-root, and completion marker. It cannot list a prefix, return object bodies,
-write backup objects, overwrite, or delete. This is stronger than a marker-only
-check but is still not a deep remote-body verification. After deployment
-configure:
+The probe accepts at most 128 exact receipt objects, derives every immutable
+pathname, and performs bounded-concurrency `HEAD` calls. It verifies path, byte
+count, content type, and ETag, then returns the receipt-bound object count,
+total bytes, object root, and completion marker. It cannot list a prefix,
+return object bodies, write backup objects, overwrite, or delete. The random
+nonce remains part of the HMAC-bound request and the timestamp is accepted for
+at most five minutes. A captured fresh request can repeat the same bounded
+reads, but cannot create positive evidence unless all current metadata still
+matches. Strict probe replay prevention would require a separate atomic KV
+with TTL. This is stronger than a marker-only check but is still not a deep
+remote-body verification. After deployment configure:
 
 ```text
 OPENCLAW_BACKUP_INGEST_URL=https://<isolated-project>/api/openclaw-backup/upload-url
@@ -712,18 +736,18 @@ node scripts/retain-openclaw-backups.mjs \
 
 This tool deletes local encrypted staging only and is not integrated with
 systemd or the maintenance runner. The backup host must never implement Blob
-deletion. Both upload authorization and v2 probe requests consume immutable
-entries below `openclaw-backup-auth-nonces/v1/`; probe nonces are consumed
-before any remote `HEAD`. Remote set deletion and expired nonce cleanup belong
-to a separate privileged maintenance identity and must preserve the equivalent
-per-key-cohort recovery floor plus the most recent independently deep-verified
-remote set.
+deletion. Upload authorization consumes immutable entries below
+`openclaw-backup-auth-nonces/v1/`; the write-free v2 probe does not. Remote set
+deletion and expired upload nonce cleanup belong to a separate privileged
+maintenance identity and must preserve the equivalent per-key-cohort recovery
+floor plus the most recent independently deep-verified remote set.
 
-Remote retention, nonce cleanup, retention scheduling, and an immutable third
-copy are not implemented. Until they are, run local retention manually and
-record every execution; monitor the same-filesystem local set directory because
-daily sets otherwise accumulate. Vercel Blob has no documented WORM/Object
-Lock or undelete guarantee, so a separately administered immutable copy remains
+Remote retention, upload nonce cleanup, retention scheduling, and an immutable
+third copy are not implemented. Until they are, run local retention manually
+and record every execution; monitor the same-filesystem local set directory
+because daily sets otherwise accumulate. Vercel Blob has no documented
+WORM/Object Lock or undelete guarantee, so a separately administered immutable
+copy remains
 a future requirement for business-critical recovery.
 
 ## Remote restore runbook
@@ -760,11 +784,12 @@ successful `sha256sum --check` for the entire kit-local import closure. Stop if
 the kit does not explicitly support the set's v2 manifest/payload schemas or
 any check fails.
 
-At the current pre-activation checkpoint the published branch is v1-only and
-the newer local kit's signed checksum verification fails on its changed README.
-Do not treat either copy as production-ready until the v2 import closure,
-version, checksum manifest, and detached signature have been regenerated from
-frozen source, published, and repeated successfully from a clean clone.
+At the current pre-activation checkpoint the published branch is v1-only. The
+newer local v1.2.0 kit has a complete v2 import closure and a checksum manifest
+signed by the currently configured origin signer, and has been verified with a
+clean temporary GnuPG home. Do not treat it as production-ready until that exact
+frozen source is published under its immutable signed tag and the verification
+is repeated successfully from a clean clone.
 
 ### 3. Download one complete set
 
@@ -921,6 +946,9 @@ The backup system is not production-ready until all of these are true:
 
 - a Hetzner backup has been restored to an isolated test server;
 - the dedicated private Blob store and ingest project exist;
+- the Blob plan/spend cap can hold the current approximately 1.68 GB encrypted
+  set plus the declared remote retention floor without suspending reads or
+  writes;
 - the current signed runtime and exact systemd unit cohort are installed, and
   health proves the private 1536 MiB noswap mount, ephemeral encrypted swap,
   staging/RAM gates, and v2 evidence contracts;
@@ -949,6 +977,6 @@ The backup system is not production-ready until all of these are true:
   observed during a real maintenance run;
 - the scheduler gate remains absent and the maintenance timer remains disabled
   until all of these checks have passed; and
-- local retention has an exercised owner, remote retention/nonce cleanup has an
-  implemented separate-identity plan, and a true
+- local retention has an exercised owner, remote retention/upload nonce cleanup
+  has an implemented separate-identity plan, and a true
   WORM/Object-Lock third copy has an explicit accepted plan or risk decision.

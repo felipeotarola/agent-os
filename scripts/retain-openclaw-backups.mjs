@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { constants } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import {
   chmod,
   lstat,
@@ -15,7 +15,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { once } from 'node:events';
 import { isDeepStrictEqual } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import {
   assertTrustedDirectoryHierarchy,
   openPrivateLockFile
@@ -53,7 +53,7 @@ const MAXIMUM_RECEIPT_BYTES = 1024 * 1024;
 const MAXIMUM_PROBE_BYTES = 64 * 1024;
 const MAXIMUM_PATH_BYTES = 4096;
 const DEFAULT_STATE_ROOT = '/var/lib/openclaw-backup/state';
-const LOCK_ROOT = '/run/openclaw-backup';
+const LOCK_ROOT = '/var/lib/openclaw-backup/state/locks';
 const MAINTENANCE_LOCK_NAME = 'maintenance.lock';
 const BACKUP_LOCK_NAME = 'creator.lock';
 const INTERNAL_LOCK_ENV =
@@ -1431,9 +1431,25 @@ async function main() {
   }
 }
 
-if (
-  import.meta.url ===
-  pathToFileURL(process.argv[1] || '').href
-) {
-  main();
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  const mainKeepAlive = setInterval(() => {}, 1_000);
+  main()
+    .catch(() => {
+      process.stderr.write(
+        'openclaw_backup_retention_error: INTERNAL_ERROR\n'
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      clearInterval(mainKeepAlive);
+    });
 }

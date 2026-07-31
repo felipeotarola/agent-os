@@ -1,7 +1,8 @@
 [Unit]
 Description=Validate OpenClaw backup readiness and freshness
-After=docker.service user@0.service network-online.target
+After=docker.service user@0.service network-online.target openclaw-backup-gpg-agent.service
 Wants=docker.service user@0.service network-online.target
+Requires=openclaw-backup-gpg-agent.service
 OnFailure=openclaw-backup-alert@%n.service
 
 [Service]

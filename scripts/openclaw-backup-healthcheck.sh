@@ -16,14 +16,15 @@ else
 fi
 BACKUP_ENV=/etc/openclaw-backup/uploader.env
 STATE_ROOT=/var/lib/openclaw-backup/state
+RUNS_ROOT="$STATE_ROOT/runs"
 PLAN_PATH="$STATE_ROOT/healthcheck-plan.json"
-LOCK_ROOT=/run/openclaw-backup
+LOCK_ROOT=/var/lib/openclaw-backup/state/locks
 MAINTENANCE_LOCK="$LOCK_ROOT/maintenance.lock"
 SCHEDULER_GATE=/etc/openclaw-backup/scheduler-enabled
 VERCEL_AUTH=/root/.local/share/com.vercel.cli/auth.json
 MAIN_VERCEL_TOKEN=/root/.openclaw/secrets/agent-os/VERCEL_ACCESS_TOKEN
 RUNTIME_GNUPGHOME=/etc/openclaw-backup/gnupg
-RUNTIME_SIGNER=11EAFE1BD7AD1BEE296B24565C8124C33417F2D7
+RUNTIME_SIGNER=A21CDBA4C148498DD96AE3B25BD3DABE32ED63DD
 EXPECTED_STAGING_ROOT=/run/openclaw-backup-tmp
 STAGING_TMPFS_BYTES=$((1536 * 1024 * 1024))
 CRYPTSWAP_NAME=openclaw-cryptswap
@@ -47,6 +48,41 @@ fail() {
 
 warn() {
   warnings+=("$1")
+}
+
+ensure_private_root_directory() {
+  local directory=$1
+  local label=$2
+  local parent_directory=${directory%/*}
+  if [[ -L "$parent_directory" ||
+    ! -d "$parent_directory" ||
+    $(stat -c '%u:%g:%a' "$parent_directory" 2>/dev/null || true) != '0:0:700' ||
+    $(realpath --canonicalize-existing "$parent_directory" 2>/dev/null || true) != "$parent_directory" ]]; then
+    echo "openclaw_backup_health_error: $label parent is unsafe" >&2
+    exit 1
+  fi
+  if [[ -L "$directory" ||
+    -e "$directory" && ! -d "$directory" ]]; then
+    echo "openclaw_backup_health_error: $label is unsafe" >&2
+    exit 1
+  fi
+  if [[ -e "$directory" ]]; then
+    if [[ $(stat -c '%u:%g' "$directory" 2>/dev/null || true) != '0:0' ||
+      $(realpath --canonicalize-existing "$directory" 2>/dev/null || true) != "$directory" ]]; then
+      echo "openclaw_backup_health_error: $label ownership or path is unsafe" >&2
+      exit 1
+    fi
+    chmod 0700 -- "$directory"
+  else
+    install -o root -g root -m 0700 -d -- "$directory"
+  fi
+  if [[ -L "$directory" ||
+    ! -d "$directory" ||
+    $(stat -c '%u:%g:%a' "$directory" 2>/dev/null || true) != '0:0:700' ||
+    $(realpath --canonicalize-existing "$directory" 2>/dev/null || true) != "$directory" ]]; then
+    echo "openclaw_backup_health_error: $label metadata is unsafe" >&2
+    exit 1
+  fi
 }
 
 swap_is_confidential() {
@@ -177,7 +213,7 @@ if [[ -d "$RUNTIME_ROOT/systemd" ]]; then
     fail 'installed backup runtime metadata is unsafe'
   elif [[ $(sha256sum "$runtime_checksums" | awk '{ print $1 }') != "$runtime_release" ]]; then
     fail 'installed backup runtime release identity is invalid'
-  elif [[ $(wc -l <"$runtime_checksums") -ne 22 ]] ||
+  elif [[ $(wc -l <"$runtime_checksums") -ne 23 ]] ||
     grep -Evq \
       '^[a-f0-9]{64}  (systemd/)?[A-Za-z0-9@._-]+$' \
       "$runtime_checksums"; then
@@ -243,6 +279,10 @@ join_messages() {
   done
 }
 
+ensure_private_root_directory "$STATE_ROOT" \
+  'backup state directory'
+ensure_private_root_directory "$RUNS_ROOT" \
+  'backup evidence runs directory'
 if [[ -L "$LOCK_ROOT" ||
   -e "$LOCK_ROOT" && ! -d "$LOCK_ROOT" ]]; then
   echo 'openclaw_backup_health_error: backup lock directory is unsafe' >&2
@@ -479,6 +519,7 @@ if [[ $(systemctl is-enabled openclaw-backup-maintenance-guard.service 2>/dev/nu
 fi
 
 for unit in \
+  openclaw-backup-gpg-agent.service \
   openclaw-backup-maintenance.service \
   openclaw-backup-maintenance-guard.service \
   openclaw-backup-maintenance.timer \
@@ -496,7 +537,8 @@ if [[ -n ${OPENCLAW_BACKUP_GPG_SIGNER:-} &&
   -n ${GNUPGHOME:-} ]]; then
   signer_listing=$(
     gpg --batch --with-colons \
-      --list-secret-keys "$OPENCLAW_BACKUP_GPG_SIGNER" 2>/dev/null || true
+      --no-autostart --list-secret-keys \
+      "$OPENCLAW_BACKUP_GPG_SIGNER" 2>/dev/null || true
   )
   signer_fingerprint=$(
     awk -F: '$1 == "fpr" { print toupper($10); exit }' \
@@ -520,7 +562,6 @@ if [[ -n ${OPENCLAW_BACKUP_GPG_SIGNER:-} &&
   fi
 fi
 
-install -d -m 0700 "$STATE_ROOT"
 if [[ "$CONFIDENTIAL_SWAP" == true ]] && (
   cd "$RUNTIME_ROOT"
   node openclaw-backup.mjs \
@@ -627,7 +668,7 @@ if [[ -e "$SCHEDULER_GATE" ]]; then
       latest_receipt=$candidate
     fi
   done < <(
-    find "$STATE_ROOT/runs" -mindepth 2 -maxdepth 2 \
+    find "$RUNS_ROOT" -mindepth 2 -maxdepth 2 \
       -name upload-receipt.json -type f -print0 2>/dev/null
   )
 

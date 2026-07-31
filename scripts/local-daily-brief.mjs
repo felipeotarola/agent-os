@@ -87,7 +87,7 @@ const recentMemory = latestDailyMemory();
 
 const currentNextStep = firstMatchingLine(lifeOs.text, [/Current next step:/i]);
 const lifeBlocker = firstBulletAfterHeading(lifeOs.text, '## Blockers / Loose Ends');
-const memorySignal = firstMatchingLine(recentMemory.text, [/^- .*Agent OS/i, /^- .*Agnes/i, /^- .*heartbeat/i]);
+const memorySignal = firstMatchingLine(recentMemory.text, [/^- .*Agent OS/i, /^- .*heartbeat/i]);
 const safeAction = firstMatchingLine(proactive.text, [/^- Improve Agent OS code\/docs\/UI/i, /^- Update local markdown context/i]);
 
 const unavailable = [lifeOs, proactive, heartbeat, recentMemory].filter((file) => file.missing).map((file) => file.path);

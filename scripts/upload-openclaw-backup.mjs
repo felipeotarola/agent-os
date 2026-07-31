@@ -5,7 +5,7 @@ import {
   createHmac,
   randomBytes
 } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import {
   lstat,
   open,
@@ -15,12 +15,13 @@ import {
 import { basename, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { finished } from 'node:stream/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { verifySet } from './verify-openclaw-backup.mjs';
 
 export const UPLOAD_URL_PATH = '/api/openclaw-backup/upload-url';
 export const BACKUP_CONTENT_TYPE = 'application/octet-stream';
 export const MAX_BACKUP_PART_BYTES = 96 * 1024 * 1024;
+export const BLOB_API_VERSION = '12';
 
 const SET_ID_PATTERN = /^\d{8}T\d{6}Z-[0-9a-f]{16}$/;
 const HOST_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$/;
@@ -505,7 +506,21 @@ async function mintUploadUrl(endpoint, hostId, storeId, secret, item) {
   });
   const responseBody = await readBoundedResponse(response);
   if (!response.ok) {
-    throw new Error(`Ingest authorization failed with HTTP ${response.status}`);
+    let errorCode = '';
+    try {
+      const parsedError = JSON.parse(responseBody);
+      if (
+        typeof parsedError?.error === 'string' &&
+        /^[a-z0-9][a-z0-9-]{0,127}$/.test(parsedError.error)
+      ) {
+        errorCode = ` (${parsedError.error})`;
+      }
+    } catch {
+      // The status remains authoritative; never echo an untrusted error body.
+    }
+    throw new Error(
+      `Ingest authorization failed with HTTP ${response.status}${errorCode}`
+    );
   }
   if (
     response.headers.get('content-type')?.split(';', 1)[0].trim() !==
@@ -579,10 +594,10 @@ async function uploadItem(directory, uploadUrl, item) {
   try {
     const response = await fetch(uploadUrl, {
       method: 'PUT',
-      headers: {
-        'content-type': BACKUP_CONTENT_TYPE,
-        'content-length': String(item.sizeBytes)
-      },
+      headers: buildBlobPutHeaders(
+        uploadUrl,
+        item.sizeBytes
+      ),
       body: Readable.toWeb(integrityStream),
       duplex: 'half',
       redirect: 'error',
@@ -603,19 +618,63 @@ async function uploadItem(directory, uploadUrl, item) {
         'Backup file integrity changed during upload; completion marker withheld'
       );
     }
-    let parsedResponse;
-    try {
-      parsedResponse = JSON.parse(responseBody);
-    } catch {
-      throw new Error('Blob upload returned invalid JSON');
-    }
-    return parsedResponse;
+    return parseBlobPutHttpResponse(response, responseBody);
   } finally {
     source.destroy();
     integrityStream.destroy();
     await streamCompletion.catch(() => {});
     await handle.close();
   }
+}
+
+export function buildBlobPutHeaders(uploadUrl, sizeBytes) {
+  const parsedUploadUrl = new URL(uploadUrl);
+  const delegation = parsedUploadUrl.searchParams.get(
+    'vercel-blob-delegation'
+  );
+  if (!delegation) {
+    throw new Error('Signed upload URL is missing its delegation scope');
+  }
+  const storeId = validateBlobStoreId(
+    decodeDelegationScope(delegation).storeId
+  );
+  return {
+    'content-type': BACKUP_CONTENT_TYPE,
+    'content-length': String(sizeBytes),
+    'x-api-version': BLOB_API_VERSION,
+    'x-vercel-blob-store-id': storeId,
+    'x-api-blob-request-attempt': '0',
+    'x-api-blob-request-id':
+      `${storeId}:${Date.now()}:${randomBytes(8).toString('hex')}`,
+    'x-vercel-blob-access': 'private',
+    'x-content-type': BACKUP_CONTENT_TYPE
+  };
+}
+
+export function parseBlobPutHttpResponse(response, responseBody) {
+  if (!response.ok) {
+    throw new Error(`Blob upload failed with HTTP ${response.status}`);
+  }
+  if (
+    response.headers.get('content-type')?.split(';', 1)[0].trim() !==
+    'application/json'
+  ) {
+    throw new Error('Blob upload returned an invalid content type');
+  }
+  let parsedResponse;
+  try {
+    parsedResponse = JSON.parse(responseBody);
+  } catch {
+    throw new Error('Blob upload returned invalid JSON');
+  }
+  if (
+    !parsedResponse ||
+    typeof parsedResponse !== 'object' ||
+    Array.isArray(parsedResponse)
+  ) {
+    throw new Error('Blob upload returned an invalid JSON object');
+  }
+  return parsedResponse;
 }
 
 function sameFileVersion(left, right) {
@@ -631,7 +690,7 @@ function sameFileVersion(left, right) {
 export function validateBlobPutResponse(value, storeId, item) {
   const normalizedStoreId = validateBlobStoreId(storeId);
   const expectedHostname =
-    `${normalizedStoreId}.private.blob.vercel-storage.com`;
+    `${normalizedStoreId}.private.blob.vercel-storage.com`.toLowerCase();
   const expectedPathname = `/${expectedBlobPathname(
     item.hostId,
     item
@@ -640,6 +699,7 @@ export function validateBlobPutResponse(value, storeId, item) {
     !value ||
     value.pathname !== expectedPathname.slice(1) ||
     value.contentType !== BACKUP_CONTENT_TYPE ||
+    typeof value.contentDisposition !== 'string' ||
     typeof value.url !== 'string' ||
     typeof value.downloadUrl !== 'string' ||
     typeof value.etag !== 'string'
@@ -665,7 +725,8 @@ export function validateBlobPutResponse(value, storeId, item) {
       parsed.password ||
       parsed.pathname !== expectedPathname ||
       parsed.hash ||
-      (name === 'url' && parsed.search)
+      (name === 'url' && parsed.search) ||
+      (name === 'downloadUrl' && parsed.search !== '?download=1')
     ) {
       throw new Error(
         'Blob upload did not resolve to the pinned private store'
@@ -775,9 +836,27 @@ async function main() {
   );
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  main().catch((error) => {
-    process.stderr.write(`openclaw_backup_upload_error: ${error.message}\n`);
-    process.exitCode = 1;
-  });
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  // Keep the CLI alive until every network request and receipt validation has
+  // settled. An unresolved promise by itself does not keep Node alive.
+  const mainKeepAlive = setInterval(() => {}, 1_000);
+  main()
+    .catch((error) => {
+      process.stderr.write(
+        `openclaw_backup_upload_error: ${error.message}\n`
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      clearInterval(mainKeepAlive);
+    });
 }

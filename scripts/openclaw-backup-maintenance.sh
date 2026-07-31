@@ -13,9 +13,10 @@ RUNTIME_ROOT=$(
 )
 BACKUP_ENV=/etc/openclaw-backup/uploader.env
 STATE_ROOT=/var/lib/openclaw-backup/state
+RUNS_ROOT="$STATE_ROOT/runs"
 LOG_ROOT=/var/lib/openclaw-backup/logs
 ACTIVE_STATE="$STATE_ROOT/maintenance-active.json"
-LOCK_ROOT=/run/openclaw-backup
+LOCK_ROOT=/var/lib/openclaw-backup/state/locks
 LOCK_PATH="$LOCK_ROOT/maintenance.lock"
 CODEX_PATTERN='[/]codex( |$)|[/]codex-code-mode-host( |$)'
 QAA_UNIT=qaa-sladdis-web-runner.service
@@ -24,7 +25,7 @@ CRON_UNIT=cron.service
 BRIDGE_CONTAINER=agent-os-bridge
 MANAGED_BROWSER_PROFILE=openclaw
 RUNTIME_GNUPGHOME=/etc/openclaw-backup/gnupg
-RUNTIME_SIGNER=11EAFE1BD7AD1BEE296B24565C8124C33417F2D7
+RUNTIME_SIGNER=A21CDBA4C148498DD96AE3B25BD3DABE32ED63DD
 EXPECTED_STAGING_ROOT=/run/openclaw-backup-tmp
 STAGING_TMPFS_BYTES=$((1536 * 1024 * 1024))
 CRYPTSWAP_NAME=openclaw-cryptswap
@@ -33,8 +34,6 @@ CRYPTSWAP_BACKING_BYTES=$((2 * 1024 * 1024 * 1024))
 MIN_CAPTURE_PROCESS_HEADROOM_KIB=$((768 * 1024))
 SANDBOX_CONTAINERS=(
   openclaw-sbx-agent-charles-c5870675
-  openclaw-sbx-agent-linda-a1c79fb4
-  openclaw-sbx-agent-agnes-b92b654d
   openclaw-sbx-agent-sladdis-00c345bc
 )
 
@@ -51,6 +50,41 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   echo 'openclaw backup maintenance requires root' >&2
   exit 1
 fi
+
+ensure_private_root_directory() {
+  local directory=$1
+  local label=$2
+  local parent_directory=${directory%/*}
+  if [[ -L "$parent_directory" ||
+    ! -d "$parent_directory" ||
+    $(stat -c '%u:%g:%a' "$parent_directory" 2>/dev/null || true) != '0:0:700' ||
+    $(realpath --canonicalize-existing "$parent_directory" 2>/dev/null || true) != "$parent_directory" ]]; then
+    echo "$label parent is unsafe" >&2
+    exit 1
+  fi
+  if [[ -L "$directory" ||
+    -e "$directory" && ! -d "$directory" ]]; then
+    echo "$label is unsafe" >&2
+    exit 1
+  fi
+  if [[ -e "$directory" ]]; then
+    if [[ $(stat -c '%u:%g' "$directory" 2>/dev/null || true) != '0:0' ||
+      $(realpath --canonicalize-existing "$directory" 2>/dev/null || true) != "$directory" ]]; then
+      echo "$label ownership or path is unsafe" >&2
+      exit 1
+    fi
+    chmod 0700 -- "$directory"
+  else
+    install -o root -g root -m 0700 -d -- "$directory"
+  fi
+  if [[ -L "$directory" ||
+    ! -d "$directory" ||
+    $(stat -c '%u:%g:%a' "$directory" 2>/dev/null || true) != '0:0:700' ||
+    $(realpath --canonicalize-existing "$directory" 2>/dev/null || true) != "$directory" ]]; then
+    echo "$label metadata is unsafe" >&2
+    exit 1
+  fi
+}
 
 runtime_release=${RUNTIME_ROOT##*/}
 runtime_checksums="$RUNTIME_ROOT/RUNTIME_CHECKSUMS.sha256"
@@ -78,7 +112,7 @@ if [[ ! -d "$RUNTIME_ROOT/systemd" ||
   $(stat -c '%u:%a:%F' "$runtime_checksums" 2>/dev/null || true) != '0:640:regular file' ||
   $(stat -c '%u:%a:%F' "$runtime_signature" 2>/dev/null || true) != '0:640:regular file' ||
   $(sha256sum "$runtime_checksums" 2>/dev/null | awk '{ print $1 }') != "$runtime_release" ||
-  $(wc -l <"$runtime_checksums" 2>/dev/null || true) -ne 22 ||
+  $(wc -l <"$runtime_checksums" 2>/dev/null || true) -ne 23 ||
   ${#runtime_signature_fingerprints[@]} -ne 1 ||
   ${runtime_signature_fingerprints[0]:-} != "$RUNTIME_SIGNER" ]] ||
   grep -Evq \
@@ -128,7 +162,11 @@ done < <(
   }
 )
 
-install -d -m 0700 "$STATE_ROOT" "$LOG_ROOT"
+ensure_private_root_directory "$STATE_ROOT" \
+  'backup state directory'
+ensure_private_root_directory "$RUNS_ROOT" \
+  'backup evidence runs directory'
+install -d -m 0700 "$LOG_ROOT"
 if [[ -L "$LOCK_ROOT" ||
   -e "$LOCK_ROOT" && ! -d "$LOCK_ROOT" ]]; then
   echo 'backup lock directory is unsafe' >&2
@@ -228,10 +266,8 @@ public_bridge_health() {
 gateway_health() {
   curl --fail --silent --show-error \
     --connect-timeout 3 --max-time 5 \
-    http://127.0.0.1:18789/health \
-    >/dev/null &&
-    bounded 10s openclaw health --json |
-      jq -e '.ok == true' >/dev/null
+    http://127.0.0.1:18789/health |
+    jq -e '.ok == true and .status == "live"' >/dev/null
 }
 
 managed_browser_status() {
@@ -348,6 +384,27 @@ swap_configuration_is_reviewed() {
     "$fstab_exact_count" == 1 ]]
 }
 
+disable_reviewed_active_swap() {
+  local reported_source
+  local swap_source_path
+  local swapoff_status=0
+
+  reported_source=$(awk 'NR == 2 { print $1 }' /proc/swaps)
+  [[ -n "$reported_source" ]] || return 1
+  if [[ "$reported_source" == /dev/* ]]; then
+    swap_source_path=$reported_source
+  elif [[ "$reported_source" == /* ]]; then
+    swap_source_path="/dev$reported_source"
+  else
+    return 1
+  fi
+
+  bounded 30s swapoff "$swap_source_path" || swapoff_status=$?
+  [[ $(awk 'NR > 1 { count += 1 } END { print count + 0 }' /proc/swaps) -eq 0 ]] ||
+    return 1
+  return 0
+}
+
 list_cron_sessions() {
   local listing
   local session_id
@@ -459,8 +516,6 @@ load_active_state() {
         [
           "agent-os-bridge",
           "openclaw-sbx-agent-charles-c5870675",
-          "openclaw-sbx-agent-linda-a1c79fb4",
-          "openclaw-sbx-agent-agnes-b92b654d",
           "openclaw-sbx-agent-sladdis-00c345bc"
         ] as $allowed_containers |
         .runningContainers as $containers |
@@ -542,7 +597,8 @@ restore_production() {
       echo 'reviewed encrypted swap configuration changed; production remains stopped' >&2
       failed=1
       swap_failed=1
-    elif ! bounded 30s swapoff --all; then
+    elif [[ $(awk 'NR > 1 { count += 1 } END { print count + 0 }' /proc/swaps) -ne 0 ]] &&
+      ! disable_reviewed_active_swap; then
       echo 'failed to clear swap before exact encrypted restoration' >&2
       failed=1
       swap_failed=1
@@ -618,7 +674,12 @@ restore_production() {
 
   if [[ ${GATEWAY_WAS_RUNNING:-0} == 1 ]]; then
     user_systemctl start "$GATEWAY_UNIT" || failed=1
-    retry 8 2 gateway_health || {
+    # Gateway startup can take more than the usual 16 seconds after a quiesced
+    # Codex session is torn down.  The user unit has a 30 second startup limit,
+    # and the gateway only opens its health endpoint after plugins and channels
+    # initialize.  Keep the production state fenced until that full bounded
+    # recovery window has elapsed.
+    retry 45 2 gateway_health || {
       echo 'OpenClaw gateway failed its health check' >&2
       failed=1
     }
@@ -729,6 +790,11 @@ if [[ "$OPENCLAW_BACKUP_PLAINTEXT_STAGING_ROOT" != "$EXPECTED_STAGING_ROOT" ||
   echo 'backup plaintext staging root is not the private service mount' >&2
   exit 1
 fi
+# The required persistent agent is started by systemd outside this maintenance
+# cgroup. Refuse to spawn an ad-hoc replacement here: that was the source of
+# unreliable signing-key lookup after swap was disabled.
+gpg --batch --no-autostart --with-colons --list-secret-keys \
+  "$OPENCLAW_BACKUP_GPG_SIGNER" >/dev/null
 staging_mount_target=$(
   findmnt --noheadings --output TARGET \
     --target "$EXPECTED_STAGING_ROOT" |
@@ -761,7 +827,7 @@ if ! swap_configuration_is_reviewed ||
 fi
 
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
-RUN_DIR="$STATE_ROOT/runs/$RUN_ID"
+RUN_DIR="$RUNS_ROOT/$RUN_ID"
 LOG_FILE="$LOG_ROOT/$RUN_ID.log"
 install -d -m 0700 "$RUN_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -991,9 +1057,8 @@ if [[ ! "$swap_used_kib" =~ ^[0-9]+$ ||
   echo 'insufficient physical-memory headroom for swapoff plus the full plaintext tmpfs ceiling' >&2
   exit 1
 fi
-swapoff --all
-if [[ $(awk 'NR > 1 { count += 1 } END { print count + 0 }' /proc/swaps) -ne 0 ]]; then
-  echo 'swap remained active; plaintext capture refused' >&2
+if ! disable_reviewed_active_swap; then
+  echo 'swap remained active after disabling reviewed mapping; plaintext capture refused' >&2
   exit 1
 fi
 
@@ -1010,6 +1075,10 @@ BACKUP_ARGS=(
   --consistency quiesced
   --plaintext-staging "$OPENCLAW_BACKUP_PLAINTEXT_STAGING_ROOT"
   --allow-same-device
+  # This maintenance service already holds maintenance.lock for the complete
+  # quiesce/capture/restore transaction. Avoid a second flock re-exec whose
+  # inherited descriptor is not portable through the hardened systemd unit.
+  --internal-locked
   --json
 )
 PREFLIGHT_ARGS=(
@@ -1066,7 +1135,8 @@ if [[ ! "$memory_available_kib" =~ ^[0-9]+$ ||
 fi
 docker exec agent-os-postgres pg_isready -U agent_os -d agent_os >/dev/null
 
-node openclaw-backup.mjs "${BACKUP_ARGS[@]}" \
+OPENCLAW_BACKUP_LOCK_HELD=1 OPENCLAW_BACKUP_TRACE=1 \
+  node openclaw-backup.mjs "${BACKUP_ARGS[@]}" \
   >"$RUN_DIR/backup-result.json"
 jq -e '
   .ok == true and

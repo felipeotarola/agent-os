@@ -91,9 +91,7 @@ async function sha256File(path) {
   );
   const hash = createHash('sha256');
   try {
-    for await (const chunk of handle.createReadStream({
-      autoClose: false
-    })) {
+    for await (const chunk of handle.createReadStream()) {
       hash.update(chunk);
     }
   } finally {
@@ -341,6 +339,13 @@ function childCompletion(
       timeoutHandle.unref();
     }
   });
+}
+
+function isExpectedConsumerClose(error) {
+  return (
+    error?.code === 'EPIPE' ||
+    error?.code === 'ERR_STREAM_PREMATURE_CLOSE'
+  );
 }
 
 export function databaseDockerArgs(configuration, tool, toolArgs) {
@@ -646,93 +651,120 @@ async function createSupabasePublicDump(
 
 export async function verifySupabasePublicDump(destination) {
   const header = Buffer.alloc(5);
-  const input = await open(destination, 'r');
-  try {
-    await input.read(header, 0, header.length, 0);
-  } finally {
-    await input.close();
-  }
-  if (header.toString('ascii') !== 'PGDMP') {
-    throw new Error('Supabase public dump header is invalid');
-  }
-
-  const child = spawn(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--interactive',
-      '--network',
-      'none',
-      '--read-only',
-      '--cap-drop',
-      'ALL',
-      '--security-opt',
-      'no-new-privileges',
-      '--pids-limit',
-      '64',
-      PINNED_POSTGRES_IMAGE,
-      'pg_restore',
-      '--list'
-    ],
-    { stdio: ['pipe', 'pipe', 'pipe'] }
-  );
-  child.stdin.on('error', () => {});
-  const stderrChunks = attachBoundedStderr(child);
-  const completion = childCompletion(
-    child,
-    'Supabase public dump listing',
-    stderrChunks,
-    PUBLIC_DUMP_VERIFY_TIMEOUT_MS
-  );
-  const chunks = [];
-  let bytes = 0;
-  child.stdout.on('data', (chunk) => {
-    bytes += chunk.length;
-    if (bytes > MAX_TOC_BYTES) child.kill('SIGKILL');
-    else chunks.push(Buffer.from(chunk));
-  });
+  // Open the dump once, without following links, before starting Docker.
+  // Reopening after spawn leaves a race where an attacker can replace the
+  // path and an O_NOFOLLOW failure strands pg_restore waiting on stdin.
   const dump = await open(
     destination,
     constants.O_RDONLY | constants.O_NOFOLLOW
   );
-  const transfer = pipeline(
-    dump.createReadStream({ autoClose: false }),
-    child.stdin
-  );
-  const [transferResult, completionResult] =
-    await Promise.allSettled([transfer, completion]);
-  await dump.close();
-  if (completionResult.status === 'rejected') {
-    throw completionResult.reason;
+  let dumpStream;
+  try {
+    await dump.read(header, 0, header.length, 0);
+    if (header.toString('ascii') !== 'PGDMP') {
+      throw new Error('Supabase public dump header is invalid');
+    }
+
+    const child = spawn(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--interactive',
+        '--network',
+        'none',
+        '--read-only',
+        '--cap-drop',
+        'ALL',
+        '--security-opt',
+        'no-new-privileges',
+        '--pids-limit',
+        '64',
+        PINNED_POSTGRES_IMAGE,
+        'pg_restore',
+        '--list'
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    child.stdin.on('error', () => {});
+    const stderrChunks = attachBoundedStderr(child);
+    const completion = childCompletion(
+      child,
+      'Supabase public dump listing',
+      stderrChunks,
+      PUBLIC_DUMP_VERIFY_TIMEOUT_MS
+    );
+    const chunks = [];
+    let bytes = 0;
+    child.stdout.on('data', (chunk) => {
+      bytes += chunk.length;
+      if (bytes > MAX_TOC_BYTES) child.kill('SIGKILL');
+      else chunks.push(Buffer.from(chunk));
+    });
+    try {
+      dumpStream = dump.createReadStream({ start: 0 });
+      const transfer = pipeline(dumpStream, child.stdin).catch(
+        (error) => {
+          // pg_restore --list only needs the archive header and TOC. For a
+          // dump with data blocks it can exit 0 before consuming every byte,
+          // which can close its stdin with either EPIPE or Node's
+          // ERR_STREAM_PREMATURE_CLOSE depending on event timing. Both remain
+          // conditional on child exit 0 and a valid policy-approved TOC.
+          if (!isExpectedConsumerClose(error)) {
+            child.kill('SIGKILL');
+          }
+          throw error;
+        }
+      );
+      const [transferResult, completionResult] =
+        await Promise.allSettled([transfer, completion]);
+      if (completionResult.status === 'rejected') {
+        throw completionResult.reason;
+      }
+      if (
+        transferResult.status === 'rejected' &&
+        !isExpectedConsumerClose(transferResult.reason)
+      ) {
+        const code = transferResult.reason?.code;
+        throw new Error(
+          `Supabase public dump stream failed${code ? ` (${code})` : ''}`,
+          { cause: transferResult.reason }
+        );
+      }
+    } catch (error) {
+      child.kill('SIGKILL');
+      child.stdin.destroy();
+      await completion.catch(() => {});
+      throw error;
+    }
+    if (bytes <= 0 || bytes > MAX_TOC_BYTES) {
+      throw new Error('Supabase public dump TOC is invalid');
+    }
+    const toc = Buffer.concat(chunks).toString('utf8');
+    const entries = toc
+      .split('\n')
+      .filter((line) => line && !line.startsWith(';'));
+    if (
+      entries.length < 1 ||
+      entries.some(
+        (line) =>
+          /\bauth\b/i.test(line) ||
+          /\bACL\b/.test(line) ||
+          /\bOWNER\b/.test(line) ||
+          /\bPUBLICATION\b/.test(line) ||
+          /\bSUBSCRIPTION\b/.test(line)
+      )
+    ) {
+      throw new Error('Supabase public dump TOC violates policy');
+    }
+    return {
+      tocSha256: sha256Text(toc),
+      tocEntries: entries.length
+    };
+  } finally {
+    dumpStream?.destroy();
+    await dump.close();
   }
-  if (transferResult.status === 'rejected') {
-    throw new Error('Supabase public dump stream failed');
-  }
-  if (bytes <= 0 || bytes > MAX_TOC_BYTES) {
-    throw new Error('Supabase public dump TOC is invalid');
-  }
-  const toc = Buffer.concat(chunks).toString('utf8');
-  const entries = toc
-    .split('\n')
-    .filter((line) => line && !line.startsWith(';'));
-  if (
-    entries.length < 1 ||
-    entries.some(
-      (line) =>
-        /\bauth\b/i.test(line) ||
-        /\bACL\b/.test(line) ||
-        /\bOWNER\b/.test(line) ||
-        /\bPUBLICATION\b/.test(line) ||
-        /\bSUBSCRIPTION\b/.test(line)
-    )
-  ) {
-    throw new Error('Supabase public dump TOC violates policy');
-  }
-  return {
-    tocSha256: sha256Text(toc),
-    tocEntries: entries.length
-  };
 }
 
 async function readBoundedJsonResponse(

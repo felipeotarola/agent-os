@@ -1,4 +1,11 @@
-import { issueSignedToken, presignUrl, put } from '@vercel/blob';
+import {
+  BlobServiceNotAvailable,
+  BlobServiceRateLimited,
+  BlobStoreSuspendedError,
+  issueSignedToken,
+  presignUrl,
+  put
+} from '@vercel/blob';
 import {
   BACKUP_CONTENT_TYPE,
   ContractValidationError,
@@ -29,6 +36,35 @@ class HttpError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+function authorizationNonceFailure(error: unknown): HttpError {
+  if (error instanceof BlobStoreSuspendedError) {
+    return new HttpError(
+      507,
+      'blob-store-suspended',
+      'The dedicated backup store is suspended or over quota.'
+    );
+  }
+  if (error instanceof BlobServiceRateLimited) {
+    return new HttpError(
+      429,
+      'blob-store-rate-limited',
+      'The dedicated backup store rate limit was reached.'
+    );
+  }
+  if (error instanceof BlobServiceNotAvailable) {
+    return new HttpError(
+      503,
+      'blob-store-unavailable',
+      'The dedicated backup store is temporarily unavailable.'
+    );
+  }
+  return new HttpError(
+    409,
+    'authorization-replayed-or-unavailable',
+    'Authorization nonce could not be consumed.'
+  );
 }
 
 function getRequiredEnvironment(): RouteEnvironment {
@@ -196,12 +232,8 @@ async function handleRequest(request: Request): Promise<Response> {
         contentType: 'text/plain; charset=utf-8',
         storeId: environment.storeId
       });
-    } catch {
-      throw new HttpError(
-        409,
-        'authorization-replayed-or-unavailable',
-        'Authorization nonce could not be consumed.'
-      );
+    } catch (error) {
+      throw authorizationNonceFailure(error);
     }
     const blobPathname = buildPrivateBackupPathname(hostId, body);
     const validUntil = Date.now() + PRESIGNED_URL_LIFETIME_MS;

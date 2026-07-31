@@ -28,10 +28,10 @@ import {
   resolve,
   sep
 } from 'node:path';
-import { constants } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import {
   BACKUP_MANIFEST_V2,
   BACKUP_PAYLOAD_V2,
@@ -62,7 +62,7 @@ const DEFAULT_SOURCE = '/root/.openclaw';
 const DEFAULT_CHUNK_BYTES = 96 * 1024 * 1024;
 const MIN_CHUNK_BYTES = 64 * 1024 * 1024;
 const MAX_CHUNK_BYTES = 96 * 1024 * 1024;
-const LOCK_ROOT = '/run/openclaw-backup';
+const LOCK_ROOT = '/var/lib/openclaw-backup/state/locks';
 const LOCK_NAME = 'creator.lock';
 const PARTIAL_SET_PATTERN =
   /^\.[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}\.partial$/;
@@ -83,6 +83,7 @@ const POSTGRES_VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
 const ARCHIVE_PIPELINE_TIMEOUT_MS = 60 * 60 * 1000;
 const CODEX_PROCESS_PATTERN =
   '[/]codex( |$)|[/]codex-code-mode-host( |$)';
+const TRACE_BACKUP_EXECUTION = process.env.OPENCLAW_BACKUP_TRACE === '1';
 const EXTERNAL_PATHS_NOT_INCLUDED = [
   {
     path: 'Hetzner project, firewall, DNS, and account settings',
@@ -691,7 +692,10 @@ async function walkInventory(sourceRoot, policy = {}) {
   };
 }
 
-async function collectProtectedTreeState(sourceRoot, policy = {}) {
+async function collectProtectedTreeState(
+  sourceRoot,
+  policy = {}
+) {
   const entries = [];
   const paths = pathCardinalityGuard('Protected tree state');
 
@@ -746,6 +750,86 @@ async function collectProtectedTreeState(sourceRoot, policy = {}) {
   await walk(sourceRoot, '');
   entries.sort((left, right) => left.path.localeCompare(right.path));
   return entries;
+}
+
+export function assertProtectedTreeSnapshotTransition(
+  before,
+  after,
+  inventory
+) {
+  if (
+    !Array.isArray(before) ||
+    !Array.isArray(after) ||
+    !Array.isArray(inventory?.sqliteDatabases) ||
+    before.length !== after.length
+  ) {
+    throw new Error(
+      'Protected OpenClaw tree changed during SQLite snapshots'
+    );
+  }
+  const allowedSidecarFields = new Map();
+  for (const database of inventory.sqliteDatabases) {
+    const databasePath =
+      database.relativePath.split(sep).join('/');
+    allowedSidecarFields.set(
+      `${databasePath}-shm`,
+      new Set(['mtimeNs', 'ctimeNs'])
+    );
+    // SQLite recovery/open bookkeeping can update inode ctime without
+    // changing WAL/journal contents, size, mtime or identity.
+    allowedSidecarFields.set(
+      `${databasePath}-wal`,
+      new Set(['ctimeNs'])
+    );
+    allowedSidecarFields.set(
+      `${databasePath}-journal`,
+      new Set(['ctimeNs'])
+    );
+  }
+  let allowedMetadataChanges = 0;
+  for (let index = 0; index < before.length; index += 1) {
+    const prior = before[index];
+    const current = after[index];
+    const mutableFields =
+      allowedSidecarFields.get(prior?.path);
+    if (
+      prior?.path !== current?.path ||
+      prior?.kind !== 'file' ||
+      current?.kind !== 'file' ||
+      !mutableFields
+    ) {
+      if (JSON.stringify(prior) !== JSON.stringify(current)) {
+        throw new Error(
+          'Protected OpenClaw tree changed during SQLite snapshots'
+        );
+      }
+      continue;
+    }
+    const fields = new Set([
+      ...Object.keys(prior),
+      ...Object.keys(current)
+    ]);
+    for (const field of fields) {
+      if (
+        !mutableFields.has(field) &&
+        prior[field] !== current[field]
+      ) {
+        throw new Error(
+          'Protected OpenClaw tree changed during SQLite snapshots'
+        );
+      }
+    }
+    if (
+      prior.mtimeNs !== current.mtimeNs ||
+      prior.ctimeNs !== current.ctimeNs
+    ) {
+      allowedMetadataChanges += 1;
+    }
+  }
+  return {
+    allowedPaths: allowedSidecarFields.size,
+    allowedMetadataChanges
+  };
 }
 
 async function expectedCriticalSqlitePaths(sourceRoot) {
@@ -1033,26 +1117,24 @@ async function commandExists(command) {
   }
 }
 
-async function checkPostgres(composeDirectory) {
+async function checkPostgres() {
   if (!(await commandExists('docker'))) {
     return { available: false, reason: 'docker_unavailable' };
   }
   try {
     const result = await runCapture(
       'docker',
-      ['compose', 'ps', '--status', 'running', '-q', 'postgres'],
-      { cwd: composeDirectory, label: 'PostgreSQL container check' }
+      ['inspect', '--format', '{{.State.Running}}', 'agent-os-postgres'],
+      { label: 'PostgreSQL container check' }
     );
-    if (!result.stdout.trim()) {
+    if (result.stdout.trim() !== 'true') {
       return { available: false, reason: 'not_running' };
     }
     const size = await runCapture(
       'docker',
       [
-        'compose',
         'exec',
-        '-T',
-        'postgres',
+        'agent-os-postgres',
         'psql',
         '--no-psqlrc',
         '--tuples-only',
@@ -1066,7 +1148,6 @@ async function checkPostgres(composeDirectory) {
         'SELECT pg_database_size(current_database())'
       ],
       {
-        cwd: composeDirectory,
         label: 'PostgreSQL size preflight'
       }
     );
@@ -1086,7 +1167,7 @@ async function checkPostgres(composeDirectory) {
       bytesEstimate
     };
   } catch {
-    return { available: false, reason: 'compose_check_failed' };
+    return { available: false, reason: 'container_check_failed' };
   }
 }
 
@@ -1434,7 +1515,7 @@ export async function validateRecipient(fingerprint) {
 
   const secretListing = await runCapture(
     'gpg',
-    ['--batch', '--with-colons', '--list-secret-keys'],
+    ['--batch', '--no-autostart', '--with-colons', '--list-secret-keys'],
     { label: 'GPG secret-key boundary check' }
   );
   const secretFingerprints = secretListing.stdout
@@ -1484,7 +1565,13 @@ export async function validateSigner(fingerprint, recipientFingerprint) {
   }
   const listing = await runCapture(
     'gpg',
-    ['--batch', '--with-colons', '--list-secret-keys', normalized],
+    [
+      '--batch',
+      '--no-autostart',
+      '--with-colons',
+      '--list-secret-keys',
+      normalized
+    ],
     { label: 'GPG signing-key lookup' }
   );
   const fingerprints = listing.stdout
@@ -1926,15 +2013,40 @@ function pathEntryContentBytes(entries) {
 export async function snapshotSqliteDatabase(sourcePath, destinationPath) {
   const { DatabaseSync, backup } = await import('node:sqlite');
   await mkdir(dirname(destinationPath), { recursive: true, mode: 0o700 });
-  const source = new DatabaseSync(sourcePath, {
-    open: true,
-    readOnly: true,
-    allowExtension: false
-  });
+  async function createSnapshot(readOnly) {
+    const source = new DatabaseSync(sourcePath, {
+      open: true,
+      readOnly,
+      allowExtension: false
+    });
+    // node:sqlite backup() does not keep the event loop referenced.  The
+    // production backup invokes this as its final active async operation, so
+    // hold one explicit reference until SQLite settles instead of allowing
+    // Node to exit successfully with an empty result document.
+    const keepAlive = setInterval(() => {}, 1_000);
+    try {
+      await backup(source, destinationPath);
+    } finally {
+      clearInterval(keepAlive);
+      source.close();
+    }
+  }
   try {
-    await backup(source, destinationPath);
-  } finally {
-    source.close();
+    await createSnapshot(true);
+  } catch (readOnlyError) {
+    // A stopped Chromium profile can retain a rollback journal.  SQLite must
+    // recover that journal before it can take an online backup, which requires
+    // a write-capable source handle.  The caller has already quiesced every
+    // known writer, so retry only this recovery case with that handle.
+    try {
+      await createSnapshot(false);
+    } catch (recoveryError) {
+      throw new Error(
+        `SQLite online backup failed for ${sourcePath} -> ${destinationPath}: ` +
+          `read-only attempt: ${readOnlyError.message}; ` +
+          `recovery attempt: ${recoveryError.message}`
+      );
+    }
   }
   await chmod(destinationPath, 0o600);
 
@@ -1998,11 +2110,36 @@ async function assertPlaintextStagingUsage(
   return bytes;
 }
 
+export async function runBoundedCommandToFile(
+  command,
+  args,
+  destination,
+  options = {}
+) {
+  const output = await open(destination, 'wx', 0o600);
+  // The stream owns the FileHandle and closes it when the pipeline settles.
+  // autoClose:false leaves an active stream reference behind, causing a
+  // subsequent FileHandle.close() to wait forever.
+  const outputStream = output.createWriteStream();
+  try {
+    return await runToFile(
+      command,
+      args,
+      outputStream,
+      options
+    );
+  } finally {
+    // Also cover failures that occur before pipeline() takes ownership.
+    outputStream.destroy();
+    await output.close();
+  }
+}
+
 async function createPostgresDump(metadataRoot, mode, maxBytes) {
   if (mode === 'skip') {
     return { included: false, reason: 'explicitly_skipped' };
   }
-  const status = await checkPostgres(PROJECT_ROOT);
+  const status = await checkPostgres();
   if (!status.available) {
     if (mode === 'required') {
       throw new Error('PostgreSQL backup was required but the container is unavailable');
@@ -2012,30 +2149,23 @@ async function createPostgresDump(metadataRoot, mode, maxBytes) {
 
   const destination = join(metadataRoot, 'postgres', 'agent-os.dump');
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-  const output = await open(destination, 'wx', 0o600);
-  try {
-    await runToFile(
-      'docker',
-      [
-        'compose',
-        'exec',
-        '-T',
-        'postgres',
-        'sh',
-        '-c',
-        'exec pg_dump -Fc --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"'
-      ],
-      output.createWriteStream({ autoClose: false }),
-      {
-        cwd: PROJECT_ROOT,
-        label: 'PostgreSQL custom dump',
-        maxBytes,
-        timeoutMs: POSTGRES_DUMP_TIMEOUT_MS
-      }
-    );
-  } finally {
-    await output.close();
-  }
+  await runBoundedCommandToFile(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'agent-os-postgres',
+      'sh',
+      '-c',
+      'exec pg_dump -Fc --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"'
+    ],
+    destination,
+    {
+      label: 'PostgreSQL custom dump',
+      maxBytes,
+      timeoutMs: POSTGRES_DUMP_TIMEOUT_MS
+    }
+  );
 
   const dumpFile = await open(destination, 'r');
   const headerBuffer = Buffer.alloc(5);
@@ -2064,22 +2194,33 @@ async function createPostgresDump(metadataRoot, mode, maxBytes) {
   };
 }
 
-async function verifyPostgresDump(path) {
+export async function runCommandFromFile(
+  command,
+  args,
+  path,
+  options = {}
+) {
   const input = await open(path, 'r');
+  const inputStream = input.createReadStream();
   try {
-    await runFromFile(
-      'docker',
-      ['compose', 'exec', '-T', 'postgres', 'pg_restore', '--list'],
-      input.createReadStream({ autoClose: false }),
-      {
-        cwd: PROJECT_ROOT,
-        label: 'PostgreSQL dump verification',
-        timeoutMs: POSTGRES_VERIFY_TIMEOUT_MS
-      }
-    );
+    await runFromFile(command, args, inputStream, options);
   } finally {
+    inputStream.destroy();
     await input.close();
   }
+}
+
+async function verifyPostgresDump(path) {
+  await runCommandFromFile(
+    'docker',
+    ['exec', '-i', 'agent-os-postgres', 'pg_restore', '--list'],
+    path,
+    {
+      label: 'PostgreSQL dump verification',
+      timeoutMs: POSTGRES_VERIFY_TIMEOUT_MS,
+      allowEarlyConsumerClose: true
+    }
+  );
 }
 
 async function stageHostRecovery(metadataRoot, hostRecovery) {
@@ -3470,7 +3611,7 @@ export async function hashFile(path) {
   const handle = await open(path, 'r');
   const hash = createHash('sha256');
   try {
-    for await (const chunk of handle.createReadStream({ autoClose: false })) {
+    for await (const chunk of handle.createReadStream()) {
       hash.update(chunk);
     }
   } finally {
@@ -3480,6 +3621,11 @@ export async function hashFile(path) {
 }
 
 async function executeBackup(options, plan) {
+  const trace = (stage) => {
+    if (TRACE_BACKUP_EXECUTION) {
+      process.stderr.write(`openclaw_backup_trace: ${stage}\n`);
+    }
+  };
   const sourceRoot = await realpath(resolve(options.source));
   const inventoryPolicy = {
     includeBrowserProfiles: options.includeBrowserProfiles
@@ -3528,10 +3674,16 @@ async function executeBackup(options, plan) {
     options.frozenCodexScope,
     options.includeBrowserProfiles
   );
-  const protectedTreeStateBefore =
+  const protectedTreeStateInitial =
     options.consistency === 'quiesced'
-      ? await collectProtectedTreeState(sourceRoot, inventoryPolicy)
+      ? await collectProtectedTreeState(
+        sourceRoot,
+        inventoryPolicy
+      )
       : null;
+  let protectedTreeStateBefore =
+    protectedTreeStateInitial;
+  let sqliteSnapshotSidecarMetadataChanges = 0;
   const sourceEntriesBefore =
     await collectOpenClawArchiveEntries(
       sourceRoot,
@@ -3572,20 +3724,46 @@ async function executeBackup(options, plan) {
   await mkdir(metadataRoot, { recursive: true, mode: 0o700 });
 
   try {
+    trace('write-exclusions');
     await writeExclusionFile(exclusionFile, plan._inventory);
+    trace('sqlite-snapshots:start');
     const sqliteSnapshots = await createSqliteSnapshots(
       plan._inventory,
       metadataRoot
     );
+    trace('sqlite-snapshots:complete');
+    if (options.consistency === 'quiesced') {
+      trace('protected-tree-post-sqlite:start');
+      const protectedTreeStateAfterSqlite =
+        await collectProtectedTreeState(
+          sourceRoot,
+          inventoryPolicy
+        );
+      const snapshotTransition =
+        assertProtectedTreeSnapshotTransition(
+          protectedTreeStateInitial,
+          protectedTreeStateAfterSqlite,
+          plan._inventory
+        );
+      sqliteSnapshotSidecarMetadataChanges =
+        snapshotTransition.allowedMetadataChanges;
+      protectedTreeStateBefore =
+        protectedTreeStateAfterSqlite;
+      trace('protected-tree-post-sqlite:complete');
+    }
+    trace('staging-usage:after-sqlite:start');
     await assertPlaintextStagingUsage(
       plaintextStagingDirectory,
       plan.plaintextStaging.requiredBytes
     );
+    trace('staging-usage:after-sqlite:complete');
+    trace('postgres-dump:start');
     const postgres = await createPostgresDump(
       metadataRoot,
       options.postgres,
       plan.plaintextStaging.components.postgresBytes
     );
+    trace('postgres-dump:complete');
     await assertPlaintextStagingUsage(
       plaintextStagingDirectory,
       plan.plaintextStaging.requiredBytes
@@ -3787,6 +3965,7 @@ async function executeBackup(options, plan) {
           consistencyAfter.allKnownWritersStopped,
         protectedEntriesChecked:
           protectedTreeStateAfter.length,
+        sqliteSnapshotSidecarMetadataChanges,
         protectedTreeStable: true
       };
     }
@@ -3954,6 +4133,11 @@ async function runToFile(command, args, outputStream, options = {}) {
     env: { ...process.env, LC_ALL: 'C' }
   });
   child.stdout.on('error', () => {});
+  // The stream pipeline can be the only remaining asynchronous activity after
+  // the child process has spawned. Keep Node referenced until both the child
+  // and its output stream have settled; otherwise Node may exit successfully
+  // with an incomplete capture and no result document.
+  const keepAlive = setInterval(() => {}, 1_000);
   let bytes = 0;
   const limiter = new Transform({
     transform(chunk, _encoding, callback) {
@@ -3967,50 +4151,99 @@ async function runToFile(command, args, outputStream, options = {}) {
       }
     }
   });
-  const completion = waitForChild(
-    child,
-    options.label || command,
-    {
-      timeoutMs:
-        options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
-    }
-  );
-  const transfer = pipeline(
-    child.stdout,
-    limiter,
-    outputStream
-  ).catch((error) => {
-    child.kill('SIGKILL');
-    throw error;
-  });
-  const [completionResult, transferResult] =
-    await Promise.allSettled([completion, transfer]);
-  if (transferResult.status === 'rejected') {
-    throw new Error(
-      `${options.label || command} exceeded its bounded output contract`
+  try {
+    const completion = waitForChild(
+      child,
+      options.label || command,
+      {
+        timeoutMs:
+          options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
+      }
     );
+    const transfer = pipeline(
+      child.stdout,
+      limiter,
+      outputStream
+    ).catch((error) => {
+      child.kill('SIGKILL');
+      throw error;
+    });
+    const [completionResult, transferResult] =
+      await Promise.allSettled([completion, transfer]);
+    if (transferResult.status === 'rejected') {
+      throw new Error(
+        `${options.label || command} exceeded its bounded output contract`
+      );
+    }
+    if (completionResult.status === 'rejected') {
+      throw completionResult.reason;
+    }
+    const result = completionResult.value;
+    if (result.code !== 0) throw new Error(`${options.label || command} failed`);
+    return bytes;
+  } finally {
+    clearInterval(keepAlive);
   }
-  if (completionResult.status === 'rejected') {
-    throw completionResult.reason;
-  }
-  const result = completionResult.value;
-  if (result.code !== 0) throw new Error(`${options.label || command} failed`);
-  return bytes;
 }
 
 async function runFromFile(command, args, inputStream, options = {}) {
+  const label = options.label || command;
+  const allowEarlyConsumerClose =
+    options.allowEarlyConsumerClose === true;
   const child = spawn(command, args, {
     cwd: options.cwd,
     stdio: ['pipe', 'ignore', 'pipe'],
     env: { ...process.env, LC_ALL: 'C' }
   });
   child.stdin.on('error', () => {});
-  inputStream.pipe(child.stdin);
-  const result = await waitForChild(child, options.label || command, {
-    timeoutMs:
-      options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
-  });
-  if (result.code !== 0) throw new Error(`${options.label || command} failed`);
+  const keepAlive = setInterval(() => {}, 1_000);
+  try {
+    const completion = waitForChild(child, label, {
+      timeoutMs: options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
+    });
+    const transfer = pipeline(inputStream, child.stdin).catch(
+      (error) => {
+        if (
+          !allowEarlyConsumerClose ||
+          !isExpectedConsumerClose(error)
+        ) {
+          child.kill('SIGKILL');
+        }
+        throw error;
+      }
+    );
+    const [completionResult, transferResult] =
+      await Promise.allSettled([completion, transfer]);
+    if (completionResult.status === 'rejected') {
+      throw completionResult.reason;
+    }
+    const result = completionResult.value;
+    if (result.code !== 0) {
+      throw new Error(`${label} failed`);
+    }
+    if (
+      transferResult.status === 'rejected' &&
+      (
+        !allowEarlyConsumerClose ||
+        !isExpectedConsumerClose(transferResult.reason)
+      )
+    ) {
+      const code = transferResult.reason?.code;
+      throw new Error(
+        `${label} input stream failed${code ? ` (${code})` : ''}`,
+        { cause: transferResult.reason }
+      );
+    }
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
+function isExpectedConsumerClose(error) {
+  return (
+    error?.code === 'EPIPE' ||
+    error?.code === 'ERR_STREAM_PREMATURE_CLOSE'
+  );
 }
 
 function waitForChild(child, name, options = {}) {
@@ -4028,9 +4261,14 @@ function waitForChild(child, name, options = {}) {
     let timedOut = false;
     let timeoutHandle;
     let killHandle;
+    // A spawned process is not sufficient to keep every Node runtime path
+    // referenced. Preserve the parent event loop until its exit status has
+    // been observed, otherwise an awaiting caller can be abandoned silently.
+    const keepAlive = setInterval(() => {}, 1_000);
     const clearTimers = () => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
       if (killHandle) clearTimeout(killHandle);
+      clearInterval(keepAlive);
     };
     child.once('error', () => {
       if (!settled) {
@@ -4077,11 +4315,18 @@ function waitForChild(child, name, options = {}) {
 async function main() {
   process.umask(0o077);
   const options = parseArgs(process.argv.slice(2));
+  const maintenanceLockHeld =
+    process.env.OPENCLAW_BACKUP_LOCK_HELD === '1';
+  if (options.internalLocked !== maintenanceLockHeld) {
+    throw new Error(
+      'Backup lock marker and internal-lock option must agree exactly'
+    );
+  }
   if (options.help) {
     process.stdout.write(`${usage()}\n`);
     return;
   }
-  if (options.execute && !options.internalLocked) {
+  if (options.execute && !maintenanceLockHeld) {
     await relaunchUnderLock(process.argv.slice(2));
     return;
   }
@@ -4099,9 +4344,26 @@ async function main() {
   );
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  main().catch((error) => {
-    process.stderr.write(`openclaw_backup_error: ${error.message}\n`);
-    process.exitCode = 1;
-  });
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  // An unresolved promise alone does not keep Node alive. Hold one top-level
+  // reference until main has produced a result or an error so a future
+  // asynchronous lifecycle regression cannot silently exit with status 0.
+  const mainKeepAlive = setInterval(() => {}, 1_000);
+  main()
+    .catch((error) => {
+      process.stderr.write(`openclaw_backup_error: ${error.message}\n`);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      clearInterval(mainKeepAlive);
+    });
 }

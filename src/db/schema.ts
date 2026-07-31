@@ -1,12 +1,4 @@
-import {
-  doublePrecision,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex
-} from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
@@ -316,67 +308,6 @@ export const qaReportWriterTokens = pgTable('qa_report_writer_tokens', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
-export const tradingBacktestRuns = pgTable('trading_backtest_runs', {
-  id: text('id').primaryKey(),
-  symbol: text('symbol').notNull(),
-  candleCount: integer('candle_count').notNull().default(0),
-  snapshotUpdatedAt: timestamp('snapshot_updated_at', { withTimezone: true }).notNull(),
-  strategies: jsonb('strategies').$type<unknown[]>().notNull().default([]),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
-});
-
-export const tradingDecisions = pgTable('trading_decisions', {
-  id: text('id').primaryKey(),
-  kind: text('kind').notNull(),
-  agent: text('agent'),
-  symbol: text('symbol').notNull().default('BTCUSDT'),
-  strategy: text('strategy'),
-  action: text('action').notNull(),
-  price: doublePrecision('price').notNull().default(0),
-  confidence: doublePrecision('confidence'),
-  reason: text('reason').notNull().default(''),
-  risk: text('risk').notNull().default(''),
-  nextCheck: text('next_check').notNull().default(''),
-  evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
-  research: jsonb('research').$type<Record<string, unknown> | null>(),
-  portfolio: jsonb('portfolio').$type<Record<string, unknown> | null>(),
-  disclaimer: text('disclaimer').notNull().default(''),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
-});
-
-export const tradingWallets = pgTable('trading_wallets', {
-  id: text('id').primaryKey(),
-  agent: text('agent').notNull().default('Linda'),
-  symbol: text('symbol').notNull().default('BTCUSDC'),
-  baseAsset: text('base_asset').notNull().default('BTC'),
-  quoteAsset: text('quote_asset').notNull().default('USDC'),
-  startingCash: doublePrecision('starting_cash').notNull().default(10_000),
-  cashBalance: doublePrecision('cash_balance').notNull().default(10_000),
-  assetBalance: doublePrecision('asset_balance').notNull().default(0),
-  realizedPnl: doublePrecision('realized_pnl').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
-});
-
-export const tradingExecutions = pgTable('trading_executions', {
-  id: text('id').primaryKey(),
-  walletId: text('wallet_id')
-    .notNull()
-    .references(() => tradingWallets.id),
-  decisionId: text('decision_id')
-    .notNull()
-    .references(() => tradingDecisions.id),
-  action: text('action').notNull(),
-  price: doublePrecision('price').notNull(),
-  quantity: doublePrecision('quantity').notNull().default(0),
-  cashDelta: doublePrecision('cash_delta').notNull().default(0),
-  assetDelta: doublePrecision('asset_delta').notNull().default(0),
-  fee: doublePrecision('fee').notNull().default(0),
-  equityAfter: doublePrecision('equity_after').notNull().default(0),
-  reason: text('reason').notNull().default(''),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
-});
-
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -396,7 +327,3 @@ export type QaReportRecord = typeof qaReports.$inferSelect;
 export type QaReportEvidenceAsset = typeof qaReportEvidenceAssets.$inferSelect;
 export type QaReportClaim = typeof qaReportClaims.$inferSelect;
 export type QaReportWriterToken = typeof qaReportWriterTokens.$inferSelect;
-export type TradingBacktestRun = typeof tradingBacktestRuns.$inferSelect;
-export type TradingDecision = typeof tradingDecisions.$inferSelect;
-export type TradingWallet = typeof tradingWallets.$inferSelect;
-export type TradingExecution = typeof tradingExecutions.$inferSelect;

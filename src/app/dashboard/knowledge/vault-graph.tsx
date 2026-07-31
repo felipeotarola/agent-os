@@ -80,7 +80,6 @@ function readTheme(): GraphTheme {
 function colorFor(folder: string, theme: GraphTheme) {
   if (folder.includes('/memory/charles')) return '#60a5fa'; // theme-guard-ignore-line -- canvas agent island color
   if (folder.includes('/memory/sladdis')) return '#f472b6'; // theme-guard-ignore-line -- canvas agent island color
-  if (folder.includes('/memory/linda')) return '#a78bfa'; // theme-guard-ignore-line -- canvas agent island color
   if (folder.includes('/memory/main')) return theme.chart2;
   if (folder.includes('/memory/')) return '#2dd4bf'; // theme-guard-ignore-line -- canvas agent island color
   if (folder.includes('/wiki')) return theme.primary;
