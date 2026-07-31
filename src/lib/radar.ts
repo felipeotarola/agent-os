@@ -77,7 +77,65 @@ export type RadarSignalState = z.infer<typeof radarSignalStateSchema>;
 export type RadarSignal = z.infer<typeof radarSignalSchema>;
 export type RadarSnapshot = z.infer<typeof radarSnapshotSchema>;
 
-const priorityWeight = { high: 0, medium: 1, low: 2 } as const;
+const priorityScore = { high: 300, medium: 200, low: 100 } as const;
+const kindScore = {
+  approval: 50,
+  review: 35,
+  task: 30,
+  handoff: 25,
+  draft: 15,
+  signal: 0
+} as const;
+
+function actionCenterSource(
+  kind: 'task' | 'knowledge' | 'agent' | 'system'
+): RadarSignal['source'] {
+  if (kind === 'task') return 'tasks';
+  if (kind === 'knowledge') return 'knowledge';
+  return 'notifications';
+}
+
+function canonicalSignalId(signal: RadarSignal) {
+  const actionTask = signal.id.match(/^action:task:([^:]+)$/);
+  if (actionTask) return `task:${actionTask[1]}`;
+
+  const notificationTask = signal.id.match(/^notification:task:([^:]+)(?::.*)?$/);
+  if (notificationTask) return `task:${notificationTask[1]}`;
+
+  return signal.id;
+}
+
+function scoreSignal(signal: RadarSignal) {
+  let score = priorityScore[signal.priority] + kindScore[signal.kind];
+
+  // Radar is a portfolio queue. A real task or a decision blocked on a task
+  // should outrank connector noise with the same visual priority.
+  if (signal.source === 'tasks') score += 80;
+  if (signal.source === 'knowledge') score += 15;
+  if (signal.source === 'observability' && signal.priority === 'high') score += 25;
+  if (signal.kind === 'signal') score -= 25;
+
+  const text = `${signal.title} ${signal.detail} ${signal.meta ?? ''}`.toLowerCase();
+  if (text.includes('overdue')) score += 120;
+  if (text.includes('stale')) score += 75;
+  if (text.includes('väntar på input') || text.includes('redo för review')) score += 50;
+
+  return score;
+}
+
+function consolidateSignals(signals: RadarSignal[]) {
+  const byEntity = new Map<string, RadarSignal>();
+
+  for (const signal of signals) {
+    const entityId = canonicalSignalId(signal);
+    const existing = byEntity.get(entityId);
+    if (!existing || scoreSignal(signal) > scoreSignal(existing)) {
+      byEntity.set(entityId, signal);
+    }
+  }
+
+  return [...byEntity.values()].toSorted((a, b) => scoreSignal(b) - scoreSignal(a));
+}
 
 function priorityFromAction(priority: string): RadarSignal['priority'] {
   if (priority === 'high') return 'high';
@@ -174,8 +232,8 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
         id: `action:${item.id}`,
         title: item.title,
         detail: item.detail,
-        source: item.kind === 'knowledge' ? 'knowledge' : 'tasks',
-        kind: item.kind === 'knowledge' ? 'review' : 'task',
+        source: actionCenterSource(item.kind),
+        kind: item.kind === 'task' ? 'task' : item.kind === 'knowledge' ? 'review' : 'signal',
         priority: priorityFromAction(item.priority),
         href: item.href,
         actionLabel: item.primaryLabel,
@@ -189,11 +247,12 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
   if (notificationsResult.status === 'fulfilled') {
     for (const notification of notificationsResult.value.notifications.slice(0, 8)) {
       const unread = notification.status !== 'read';
+      const taskNotification = notification.kind === 'task' || notification.id.startsWith('task:');
       signals.push({
         id: `notification:${notification.id}`,
         title: notification.title,
         detail: notification.body,
-        source: 'notifications',
+        source: taskNotification ? 'tasks' : 'notifications',
         kind: unread ? 'review' : 'signal',
         priority: unread ? 'high' : 'low',
         href: `/dashboard/notifications/${notification.id}`,
@@ -418,9 +477,8 @@ export async function getRadarSnapshot(): Promise<RadarSnapshot> {
   if (radarState.error) sourceErrors.push(`Radar state: ${radarState.error}`);
 
   const activeSignalStates = new Map(radarState.states.map((state) => [state.id, state]));
-  const deduped = Array.from(new Map(signals.map((signal) => [signal.id, signal])).values())
+  const deduped = consolidateSignals(signals)
     .filter((signal) => !isSignalHidden(signal, activeSignalStates))
-    .toSorted((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority])
     .slice(0, 32);
 
   return radarSnapshotSchema.parse({
