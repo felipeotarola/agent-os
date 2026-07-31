@@ -14,6 +14,7 @@ type KanbanBoardProps = {
   initialColumns: KanbanColumns;
   columnOrder?: string[];
   agents: TaskOwnerAgent[];
+  source?: string;
 };
 
 function normalizeColumns(columns: KanbanColumns, columnOrder: string[]) {
@@ -38,7 +39,8 @@ async function persistBoard(columns: KanbanColumns) {
 export function KanbanBoard({
   initialColumns,
   columnOrder = [...TASK_COLUMNS],
-  agents
+  agents,
+  source = 'empty'
 }: KanbanBoardProps) {
   const orderedColumns = useMemo(
     () => (columnOrder.length ? columnOrder : [...TASK_COLUMNS]),
@@ -99,7 +101,9 @@ export function KanbanBoard({
             ? 'Sparar…'
             : syncState === 'error'
               ? 'Sync-fel'
-              : 'Synkad med Supabase'}
+              : source === 'bridge-error' || source === 'empty'
+                ? 'Tasks kunde inte hämtas'
+                : 'Synkad med Supabase'}
         </span>
       </div>
       <Kanban

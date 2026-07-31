@@ -81,7 +81,12 @@ export default async function KanbanViewPage({
           </div>
         )}
       </div>
-      <KanbanBoard initialColumns={board.columns} columnOrder={board.columnOrder} agents={agents} />
+      <KanbanBoard
+        initialColumns={board.columns}
+        columnOrder={board.columnOrder}
+        agents={agents}
+        source={board.source}
+      />
     </PageContainer>
   );
 }
