@@ -1,4 +1,4 @@
-const SENSITIVE = /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank|otp|2fa|private key|health|diagnos)/i;
+const SENSITIVE = /\b(password|token|secret|api[_ -]?key|authorization|bearer|cookie|card number|account number|personnummer|bank|otp|2fa|private key|health|diagnos|device code|verification code|engångskod|verifieringskod|enhetskod)\b|\b(?:kod(?:en)?|code)\s+[`'\"]?[A-Z0-9]{4,8}-[A-Z0-9]{4,8}\b|auth\.openai\.com\/codex\/device/i;
 const CONTRADICTION = /\b(but actually|correction|ignore previous|instead of|contradict|rättelse|nej,?\s|inte längre|ersätt)/i;
 const PREFERENCE = /\b(prefer|preference|vill ha|jag vill|always|never|alltid|aldrig|strategy|strategi|policy|regel)/i;
 const CLIPPED_ENDING = /(?:\b(?:and|or|but|because|that|which|to|with|for|och|eller|men|att|som|med|för|eftersom)|[,;:–—-])$/i;

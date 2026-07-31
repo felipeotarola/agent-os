@@ -11,6 +11,7 @@ const fixtures = [
   [{ type: 'preference', summary: 'Felipe prefers this strategy and never wants manual promotion.' }, 'long-term-memory', true, 'reviewed'],
   [{ type: 'session-signal', summary: 'HEARTBEAT_OK' }, 'discard', false, 'archived'],
   [{ type: 'session-signal', summary: 'Är det något vi bör implementera direkt' }, 'discard', false, 'archived'],
+  [{ type: 'agent-note', summary: 'Öppna auth.openai.com/codex/device och skriv in koden ABCD-EFGH.' }, 'daily-memory', true, 'reviewed'],
   [{ type: 'decision', summary: 'Use API token secret abc for this decision.' }, 'long-term-memory', true, 'reviewed']
 ];
 
