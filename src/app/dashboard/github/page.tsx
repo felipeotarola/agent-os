@@ -188,7 +188,7 @@ export default async function GitHubPage() {
                 'Read-only metadata, notifications and PRs.',
                 'No comments, issue edits, merges or workflow actions.',
                 'No token values in UI or docs.',
-                'Token can come from Settings → API keys & secrets or bridge env.',
+                'Token can come from Credentials or bridge env.',
                 'Repo allowlist/filter before future write actions.',
                 'Radar consumes warnings instead of hiding partial failures.'
               ].map((rule) => (

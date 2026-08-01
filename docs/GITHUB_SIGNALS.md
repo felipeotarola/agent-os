@@ -11,7 +11,7 @@ Agent OS GitHub signals V1 is read-only and empty-safe.
 
 ## Configuration
 
-Configure these either in `/dashboard/settings` → **API keys & secrets** or in the bridge environment:
+Configure these either in **Credentials** at `/dashboard/credentials` or in the bridge environment:
 
 - `AGENT_OS_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_G26_TOKEN`
 - Optional: `GITHUB_OWNER` or `AGENT_OS_GITHUB_OWNER`

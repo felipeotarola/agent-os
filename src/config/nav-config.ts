@@ -54,6 +54,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Credentials',
+        url: '/dashboard/credentials',
+        icon: 'lock',
+        shortcut: ['c', 'r'],
+        items: []
+      },
+      {
         title: 'Settings',
         url: '/dashboard/settings',
         icon: 'settings',

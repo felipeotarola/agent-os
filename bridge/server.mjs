@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { existsSync, promises as fs, readdirSync, readFileSync, statSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import path from 'node:path';
@@ -995,7 +995,9 @@ async function harvestSessionKnowledge(input = {}) {
   const backfill = Boolean(input.backfill);
   const sinceMs = input.since ? Date.parse(String(input.since)) : Number.NaN;
   if (!dryRun && !backfill && !Number.isFinite(sinceMs)) {
-    throw new Error('Live memory control-plane runs require a valid since watermark or explicit backfill');
+    throw new Error(
+      'Live memory control-plane runs require a valid since watermark or explicit backfill'
+    );
   }
   const inventory = await sessionKnowledgeInventory({ limit: limit * 2, minScore });
   const selected = inventory.candidates
@@ -1106,7 +1108,8 @@ async function harvestSessionKnowledge(input = {}) {
             taskMaterialization = { outcome: 'duplicate', taskId: existingTask[0].id };
           } else {
             const taskId = crypto.randomUUID();
-            const ownerRows = await sql`select id from agents where id = ${candidate.agentId} limit 1`;
+            const ownerRows =
+              await sql`select id from agents where id = ${candidate.agentId} limit 1`;
             const ownerAgentId = ownerRows[0]?.id ?? null;
             await sql`
               insert into tasks (id, title, description, status, priority, owner_agent_id, source)
@@ -4544,7 +4547,7 @@ async function supabaseSnapshot() {
       metrics: [],
       alerts: [],
       nextSteps: [
-        'Add SUPABASE_PROJECT_REF and a scoped read-only SUPABASE_ACCESS_TOKEN in Settings → API keys & secrets, or set them in the bridge environment.',
+        'Add SUPABASE_PROJECT_REF and a scoped read-only SUPABASE_ACCESS_TOKEN in Credentials, or set them in the bridge environment.',
         'Keep credentials server-side only; never expose Supabase tokens to the browser.',
         'After config is present, fetch project metadata and add logs/usage endpoints behind this snapshot contract.'
       ]
@@ -4629,7 +4632,7 @@ async function supabaseSnapshot() {
         }
       ],
       nextSteps: [
-        'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in Settings → API keys & secrets or the bridge environment.',
+        'Verify SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN in Credentials or the bridge environment.',
         'Confirm token scope permits read-only Management API project metadata access.',
         'Keep the connector degraded until metadata reads succeed.'
       ]
@@ -4708,8 +4711,8 @@ async function vercelSnapshot() {
       metrics: [],
       alerts: [],
       nextSteps: [
-        'Add VERCEL_ACCESS_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
-        'Optionally add VERCEL_TEAM_ID and VERCEL_PROJECT_ID or VERCEL_PROJECT_NAME in API keys & secrets to narrow the snapshot.',
+        'Add VERCEL_ACCESS_TOKEN in Credentials, or set it in the bridge environment.',
+        'Optionally add VERCEL_TEAM_ID and VERCEL_PROJECT_ID or VERCEL_PROJECT_NAME in Credentials to narrow the snapshot.',
         'Keep credentials server-side only; never expose Vercel tokens to the browser.',
         'Add Vercel Drains ingestion only after signature verification and retention/redaction are in place.'
       ]
@@ -4853,7 +4856,7 @@ async function vercelSnapshot() {
         }
       ],
       nextSteps: [
-        'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in Settings → API keys & secrets or the bridge environment.',
+        'Verify VERCEL_ACCESS_TOKEN and optional VERCEL_TEAM_ID in Credentials or the bridge environment.',
         'Confirm token scope permits read-only user, project and deployment reads.',
         'Keep the connector degraded until metadata reads succeed.'
       ]
@@ -5021,8 +5024,8 @@ async function githubSnapshot() {
       ],
       alerts: [],
       nextSteps: [
-        'Add a scoped read-only AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Settings → API keys & secrets, or set it in the bridge environment.',
-        'Optionally add GITHUB_OWNER and GITHUB_REPO in API keys & secrets to prioritize one repo.'
+        'Add a scoped read-only AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Credentials, or set it in the bridge environment.',
+        'Optionally add GITHUB_OWNER and GITHUB_REPO in Credentials to prioritize one repo.'
       ]
     };
   }
@@ -5157,7 +5160,7 @@ async function githubSnapshot() {
         }
       ],
       nextSteps: [
-        'Verify AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Settings → API keys & secrets or the bridge environment.',
+        'Verify AGENT_OS_GITHUB_TOKEN, GITHUB_TOKEN, GH_TOKEN or GITHUB_G26_TOKEN in Credentials or the bridge environment.',
         'Confirm token has read-only notification and repo metadata scopes.'
       ]
     };
@@ -5709,6 +5712,7 @@ function requireNonEmpty(value, field) {
 const SECRET_NAME_PATTERN = /^[A-Z][A-Z0-9_]{1,79}$/;
 const MAX_SECRET_BYTES = 16_384;
 const MAX_SECRET_DESCRIPTION_LENGTH = 240;
+const MAX_SECRET_PROJECT_LENGTH = 80;
 
 function normalizeSecretName(rawName) {
   const name = String(rawName ?? '')
@@ -5731,13 +5735,28 @@ function secretMetadataPath(name) {
 }
 
 function secretFingerprint(value) {
-  return createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return createHmac('sha256', token).update(value).digest('hex').slice(0, 12);
 }
 
 function sanitizeSecretDescription(value) {
   return String(value ?? '')
     .trim()
     .slice(0, MAX_SECRET_DESCRIPTION_LENGTH);
+}
+
+function sanitizeSecretProject(value) {
+  return String(value ?? '')
+    .trim()
+    .slice(0, MAX_SECRET_PROJECT_LENGTH);
+}
+
+function requireSecretInput(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    const error = new Error('Credential payload must be a JSON object.');
+    error.status = 400;
+    throw error;
+  }
+  return input;
 }
 
 async function ensureSecretsDir() {
@@ -5754,14 +5773,35 @@ async function readSecretMetadata(name) {
   }
 }
 
+async function readSecretFileValue(name, metadata) {
+  const valueBuffer = await fs.readFile(secretPath(name));
+  const storedBytes = Number(metadata?.bytes);
+  const hasExactLength = storedBytes === valueBuffer.length;
+  const hasLegacyLf = storedBytes === valueBuffer.length - 1 && valueBuffer.at(-1) === 0x0a;
+  const hasLegacyCrlf =
+    storedBytes === valueBuffer.length - 2 &&
+    valueBuffer.at(-2) === 0x0d &&
+    valueBuffer.at(-1) === 0x0a;
+  if (
+    Number.isInteger(storedBytes) &&
+    storedBytes >= 0 &&
+    (hasExactLength || hasLegacyLf || hasLegacyCrlf)
+  ) {
+    return valueBuffer.subarray(0, storedBytes).toString('utf8');
+  }
+
+  return valueBuffer.toString('utf8').replace(/\r?\n$/, '');
+}
+
 async function readManagedSecret(rawName) {
   const name = normalizeSecretName(rawName);
-  const envValue = String(process.env[name] ?? '').trim();
-  if (envValue) return { value: envValue, source: 'env' };
+  const envValue = String(process.env[name] ?? '');
+  if (envValue.trim()) return { value: envValue, source: 'env' };
 
   try {
-    const fileValue = (await fs.readFile(secretPath(name), 'utf8')).trim();
-    if (fileValue) return { value: fileValue, source: 'agent-os-secrets' };
+    const metadata = await readSecretMetadata(name);
+    const fileValue = await readSecretFileValue(name, metadata);
+    if (fileValue.trim()) return { value: fileValue, source: 'agent-os-secrets' };
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
@@ -5788,13 +5828,12 @@ async function listSecrets() {
 
   const secrets = await Promise.all(
     names.map(async (name) => {
-      const [metadata, value] = await Promise.all([
-        readSecretMetadata(name),
-        fs.readFile(secretPath(name), 'utf8')
-      ]);
+      const metadata = await readSecretMetadata(name);
+      const value = await readSecretFileValue(name, metadata);
       return {
         name,
-        description: String(metadata.description ?? ''),
+        project: sanitizeSecretProject(metadata.project),
+        description: sanitizeSecretDescription(metadata.description),
         path: path.join(AGENT_OS_SECRETS_DIR, name),
         exists: true,
         bytes: Number(metadata.bytes ?? Buffer.byteLength(value, 'utf8')),
@@ -5807,10 +5846,8 @@ async function listSecrets() {
   return { secrets };
 }
 
-async function upsertSecret(input) {
-  const name = normalizeSecretName(input.name);
-  const value = String(input.value ?? '').trim();
-  if (!value) {
+function managedSecretMetadata(name, value, input) {
+  if (!value.trim()) {
     const error = new Error('Secret value is required.');
     error.status = 400;
     throw error;
@@ -5823,26 +5860,107 @@ async function upsertSecret(input) {
     throw error;
   }
 
-  await ensureSecretsDir();
-  const updatedAt = new Date().toISOString();
-  const metadata = {
+  return {
     name,
+    project: sanitizeSecretProject(input.project),
     description: sanitizeSecretDescription(input.description),
     fingerprint: secretFingerprint(value),
     bytes,
-    updatedAt
+    updatedAt: new Date().toISOString()
   };
+}
+
+async function writeManagedSecret(name, value, input) {
+  const metadata = managedSecretMetadata(name, value, input);
+  await ensureSecretsDir();
 
   const tmpSuffix = `${process.pid}.${Date.now()}.tmp`;
   const tmpSecretPath = `${secretPath(name)}.${tmpSuffix}`;
   const tmpMetadataPath = `${secretMetadataPath(name)}.${tmpSuffix}`;
 
-  await fs.writeFile(tmpSecretPath, `${value}\n`, { mode: 0o600 });
-  await fs.writeFile(tmpMetadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 });
-  await fs.rename(tmpSecretPath, secretPath(name));
-  await fs.rename(tmpMetadataPath, secretMetadataPath(name));
+  try {
+    await fs.writeFile(tmpSecretPath, value, { mode: 0o600 });
+    await fs.writeFile(tmpMetadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 });
+    await fs.rename(tmpSecretPath, secretPath(name));
+    await fs.rename(tmpMetadataPath, secretMetadataPath(name));
+  } finally {
+    await Promise.all([
+      fs.rm(tmpSecretPath, { force: true }),
+      fs.rm(tmpMetadataPath, { force: true })
+    ]);
+  }
 
   return { secret: { ...metadata, path: path.join(AGENT_OS_SECRETS_DIR, name), exists: true } };
+}
+
+async function createSecret(input) {
+  const payload = requireSecretInput(input);
+  const name = normalizeSecretName(payload.name);
+  const value = String(payload.value ?? '');
+  const metadata = managedSecretMetadata(name, value, payload);
+  await ensureSecretsDir();
+
+  const tmpSuffix = `${process.pid}.${Date.now()}.tmp`;
+  const tmpSecretPath = `${secretPath(name)}.${tmpSuffix}`;
+  const tmpMetadataPath = `${secretMetadataPath(name)}.${tmpSuffix}`;
+
+  try {
+    await fs.writeFile(tmpSecretPath, value, { mode: 0o600 });
+    await fs.writeFile(tmpMetadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 });
+    try {
+      await fs.link(tmpSecretPath, secretPath(name));
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const conflictError = new Error('Credential already exists. Use edit to replace its value.');
+      conflictError.status = 409;
+      throw conflictError;
+    }
+    await fs.rename(tmpMetadataPath, secretMetadataPath(name));
+  } finally {
+    await Promise.all([
+      fs.rm(tmpSecretPath, { force: true }),
+      fs.rm(tmpMetadataPath, { force: true })
+    ]);
+  }
+
+  return { secret: { ...metadata, path: path.join(AGENT_OS_SECRETS_DIR, name), exists: true } };
+}
+
+async function updateSecret(rawName, input) {
+  const name = normalizeSecretName(rawName);
+  const payload = requireSecretInput(input);
+  if (!['project', 'description', 'value'].some((field) => Object.hasOwn(payload, field))) {
+    const error = new Error('Provide project, description, or a replacement value.');
+    error.status = 400;
+    throw error;
+  }
+  let currentValue;
+  let currentMetadata;
+
+  try {
+    currentMetadata = await readSecretMetadata(name);
+    currentValue = await readSecretFileValue(name, currentMetadata);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    const notFoundError = new Error('Managed credential not found.');
+    notFoundError.status = 404;
+    throw notFoundError;
+  }
+
+  const replacesValue = Object.hasOwn(payload, 'value');
+  const nextValue = replacesValue ? String(payload.value ?? '') : currentValue;
+  if (replacesValue && !nextValue.trim()) {
+    const error = new Error('Replacement value cannot be empty.');
+    error.status = 400;
+    throw error;
+  }
+
+  return writeManagedSecret(name, nextValue, {
+    project: Object.hasOwn(payload, 'project') ? payload.project : currentMetadata.project,
+    description: Object.hasOwn(payload, 'description')
+      ? payload.description
+      : currentMetadata.description
+  });
 }
 
 async function deleteSecret(rawName) {
@@ -7165,7 +7283,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/secrets') {
-      return send(res, 201, await upsertSecret(await readJson(req)));
+      return send(res, 201, await createSecret(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname.startsWith('/secrets/')) {
+      const name = decodeURIComponent(url.pathname.slice('/secrets/'.length));
+      return send(res, 200, await updateSecret(name, await readJson(req)));
     }
 
     if (req.method === 'DELETE' && url.pathname.startsWith('/secrets/')) {

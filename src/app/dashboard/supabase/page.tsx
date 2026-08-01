@@ -108,7 +108,7 @@ export default async function SupabasePage() {
                 'Read-only metadata first.',
                 'No browser OAuth hacks.',
                 'No Supabase tokens in UI or markdown.',
-                'Token can come from Settings → API keys & secrets or bridge env.',
+                'Token can come from Credentials or bridge env.',
                 'Logs/usage only after scoped API or drain is confirmed.',
                 'Normalize events with retention and redaction before alerts.'
               ].map((rule) => (

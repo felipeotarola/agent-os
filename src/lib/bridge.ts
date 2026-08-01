@@ -12,6 +12,18 @@ export type BridgeRequestInit = RequestInit & {
   cacheKey?: string;
 };
 
+export class BridgeRequestError extends Error {
+  readonly responseBody: string;
+  readonly status: number;
+
+  constructor(status: number, responseBody: string) {
+    super(`Bridge request failed ${status}: ${responseBody}`);
+    this.name = 'BridgeRequestError';
+    this.status = status;
+    this.responseBody = responseBody;
+  }
+}
+
 const responseCache = new Map<string, CacheEntry<unknown>>();
 
 function bridgeConfig() {
@@ -92,7 +104,7 @@ export async function bridgeFetch(path: string, init: BridgeRequestInit = {}) {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Bridge request failed ${response.status}: ${body}`);
+      throw new BridgeRequestError(response.status, body);
     }
 
     return response;

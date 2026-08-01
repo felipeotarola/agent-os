@@ -64,6 +64,10 @@ Date: 2026-05-18
   - Real system/data-source status: bridge, Postgres, OpenClaw CLI, agents, memory, subagent task source and guardrails.
   - Replaces the disabled template icons/settings demo.
 
+- **Credentials** (`/dashboard/credentials`)
+  - Searchable, project-aware inventory for managed environment keys stored by the local bridge.
+  - Supports metadata edits and value rotation without returning stored values to the browser.
+
 - **Affiliate** (`/dashboard/affiliate`)
   - Exists, read-only, bridge/API/export-first.
   - Removed from main nav for now because it is not core Copilot cockpit.
@@ -109,7 +113,7 @@ These are now deleted rather than merely hidden. If a capability returns, it sho
 ### UI/product
 
 - Decide whether Affiliate belongs in this cockpit at all; it is real/read-only but not core Agent OS, so it is no longer in primary navigation.
-- Expand Settings with editable-but-guarded configuration once bridge write guardrails exist.
+- Keep Settings focused on system configuration; move large, specialized inventories into dedicated guarded workspaces.
 - Expand Journal with filters, tags, project links and “promote to wiki/task” actions.
 - Make empty states explicit: no fake data, tell the user what source is missing.
 - Add a “needs wiring” badge for surfaces that are real UI but not fully connected.

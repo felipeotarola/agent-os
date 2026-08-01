@@ -11,7 +11,7 @@ Agent OS Supabase observability V1 is intentionally read-only and empty-safe.
 
 ## Environment
 
-Configure these either in `/dashboard/settings` → **API keys & secrets** or in the bridge environment:
+Configure these either in **Credentials** at `/dashboard/credentials` or in the bridge environment:
 
 - `SUPABASE_PROJECT_REF` or `AGENT_OS_SUPABASE_PROJECT_REF`
 - `SUPABASE_ACCESS_TOKEN` or `AGENT_OS_SUPABASE_ACCESS_TOKEN`

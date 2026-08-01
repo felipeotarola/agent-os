@@ -1,7 +1,8 @@
 import PageContainer from '@/components/layout/page-container';
 import { AvatarSettingsCard } from '@/components/avatar-settings-card';
-import { SecretsSettingsCard } from '@/components/settings/secrets-settings-card';
+import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getSystemStatus } from '@/db/system';
 import Link from 'next/link';
@@ -18,6 +19,81 @@ function statusVariant(status: string) {
   if (['online', 'ok', 'connected'].includes(status)) return 'default' as const;
   if (['missing', 'unknown', 'fallback'].includes(status)) return 'outline' as const;
   return 'secondary' as const;
+}
+
+function SettingsRightRail() {
+  const quickPaths = [
+    {
+      title: 'Credentials',
+      href: '/dashboard/credentials',
+      detail: 'Manage project keys and local secrets'
+    },
+    {
+      title: 'Topology',
+      href: '/dashboard/topology',
+      detail: 'Inspect runtime and bridge relationships'
+    },
+    {
+      title: 'Command',
+      href: '/dashboard/command',
+      detail: 'Open guarded diagnostics and runbooks'
+    }
+  ];
+
+  return (
+    <>
+      <Card>
+        <CardHeader className='pb-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <CardTitle className='text-base'>Configuration scope</CardTitle>
+            <Badge variant='outline'>Local-first</Badge>
+          </div>
+          <CardDescription>What belongs in this system settings view.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className='text-muted-foreground flex flex-col gap-3 text-sm'>
+            <li className='flex items-start gap-3'>
+              <Icons.check aria-hidden='true' className='text-foreground mt-0.5 size-4 shrink-0' />
+              <span>Runtime health and configured data-source readiness.</span>
+            </li>
+            <li className='flex items-start gap-3'>
+              <Icons.check aria-hidden='true' className='text-foreground mt-0.5 size-4 shrink-0' />
+              <span>Browser-local profile name and avatar preferences.</span>
+            </li>
+            <li className='flex items-start gap-3'>
+              <Icons.lock aria-hidden='true' className='text-foreground mt-0.5 size-4 shrink-0' />
+              <span>Secret values stay in server-side storage and are managed in Credentials.</span>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className='pb-3'>
+          <CardTitle className='text-base'>Quick paths</CardTitle>
+          <CardDescription>Continue into focused configuration views.</CardDescription>
+        </CardHeader>
+        <CardContent className='flex flex-col gap-2'>
+          {quickPaths.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className='hover:bg-muted/50 focus-visible:ring-ring flex items-center gap-3 rounded-xl border bg-background/40 p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none'
+            >
+              <div className='min-w-0 flex-1'>
+                <div className='text-sm font-medium'>{item.title}</div>
+                <div className='text-muted-foreground mt-1 text-xs'>{item.detail}</div>
+              </div>
+              <Icons.chevronRight
+                aria-hidden='true'
+                className='text-muted-foreground size-4 shrink-0'
+              />
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
+    </>
+  );
 }
 
 export default async function SettingsPage() {
@@ -124,23 +200,28 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <PageContainer>
+    <PageContainer
+      pageTitle='Settings'
+      pageDescription='System status, data sources, and operating guardrails. Only live configuration is shown.'
+      rightRailTitle='Settings context'
+      rightRailDescription='Scope, safeguards, and configuration paths.'
+      rightRail={<SettingsRightRail />}
+    >
       <div className='flex flex-1 flex-col gap-6'>
-        <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
-          <div className='space-y-2'>
+        <div className='flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex flex-wrap items-center gap-3'>
             <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
-              real configuration only
+              Real configuration only
             </Badge>
-            <h1 className='text-3xl font-semibold tracking-tight md:text-4xl'>Settings</h1>
-            <p className='text-muted-foreground max-w-2xl text-sm md:text-base'>
-              Systemstatus, datakällor och guardrails. Den här sidan ersätter template-icons sidan
-              och visar bara faktisk konfiguration.
-            </p>
+            <div className='text-muted-foreground text-sm'>
+              Runtime and source readiness snapshot
+            </div>
           </div>
-          <div className='rounded-xl border bg-card p-4 text-sm'>
-            <div className='text-muted-foreground'>System</div>
-            <div className='font-mono'>{status.ok ? 'ok' : 'degraded'}</div>
-            <div className='text-muted-foreground mt-2 text-xs'>
+          <div className='flex items-center gap-3 text-sm'>
+            <Badge variant={status.ok ? 'default' : 'outline'}>
+              System {status.ok ? 'ok' : 'degraded'}
+            </Badge>
+            <div className='text-muted-foreground text-xs tabular-nums'>
               {new Date(status.bridge.now).toLocaleString('sv-SE')}
             </div>
           </div>
@@ -226,7 +307,22 @@ export default async function SettingsPage() {
           <div className='space-y-4 xl:col-span-2'>
             <AvatarSettingsCard />
 
-            <SecretsSettingsCard />
+            <Card>
+              <CardHeader>
+                <CardTitle>Credentials</CardTitle>
+                <CardDescription>
+                  Project keys and server-side secrets now live in a dedicated workspace.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant='outline' className='w-full'>
+                  <Link href='/dashboard/credentials'>
+                    <Icons.lock data-icon='inline-start' />
+                    Open Credentials
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -252,7 +348,9 @@ export default async function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Guardrails</CardTitle>
-                <CardDescription>Håll copilotten ren medan vi bygger upp den igen.</CardDescription>
+                <CardDescription>
+                  Keep the cockpit safe and trustworthy as it evolves.
+                </CardDescription>
               </CardHeader>
               <CardContent className='space-y-2'>
                 {guardrails.map((guardrail) => (

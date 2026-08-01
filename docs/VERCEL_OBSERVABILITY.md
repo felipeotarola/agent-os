@@ -11,7 +11,7 @@ Agent OS Vercel observability V1 is read-only and empty-safe.
 
 ## Environment
 
-Configure these either in `/dashboard/settings` → **API keys & secrets** or in the bridge environment:
+Configure these either in `/dashboard/credentials` or in the bridge environment:
 
 - `VERCEL_ACCESS_TOKEN` or `AGENT_OS_VERCEL_ACCESS_TOKEN`
 - Optional: `VERCEL_TEAM_ID` or `AGENT_OS_VERCEL_TEAM_ID`
