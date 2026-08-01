@@ -838,7 +838,15 @@ async function expectedCriticalSqlitePaths(sourceRoot) {
   const agentsRoot = join(sourceRoot, 'agents');
   const agents = await opendir(agentsRoot);
   for await (const entry of agents) {
-    if (entry.isDirectory()) agentNames.push(entry.name);
+    if (!entry.isDirectory()) continue;
+    try {
+      const agentRuntime = await lstat(
+        join(agentsRoot, entry.name, 'agent')
+      );
+      if (agentRuntime.isDirectory()) agentNames.push(entry.name);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
   }
   agentNames.sort((left, right) => left.localeCompare(right));
   for (const agentName of agentNames) {

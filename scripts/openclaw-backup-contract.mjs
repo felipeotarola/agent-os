@@ -717,6 +717,9 @@ async function testDryRunContract(testRoot) {
     );
     agentDatabase.close();
   }
+  await mkdir(join(source, 'agents', 'retired-agent'), {
+    recursive: true
+  });
 
   const options = parseArgs([]);
   assert.equal(options.execute, false, 'dry run must be the default');
@@ -929,6 +932,7 @@ async function testDryRunContract(testRoot) {
   const inventory = await buildInventory(source);
   assert.equal(inventory.sqliteDatabaseCount, 5);
   assert.equal(inventory.expectedCriticalSqliteCount, 5);
+  assert.deepEqual(inventory.criticalAgentNames, ['main']);
   assert.deepEqual(inventory.missingCriticalSqlitePaths, []);
   assert.deepEqual(inventory.invalidDatabaseCandidates, []);
   assert.equal(
