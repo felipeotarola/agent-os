@@ -3,8 +3,6 @@
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
   SheetContent,
@@ -105,46 +103,13 @@ export function RightContextSidebarProvider({ children }: { children: React.Reac
   );
 }
 
-function DefaultRightContextContent() {
-  return (
-    <Card>
-      <CardHeader className='pb-3'>
-        <div className='flex items-center justify-between gap-3'>
-          <CardTitle className='text-base'>Page context</CardTitle>
-          <Badge variant='outline'>Empty</Badge>
-        </div>
-        <CardDescription>
-          No page-specific context has been configured for this view yet.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className='flex flex-col gap-3 text-sm text-muted-foreground'>
-        <div className='flex items-start gap-3'>
-          <Icons.info className='mt-0.5 size-4 shrink-0' />
-          <p>Selected details, quick actions, and relevant notes will appear here.</p>
-        </div>
-        <Separator />
-        <div className='flex flex-col gap-2'>
-          <div className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
-            Context slots
-          </div>
-          <ul className='flex flex-col gap-2'>
-            <li>Selected row or entity details</li>
-            <li>Page filters and saved views</li>
-            <li>Relevant AI brief or next actions</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function RightContextSidebarBody() {
   const { content } = useRightContextSidebar();
   const title = content.title ?? 'Page rail';
   const description = content.description ?? 'Context for the current workspace';
 
   return (
-    <div className='flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden'>
+    <div className='flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden'>
       <div className='flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3'>
         <div className='min-w-0'>
           <div className='truncate text-sm font-semibold'>{title}</div>
@@ -155,16 +120,16 @@ function RightContextSidebarBody() {
         </Badge>
       </div>
       <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3'>
-        <div className='flex min-w-0 max-w-full flex-col gap-3'>
-          {content.content ?? <DefaultRightContextContent />}
-        </div>
+        <div className='flex min-w-0 max-w-full flex-col gap-3'>{content.content}</div>
       </div>
     </div>
   );
 }
 
 export function RightContextSidebarTrigger() {
-  const { open, toggleOpen } = useRightContextSidebar();
+  const { content, open, toggleOpen } = useRightContextSidebar();
+
+  if (content.content == null) return null;
 
   return (
     <Tooltip>
@@ -198,7 +163,7 @@ export function RightContextSidebarRegistration({
 }) {
   const { setContent, setOpen } = useRightContextSidebar();
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     setContent({
       title,
       description,
@@ -218,7 +183,9 @@ export function RightContextSidebarRegistration({
 }
 
 export function RightContextSidebar() {
-  const { open, openMobile, setOpenMobile } = useRightContextSidebar();
+  const { content, open, openMobile, setOpenMobile } = useRightContextSidebar();
+
+  if (content.content == null) return null;
 
   return (
     <>
@@ -234,7 +201,7 @@ export function RightContextSidebar() {
 
       <aside
         className={cn(
-          'bg-sidebar text-sidebar-foreground hidden min-h-svh shrink-0 border-l transition-[width] duration-200 ease-linear xl:flex',
+          'bg-sidebar text-sidebar-foreground sticky top-0 hidden h-svh max-h-svh shrink-0 self-start border-l transition-[width] duration-200 ease-linear xl:flex',
           open ? 'w-80 2xl:w-[22rem]' : 'w-12'
         )}
         data-state={open ? 'expanded' : 'collapsed'}

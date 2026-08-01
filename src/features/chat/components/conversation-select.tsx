@@ -17,7 +17,7 @@ interface ConversationSelectProps {
 
 export function ConversationSelect({ agents, selectedId, onSelect }: ConversationSelectProps) {
   return (
-    <div className='border-b bg-background/95 px-4 py-3 sm:hidden'>
+    <div className='border-b bg-background/95 px-4 py-3 2xl:hidden'>
       <label
         htmlFor='mobile-agent-select'
         className='text-muted-foreground mb-1 block text-xs font-medium'

@@ -58,7 +58,9 @@ async function fetchHistory(agentId: AgentId) {
   });
 
   if (response.status === 404) return [];
-  if (!response.ok) throw new Error('History request failed with ' + response.status);
+  if (!response.ok) {
+    throw new Error('Chat history is unavailable. Check the OpenClaw bridge connection.');
+  }
 
   const payload: unknown = await response.json();
   return extractMessages(payload);
@@ -90,7 +92,7 @@ export function Messenger({ agents }: { agents: import('../utils/types').ChatAge
 
   const selectedAgent = agentById[selectedAgentId] ?? agents[0];
   const displayMessagesByAgent = displayableMessagesByAgent(messagesByAgent);
-  const messages = displayableMessages(messagesByAgent[selectedAgentId]);
+  const messages = displayableMessages(messagesByAgent[selectedAgentId] ?? []);
 
   useEffect(() => configureAgents(agents), [agents, configureAgents]);
 
@@ -179,7 +181,9 @@ export function Messenger({ agents }: { agents: import('../utils/types').ChatAge
       if (!content || isSending) return;
 
       const agentId = selectedAgentId;
-      const agentName = agentById[agentId].name;
+      const selectedRuntimeAgent = agentById[agentId] ?? agents[0];
+      if (!selectedRuntimeAgent) return;
+      const agentName = selectedRuntimeAgent.name;
       const submittedAt = Date.now();
       const optimisticId = 'user-' + submittedAt;
       const pendingRunId = 'run-pending-' + submittedAt;
@@ -262,6 +266,7 @@ export function Messenger({ agents }: { agents: import('../utils/types').ChatAge
     },
     [
       addMessage,
+      agents,
       agentById,
       draft,
       isSending,
@@ -275,7 +280,7 @@ export function Messenger({ agents }: { agents: import('../utils/types').ChatAge
   );
 
   return (
-    <div className='flex h-[calc(100dvh-5rem)] min-h-[620px] overflow-hidden rounded-3xl border bg-background shadow-sm sm:h-[calc(100dvh-7rem)]'>
+    <div className='flex min-h-0 flex-1 overflow-hidden rounded-xl border bg-background shadow-sm'>
       <ConversationList
         agents={agents}
         selectedId={selectedAgentId}

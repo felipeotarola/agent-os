@@ -2,6 +2,9 @@ import React from 'react';
 import { Heading } from '../ui/heading';
 import type { InfobarContent } from '@/components/ui/infobar';
 import { RightContextSidebarRegistration } from '@/components/layout/right-context-sidebar';
+import { cn } from '@/lib/utils';
+
+type PageLayout = 'document' | 'workspace';
 
 function PageSkeleton() {
   return (
@@ -30,7 +33,8 @@ export default function PageContainer({
   rightRail,
   rightRailTitle,
   rightRailDescription,
-  rightRailDefaultOpen
+  rightRailDefaultOpen,
+  layout = 'document'
 }: {
   children: React.ReactNode;
   isLoading?: boolean;
@@ -44,6 +48,7 @@ export default function PageContainer({
   rightRailTitle?: string;
   rightRailDescription?: string;
   rightRailDefaultOpen?: boolean;
+  layout?: PageLayout;
 }) {
   if (!access) {
     return (
@@ -62,7 +67,13 @@ export default function PageContainer({
   const hasHeader = pageTitle || pageHeaderAction;
 
   return (
-    <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-3 pt-2 pb-4 min-[390px]:px-4 md:px-6 md:pt-4'>
+    <div
+      className={cn(
+        'flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-3 pt-2 pb-4 min-[390px]:px-4 md:px-6 md:pt-4',
+        layout === 'workspace' &&
+          'h-[calc(100svh-4rem)] overflow-y-hidden md:h-[calc(100svh-3.5rem)]'
+      )}
+    >
       <RightContextSidebarRegistration
         title={rightRailTitle}
         description={rightRailDescription}

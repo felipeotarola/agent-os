@@ -21,7 +21,7 @@ export function ChatHeader({ agent, isLoadingHistory }: ChatHeaderProps) {
           </Avatar>
           <div className='min-w-0'>
             <div className='flex items-center gap-2'>
-              <h1 className='truncate text-base font-semibold sm:text-lg'>{agent.name}</h1>
+              <h2 className='truncate text-base font-semibold sm:text-lg'>{agent.name}</h2>
               <span className='bg-primary size-2 rounded-full' aria-label='Online' />
             </div>
             <p className='text-muted-foreground truncate text-xs sm:text-sm'>{agent.role}</p>

@@ -13,25 +13,35 @@ interface TaskColumnProps extends Omit<React.ComponentProps<typeof KanbanColumn>
 }
 
 export function TaskColumn({ value, tasks, onTaskOpen, ...props }: TaskColumnProps) {
+  const title = COLUMN_TITLES[value] ?? value;
+
   return (
-    <KanbanColumn value={value} className='w-full shrink-0 md:w-[320px]' {...props}>
+    <KanbanColumn
+      value={value}
+      className='h-full w-[min(85vw,20rem)] shrink-0 snap-start md:w-[320px]'
+      {...props}
+    >
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-2'>
-          <span className='text-sm font-semibold'>{COLUMN_TITLES[value] ?? value}</span>
+          <span className='text-sm font-semibold'>{title}</span>
           <Badge variant='secondary' className='pointer-events-none rounded-sm'>
             {tasks.length}
           </Badge>
         </div>
         <KanbanColumnHandle asChild>
-          <Button variant='ghost' size='icon'>
+          <Button variant='ghost' size='icon' aria-label={`Move ${title} column`}>
             <Icons.gripVertical className='h-4 w-4' />
           </Button>
         </KanbanColumnHandle>
       </div>
-      <div className='flex flex-col gap-2 p-0.5'>
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onTaskOpen} />
-        ))}
+      <div className='flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-0.5'>
+        {tasks.length ? (
+          tasks.map((task) => <TaskCard key={task.id} task={task} onOpen={onTaskOpen} />)
+        ) : (
+          <div className='text-muted-foreground flex min-h-24 items-center justify-center rounded-md border border-dashed px-3 text-center text-xs'>
+            Drop a task here
+          </div>
+        )}
       </div>
     </KanbanColumn>
   );

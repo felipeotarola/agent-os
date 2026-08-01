@@ -17,7 +17,7 @@ function initials(value: string) {
 
 export default async function ChatPage() {
   const registry = await getOpenClawAgents();
-  const agents = registry.agents.map((agent) => {
+  const agents = (registry.source === 'fallback' ? [] : registry.agents).map((agent) => {
     const name = agent.identityName ?? agent.name ?? agent.id;
     return {
       id: agent.id,
@@ -28,7 +28,11 @@ export default async function ChatPage() {
     };
   });
   return (
-    <PageContainer>
+    <PageContainer
+      layout='workspace'
+      pageTitle='Chat'
+      pageDescription='A focused conversation workspace backed by the live OpenClaw agent registry.'
+    >
       <ChatViewPage agents={agents} />
     </PageContainer>
   );

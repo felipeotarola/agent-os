@@ -55,11 +55,12 @@ export default async function KanbanViewPage({
   const taskCount = Object.values(board.columns).flat().length;
   const agents = mergeOwnerAgents(
     currentUserOwner,
-    agentSnapshot.agents.length ? agentSnapshot.agents : [{ id: 'cai', name: 'Cai' }]
+    agentSnapshot.source === 'fallback' ? [] : agentSnapshot.agents
   );
 
   return (
     <PageContainer
+      layout='workspace'
       pageTitle='Agent OS Tasks'
       pageDescription='Product work stored in Agent OS/Postgres. OpenClaw runtime runs are shown separately in Cockpit and Topology.'
       pageHeaderAction={<NewTaskDialog agents={agents} />}

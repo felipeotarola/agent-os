@@ -24,7 +24,7 @@ export default function AppSidebar() {
   const filteredGroups = useFilteredNavGroups(navGroups);
 
   return (
-    <Sidebar collapsible='icon'>
+    <Sidebar collapsible='icon' className='sticky top-0 h-svh max-h-svh min-h-0 self-start'>
       <SidebarHeader className='group-data-[collapsible=icon]:pt-4'>
         <SidebarMenu>
           <SidebarMenuItem>

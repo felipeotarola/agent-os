@@ -19,7 +19,7 @@ export function ConversationList({
   onSelect
 }: ConversationListProps) {
   return (
-    <aside className='hidden min-h-0 w-80 shrink-0 border-r bg-card/40 sm:flex sm:flex-col'>
+    <aside className='hidden min-h-0 w-80 shrink-0 border-r bg-card/40 2xl:flex 2xl:flex-col'>
       <div className='border-b p-4'>
         <div className='flex items-center justify-between gap-3'>
           <div>

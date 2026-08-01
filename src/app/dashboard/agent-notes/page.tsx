@@ -1,189 +1,339 @@
+import { Icons } from '@/components/icons';
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Icons } from '@/components/icons';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { getKnowledgeSnapshot, type KnowledgeSnapshot } from '@/db/knowledge';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export const metadata = {
   title: 'Agent OS: Agent Notes'
 };
 
-type AgentNote = {
+type KnowledgeSource = KnowledgeSnapshot['sources'][number];
+
+interface AgentNote {
   id: string;
-  agent: 'Sladdis' | 'Cai' | 'Charles';
+  agent: string;
   source: string;
   type: string;
   title: string;
+  summary: string;
   body: string;
-  project: string;
-  related: string;
-  createdAt: string;
+  project?: string;
+  related?: string;
+  createdAt: Date;
   tags: string[];
-};
+}
 
-const notes: AgentNote[] = [
-  {
-    id: 'note-sladdis-qaa-mobile-context',
-    agent: 'Sladdis',
-    source: 'testbench',
-    type: 'observation',
-    title: 'Mobile review needs the same project context as desktop',
-    body: 'When the viewport gets narrow, the useful signal is not another summary. I need the test target, current hypothesis, evidence, and next retest visible in a readable order. If the notes collapse into decorative cards, I lose the thought process that makes the next test better.',
-    project: 'QAA Testbench',
-    related: 'qa-mobile-pass',
-    createdAt: '2026-06-26 20:31',
-    tags: ['mobile', 'qaa', 'context']
-  },
-  {
-    id: 'note-cai-rnd-loop-feedback',
-    agent: 'Cai',
-    source: 'rnd-loop',
-    type: 'recommendation',
-    title: 'Evals should explain what to fix, not only pass or fail',
-    body: 'The useful feedback loop is dimension based: identify which behavior failed, explain the likely route, and return one concrete fix path. Otherwise evals become a scorecard that looks rigorous but does not change future work.',
-    project: 'Agent OS',
-    related: 'rnd-agent-evals-feedback',
-    createdAt: '2026-06-26 21:19',
-    tags: ['evals', 'feedback', 'rnd']
-  },
-  {
-    id: 'note-charles-knowledge-capture',
-    agent: 'Charles',
-    source: 'knowledge',
-    type: 'next_test',
-    title: 'Promote only durable project lessons into knowledge',
-    body: 'Raw notes are useful while investigating. Knowledge should be the distilled version: project facts, repeated decisions, blockers, test rules, and reusable patterns. The UI should preserve the raw trail without pretending every thought is long-term memory.',
-    project: 'Knowledge Inbox',
-    related: 'agent-notes-v1',
-    createdAt: '2026-06-26 21:33',
-    tags: ['knowledge', 'memory', 'notes']
+interface AgentNotesSearchParams {
+  agent?: string | string[];
+  note?: string | string[];
+}
+
+const noteDateFormatter = new Intl.DateTimeFormat('sv-SE', {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+});
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function metadataText(
+  metadata: Record<string, unknown> | undefined,
+  ...keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = metadata?.[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
-];
+  return undefined;
+}
 
-const agents = ['All', 'Sladdis', 'Cai', 'Charles'];
+function metadataTags(metadata: Record<string, unknown> | undefined) {
+  const value = metadata?.tags;
+  if (!Array.isArray(value)) return [];
+  return value.filter((tag): tag is string => typeof tag === 'string' && Boolean(tag.trim()));
+}
 
-function NoteCard({ note, featured = false }: { note: AgentNote; featured?: boolean }) {
+function isAgentNote(source: KnowledgeSource) {
+  const normalizedKind = source.kind.toLowerCase().replaceAll('_', '-');
   return (
-    <article className='rounded-md border bg-card p-4 shadow-sm sm:p-5'>
-      <div className='flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-        <div className='min-w-0 space-y-2'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge className='rounded-sm'>{note.agent}</Badge>
-            <Badge variant='secondary' className='rounded-sm'>
-              {note.type}
-            </Badge>
-            {featured && (
-              <Badge variant='outline' className='rounded-sm'>
-                pinned
-              </Badge>
-            )}
-          </div>
-          <h2 className='text-base font-semibold leading-6 sm:text-lg'>{note.title}</h2>
-        </div>
-        <time className='shrink-0 font-mono text-xs text-muted-foreground'>{note.createdAt}</time>
-      </div>
-
-      <p className='mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground'>
-        {note.body}
-      </p>
-
-      <div className='mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3'>
-        <div className='min-w-0 rounded-md bg-muted/45 px-3 py-2'>
-          <div className='font-medium text-foreground'>Project</div>
-          <div className='mt-1 truncate'>{note.project}</div>
-        </div>
-        <div className='min-w-0 rounded-md bg-muted/45 px-3 py-2'>
-          <div className='font-medium text-foreground'>Source</div>
-          <div className='mt-1 truncate'>{note.source}</div>
-        </div>
-        <div className='min-w-0 rounded-md bg-muted/45 px-3 py-2'>
-          <div className='font-medium text-foreground'>Related</div>
-          <div className='mt-1 truncate font-mono'>{note.related}</div>
-        </div>
-      </div>
-
-      <div className='mt-4 flex flex-wrap gap-1.5'>
-        {note.tags.map((tag) => (
-          <span
-            key={tag}
-            className='rounded-sm bg-background px-2 py-1 text-xs text-muted-foreground'
-          >
-            #{tag}
-          </span>
-        ))}
-      </div>
-    </article>
+    normalizedKind.includes('agent-note') ||
+    Boolean(metadataText(source.metadata, 'agent', 'agentName'))
   );
 }
 
-export default function AgentNotesPage() {
-  const latest = notes[0];
+function toAgentNote(source: KnowledgeSource): AgentNote {
+  const metadata = source.metadata;
+  const body = source.wikiContent.trim() || source.summary;
+
+  return {
+    id: source.id,
+    agent: metadataText(metadata, 'agent', 'agentName') ?? 'Agent',
+    source: metadataText(metadata, 'source') ?? source.kind,
+    type: metadataText(metadata, 'type', 'noteType') ?? 'field-note',
+    title: source.title,
+    summary: source.summary,
+    body,
+    project: metadataText(metadata, 'project', 'projectName'),
+    related: metadataText(metadata, 'related', 'relatedId'),
+    createdAt: new Date(source.createdAt),
+    tags: metadataTags(metadata)
+  };
+}
+
+function notesHref({ agent, note }: { agent?: string; note?: string }) {
+  const params = new URLSearchParams();
+  if (agent) params.set('agent', agent);
+  if (note) params.set('note', note);
+  const query = params.toString();
+  return query ? `/dashboard/agent-notes?${query}` : '/dashboard/agent-notes';
+}
+
+function NoteDetailRail({ note }: { note: AgentNote }) {
+  return (
+    <Card className='gap-4 py-4'>
+      <CardHeader className='px-4'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Badge>{note.agent}</Badge>
+          <Badge variant='secondary'>{note.type}</Badge>
+        </div>
+        <CardTitle className='pt-2 text-base leading-snug'>{note.title}</CardTitle>
+        <CardDescription>
+          <time dateTime={note.createdAt.toISOString()}>
+            {noteDateFormatter.format(note.createdAt)}
+          </time>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-4 px-4'>
+        <p className='text-muted-foreground whitespace-pre-wrap text-sm leading-relaxed'>
+          {note.body}
+        </p>
+
+        <dl className='grid grid-cols-2 gap-2 text-xs'>
+          <div className='rounded-lg border bg-background/40 p-3'>
+            <dt className='text-muted-foreground'>Project</dt>
+            <dd className='mt-1 font-medium'>{note.project ?? 'Not specified'}</dd>
+          </div>
+          <div className='rounded-lg border bg-background/40 p-3'>
+            <dt className='text-muted-foreground'>Source</dt>
+            <dd className='mt-1 font-medium'>{note.source}</dd>
+          </div>
+          {note.related && (
+            <div className='col-span-2 rounded-lg border bg-background/40 p-3'>
+              <dt className='text-muted-foreground'>Related</dt>
+              <dd className='mt-1 break-all font-mono'>{note.related}</dd>
+            </div>
+          )}
+        </dl>
+
+        {note.tags.length > 0 && (
+          <div className='flex flex-wrap gap-1.5'>
+            {note.tags.map((tag) => (
+              <Badge key={tag} variant='outline'>
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        <Button asChild variant='outline' className='w-full'>
+          <Link href='/dashboard/knowledge'>Open Knowledge Inbox</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NotesStatusStrip({
+  dbOnline,
+  noteCount,
+  agentCount
+}: {
+  dbOnline: boolean;
+  noteCount: number;
+  agentCount: number;
+}) {
+  const metrics = [
+    { label: 'Notes', value: dbOnline ? String(noteCount) : '—' },
+    { label: 'Agents', value: dbOnline ? String(agentCount) : '—' },
+    { label: 'Source', value: dbOnline ? 'Postgres' : 'Unavailable' }
+  ];
+
+  return (
+    <Card className='gap-0 overflow-hidden py-0'>
+      <CardContent className='px-0'>
+        <dl className='grid grid-cols-3 divide-x'>
+          {metrics.map((metric) => (
+            <div key={metric.label} className='flex min-w-0 flex-col gap-1 p-3 sm:p-4'>
+              <dt className='text-muted-foreground text-xs'>{metric.label}</dt>
+              <dd className='truncate text-base font-semibold tabular-nums sm:text-lg'>
+                {metric.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default async function AgentNotesPage({
+  searchParams
+}: {
+  searchParams: Promise<AgentNotesSearchParams>;
+}) {
+  const [snapshot, params] = await Promise.all([getKnowledgeSnapshot(), searchParams]);
+  const notes = snapshot.sources.filter(isAgentNote).map(toAgentNote);
+  const agents = [...new Set(notes.map((note) => note.agent))].toSorted((a, b) =>
+    a.localeCompare(b)
+  );
+  const requestedAgent = firstParam(params.agent);
+  const activeAgent = agents.includes(requestedAgent ?? '') ? requestedAgent : undefined;
+  const visibleNotes = activeAgent ? notes.filter((note) => note.agent === activeAgent) : notes;
+  const selectedNoteId = firstParam(params.note);
+  const selectedNote = selectedNoteId
+    ? notes.find((note) => note.id === selectedNoteId)
+    : undefined;
 
   return (
     <PageContainer
       pageTitle='Agent Notes'
-      pageDescription='Readable field notes from Cai, Charles, and Sladdis before they become curated knowledge.'
+      pageDescription='Field notes captured by live agents before they become curated knowledge.'
       pageHeaderAction={
-        <Button variant='outline' className='w-full sm:w-auto'>
-          <Icons.add className='size-4' />
-          New note
+        <Button asChild variant='outline'>
+          <Link href='/dashboard/knowledge'>
+            <Icons.add data-icon='inline-start' />
+            Capture in Knowledge
+          </Link>
         </Button>
       }
+      rightRail={selectedNote ? <NoteDetailRail note={selectedNote} /> : undefined}
+      rightRailTitle={selectedNote ? 'Note context' : undefined}
+      rightRailDescription={selectedNote ? 'Selected field note and source metadata.' : undefined}
+      rightRailDefaultOpen={selectedNote ? true : undefined}
     >
-      <div className='grid min-w-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]'>
-        <aside className='min-w-0 space-y-3 lg:sticky lg:top-20 lg:self-start'>
-          <Card className='rounded-md'>
-            <CardHeader>
-              <CardTitle className='text-sm'>Filters</CardTitle>
-              <CardDescription>Agent and note type</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <div className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:flex-col lg:overflow-visible'>
-                {agents.map((agent) => (
-                  <Button
-                    key={agent}
-                    type='button'
-                    variant={agent === 'All' ? 'default' : 'outline'}
-                    size='sm'
-                    className='shrink-0 justify-start rounded-md'
-                  >
-                    {agent}
-                  </Button>
-                ))}
-              </div>
-              <div className='grid grid-cols-3 gap-2 text-center text-xs lg:grid-cols-1 lg:text-left'>
-                <div className='rounded-md border bg-background p-2'>
-                  <div className='font-mono text-lg font-semibold'>{notes.length}</div>
-                  <div className='text-muted-foreground'>notes</div>
-                </div>
-                <div className='rounded-md border bg-background p-2'>
-                  <div className='font-mono text-lg font-semibold'>3</div>
-                  <div className='text-muted-foreground'>agents</div>
-                </div>
-                <div className='rounded-md border bg-background p-2'>
-                  <div className='font-mono text-lg font-semibold'>2</div>
-                  <div className='text-muted-foreground'>linked</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </aside>
+      <div className='flex flex-1 flex-col gap-4'>
+        <NotesStatusStrip
+          dbOnline={snapshot.dbOnline}
+          noteCount={notes.length}
+          agentCount={agents.length}
+        />
 
-        <main className='min-w-0 space-y-4'>
-          <section className='rounded-md border bg-muted/30 p-3 sm:p-4'>
-            <div className='mb-3 flex items-center gap-2 text-sm font-medium'>
-              <Icons.forms className='size-4 text-primary' />
-              Latest field note
-            </div>
-            <NoteCard note={latest} featured />
-          </section>
-
-          <section className='grid min-w-0 gap-3'>
-            {notes.slice(1).map((note) => (
-              <NoteCard key={note.id} note={note} />
+        {agents.length > 0 && (
+          <nav aria-label='Filter notes by agent' className='flex gap-2 overflow-x-auto pb-1'>
+            <Link
+              href={notesHref({})}
+              aria-current={!activeAgent ? 'page' : undefined}
+              className={cn(
+                buttonVariants({ variant: !activeAgent ? 'secondary' : 'outline', size: 'sm' }),
+                'shrink-0'
+              )}
+            >
+              All
+            </Link>
+            {agents.map((agent) => (
+              <Link
+                key={agent}
+                href={notesHref({ agent })}
+                aria-current={activeAgent === agent ? 'page' : undefined}
+                className={cn(
+                  buttonVariants({
+                    variant: activeAgent === agent ? 'secondary' : 'outline',
+                    size: 'sm'
+                  }),
+                  'shrink-0'
+                )}
+              >
+                {agent}
+              </Link>
             ))}
-          </section>
-        </main>
+          </nav>
+        )}
+
+        <Card className='gap-0 overflow-hidden py-0'>
+          <CardHeader className='border-b py-4'>
+            <CardTitle>Field notes</CardTitle>
+            <CardDescription>
+              {activeAgent
+                ? `Notes captured by ${activeAgent}.`
+                : 'Latest real notes from connected agents.'}
+            </CardDescription>
+            <CardAction>
+              <Badge variant='outline'>{visibleNotes.length} results</Badge>
+            </CardAction>
+          </CardHeader>
+          <CardContent className='px-0'>
+            {!snapshot.dbOnline ? (
+              <div className='flex min-h-64 flex-col items-center justify-center px-6 text-center'>
+                <div className='bg-muted flex size-11 items-center justify-center rounded-xl'>
+                  <Icons.database aria-hidden='true' className='text-muted-foreground size-5' />
+                </div>
+                <div className='mt-4 font-medium'>Agent notes are unavailable</div>
+                <p className='text-muted-foreground mt-1 max-w-md text-sm'>
+                  Connect Postgres or the Agent OS bridge to load real field notes. No sample notes
+                  are shown in this state.
+                </p>
+              </div>
+            ) : visibleNotes.length === 0 ? (
+              <div className='flex min-h-64 flex-col items-center justify-center px-6 text-center'>
+                <div className='bg-muted flex size-11 items-center justify-center rounded-xl'>
+                  <Icons.forms aria-hidden='true' className='text-muted-foreground size-5' />
+                </div>
+                <div className='mt-4 font-medium'>No field notes yet</div>
+                <p className='text-muted-foreground mt-1 max-w-md text-sm'>
+                  Notes will appear here when a connected agent captures them in the knowledge
+                  layer.
+                </p>
+              </div>
+            ) : (
+              <ul className='divide-y'>
+                {visibleNotes.map((note) => {
+                  const isSelected = note.id === selectedNote?.id;
+                  return (
+                    <li key={note.id}>
+                      <Link
+                        href={notesHref({ agent: activeAgent, note: note.id })}
+                        aria-current={isSelected ? 'true' : undefined}
+                        className={cn(
+                          'focus-visible:ring-ring flex flex-col gap-2 p-4 transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none sm:p-5',
+                          isSelected ? 'bg-primary/5' : 'hover:bg-muted/40'
+                        )}
+                      >
+                        <div className='flex min-w-0 items-start justify-between gap-3'>
+                          <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                            <Badge>{note.agent}</Badge>
+                            <Badge variant='secondary'>{note.type}</Badge>
+                          </div>
+                          <time
+                            className='text-muted-foreground shrink-0 text-xs tabular-nums'
+                            dateTime={note.createdAt.toISOString()}
+                          >
+                            {noteDateFormatter.format(note.createdAt)}
+                          </time>
+                        </div>
+                        <div className='font-medium'>{note.title}</div>
+                        <p className='text-muted-foreground line-clamp-2 text-sm leading-relaxed'>
+                          {note.summary}
+                        </p>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </PageContainer>
   );

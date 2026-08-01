@@ -94,16 +94,18 @@ export function KanbanBoard({
   );
 
   return (
-    <div ref={containerRef} className='space-y-3'>
+    <div ref={containerRef} className='flex min-h-0 flex-1 flex-col gap-3'>
       <div className='flex justify-end'>
-        <span className='text-muted-foreground text-xs'>
+        <span className='text-muted-foreground text-xs' aria-live='polite'>
           {syncState === 'saving'
             ? 'Sparar…'
             : syncState === 'error'
               ? 'Sync-fel'
-              : source === 'bridge-error' || source === 'empty'
+              : source === 'bridge-error'
                 ? 'Tasks kunde inte hämtas'
-                : 'Synkad med Supabase'}
+                : source === 'empty'
+                  ? 'Inga tasks ännu'
+                  : 'Synkad med datakällan'}
         </span>
       </div>
       <Kanban
@@ -113,8 +115,8 @@ export function KanbanBoard({
         modifiers={[restrictToBoard]}
         autoScroll={false}
       >
-        <div className='w-full overflow-x-auto rounded-md pb-4'>
-          <KanbanBoardPrimitive className='flex flex-col items-start gap-4 md:flex-row'>
+        <div className='min-h-0 w-full flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-md pb-3'>
+          <KanbanBoardPrimitive className='min-w-max items-stretch gap-3'>
             {orderedColumns.map((columnValue) => (
               <TaskColumn
                 key={columnValue}

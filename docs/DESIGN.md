@@ -67,6 +67,33 @@ Good candidates:
 - empty states
 - source/meta pills
 
+## Page density and workspace rule
+
+Every dashboard page starts with `PageContainer`. Use its shared title, description, header action,
+and right-rail contract instead of building a second page hero.
+
+Choose the page layout deliberately:
+
+- `layout='document'` is for short forms, settings sections, and readable reference content.
+- `layout='workspace'` is for boards, chat, canvases, and queues that should fill the viewport. The
+  workspace owns one bounded scroll region instead of extending the whole document.
+
+For a feature with several substantial areas, expose URL-backed views or sections and render the
+active area only. Keep the critical status summary visible above the view navigation. Browser back,
+refresh, and copied links must preserve the active view.
+
+Collections use compact rows or a semantic table. A card represents a major region; do not render
+every row as a fully padded card. Growing lists need pagination, virtualization, or a bounded scroll
+region.
+
+The dashboard context rail is optional. Register it only when the page has selected-item details,
+relevant actions, or genuinely useful context. It stays viewport-bound and scrolls independently.
+Never reserve the rail for a generic empty placeholder.
+
+Disconnected integrations are valid product states. Show `Unavailable`, `Needs setup`, or `—` when
+the runtime cannot confirm a value; do not turn fallback zeroes or capability contracts into factual
+health.
+
 ## Guardrail
 
 `npm run check:runtime-mocks` also runs `scripts/check-theme-containers.mjs`.

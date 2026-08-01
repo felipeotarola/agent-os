@@ -1,11 +1,34 @@
 import Link from 'next/link';
+import { Icons } from '@/components/icons';
 import PageContainer from '@/components/layout/page-container';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { getRadarSnapshot, type RadarSignal } from '@/lib/radar';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import { getRadarSnapshot, type RadarSignal, type RadarSnapshot } from '@/lib/radar';
 
 export const metadata = {
   title: 'Agent OS: Inbox Radar'
@@ -27,6 +50,13 @@ const views: Array<{ value: RadarView; label: string; description: string }> = [
     description: 'Weak signals, degraded sources and monitoring.'
   },
   { value: 'tasks', label: 'Tasks', description: 'Internal work that can become execution.' }
+];
+
+const operatingRules = [
+  'Radar combines attention, review, and approvals — not just alerts.',
+  'Cai can prepare and propose; external or risky steps require approval.',
+  'Every signal can become a task, be snoozed, handled, or opened at its source.',
+  'Extra detail appears when risk is high, not as default noise.'
 ];
 
 function priorityVariant(priority: RadarSignal['priority']) {
@@ -75,6 +105,22 @@ function matchesView(signal: RadarSignal, view: RadarView) {
   return signal.kind === 'review' || signal.kind === 'draft' || signal.kind === 'handoff';
 }
 
+function radarUrl(view: RadarView, signalId?: string) {
+  const search = new URLSearchParams({ view });
+  if (signalId) search.set('signal', signalId);
+  return `/dashboard/radar?${search.toString()}`;
+}
+
+function generatedLabel(value: string) {
+  const generatedAt = new Date(value);
+  if (Number.isNaN(generatedAt.getTime())) return 'Update time unavailable';
+
+  return new Intl.DateTimeFormat('sv-SE', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(generatedAt);
+}
+
 function agentFlowDiagram(highCount: number, reviewCount: number, approvalCount: number) {
   return `flowchart LR
   Sources["Mail · Calendar · GitHub · Ops · Tasks"] --> Radar["Inbox Radar"]
@@ -107,9 +153,15 @@ function SignalActions({ signal }: { signal: RadarSignal }) {
   const canCreateTask = signal.source !== 'tasks';
 
   return (
-    <div className='flex flex-wrap items-center gap-2'>
+    <div className='grid grid-cols-2 gap-2'>
+      <Button asChild size='sm' className='col-span-2 w-full'>
+        <Link href={signal.href}>
+          {signal.actionLabel}
+          <Icons.arrowRight data-icon='inline-end' />
+        </Link>
+      </Button>
       {canCreateTask && (
-        <form action='/api/radar/signals/create-task' method='post'>
+        <form action='/api/radar/signals/create-task' method='post' className='min-w-0'>
           <input type='hidden' name='id' value={signal.id} />
           <input type='hidden' name='title' value={signal.title} />
           <input type='hidden' name='detail' value={signal.detail} />
@@ -117,25 +169,29 @@ function SignalActions({ signal }: { signal: RadarSignal }) {
           <input type='hidden' name='priority' value={signal.priority} />
           <input type='hidden' name='href' value={signal.href} />
           {signal.meta && <input type='hidden' name='meta' value={signal.meta} />}
-          <Button type='submit' variant='secondary' size='sm'>
-            Create task
+          <Button type='submit' variant='outline' size='sm' className='w-full'>
+            <Icons.add data-icon='inline-start' />
+            Create Task
           </Button>
         </form>
       )}
-      <Button asChild variant='outline' size='sm'>
-        <Link href={signal.href}>{signal.actionLabel}</Link>
-      </Button>
-      <form action='/api/radar/signals/transition' method='post'>
+      <form
+        action='/api/radar/signals/transition'
+        method='post'
+        className={cn('min-w-0', !canCreateTask && 'col-span-2')}
+      >
         <input type='hidden' name='id' value={signal.id} />
         <input type='hidden' name='action' value='handled' />
-        <Button type='submit' variant='secondary' size='sm'>
-          Handled
+        <Button type='submit' variant='secondary' size='sm' className='w-full'>
+          <Icons.check data-icon='inline-start' />
+          Mark Handled
         </Button>
       </form>
-      <form action='/api/radar/signals/transition' method='post'>
+      <form action='/api/radar/signals/transition' method='post' className='col-span-2 min-w-0'>
         <input type='hidden' name='id' value={signal.id} />
         <input type='hidden' name='action' value='snooze' />
-        <Button type='submit' variant='ghost' size='sm'>
+        <Button type='submit' variant='ghost' size='sm' className='w-full'>
+          <Icons.clock data-icon='inline-start' />
           Snooze
         </Button>
       </form>
@@ -143,86 +199,211 @@ function SignalActions({ signal }: { signal: RadarSignal }) {
   );
 }
 
-function SignalCard({ signal, selected = false }: { signal: RadarSignal; selected?: boolean }) {
+function SignalRow({
+  signal,
+  selected,
+  view
+}: {
+  signal: RadarSignal;
+  selected: boolean;
+  view: RadarView;
+}) {
   return (
-    <div
-      className={`rounded-2xl border bg-background/55 p-4 shadow-sm transition hover:border-primary/40 hover:bg-primary/5 ${selected ? 'border-primary/50 bg-primary/10' : ''}`}
-    >
-      <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-        <div className='min-w-0 space-y-2'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant={kindVariant(signal.kind)}>{kindLabel(signal.kind)}</Badge>
-            <Badge variant={priorityVariant(signal.priority)}>{signal.priority}</Badge>
-            <Badge variant='outline'>{sourceLabel(signal.source)}</Badge>
+    <article className='min-w-0'>
+      <Link
+        href={radarUrl(view, signal.id)}
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'group grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none md:px-5',
+          selected && 'bg-primary/10 hover:bg-primary/15'
+        )}
+      >
+        <div className='min-w-0'>
+          <div className='mb-1.5 flex flex-wrap items-center gap-1.5'>
+            <Badge variant={kindVariant(signal.kind)} className='text-[10px]'>
+              {kindLabel(signal.kind)}
+            </Badge>
+            <Badge variant={priorityVariant(signal.priority)} className='text-[10px]'>
+              {signal.priority}
+            </Badge>
+            <span className='text-muted-foreground text-[11px]'>{sourceLabel(signal.source)}</span>
           </div>
-          <div className='text-base font-semibold'>{signal.title}</div>
-          <div className='text-muted-foreground text-sm'>{signal.detail}</div>
+          <div className='truncate text-sm font-semibold'>{signal.title}</div>
+          <div className='text-muted-foreground mt-1 line-clamp-2 text-xs leading-5'>
+            {signal.detail}
+          </div>
           {signal.meta && (
-            <div className='text-muted-foreground font-mono text-[11px]'>{signal.meta}</div>
+            <div className='text-muted-foreground mt-1 truncate font-mono text-[10px]'>
+              {signal.meta}
+            </div>
           )}
         </div>
-        <SignalActions signal={signal} />
-      </div>
+        <div className='flex shrink-0 items-center gap-2'>
+          {selected ? (
+            <Badge variant='secondary' className='hidden sm:inline-flex'>
+              Selected
+            </Badge>
+          ) : (
+            <span className='text-muted-foreground hidden text-xs lg:inline'>Inspect</span>
+          )}
+          <Icons.chevronRight
+            className='text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground'
+            aria-hidden='true'
+          />
+        </div>
+      </Link>
+    </article>
+  );
+}
+
+function RadarMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className='flex min-w-20 flex-col items-center justify-center px-3 py-3 text-center'>
+      <dt className='text-muted-foreground order-2 text-[10px] font-medium uppercase tracking-wider'>
+        {label}
+      </dt>
+      <dd className='order-1 text-xl font-semibold tabular-nums'>{value}</dd>
     </div>
   );
 }
 
-type RadarSnapshot = Awaited<ReturnType<typeof getRadarSnapshot>>;
-
-function RadarRightRail({ snapshot }: { snapshot: RadarSnapshot }) {
+function RadarRightRail({
+  selectedSignal,
+  snapshot
+}: {
+  selectedSignal?: RadarSignal;
+  snapshot: RadarSnapshot;
+}) {
   return (
-    <div className='space-y-4'>
+    <div className='flex flex-col gap-3'>
       <Card>
-        <CardHeader>
-          <CardTitle>Agent flow map</CardTitle>
-          <CardDescription>Interaktiv karta: zooma, panorera, förstå flödet.</CardDescription>
+        <CardHeader className='gap-2 pb-3'>
+          <div className='flex items-start justify-between gap-3'>
+            <div className='min-w-0'>
+              <CardTitle className='text-base'>Selected Signal</CardTitle>
+              <CardDescription>Details and guarded actions.</CardDescription>
+            </div>
+            {selectedSignal ? (
+              <Badge variant={priorityVariant(selectedSignal.priority)}>
+                {selectedSignal.priority}
+              </Badge>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
-          <MermaidDiagram
-            title='Inbox Radar agent flow'
-            chart={agentFlowDiagram(
-              snapshot.counts.high,
-              snapshot.counts.review,
-              snapshot.counts.approvals
-            )}
-          />
+          {selectedSignal ? (
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-2'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge variant={kindVariant(selectedSignal.kind)}>
+                    {kindLabel(selectedSignal.kind)}
+                  </Badge>
+                  <Badge variant='outline'>{sourceLabel(selectedSignal.source)}</Badge>
+                </div>
+                <h2 className='text-pretty text-base font-semibold'>{selectedSignal.title}</h2>
+                <p className='text-muted-foreground text-sm leading-6'>{selectedSignal.detail}</p>
+                {selectedSignal.meta ? (
+                  <p className='text-muted-foreground break-words font-mono text-[11px]'>
+                    {selectedSignal.meta}
+                  </p>
+                ) : null}
+              </div>
+              <Separator />
+              <SignalActions signal={selectedSignal} />
+            </div>
+          ) : (
+            <Empty className='border-0 px-0 py-6'>
+              <EmptyMedia variant='icon'>
+                <Icons.inbox />
+              </EmptyMedia>
+              <EmptyHeader>
+                <EmptyTitle>Queue Is Clear</EmptyTitle>
+                <EmptyDescription>Select another queue to inspect its signals.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Operating rules</CardTitle>
-          <CardDescription>Chat är inte hela produkten. Kontrollpanelen är.</CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-2 text-sm'>
-          {[
-            'Inbox Radar = attention + review + approvals, inte bara alerts.',
-            'Cai får förbereda och föreslå; externa eller riskabla steg kräver approval.',
-            'Varje item ska kunna bli task, snoozas, markeras handled eller öppnas i sin källa.',
-            'Mer detaljer visas när risken är hög — inte som standardbrus.'
-          ].map((item) => (
-            <div key={item} className='rounded-xl border bg-background/45 p-3'>
-              {item}
+        <CardHeader className='gap-2 pb-2'>
+          <div className='flex items-start justify-between gap-3'>
+            <div>
+              <CardTitle className='text-base'>Source Health</CardTitle>
+              <CardDescription>Connector state behind this queue.</CardDescription>
             </div>
-          ))}
+            <Badge variant={snapshot.sourceErrors.length > 0 ? 'destructive' : 'secondary'}>
+              {snapshot.sourceErrors.length > 0
+                ? `${snapshot.sourceErrors.length} issues`
+                : 'Healthy'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className='text-sm'>
+          {snapshot.sourceErrors.length === 0 ? (
+            <div className='text-muted-foreground flex items-start gap-2'>
+              <Icons.circleCheck className='mt-0.5 size-4 shrink-0' aria-hidden='true' />
+              <p>No connector errors were reported in this snapshot.</p>
+            </div>
+          ) : (
+            <Accordion type='single' collapsible>
+              <AccordionItem value='source-errors'>
+                <AccordionTrigger className='py-2'>Review Connector Issues</AccordionTrigger>
+                <AccordionContent>
+                  <ul className='text-muted-foreground flex flex-col gap-2'>
+                    {snapshot.sourceErrors.map((error) => (
+                      <li
+                        key={error}
+                        className='flex items-start gap-2 rounded-lg bg-muted/40 p-2.5'
+                      >
+                        <Icons.alertCircle className='mt-0.5 size-4 shrink-0' aria-hidden='true' />
+                        <span className='break-words'>{error}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
         </CardContent>
       </Card>
 
-      {snapshot.sourceErrors.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Source errors</CardTitle>
-            <CardDescription>Fail-soft connectors that need inspection.</CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-2 text-sm'>
-            {snapshot.sourceErrors.map((error) => (
-              <div key={error} className='rounded-xl border bg-background/40 p-3'>
-                {error}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className='gap-1 pb-2'>
+          <CardTitle className='text-base'>Radar Model</CardTitle>
+          <CardDescription>Flow and operating rules when you need them.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Accordion type='single' collapsible>
+            <AccordionItem value='rules'>
+              <AccordionTrigger>Operating Rules</AccordionTrigger>
+              <AccordionContent>
+                <ul className='text-muted-foreground flex flex-col gap-3 leading-5'>
+                  {operatingRules.map((item) => (
+                    <li key={item} className='flex items-start gap-2'>
+                      <Icons.circleDot className='mt-1 size-3 shrink-0' aria-hidden='true' />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value='flow'>
+              <AccordionTrigger>Agent Flow Map</AccordionTrigger>
+              <AccordionContent>
+                <MermaidDiagram
+                  title='Inbox Radar agent flow'
+                  chart={agentFlowDiagram(
+                    snapshot.counts.high,
+                    snapshot.counts.review,
+                    snapshot.counts.approvals
+                  )}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -234,6 +415,7 @@ export default async function RadarPage({
     error?: string;
     radar?: string;
     reason?: string;
+    signal?: string;
     task?: string;
     view?: string;
   }>;
@@ -244,194 +426,188 @@ export default async function RadarPage({
   const recommendation = snapshot.recommendation;
   const status = statusCopy(params);
   const activeView = views.find((view) => view.value === selectedView) ?? views[0];
+  const selectedSignal =
+    visibleSignals.find((signal) => signal.id === params.signal) ??
+    visibleSignals.find((signal) => signal.id === recommendation.id) ??
+    visibleSignals[0];
+  const sourceMix: Array<[string, number]> = [
+    ['Tasks', snapshot.counts.tasks],
+    ['Knowledge', snapshot.counts.knowledge],
+    ['Mail / Calendar', snapshot.counts.notifications],
+    ['GitHub', snapshot.counts.github],
+    ['Ops', snapshot.counts.observability],
+    ['Runway', snapshot.counts.runway]
+  ];
 
   return (
     <PageContainer
-      rightRailTitle='Radar context'
-      rightRailDescription='Flow, rules, and source health.'
-      rightRail={<RadarRightRail snapshot={snapshot} />}
-    >
-      <div className='flex flex-1 flex-col gap-6'>
-        <div className='relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm'>
-          <div className='absolute inset-y-0 right-0 hidden w-1/2 rounded-l-full bg-primary/10 blur-3xl lg:block' />
-          <div className='relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
-            <div className='space-y-3'>
-              <Badge variant='outline' className='border-primary/40 bg-primary/10 text-primary'>
-                agentic attention cockpit
-              </Badge>
-              <div>
-                <h1 className='text-3xl font-semibold tracking-tight md:text-5xl'>Inbox Radar</h1>
-                <p className='text-muted-foreground mt-2 max-w-3xl text-sm md:text-base'>
-                  En samlad yta för signaler, review, approvals och task candidates. Inte fler sidor
-                  — mer kontroll, bättre triage och tydligare agentflöde.
-                </p>
-              </div>
-            </div>
-            <div className='grid grid-cols-3 gap-2 rounded-2xl border bg-background/70 p-3 text-center text-sm backdrop-blur'>
-              <div>
-                <div className='text-muted-foreground text-xs'>Open</div>
-                <div className='text-2xl font-semibold'>{snapshot.counts.total}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground text-xs'>Review</div>
-                <div className='text-2xl font-semibold'>{snapshot.counts.review}</div>
-              </div>
-              <div>
-                <div className='text-muted-foreground text-xs'>High</div>
-                <div className='text-2xl font-semibold'>{snapshot.counts.high}</div>
-              </div>
-            </div>
-          </div>
+      pageTitle='Inbox Radar'
+      pageDescription='One attention queue for signals, review, approvals, and task candidates.'
+      pageHeaderAction={
+        <div className='flex flex-wrap items-center gap-2'>
+          <Badge variant={snapshot.sourceErrors.length > 0 ? 'destructive' : 'secondary'}>
+            <Icons.activity data-icon='inline-start' />
+            {snapshot.sourceErrors.length > 0 ? 'Degraded Sources' : 'Sources Healthy'}
+          </Badge>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/dashboard/chat'>
+              <Icons.chat data-icon='inline-start' />
+              Ask Cai
+            </Link>
+          </Button>
         </div>
-
-        {status && <Badge variant={status.tone}>{status.text}</Badge>}
-
-        <div className='grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
-          <div className='space-y-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>Queues</CardTitle>
-                <CardDescription>Filtera samma inbox — skapa inte nya silos.</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-2'>
-                {views.map((view) => {
-                  const count = snapshot.signals.filter((signal) =>
-                    matchesView(signal, view.value)
-                  ).length;
-                  const active = selectedView === view.value;
-                  return (
-                    <Button
-                      key={view.value}
-                      asChild
-                      variant={active ? 'secondary' : 'ghost'}
-                      className='grid h-auto w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl p-3 text-left'
-                    >
-                      <Link href={`/dashboard/radar?view=${view.value}`}>
-                        <span className='min-w-0'>
-                          <span className='block font-medium'>{view.label}</span>
-                          <span className='text-muted-foreground block truncate text-xs'>
-                            {view.description}
-                          </span>
-                        </span>
-                        <Badge variant='outline' className='justify-self-end'>
-                          {count}
-                        </Badge>
-                      </Link>
-                    </Button>
-                  );
-                })}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Source mix</CardTitle>
-                <CardDescription>Vad radarn lyssnar på just nu.</CardDescription>
-              </CardHeader>
-              <CardContent className='grid grid-cols-2 gap-2 text-sm'>
-                {[
-                  ['Tasks', snapshot.counts.tasks],
-                  ['Knowledge', snapshot.counts.knowledge],
-                  ['Mail/Calendar', snapshot.counts.notifications],
-                  ['GitHub', snapshot.counts.github],
-                  ['Ops', snapshot.counts.observability],
-                  ['Runway', snapshot.counts.runway]
-                ].map(([label, value]) => (
-                  <div key={label} className='rounded-xl border bg-background/45 p-3'>
-                    <div className='text-muted-foreground text-xs'>{label}</div>
-                    <div className='text-xl font-semibold'>{value}</div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className='overflow-hidden border-primary/20'>
-            <CardHeader className='border-b bg-primary/5'>
-              <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-                <div>
-                  <CardDescription>Central agent console</CardDescription>
-                  <CardTitle className='text-2xl'>{recommendation.title}</CardTitle>
-                </div>
+      }
+      rightRailTitle='Signal context'
+      rightRailDescription='Selected signal, actions, and source health.'
+      rightRailDefaultOpen={params.signal ? true : undefined}
+      rightRail={<RadarRightRail selectedSignal={selectedSignal} snapshot={snapshot} />}
+    >
+      <div className='flex min-w-0 flex-1 flex-col gap-4'>
+        <section
+          aria-labelledby='radar-attention-heading'
+          className='overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm'
+        >
+          <div className='grid min-w-0 lg:grid-cols-[minmax(0,1fr)_auto]'>
+            <div className='flex min-w-0 flex-col gap-2 p-4 md:p-5'>
+              <div className='flex flex-wrap items-center gap-2'>
+                <Badge variant={kindVariant(recommendation.kind)}>
+                  <Icons.sparkles data-icon='inline-start' />
+                  Next Attention
+                </Badge>
                 <Badge variant={priorityVariant(recommendation.priority)}>
                   {recommendation.priority}
                 </Badge>
+                <span className='text-muted-foreground text-xs'>
+                  {sourceLabel(recommendation.source)}
+                </span>
               </div>
-            </CardHeader>
-            <CardContent className='space-y-4 p-4 md:p-6'>
-              <div className='space-y-3'>
-                <div className='max-w-[86%] rounded-2xl border bg-background/70 p-4'>
-                  <div className='text-muted-foreground text-xs'>Cai</div>
-                  <div className='mt-1 text-sm'>
-                    Jag har konsoliderat radarn till <b>{activeView.label}</b>. Nästa tydliga
-                    attention item är nedan. Välj action, eller öppna källan om du vill se mer
-                    kontext.
-                  </div>
-                </div>
-                <div className='ml-auto max-w-[86%] rounded-2xl border bg-primary/10 p-4'>
-                  <div className='text-muted-foreground text-xs'>Radar recommendation</div>
-                  <div className='mt-1 text-sm'>{recommendation.detail}</div>
-                  <div className='mt-3 flex flex-wrap gap-2'>
-                    <Badge variant={kindVariant(recommendation.kind)}>
-                      {kindLabel(recommendation.kind)}
-                    </Badge>
-                    <Badge variant='outline'>{sourceLabel(recommendation.source)}</Badge>
-                    {recommendation.meta && (
-                      <Badge variant='secondary'>{recommendation.meta}</Badge>
-                    )}
-                  </div>
-                </div>
+              <h2 id='radar-attention-heading' className='truncate text-lg font-semibold'>
+                {recommendation.title}
+              </h2>
+              <p className='text-muted-foreground line-clamp-2 max-w-3xl text-sm leading-5'>
+                {recommendation.detail}
+              </p>
+              <div>
+                <Button asChild variant='link' size='sm' className='h-auto px-0'>
+                  <Link href={radarUrl('all', recommendation.id)}>
+                    Inspect Recommendation
+                    <Icons.arrowRight data-icon='inline-end' />
+                  </Link>
+                </Button>
               </div>
-
-              <div className='rounded-2xl border bg-background/45 p-3'>
-                <Textarea
-                  value='Ask Cai to summarize, create a task, snooze noise, or explain why this matters…'
-                  readOnly
-                  className='min-h-20 resize-none border-0 bg-transparent text-muted-foreground shadow-none focus-visible:ring-0'
-                />
-                <div className='flex flex-wrap justify-end gap-2 border-t pt-3'>
-                  <Button asChild variant='outline' size='sm'>
-                    <Link href='/dashboard/chat'>Open Cai chat</Link>
-                  </Button>
-                  <Button asChild size='sm'>
-                    <Link href={recommendation.href}>{recommendation.actionLabel}</Link>
-                  </Button>
-                </div>
-              </div>
-
-              <div className='space-y-3'>
-                <div className='flex items-center justify-between gap-3'>
-                  <div>
-                    <h2 className='font-semibold'>{activeView.label} queue</h2>
-                    <p className='text-muted-foreground text-sm'>{activeView.description}</p>
-                  </div>
-                  <Badge variant='outline'>{visibleSignals.length} items</Badge>
-                </div>
-
-                {visibleSignals.length === 0 ? (
-                  <div className='text-muted-foreground rounded-2xl border border-dashed p-8 text-sm'>
-                    Inget i den här kön just nu.
-                  </div>
-                ) : (
-                  visibleSignals.map((signal) => (
-                    <SignalCard
-                      key={signal.id}
-                      signal={signal}
-                      selected={signal.id === recommendation.id}
-                    />
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className='text-muted-foreground flex flex-wrap items-center justify-between gap-3 text-xs'>
-          <div>
-            Source: <span className='font-mono'>{snapshot.source}</span> · State:{' '}
-            <span className='font-mono'>{snapshot.stateSource}</span>
+            </div>
+            <Separator className='lg:hidden' />
+            <dl className='grid grid-cols-4 divide-x lg:border-l'>
+              <RadarMetric label='Open' value={snapshot.counts.total} />
+              <RadarMetric label='Review' value={snapshot.counts.review} />
+              <RadarMetric label='Approval' value={snapshot.counts.approvals} />
+              <RadarMetric label='High' value={snapshot.counts.high} />
+            </dl>
           </div>
-          <div>{new Date(snapshot.generatedAt).toLocaleString('sv-SE')}</div>
+        </section>
+
+        {status ? (
+          <div role='status' aria-live='polite'>
+            <Badge variant={status.tone}>{status.text}</Badge>
+          </div>
+        ) : null}
+
+        <section
+          aria-label='Radar queue filters'
+          className='flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-3 text-card-foreground'
+        >
+          <nav
+            className='flex min-w-0 gap-1 overflow-x-auto overscroll-x-contain'
+            aria-label='Queues'
+          >
+            {views.map((view) => {
+              const count = snapshot.signals.filter((signal) =>
+                matchesView(signal, view.value)
+              ).length;
+              const active = selectedView === view.value;
+              return (
+                <Button
+                  key={view.value}
+                  asChild
+                  variant={active ? 'secondary' : 'ghost'}
+                  size='sm'
+                  className='shrink-0'
+                >
+                  <Link href={radarUrl(view.value)} aria-current={active ? 'page' : undefined}>
+                    {view.label}
+                    <Badge variant='outline'>{count}</Badge>
+                  </Link>
+                </Button>
+              );
+            })}
+          </nav>
+          <Separator />
+          <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+            <span className='text-muted-foreground text-[10px] font-medium uppercase tracking-wider'>
+              Source mix
+            </span>
+            {sourceMix.map(([label, value]) => (
+              <span key={label} className='text-muted-foreground flex items-center gap-1.5 text-xs'>
+                <span>{label}</span>
+                <Badge variant='outline' className='tabular-nums'>
+                  {value}
+                </Badge>
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <div className='min-w-0'>
+          <Card className='min-w-0 gap-0 overflow-hidden py-0'>
+            <CardHeader className='py-4'>
+              <CardTitle className='text-base'>{activeView.label} Queue</CardTitle>
+              <CardDescription className='line-clamp-1'>{activeView.description}</CardDescription>
+              <CardAction>
+                <Badge variant='outline' className='shrink-0 tabular-nums'>
+                  {visibleSignals.length} items
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <Separator />
+            <CardContent className='p-0'>
+              {visibleSignals.length === 0 ? (
+                <Empty className='min-h-72 border-0'>
+                  <EmptyMedia variant='icon'>
+                    <Icons.inbox />
+                  </EmptyMedia>
+                  <EmptyHeader>
+                    <EmptyTitle>Nothing Needs Attention Here</EmptyTitle>
+                    <EmptyDescription>
+                      This queue is clear. Choose another view to continue triage.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div
+                  role='list'
+                  className='divide-y lg:max-h-[calc(100svh-28rem)] lg:min-h-72 lg:overflow-y-auto lg:overscroll-contain'
+                >
+                  {visibleSignals.map((signal) => (
+                    <div key={signal.id} role='listitem'>
+                      <SignalRow
+                        signal={signal}
+                        selected={signal.id === selectedSignal?.id}
+                        view={selectedView}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+            <Separator />
+            <CardFooter className='text-muted-foreground flex flex-wrap justify-between gap-2 py-3 text-[11px]'>
+              <span>
+                Source: <span className='font-mono'>{snapshot.source}</span> · State:{' '}
+                <span className='font-mono'>{snapshot.stateSource}</span>
+              </span>
+              <time dateTime={snapshot.generatedAt}>{generatedLabel(snapshot.generatedAt)}</time>
+            </CardFooter>
+          </Card>
         </div>
       </div>
     </PageContainer>

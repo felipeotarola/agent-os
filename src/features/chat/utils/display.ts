@@ -34,7 +34,7 @@ export function displayableChatMessage(
   };
 }
 
-export function displayableMessages(messages: ChatMessage[], options: DisplayOptions = {}) {
+export function displayableMessages(messages: ChatMessage[] = [], options: DisplayOptions = {}) {
   return messages
     .map((message) => displayableChatMessage(message, options))
     .filter((message): message is ChatMessage => message !== null);
