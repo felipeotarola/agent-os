@@ -126,6 +126,7 @@ export function classifyMemorySignal(signal) {
   if (PREFERENCE.test(text) && ['preference', 'decision'].includes(type))
     exceptionReasons.push('strategy-or-preference-change');
   if (route !== 'discard' && !isCompleteMemorySummary(text)) exceptionReasons.push('possibly-clipped-summary');
+  if (route !== 'discard' && /\?[\])}"'’”`*_]*$/.test(text)) exceptionReasons.push('conversational-question');
   if (confidence < 0.8) exceptionReasons.push('low-confidence');
 
   return {

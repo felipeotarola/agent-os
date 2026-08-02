@@ -29,7 +29,10 @@ assert.equal(previewTask.route, 'task');
 assert.deepEqual(previewTask.materialization, { outcome: 'dry-run', target: 'agent-os-task' });
 const previewException = previewMemoryRoute({ type: 'preference', summary: 'Felipe always prefers this strategy everywhere.' });
 assert.equal(previewException.materialization.outcome, 'blocked-exception');
-console.log('memory routing preview contract: 2/2');
+const previewQuestion = previewMemoryRoute({ type: 'session-signal', summary: 'Jag använder nästan alltid Telegram för agenterna; behöver Cai en separat agent som granskar Cai?' });
+assert.equal(previewQuestion.materialization.outcome, 'blocked-exception');
+assert.equal(previewQuestion.exceptionReasons.includes('conversational-question'), true);
+console.log('memory routing preview contract: 4/4');
 
 const envelope = '{"type":"response_item","todo":"next step: create a fake task","session_id":"c4fd701b"}';
 assert.equal(isTransportEnvelopeLine(envelope), true);

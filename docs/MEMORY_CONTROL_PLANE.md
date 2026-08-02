@@ -13,6 +13,10 @@ Safe, high-confidence routes leave the human queue automatically. Knowledge/wiki
 `extracted`; discarded noise is archived; other accepted routes retain the legacy `promoted`
 status for compatibility. This status means routed by the control plane, not manually promoted.
 
+Conversational questions, including longer mixed context that ends in a question, are held for
+review instead of being materialized automatically. Durable preferences or decisions must be
+distilled into a standalone outcome before they enter memory.
+
 Only exceptions require review: sensitive content, contradictions, low confidence, and actual
 strategy/preference changes. Action Center filters routed items accordingly. Legacy rows without
 control-plane metadata remain reviewable so the rollout does not hide existing work.
