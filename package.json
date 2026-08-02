@@ -33,6 +33,7 @@
     "check:openclaw-backup:secure": "node scripts/openclaw-backup-integration.mjs --require-secure",
     "check:proactivity": "node scripts/proactivity-regression-harness.mjs",
     "check:context-proactivity": "node scripts/context-dependent-proactivity-eval.mjs",
+    "check:cai-oversight": "node scripts/cai-oversight-contract.mjs",
     "check:qa-strategy": "node scripts/qa-strategy-contract-harness.mjs",
     "check:qaa-positioning": "node scripts/qaa-positioning-guard.mjs",
     "lab:weekly": "node scripts/weekly-wild-lab.mjs",
