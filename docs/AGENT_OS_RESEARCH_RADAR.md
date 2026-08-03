@@ -2,7 +2,59 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-07-27
+Last scan: 2026-08-03
+
+## 2026-08-03 - Prospective-memory intention ledger
+
+State: `ready-small`
+
+High-signal pattern: assistant memory must cover not only facts from the past but intentions that should become actionable at a future time, event, or state. PM-Bench separates this "prospective memory" from ordinary recall: an agent must continue other work, notice when a deferred intention becomes due, and correctly handle rescheduling, cancellation, and prior completion. Across eight models and eight agent configurations, its strongest reported setup reached 65.1% F1, and no single memory strategy dominated.
+
+Why this matters for Agent OS:
+
+- Tasks and cron jobs cover explicit work and fixed schedules, while memory captures durable context. Neither is a typed source of truth for commitments such as "when X happens, revisit Y" before the triggering event exists or its timing is known.
+- Free-text memory can preserve the sentence but still fail at the important part: recognizing the cue, firing once, and suppressing a superseded, cancelled, or already fulfilled intention.
+- The smallest useful addition is not another reminder UI or autonomous scheduler. It is a local intention-ledger contract plus deterministic fixtures that prove lifecycle and cue semantics before any live materialization is considered.
+
+Safe internal build candidate:
+
+- Add bridge-free candidate `prospective-memory-intention-ledger-v0` to `docs/TASKS.md`.
+- V0 should model `pending|due|completed|cancelled|superseded` intentions with time-, event-, or state-based cues, provenance, replacement links, and a stable firing key. Test one-shot delivery, rescheduling, cancellation, already-completed suppression, and unrelated ongoing work.
+- Keep external sends, live cron creation, polling, calendar writes, and automatic task creation out of scope. A due fixture may emit a local review candidate only.
+
+Source reviewed:
+
+- https://arxiv.org/abs/2607.12385
+
+Note: PM-Bench is a July 2026 preprint and a simulated seven-day text environment. Its useful contribution here is the failure taxonomy and evaluation shape, not a claim that its model ranking transfers directly to Felipe's workflows.
+
+## 2026-08-01 - Independent Cai oversight contract
+
+State: `closed-v0`
+
+High-signal pattern: Felipe explicitly asked whether Cai needs a separate agent that checks Cai. Existing Agent OS checks cover deterministic readiness, proactivity, lane visibility, and audit events, but there is no single independent review contract that evaluates Cai's claims against evidence and escalates only material mismatches.
+
+Why this matters for Agent OS:
+
+- Self-evolution should not rely only on the same agent proposing, implementing, and judging its own work.
+- A useful V0 is an offline review receipt over existing artifacts: claimed outcome, cited evidence, guardrails, verification result, and verdict `pass|needs-review|blocked`.
+- The reviewer must not become another noisy always-on persona. It should sample completed/high-risk autonomous work, deduplicate findings, and create at most one actionable review item for a stable evidence gap.
+
+Candidate: `independent-cai-oversight-contract-v0`.
+
+Payoff: catch unsupported completion claims, missing verification, guardrail drift, and self-review blind spots without adding routine Telegram noise.
+
+Risk: a second agent can create circular bureaucracy or confidently repeat Cai's mistake. Keep V0 local, artifact-based, deterministic where possible, and require explicit evidence links; no live scheduler, external messages, secrets, model/provider changes, or broad permissions.
+
+Verification hypothesis: fixtures should accept a completed action with resolvable evidence, reject a completion claim with missing or contradictory evidence, route an approval-boundary violation to `needs-review`, and deduplicate repeated findings by source action plus evidence hash.
+
+Evidence:
+
+- `/root/.openclaw/workspace/memory/2026-07-31.md` - Felipe asked for an agent that keeps track of Cai.
+- `npm run self-evolution:research` - 2026-08-01 returned `no-action`, showing the current signal scorer does not yet promote this oversight need.
+- `docs/AGENT_EVALS.md`, `docs/BRIDGE_CONTRACTS.md`, and existing readiness checks provide components but not an independent completion-review receipt.
+
+Closed 2026-08-03: V0 is implemented as the bridge-free receipt contract in `docs/CAI_OVERSIGHT_RECEIPTS.md`, the deterministic fixture suite in `evals/cai-oversight-v0.json`, and `npm run check:cai-oversight`. Verification passed 6/6 fixtures. The implementation remains deliberately offline: no live reviewer, scheduler, external notification, secret access, or corrective action was added. Any live sampling or Inbox Radar integration is a separate post-V0 decision.
 
 ## 2026-07-27 - Proactivity must be scored separately from completion
 

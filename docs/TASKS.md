@@ -55,6 +55,36 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `prospective-memory-intention-ledger-v0`
+
+```json
+{
+  "id": "prospective-memory-intention-ledger-v0",
+  "title": "Test future-intention lifecycle and cue handling",
+  "description": "Define a local prospective-memory ledger that preserves deferred intentions and makes them actionable exactly once when a supported time, event, or state cue occurs.\n\n## Acceptance criteria\n\n- Define an intention record with source/provenance, normalized intent, cue type and condition, `pending|due|completed|cancelled|superseded` status, created/updated timestamps, stable firing key, and optional replacement link.\n- Keep retrospective facts, executable tasks, fixed cron schedules, and prospective intentions distinct; document when an intention may become a reviewable task candidate.\n- Add deterministic fixtures for a time cue, event cue, state cue, unrelated ongoing work, rescheduling that supersedes the old cue, cancellation, already-completed suppression, and repeated-cue deduplication.\n- A due intention must emit at most one local review candidate per stable firing key; cancelled, superseded, completed, or unmatched intentions emit nothing.\n- Record verification and remaining product decisions in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local contract and deterministic fixtures only for V0; no live cron creation, polling, calendar writes, external messages, automatic bridge/task writes, secrets, or model/provider changes.\n- Do not infer commitments from generic conversation. Require an explicit intention or an existing supported internal record with provenance.\n- Expiration, cancellation, and replacement must fail safe; never revive an obsolete intention from stale memory.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-08-03 prospective-memory research.\n- PM-Bench (arXiv:2607.12385) - evaluates delayed intentions during ongoing activity, including due-cue recognition, rescheduling, cancellation, and prior fulfillment.",
+  "status": "backlog",
+  "priority": 74,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
+### `independent-cai-oversight-contract-v0`
+
+```json
+{
+  "id": "independent-cai-oversight-contract-v0",
+  "title": "Define independent evidence review for Cai completion claims",
+  "description": "Define a local, bridge-free review receipt that independently checks whether Cai's claimed completed outcome is supported by resolvable evidence and obeyed its approval boundary.\n\n## Acceptance criteria\n\n- Define a receipt with source action ID, claimed outcome, evidence references, guardrail/approval classification, verifier version, evidence hash, timestamp, and verdict `pass|needs-review|blocked`.\n- Accept a completed action only when each required evidence reference resolves and supports the claimed outcome.\n- Route missing or contradictory evidence, an approval-boundary violation, or unverifiable evidence to `needs-review` or `blocked`; never silently upgrade a claim.\n- Deduplicate repeated findings by stable source action plus evidence hash, emitting at most one actionable review item for the same gap.\n- Add deterministic fixtures for a supported completion, missing evidence, contradictory evidence, approval-boundary violation, and duplicate finding.\n- Record verification and any remaining decision point in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local docs and deterministic fixtures only for V0; no live reviewer scheduler, external messages, secrets, provider/model changes, bridge writes, or broad permissions.\n- Review artifacts must contain normalized references and summaries only; do not store raw chat, credentials, or sensitive payloads.\n- Keep the receipt connector-neutral and separate it from the agent that made the claim.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-08-01 independent Cai oversight contract research.\n- `docs/AGENT_EVALS.md` and `docs/BRIDGE_CONTRACTS.md` - current eval/readiness and task-event components, without a completion-review receipt.",
+  "status": "done",
+  "priority": 68,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `context-dependent-proactivity-eval-v0`
 
 ```json
