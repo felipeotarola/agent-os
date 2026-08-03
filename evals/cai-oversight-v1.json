@@ -1,0 +1,88 @@
+{
+  "suite": "cai-oversight-v1-daily-signals",
+  "description": "Deterministic, read-only daily signal review. Alerts require material, concrete, safe evidence.",
+  "cases": [
+    {
+      "id": "no-op-and-known-noise",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "active-goal", "id": "goal-healthy", "state": "active", "material": false },
+          { "kind": "agent-os-change", "id": "known-doc-edit", "state": "decision-required", "material": true, "known": true, "evidence": { "ref": "git:abc123", "observed": "Known documentation-only edit" } },
+          { "kind": "agent-status", "id": "cai", "state": "healthy", "material": false }
+        ]
+      },
+      "expected": { "status": "clear", "reason": "no-material-evidence", "alerts": [] }
+    },
+    {
+      "id": "false-positive-one-cron-failure",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "cron-error", "id": "morning-brief", "state": "failing", "material": true, "consecutiveFailures": 1, "evidence": { "ref": "cron:morning-brief#run-77", "observed": "One transient timeout" } }
+        ]
+      },
+      "expected": { "status": "clear", "reason": "no-material-evidence", "alerts": [] }
+    },
+    {
+      "id": "missing-evidence-fails-closed",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "active-goal", "id": "sbab-budget", "state": "blocked", "material": true }
+        ]
+      },
+      "expected": { "status": "held", "reason": "material-signal-without-safe-concrete-evidence", "alerts": [] }
+    },
+    {
+      "id": "material-goal-blocker-with-evidence",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "active-goal", "id": "sbab-budget", "state": "blocked", "material": true, "evidence": { "ref": "LIFE_OS.md#SBAB", "observed": "Budget decision is blocked pending Wint confirmation" } }
+        ]
+      },
+      "expected": { "status": "alert", "reason": "material-evidence-found", "alerts": [{ "id": "sbab-budget", "category": "active-goal-blocked", "evidence": { "ref": "LIFE_OS.md#SBAB", "observed": "Budget decision is blocked pending Wint confirmation" } }] }
+    },
+    {
+      "id": "material-agent-os-decision-with-evidence",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "agent-os-change", "id": "gateway-exposure", "state": "decision-required", "material": true, "known": false, "evidence": { "ref": "openclaw-status#network", "observed": "SSH remains publicly reachable on port 22; firewall decision is pending" } }
+        ]
+      },
+      "expected": { "status": "alert", "reason": "material-evidence-found", "alerts": [{ "id": "gateway-exposure", "category": "agent-os-decision-required", "evidence": { "ref": "openclaw-status#network", "observed": "SSH remains publicly reachable on port 22; firewall decision is pending" } }] }
+    },
+    {
+      "id": "repeated-cron-failure-with-evidence",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "cron-error", "id": "morning-brief", "state": "failing", "material": true, "consecutiveFailures": 3, "evidence": { "ref": "cron:morning-brief#run-79", "observed": "Three consecutive runs failed with exit code 1" } }
+        ]
+      },
+      "expected": { "status": "alert", "reason": "material-evidence-found", "alerts": [{ "id": "morning-brief", "category": "cron-repeated-failure", "evidence": { "ref": "cron:morning-brief#run-79", "observed": "Three consecutive runs failed with exit code 1" } }] }
+    },
+    {
+      "id": "stale-agent-with-evidence",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": [], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "agent-status", "id": "radar", "state": "stale", "material": true, "evidence": { "ref": "agents:radar#last-seen", "observed": "No successful heartbeat in 24 hours" } }
+        ]
+      },
+      "expected": { "status": "alert", "reason": "material-evidence-found", "alerts": [{ "id": "radar", "category": "agent-unhealthy", "evidence": { "ref": "agents:radar#last-seen", "observed": "No successful heartbeat in 24 hours" } }] }
+    },
+    {
+      "id": "unsafe-policy-is-held",
+      "run": {
+        "policy": { "mode": "read-only", "secretAccess": false, "automatedActions": ["restart gateway"], "closures": [], "outboundMessages": [] },
+        "signals": [
+          { "kind": "cron-error", "id": "brief", "state": "failing", "material": true, "consecutiveFailures": 3, "evidence": { "ref": "cron:brief#run-21", "observed": "Three consecutive failures" } }
+        ]
+      },
+      "expected": { "status": "held", "reason": "unsafe-or-non-read-only-policy", "alerts": [] }
+    }
+  ]
+}
