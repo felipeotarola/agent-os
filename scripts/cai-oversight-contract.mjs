@@ -92,6 +92,13 @@ function reviewV1(run) {
     return { status: 'held', reason: 'unsafe-or-non-read-only-policy', alerts: [] };
   }
 
+  const hasMissingMaterialEvidence = (run.signals ?? []).some(
+    (signal) => signal.material && !isConcreteEvidence(signal.evidence)
+  );
+  if (hasMissingMaterialEvidence) {
+    return { status: 'held', reason: 'material-signal-without-safe-concrete-evidence', alerts: [] };
+  }
+
   const alerts = [];
   for (const signal of run.signals ?? []) {
     const category = materialSignal(signal);
@@ -106,13 +113,6 @@ function reviewV1(run) {
       category,
       evidence: { ref: signal.evidence.ref, observed: signal.evidence.observed },
     });
-  }
-
-  const hasMissingMaterialEvidence = (run.signals ?? []).some(
-    (signal) => signal.material && !isConcreteEvidence(signal.evidence)
-  );
-  if (hasMissingMaterialEvidence && alerts.length === 0) {
-    return { status: 'held', reason: 'material-signal-without-safe-concrete-evidence', alerts: [] };
   }
 
   return { status: alerts.length ? 'alert' : 'clear', reason: alerts.length ? 'material-evidence-found' : 'no-material-evidence', alerts };
