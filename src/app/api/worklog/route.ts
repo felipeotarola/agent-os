@@ -24,6 +24,19 @@ export async function POST(request: NextRequest) {
           source: 'cockpit'
         })
       });
+    } else if (kind === 'session-correction') {
+      await bridgeRequest('/worklog/sessions', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          id: String(form.get('sessionId') ?? ''),
+          startTime: String(form.get('startTime') ?? ''),
+          endTime: String(form.get('endTime') ?? ''),
+          locationType: String(form.get('locationType') ?? 'unknown'),
+          note: String(form.get('note') ?? ''),
+          reason: String(form.get('reason') ?? 'Corrected in Worklog'),
+          source: 'cockpit'
+        })
+      });
     } else if (kind === 'note') {
       await bridgeRequest('/worklog/notes', {
         method: 'POST',

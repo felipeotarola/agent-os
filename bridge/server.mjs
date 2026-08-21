@@ -2541,7 +2541,20 @@ function worklogTimestamp(date, time) {
   if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
   const [hours, minutes] = value.split(':').map(Number);
   if (hours > 23 || minutes > 59) return null;
-  return `${date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+02:00`;
+  const [year, month, day] = date.split('-').map(Number);
+  const wallClock = Date.UTC(year, month - 1, day, hours, minutes, 0);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  });
+  let candidate = wallClock;
+  // Resolve a Stockholm wall-clock time without assuming a fixed CET/CEST offset.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(candidate)).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+    const renderedAsUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    candidate = wallClock - (renderedAsUtc - candidate);
+  }
+  return new Date(candidate).toISOString();
 }
 
 function worklogDurationMinutes(startedAt, endedAt) {
@@ -2704,6 +2717,16 @@ async function createWorkRateRule(input) {
 
 async function createWorkSession(input) {
   await ensureWorklogTables();
+  const sourceRef = String(input.sourceRef ?? '').trim();
+  if (sourceRef) {
+    const existing = await sql`
+      select s.id, s.business_date as "businessDate", s.started_at as "startedAt", s.ended_at as "endedAt", s.location_type as "locationType", s.status, s.note
+      from work_entry_events e join work_sessions s on s.id = e.entity_id
+      where e.entity_type = 'work_session' and e.action = 'created' and e.source_ref = ${sourceRef}
+      limit 1
+    `;
+    if (existing.length) return { ...mapWorkSession(existing[0]), duplicate: true };
+  }
   const businessDate = normalizeWorkDate(input.businessDate);
   const startedAt = worklogTimestamp(businessDate, input.startTime) ?? (input.startedAt ? new Date(input.startedAt).toISOString() : null);
   const endedAt = worklogTimestamp(businessDate, input.endTime) ?? (input.endedAt ? new Date(input.endedAt).toISOString() : null);
@@ -2717,7 +2740,33 @@ async function createWorkSession(input) {
     values (${id}, ${businessDate}, ${startedAt}, ${endedAt}, ${locationType}, ${endedAt ? 'complete' : 'open'}, ${String(input.note ?? '').trim()}, ${String(input.source ?? 'cockpit')})
     returning id, business_date as "businessDate", started_at as "startedAt", ended_at as "endedAt", location_type as "locationType", status, note
   `;
-  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, source_ref, payload) values (${randomUUID()}, 'work_session', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${String(input.sourceRef ?? '')}, ${sql.json({ businessDate, startedAt, endedAt, locationType })})`;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, source_ref, payload) values (${randomUUID()}, 'work_session', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${sourceRef}, ${sql.json({ businessDate, startedAt, endedAt, locationType })})`;
+  return mapWorkSession(rows[0]);
+}
+
+async function updateWorkSession(input) {
+  await ensureWorklogTables();
+  const id = String(input.id ?? '').trim();
+  if (!id) { const error = new Error('session id is required'); error.status = 400; throw error; }
+  const current = await sql`
+    select id, business_date as "businessDate", started_at as "startedAt", ended_at as "endedAt", location_type as "locationType", status, note
+    from work_sessions where id = ${id} limit 1
+  `;
+  if (!current.length) { const error = new Error('work session not found'); error.status = 404; throw error; }
+  const session = current[0];
+  const businessDate = worklogDateLabel(session.businessDate);
+  const startedAt = Object.hasOwn(input, 'startTime') ? worklogTimestamp(businessDate, input.startTime) : new Date(session.startedAt).toISOString();
+  const endedAt = Object.hasOwn(input, 'endTime') ? worklogTimestamp(businessDate, input.endTime) : (session.endedAt ? new Date(session.endedAt).toISOString() : null);
+  if (!startedAt || (endedAt && !worklogDurationMinutes(startedAt, endedAt))) { const error = new Error('end time must be after start time'); error.status = 400; throw error; }
+  const locationType = Object.hasOwn(input, 'locationType') ? String(input.locationType) : session.locationType;
+  if (!['office', 'home', 'client_site', 'travel', 'other', 'unknown'].includes(locationType)) { const error = new Error('invalid location type'); error.status = 400; throw error; }
+  const note = Object.hasOwn(input, 'note') ? String(input.note ?? '').trim() : session.note ?? '';
+  const rows = await sql`
+    update work_sessions set started_at = ${startedAt}, ended_at = ${endedAt}, location_type = ${locationType}, note = ${note}, status = ${endedAt ? 'complete' : 'open'}, updated_at = now()
+    where id = ${id}
+    returning id, business_date as "businessDate", started_at as "startedAt", ended_at as "endedAt", location_type as "locationType", status, note
+  `;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, source_ref, payload) values (${randomUUID()}, 'work_session', ${id}, 'corrected', ${String(input.source ?? 'cockpit')}, ${String(input.sourceRef ?? '')}, ${sql.json({ startedAt, endedAt, locationType, reason: String(input.reason ?? '').trim() })})`;
   return mapWorkSession(rows[0]);
 }
 
@@ -7667,6 +7716,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/worklog/sessions') {
       return send(res, 201, await createWorkSession(await readJson(req)));
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/worklog/sessions') {
+      return send(res, 200, await updateWorkSession(await readJson(req)));
     }
 
     if (req.method === 'POST' && url.pathname === '/worklog/notes') {

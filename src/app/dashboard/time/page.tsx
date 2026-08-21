@@ -39,6 +39,17 @@ function timeLabel(iso: string) {
   }).format(new Date(iso));
 }
 
+function timeInputValue(iso: string | null) {
+  return iso
+    ? new Intl.DateTimeFormat('sv-SE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+        timeZone: 'Europe/Stockholm'
+      }).format(new Date(iso))
+    : '';
+}
+
 function stockholmToday() {
   return new Intl.DateTimeFormat('sv-SE', {
     year: 'numeric',
@@ -344,6 +355,49 @@ export default async function WorklogPage({
                     ? 'Open'
                     : minutesLabel(session.durationMinutes)}
                 </Badge>
+                <details className='w-full border-t pt-3'>
+                  <summary className='cursor-pointer text-muted-foreground'>
+                    Correct this session
+                  </summary>
+                  <form
+                    action='/api/worklog'
+                    method='post'
+                    className='mt-3 grid gap-2 sm:grid-cols-2'
+                  >
+                    <input type='hidden' name='kind' value='session-correction' />
+                    <input type='hidden' name='businessDate' value={date} />
+                    <input type='hidden' name='sessionId' value={session.id} />
+                    <Input
+                      name='startTime'
+                      type='time'
+                      defaultValue={timeInputValue(session.startedAt)}
+                      required
+                    />
+                    <Input
+                      name='endTime'
+                      type='time'
+                      defaultValue={timeInputValue(session.endedAt)}
+                    />
+                    <select
+                      name='locationType'
+                      defaultValue={session.locationType}
+                      className='border-input bg-background h-9 rounded-md border px-3 text-sm'
+                    >
+                      <option value='office'>Office</option>
+                      <option value='home'>Home</option>
+                      <option value='other'>Other</option>
+                    </select>
+                    <Input name='note' defaultValue={session.note} placeholder='Optional note' />
+                    <Input
+                      name='reason'
+                      defaultValue='Corrected in Worklog'
+                      className='sm:col-span-2'
+                    />
+                    <Button type='submit' variant='outline' className='sm:col-span-2'>
+                      Save correction
+                    </Button>
+                  </form>
+                </details>
               </div>
             ))}
             {snapshot.notes.map((note) => (
