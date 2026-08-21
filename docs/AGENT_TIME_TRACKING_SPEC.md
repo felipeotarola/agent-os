@@ -176,6 +176,10 @@ Supports the current SBAB engagement and future work without hard-coding one emp
 Multiple sessions per day are allowed. Duration is derived, never manually duplicated as the
 canonical fact.
 
+A workday may deliberately mix locations: `home 07:30–10:00 → office 10:45–15:30 → home
+16:15–18:00`. The timeline keeps every session and location; the day total is the sum of completed
+sessions. Agent OS labels the day `Mixed` rather than flattening it to one location.
+
 ### `work_breaks`
 
 - `id`, `work_session_id`, `started_at`, `ended_at`

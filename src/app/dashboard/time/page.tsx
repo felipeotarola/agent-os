@@ -56,7 +56,9 @@ export default async function WorklogPage({
   const params = await searchParams;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : stockholmToday();
   const snapshot = await getWorklogSnapshot(date);
-  const sourceUnavailable = snapshot.source !== 'bridge:postgres:worklog';
+  const sourceUnavailable = !snapshot.source.startsWith('bridge:');
+  const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
+  const mixedDay = locations.length > 1;
 
   return (
     <PageContainer
@@ -93,6 +95,7 @@ export default async function WorklogPage({
           <Badge variant={sourceUnavailable ? 'destructive' : 'secondary'}>
             {sourceUnavailable ? 'Unavailable' : 'Supabase worklog'}
           </Badge>
+          {mixedDay && <Badge variant='secondary'>Mixed day · {locations.join(' → ')}</Badge>}
           {params.created && <span className='text-muted-foreground text-sm'>Saved.</span>}
           {params.error && (
             <span className='text-destructive text-sm'>
@@ -117,9 +120,10 @@ export default async function WorklogPage({
                 </dd>
               </div>
               <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Sessions</dt>
+                <dt className='text-muted-foreground text-xs'>Sessions / location</dt>
                 <dd className='mt-1 text-xl font-semibold tabular-nums'>
                   {snapshot.sessions.length}
+                  {mixedDay ? ' · mixed' : ''}
                 </dd>
               </div>
             </dl>
@@ -227,7 +231,11 @@ export default async function WorklogPage({
         <Card>
           <CardHeader>
             <CardTitle>Day timeline</CardTitle>
-            <CardDescription>Facts captured for {date}.</CardDescription>
+            <CardDescription>
+              {mixedDay
+                ? `Mixed workday: ${locations.join(' → ')}.`
+                : `Facts captured for ${date}.`}
+            </CardDescription>
           </CardHeader>
           <CardContent className='space-y-3'>
             {snapshot.sessions.length === 0 &&
