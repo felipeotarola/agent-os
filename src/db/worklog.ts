@@ -45,7 +45,16 @@ export const worklogSnapshotSchema = z.object({
     expenseMinor: z.number(),
     currency: z.string(),
     incompleteSessions: z.number()
-  })
+  }),
+  financials: z.union([
+    z.object({ revealed: z.literal(false) }),
+    z.object({
+      revealed: z.literal(true),
+      rateMinor: z.number().nullable(),
+      currency: z.string(),
+      estimatedRevenueMinor: z.number().nullable()
+    })
+  ])
 });
 
 export type WorklogSnapshot = z.infer<typeof worklogSnapshotSchema>;
@@ -63,16 +72,26 @@ export const emptyWorklogSnapshot: WorklogSnapshot = {
     expenseMinor: 0,
     currency: 'SEK',
     incompleteSessions: 0
-  }
+  },
+  financials: { revealed: false }
 };
 
-export async function getWorklogSnapshot(date?: string): Promise<WorklogSnapshot> {
+export async function getWorklogSnapshot(
+  date?: string,
+  includeFinancials = false
+): Promise<WorklogSnapshot> {
   if (!hasBridge()) return { ...emptyWorklogSnapshot, businessDate: date ?? '' };
   try {
     return worklogSnapshotSchema.parse(
-      await bridgeRequest(`/worklog/snapshot${date ? `?date=${encodeURIComponent(date)}` : ''}`, {
-        cacheMs: 3000
-      })
+      await bridgeRequest(
+        `/worklog/snapshot?${new URLSearchParams({
+          ...(date ? { date } : {}),
+          ...(includeFinancials ? { includeFinancials: '1' } : {})
+        })}`,
+        {
+          cacheMs: 3000
+        }
+      )
     );
   } catch (error) {
     console.error('Worklog bridge request failed', error);

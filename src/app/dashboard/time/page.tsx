@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getWorklogSnapshot } from '@/db/worklog';
+import { verifySessionToken } from '@/lib/auth/session';
+import { cookies } from 'next/headers';
 
 export const metadata = { title: 'Agent OS: Worklog' };
 
@@ -51,11 +53,19 @@ function stockholmToday() {
 export default async function WorklogPage({
   searchParams
 }: {
-  searchParams: Promise<{ date?: string; created?: string; error?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    created?: string;
+    error?: string;
+    finance?: string;
+    revealError?: string;
+  }>;
 }) {
   const params = await searchParams;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : stockholmToday();
-  const snapshot = await getWorklogSnapshot(date);
+  const revealToken = (await cookies()).get('agent_os_worklog_finance_reveal')?.value;
+  const financeRevealed = Boolean(await verifySessionToken(revealToken));
+  const snapshot = await getWorklogSnapshot(date, financeRevealed);
   const sourceUnavailable = !snapshot.source.startsWith('bridge:');
   const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
   const mixedDay = locations.length > 1;
@@ -106,7 +116,7 @@ export default async function WorklogPage({
 
         <Card className='gap-0 overflow-hidden py-0'>
           <CardContent className='px-0'>
-            <dl className='grid divide-x sm:grid-cols-3'>
+            <dl className='grid divide-x sm:grid-cols-4'>
               <div className='p-4'>
                 <dt className='text-muted-foreground text-xs'>Worked</dt>
                 <dd className='mt-1 text-xl font-semibold tabular-nums'>
@@ -126,7 +136,75 @@ export default async function WorklogPage({
                   {mixedDay ? ' · mixed' : ''}
                 </dd>
               </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Estimated revenue</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {snapshot.financials.revealed
+                    ? snapshot.financials.estimatedRevenueMinor === null
+                      ? '—'
+                      : moneyLabel(
+                          snapshot.financials.estimatedRevenueMinor,
+                          snapshot.financials.currency
+                        )
+                    : '••••'}
+                </dd>
+              </div>
             </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Private financials</CardTitle>
+            <CardDescription>
+              {snapshot.financials.revealed
+                ? 'Visible for this Worklog session. The reveal expires after five minutes.'
+                : 'Hourly rate and revenue are excluded from this page until you re-authenticate.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {snapshot.financials.revealed ? (
+              <div className='flex flex-wrap gap-4 text-sm'>
+                <span>
+                  Rate:{' '}
+                  <strong className='tabular-nums'>
+                    {snapshot.financials.rateMinor === null
+                      ? '—'
+                      : moneyLabel(snapshot.financials.rateMinor, snapshot.financials.currency) +
+                        '/h'}
+                  </strong>
+                </span>
+                <span>
+                  Completed work only: <strong>{minutesLabel(snapshot.totals.netMinutes)}</strong>
+                </span>
+              </div>
+            ) : (
+              <form
+                action='/api/worklog/reveal'
+                method='post'
+                className='flex max-w-md flex-wrap gap-2'
+              >
+                <input type='hidden' name='date' value={date} />
+                <Label htmlFor='worklog-reveal-password' className='sr-only'>
+                  Password
+                </Label>
+                <Input
+                  id='worklog-reveal-password'
+                  name='password'
+                  type='password'
+                  autoComplete='current-password'
+                  placeholder='Agent OS password'
+                  required
+                />
+                <Button type='submit' variant='outline'>
+                  <Icons.eye data-icon='inline-start' />
+                  Reveal
+                </Button>
+                {params.revealError && (
+                  <span className='text-destructive self-center text-sm'>Wrong password.</span>
+                )}
+              </form>
+            )}
           </CardContent>
         </Card>
 

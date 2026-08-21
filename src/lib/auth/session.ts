@@ -66,7 +66,7 @@ function getAuthSecret() {
 
 export { sessionCookieName, sessionMaxAgeSeconds };
 
-export async function createSessionToken(email: string) {
+export async function createSessionToken(email: string, ttlSeconds = sessionMaxAgeSeconds) {
   const secret = getAuthSecret();
   if (!secret) {
     throw new Error('AUTH_SECRET is required');
@@ -74,7 +74,7 @@ export async function createSessionToken(email: string) {
 
   const payload: SessionPayload = {
     email,
-    exp: Math.floor(Date.now() / 1000) + sessionMaxAgeSeconds
+    exp: Math.floor(Date.now() / 1000) + ttlSeconds
   };
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signature = await hmac(encodedPayload, secret);

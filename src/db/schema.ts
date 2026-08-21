@@ -357,6 +357,17 @@ export const workEntryEvents = pgTable('work_entry_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const workRateRules = pgTable('work_rate_rules', {
+  id: text('id').primaryKey(),
+  effectiveDate: date('effective_date', { mode: 'string' }).notNull(),
+  rateMinor: integer('rate_minor').notNull(),
+  currency: text('currency').notNull().default('SEK'),
+  visibility: text('visibility').notNull().default('private'),
+  source: text('source').notNull().default('cockpit'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -380,3 +391,4 @@ export type WorkEntryEvent = typeof workEntryEvents.$inferSelect;
 export type WorkSession = typeof workSessions.$inferSelect;
 export type WorkNote = typeof workNotes.$inferSelect;
 export type WorkExpense = typeof workExpenses.$inferSelect;
+export type WorkRateRule = typeof workRateRules.$inferSelect;

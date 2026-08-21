@@ -2551,6 +2551,12 @@ function worklogDurationMinutes(startedAt, endedAt) {
   return Math.round((end - start) / 60000);
 }
 
+function worklogDateLabel(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value ?? '') : date.toISOString().slice(0, 10);
+}
+
 async function ensureWorklogTables() {
   await sql`
     create table if not exists work_sessions (
@@ -2605,6 +2611,18 @@ async function ensureWorklogTables() {
       created_at timestamptz not null default now()
     )
   `;
+  await sql`
+    create table if not exists work_rate_rules (
+      id text primary key,
+      effective_date date not null,
+      rate_minor integer not null,
+      currency text not null default 'SEK',
+      visibility text not null default 'private',
+      source text not null default 'cockpit',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
   await createIndexIfAllowed(
     sql`create index if not exists work_sessions_date_idx on work_sessions (business_date desc, started_at asc)`,
     'work_sessions_date_idx'
@@ -2618,7 +2636,7 @@ async function ensureWorklogTables() {
 function mapWorkSession(row) {
   return {
     id: row.id,
-    businessDate: String(row.businessDate),
+    businessDate: worklogDateLabel(row.businessDate),
     startedAt: new Date(row.startedAt).toISOString(),
     endedAt: row.endedAt ? new Date(row.endedAt).toISOString() : null,
     locationType: row.locationType,
@@ -2648,11 +2666,40 @@ async function worklogSnapshot(input = {}) {
   const mappedSessions = sessions.map(mapWorkSession);
   const grossMinutes = mappedSessions.reduce((sum, session) => sum + (session.durationMinutes ?? 0), 0);
   const expenseMinor = expenses.reduce((sum, expense) => sum + Number(expense.amountMinor ?? 0), 0);
+  const includeFinancials = Boolean(input.includeFinancials);
+  const activeRate = includeFinancials
+    ? await sql`
+        select rate_minor as "rateMinor", currency from work_rate_rules
+        where effective_date <= ${date} and visibility = 'private'
+        order by effective_date desc, created_at desc limit 1
+      `
+    : [];
+  const rate = activeRate[0] ?? null;
+  const estimatedRevenueMinor = rate
+    ? Math.round((grossMinutes / 60) * Number(rate.rateMinor ?? 0))
+    : null;
   return {
     contract: 'agent-os.worklog.v1', source: `bridge:${dbSource.provider}:worklog`, businessDate: date,
-    sessions: mappedSessions, notes: notes.map((note) => ({ ...note, createdAt: new Date(note.createdAt).toISOString() })),
-    expenses, totals: { grossMinutes, netMinutes: grossMinutes, expenseMinor, currency: 'SEK', incompleteSessions: mappedSessions.filter((session) => !session.endedAt).length }
+    sessions: mappedSessions,
+    notes: notes.map((note) => ({ ...note, businessDate: worklogDateLabel(note.businessDate), createdAt: new Date(note.createdAt).toISOString() })),
+    expenses: expenses.map((expense) => ({ ...expense, businessDate: worklogDateLabel(expense.businessDate) })),
+    totals: { grossMinutes, netMinutes: grossMinutes, expenseMinor, currency: 'SEK', incompleteSessions: mappedSessions.filter((session) => !session.endedAt).length },
+    financials: includeFinancials ? { revealed: true, rateMinor: rate ? Number(rate.rateMinor) : null, currency: rate?.currency ?? 'SEK', estimatedRevenueMinor } : { revealed: false }
   };
+}
+
+async function createWorkRateRule(input) {
+  await ensureWorklogTables();
+  const rateMinor = Math.round(Number(input.rate ?? 0) * 100);
+  if (!Number.isFinite(rateMinor) || rateMinor <= 0) { const error = new Error('a positive hourly rate is required'); error.status = 400; throw error; }
+  const id = randomUUID(); const effectiveDate = normalizeWorkDate(input.effectiveDate);
+  const rows = await sql`
+    insert into work_rate_rules (id, effective_date, rate_minor, currency, visibility, source)
+    values (${id}, ${effectiveDate}, ${rateMinor}, 'SEK', 'private', ${String(input.source ?? 'cockpit')})
+    returning id, effective_date as "effectiveDate", rate_minor as "rateMinor", currency, visibility
+  `;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, payload) values (${randomUUID()}, 'work_rate_rule', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${sql.json({ effectiveDate, visibility: 'private' })})`;
+  return rows[0];
 }
 
 async function createWorkSession(input) {
@@ -7615,7 +7662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/worklog/snapshot') {
-      return send(res, 200, await worklogSnapshot({ date: url.searchParams.get('date') }));
+      return send(res, 200, await worklogSnapshot({ date: url.searchParams.get('date'), includeFinancials: url.searchParams.get('includeFinancials') === '1' }));
     }
 
     if (req.method === 'POST' && url.pathname === '/worklog/sessions') {
@@ -7628,6 +7675,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/worklog/expenses') {
       return send(res, 201, await createWorkExpense(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/worklog/rates') {
+      return send(res, 201, await createWorkRateRule(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {
