@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { date, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
@@ -308,6 +308,55 @@ export const qaReportWriterTokens = pgTable('qa_report_writer_tokens', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const workSessions = pgTable('work_sessions', {
+  id: text('id').primaryKey(),
+  businessDate: date('business_date', { mode: 'string' }).notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  locationType: text('location_type').notNull().default('unknown'),
+  status: text('status').notNull().default('open'),
+  note: text('note').notNull().default(''),
+  source: text('source').notNull().default('cockpit'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const workNotes = pgTable('work_notes', {
+  id: text('id').primaryKey(),
+  workSessionId: text('work_session_id').references(() => workSessions.id),
+  businessDate: date('business_date', { mode: 'string' }).notNull(),
+  body: text('body').notNull(),
+  source: text('source').notNull().default('cockpit'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const workExpenses = pgTable('work_expenses', {
+  id: text('id').primaryKey(),
+  workSessionId: text('work_session_id').references(() => workSessions.id),
+  businessDate: date('business_date', { mode: 'string' }).notNull(),
+  category: text('category').notNull().default('other'),
+  amountMinor: integer('amount_minor').notNull(),
+  currency: text('currency').notNull().default('SEK'),
+  merchant: text('merchant').notNull().default(''),
+  note: text('note').notNull().default(''),
+  receiptStatus: text('receipt_status').notNull().default('missing'),
+  source: text('source').notNull().default('cockpit'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const workEntryEvents = pgTable('work_entry_events', {
+  id: text('id').primaryKey(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  action: text('action').notNull(),
+  source: text('source').notNull(),
+  sourceRef: text('source_ref').notNull().default(''),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export type Agent = typeof agents.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
@@ -327,3 +376,7 @@ export type QaReportRecord = typeof qaReports.$inferSelect;
 export type QaReportEvidenceAsset = typeof qaReportEvidenceAssets.$inferSelect;
 export type QaReportClaim = typeof qaReportClaims.$inferSelect;
 export type QaReportWriterToken = typeof qaReportWriterTokens.$inferSelect;
+export type WorkEntryEvent = typeof workEntryEvents.$inferSelect;
+export type WorkSession = typeof workSessions.$inferSelect;
+export type WorkNote = typeof workNotes.$inferSelect;
+export type WorkExpense = typeof workExpenses.$inferSelect;

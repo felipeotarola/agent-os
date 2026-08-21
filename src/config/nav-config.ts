@@ -26,6 +26,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Worklog',
+        url: '/dashboard/time',
+        icon: 'clock',
+        shortcut: ['w', 'l'],
+        items: []
+      },
+      {
         title: 'R&D Loops',
         url: '/dashboard/kanban/rnd-loops',
         icon: 'bulb',

@@ -2520,6 +2520,189 @@ function mapInboxItem(row) {
   };
 }
 
+function stockholmBusinessDate(value = new Date()) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+    .format(value)
+    .replaceAll('/', '-');
+}
+
+function normalizeWorkDate(value) {
+  const date = String(value ?? '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : stockholmBusinessDate();
+}
+
+function worklogTimestamp(date, time) {
+  const value = String(time ?? '').trim();
+  if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return `${date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+02:00`;
+}
+
+function worklogDurationMinutes(startedAt, endedAt) {
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return Math.round((end - start) / 60000);
+}
+
+async function ensureWorklogTables() {
+  await sql`
+    create table if not exists work_sessions (
+      id text primary key,
+      business_date date not null,
+      started_at timestamptz not null,
+      ended_at timestamptz,
+      location_type text not null default 'unknown',
+      status text not null default 'open',
+      note text not null default '',
+      source text not null default 'cockpit',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists work_notes (
+      id text primary key,
+      business_date date not null,
+      work_session_id text references work_sessions(id),
+      body text not null,
+      source text not null default 'cockpit',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists work_expenses (
+      id text primary key,
+      business_date date not null,
+      work_session_id text references work_sessions(id),
+      category text not null default 'other',
+      amount_minor integer not null,
+      currency text not null default 'SEK',
+      merchant text not null default '',
+      note text not null default '',
+      receipt_status text not null default 'missing',
+      source text not null default 'cockpit',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+  await sql`
+    create table if not exists work_entry_events (
+      id text primary key,
+      entity_type text not null,
+      entity_id text not null,
+      action text not null,
+      source text not null,
+      source_ref text not null default '',
+      payload jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await createIndexIfAllowed(
+    sql`create index if not exists work_sessions_date_idx on work_sessions (business_date desc, started_at asc)`,
+    'work_sessions_date_idx'
+  );
+  await createIndexIfAllowed(
+    sql`create index if not exists work_expenses_date_idx on work_expenses (business_date desc)`,
+    'work_expenses_date_idx'
+  );
+}
+
+function mapWorkSession(row) {
+  return {
+    id: row.id,
+    businessDate: String(row.businessDate),
+    startedAt: new Date(row.startedAt).toISOString(),
+    endedAt: row.endedAt ? new Date(row.endedAt).toISOString() : null,
+    locationType: row.locationType,
+    status: row.status,
+    note: row.note ?? '',
+    durationMinutes: row.endedAt ? worklogDurationMinutes(row.startedAt, row.endedAt) : null
+  };
+}
+
+async function worklogSnapshot(input = {}) {
+  await ensureWorklogTables();
+  const date = normalizeWorkDate(input.date);
+  const sessions = await sql`
+    select id, business_date as "businessDate", started_at as "startedAt", ended_at as "endedAt",
+      location_type as "locationType", status, note
+    from work_sessions where business_date = ${date} order by started_at asc
+  `;
+  const notes = await sql`
+    select id, business_date as "businessDate", work_session_id as "workSessionId", body, created_at as "createdAt"
+    from work_notes where business_date = ${date} order by created_at asc
+  `;
+  const expenses = await sql`
+    select id, business_date as "businessDate", work_session_id as "workSessionId", category,
+      amount_minor as "amountMinor", currency, merchant, note, receipt_status as "receiptStatus"
+    from work_expenses where business_date = ${date} order by created_at asc
+  `;
+  const mappedSessions = sessions.map(mapWorkSession);
+  const grossMinutes = mappedSessions.reduce((sum, session) => sum + (session.durationMinutes ?? 0), 0);
+  const expenseMinor = expenses.reduce((sum, expense) => sum + Number(expense.amountMinor ?? 0), 0);
+  return {
+    contract: 'agent-os.worklog.v1', source: `bridge:${dbSource.provider}:worklog`, businessDate: date,
+    sessions: mappedSessions, notes: notes.map((note) => ({ ...note, createdAt: new Date(note.createdAt).toISOString() })),
+    expenses, totals: { grossMinutes, netMinutes: grossMinutes, expenseMinor, currency: 'SEK', incompleteSessions: mappedSessions.filter((session) => !session.endedAt).length }
+  };
+}
+
+async function createWorkSession(input) {
+  await ensureWorklogTables();
+  const businessDate = normalizeWorkDate(input.businessDate);
+  const startedAt = worklogTimestamp(businessDate, input.startTime) ?? (input.startedAt ? new Date(input.startedAt).toISOString() : null);
+  const endedAt = worklogTimestamp(businessDate, input.endTime) ?? (input.endedAt ? new Date(input.endedAt).toISOString() : null);
+  if (!startedAt || (endedAt && !worklogDurationMinutes(startedAt, endedAt))) {
+    const error = new Error('A valid start time and an end after start are required'); error.status = 400; throw error;
+  }
+  const locationType = ['office', 'home', 'client_site', 'travel', 'other', 'unknown'].includes(String(input.locationType)) ? String(input.locationType) : 'unknown';
+  const id = randomUUID();
+  const rows = await sql`
+    insert into work_sessions (id, business_date, started_at, ended_at, location_type, status, note, source)
+    values (${id}, ${businessDate}, ${startedAt}, ${endedAt}, ${locationType}, ${endedAt ? 'complete' : 'open'}, ${String(input.note ?? '').trim()}, ${String(input.source ?? 'cockpit')})
+    returning id, business_date as "businessDate", started_at as "startedAt", ended_at as "endedAt", location_type as "locationType", status, note
+  `;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, source_ref, payload) values (${randomUUID()}, 'work_session', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${String(input.sourceRef ?? '')}, ${sql.json({ businessDate, startedAt, endedAt, locationType })})`;
+  return mapWorkSession(rows[0]);
+}
+
+async function createWorkNote(input) {
+  await ensureWorklogTables();
+  const body = String(input.body ?? '').trim();
+  if (!body) { const error = new Error('note body is required'); error.status = 400; throw error; }
+  const id = randomUUID(); const businessDate = normalizeWorkDate(input.businessDate);
+  const rows = await sql`
+    insert into work_notes (id, business_date, work_session_id, body, source)
+    values (${id}, ${businessDate}, ${String(input.workSessionId ?? '').trim() || null}, ${body}, ${String(input.source ?? 'cockpit')})
+    returning id, business_date as "businessDate", work_session_id as "workSessionId", body, created_at as "createdAt"
+  `;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, payload) values (${randomUUID()}, 'work_note', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${sql.json({ businessDate })})`;
+  return { ...rows[0], createdAt: new Date(rows[0].createdAt).toISOString() };
+}
+
+async function createWorkExpense(input) {
+  await ensureWorklogTables();
+  const amountMinor = Math.round(Number(input.amount ?? 0) * 100);
+  if (!Number.isFinite(amountMinor) || amountMinor <= 0) { const error = new Error('a positive expense amount is required'); error.status = 400; throw error; }
+  const businessDate = normalizeWorkDate(input.businessDate); const id = randomUUID();
+  const category = ['parking', 'travel', 'meal', 'equipment', 'other'].includes(String(input.category)) ? String(input.category) : 'other';
+  const rows = await sql`
+    insert into work_expenses (id, business_date, work_session_id, category, amount_minor, currency, merchant, note, receipt_status, source)
+    values (${id}, ${businessDate}, ${String(input.workSessionId ?? '').trim() || null}, ${category}, ${amountMinor}, 'SEK', ${String(input.merchant ?? '').trim()}, ${String(input.note ?? '').trim()}, ${String(input.receiptStatus ?? 'missing') === 'attached' ? 'attached' : 'missing'}, ${String(input.source ?? 'cockpit')})
+    returning id, business_date as "businessDate", work_session_id as "workSessionId", category, amount_minor as "amountMinor", currency, merchant, note, receipt_status as "receiptStatus"
+  `;
+  await sql`insert into work_entry_events (id, entity_type, entity_id, action, source, payload) values (${randomUUID()}, 'work_expense', ${id}, 'created', ${String(input.source ?? 'cockpit')}, ${sql.json({ businessDate, category, amountMinor })})`;
+  return rows[0];
+}
+
 async function inboxItemsSnapshot() {
   await ensureInboxItemsTable();
   const rows = await sql`
@@ -2600,6 +2783,7 @@ async function tasksSnapshot() {
   const columns = { backlog: [], in_progress: [], review: [], waiting: [], done: [] };
   for (const row of rows) {
     const task = mapTask(row);
+    if (task.status === 'cancelled') continue;
     const status = task.status in columns ? task.status : 'backlog';
     columns[status].push(task);
   }
@@ -7428,6 +7612,22 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/inbox/items') {
       return send(res, 201, await upsertInboxItem(await readJson(req)));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/worklog/snapshot') {
+      return send(res, 200, await worklogSnapshot({ date: url.searchParams.get('date') }));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/worklog/sessions') {
+      return send(res, 201, await createWorkSession(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/worklog/notes') {
+      return send(res, 201, await createWorkNote(await readJson(req)));
+    }
+
+    if (req.method === 'POST' && url.pathname === '/worklog/expenses') {
+      return send(res, 201, await createWorkExpense(await readJson(req)));
     }
 
     if (req.method === 'GET' && url.pathname === '/tasks/dispatch-summary') {
