@@ -59,6 +59,16 @@ export const worklogSnapshotSchema = z.object({
 
 export type WorklogSnapshot = z.infer<typeof worklogSnapshotSchema>;
 
+export type WorklogWeekSnapshot = {
+  startDate: string;
+  endDate: string;
+  snapshots: WorklogSnapshot[];
+  grossMinutes: number;
+  incompleteSessions: number;
+  estimatedRevenueMinor: number | null;
+  currency: string;
+};
+
 export const emptyWorklogSnapshot: WorklogSnapshot = {
   contract: 'agent-os.worklog.v1',
   source: 'unavailable',
@@ -97,4 +107,63 @@ export async function getWorklogSnapshot(
     console.error('Worklog bridge request failed', error);
     return { ...emptyWorklogSnapshot, source: 'bridge-error', businessDate: date ?? '' };
   }
+}
+
+function mondayFor(date: string) {
+  const value = new Date(`${date}T12:00:00Z`);
+  const weekday = value.getUTCDay();
+  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
+  value.setUTCDate(value.getUTCDate() - daysSinceMonday);
+  return value;
+}
+
+function isoDate(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+export async function getWorklogWeekSnapshot(
+  date: string,
+  includeFinancials = false
+): Promise<WorklogWeekSnapshot> {
+  const monday = mondayFor(date);
+  const dates = Array.from({ length: 5 }, (_, index) => {
+    const value = new Date(monday);
+    value.setUTCDate(monday.getUTCDate() + index);
+    return isoDate(value);
+  });
+  const snapshots = await Promise.all(
+    dates.map((businessDate) => getWorklogSnapshot(businessDate, includeFinancials))
+  );
+  const grossMinutes = snapshots.reduce(
+    (total, snapshot) => total + snapshot.totals.grossMinutes,
+    0
+  );
+  const incompleteSessions = snapshots.reduce(
+    (total, snapshot) => total + snapshot.totals.incompleteSessions,
+    0
+  );
+  const financialSnapshots = snapshots.filter(
+    (
+      snapshot
+    ): snapshot is WorklogSnapshot & {
+      financials: Extract<WorklogSnapshot['financials'], { revealed: true }>;
+    } => snapshot.financials.revealed
+  );
+  const estimatedRevenueMinor =
+    financialSnapshots.length === snapshots.length
+      ? financialSnapshots.reduce(
+          (total, snapshot) => total + (snapshot.financials.estimatedRevenueMinor ?? 0),
+          0
+        )
+      : null;
+
+  return {
+    startDate: dates[0],
+    endDate: dates[4],
+    snapshots,
+    grossMinutes,
+    incompleteSessions,
+    estimatedRevenueMinor,
+    currency: snapshots[0]?.totals.currency ?? 'SEK'
+  };
 }

@@ -13,7 +13,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { getWorklogSnapshot } from '@/db/worklog';
+import { getWorklogSnapshot, getWorklogWeekSnapshot } from '@/db/worklog';
 import { verifySessionToken } from '@/lib/auth/session';
 import { cookies } from 'next/headers';
 
@@ -76,7 +76,10 @@ export default async function WorklogPage({
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : stockholmToday();
   const revealToken = (await cookies()).get('agent_os_worklog_finance_reveal')?.value;
   const financeRevealed = Boolean(await verifySessionToken(revealToken));
-  const snapshot = await getWorklogSnapshot(date, financeRevealed);
+  const [snapshot, week] = await Promise.all([
+    getWorklogSnapshot(date, financeRevealed),
+    getWorklogWeekSnapshot(date, financeRevealed)
+  ]);
   const sourceUnavailable = !snapshot.source.startsWith('bridge:');
   const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
   const mixedDay = locations.length > 1;
@@ -86,7 +89,7 @@ export default async function WorklogPage({
       pageTitle='Worklog'
       pageDescription='Tid, plats, arbetsnoteringar och arbetskostnader. Cai kan registrera samma fakta från Telegram.'
       rightRailTitle='Workday context'
-      rightRailDescription='Totals are derived from recorded sessions. Earnings and tax are intentionally not estimated yet.'
+      rightRailDescription='Totals are derived from recorded sessions. Revenue is shown only after private-financial reveal.'
       rightRail={
         <Card className='gap-3 py-4'>
           <CardHeader className='px-4'>
@@ -102,8 +105,7 @@ export default async function WorklogPage({
               <strong>{snapshot.totals.incompleteSessions}</strong>
             </div>
             <p className='text-muted-foreground text-xs'>
-              Breaks, billing rates, reminders, and accounting reconciliation are next phases.
-              Nothing is inferred as worked or billable.
+              Only recorded sessions count. Revenue uses the private hourly rate and excludes VAT.
             </p>
           </CardContent>
         </Card>
@@ -157,6 +159,33 @@ export default async function WorklogPage({
                           snapshot.financials.estimatedRevenueMinor,
                           snapshot.financials.currency
                         )
+                    : '••••'}
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card className='gap-0 overflow-hidden py-0'>
+          <CardContent className='px-0'>
+            <dl className='grid divide-x sm:grid-cols-3'>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>This workweek</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {week.startDate} – {week.endDate}
+                </dd>
+              </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Worked</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {minutesLabel(week.grossMinutes)}
+                </dd>
+              </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Estimated revenue excl. VAT</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {financeRevealed && week.estimatedRevenueMinor !== null
+                    ? moneyLabel(week.estimatedRevenueMinor, week.currency)
                     : '••••'}
                 </dd>
               </div>
