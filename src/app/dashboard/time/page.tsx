@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { getWorklogSnapshot } from '@/db/worklog';
+import { getWorklogSnapshot, getWorklogWeekSnapshot } from '@/db/worklog';
 import { verifySessionToken } from '@/lib/auth/session';
 import { cookies } from 'next/headers';
 
@@ -76,7 +75,10 @@ export default async function WorklogPage({
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : stockholmToday();
   const revealToken = (await cookies()).get('agent_os_worklog_finance_reveal')?.value;
   const financeRevealed = Boolean(await verifySessionToken(revealToken));
-  const snapshot = await getWorklogSnapshot(date, financeRevealed);
+  const [snapshot, week] = await Promise.all([
+    getWorklogSnapshot(date, financeRevealed),
+    getWorklogWeekSnapshot(date, financeRevealed)
+  ]);
   const sourceUnavailable = !snapshot.source.startsWith('bridge:');
   const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
   const mixedDay = locations.length > 1;
@@ -160,6 +162,38 @@ export default async function WorklogPage({
                 </dd>
               </div>
             </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Workweek entries</CardTitle>
+            <CardDescription>
+              One entry per weekday. Select a day to view or correct its timeline.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-2'>
+            {week.snapshots.map((day) => {
+              const dayLocations = [
+                ...new Set(day.sessions.map((session) => session.locationType))
+              ];
+              return (
+                <a
+                  key={day.businessDate}
+                  href={`/dashboard/time?date=${day.businessDate}`}
+                  className='hover:bg-muted/50 flex items-center justify-between gap-3 rounded-lg border p-3 text-sm transition-colors'
+                >
+                  <span>
+                    <strong>{day.businessDate}</strong>
+                    <span className='text-muted-foreground'>
+                      {' · '}
+                      {dayLocations.length > 0 ? dayLocations.join(' → ') : 'no location'}
+                    </span>
+                  </span>
+                  <strong className='tabular-nums'>{minutesLabel(day.totals.netMinutes)}</strong>
+                </a>
+              );
+            })}
           </CardContent>
         </Card>
 
