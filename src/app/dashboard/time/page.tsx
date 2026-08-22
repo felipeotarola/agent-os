@@ -50,6 +50,21 @@ function timeInputValue(iso: string | null) {
     : '';
 }
 
+function dayLabel(date: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC'
+  })
+    .format(new Date(`${date}T12:00:00Z`))
+    .toUpperCase();
+}
+
+function locationLabel(location: string) {
+  return location === 'office' ? 'Office' : location === 'home' ? 'Home' : 'Other';
+}
+
 function stockholmToday() {
   return new Intl.DateTimeFormat('sv-SE', {
     year: 'numeric',
@@ -84,11 +99,17 @@ export default async function WorklogPage({
   const sourceUnavailable = !snapshot.source.startsWith('bridge:');
   const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
   const mixedDay = locations.length > 1;
+  const weekWorkedMinutes = week.snapshots.reduce((total, day) => total + day.totals.netMinutes, 0);
+  const weekExpensesMinor = week.snapshots.reduce(
+    (total, day) => total + day.totals.expenseMinor,
+    0
+  );
+  const weekWorkdays = week.snapshots.filter((day) => day.totals.netMinutes > 0).length;
 
   return (
     <PageContainer
       pageTitle='Worklog'
-      pageDescription='Tid, plats, arbetsnoteringar och arbetskostnader. Cai kan registrera samma fakta från Telegram.'
+      pageDescription='A compact view of the work data stored in Supabase.'
       rightRailTitle='Workday context'
       rightRailDescription='Totals are derived from recorded sessions. Revenue is shown only after private-financial reveal.'
       rightRail={
@@ -130,79 +151,39 @@ export default async function WorklogPage({
 
         <Card className='gap-0 overflow-hidden py-0'>
           <CardContent className='px-0'>
-            <dl className='grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Total worked</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {minutesLabel(summary.totals.completedMinutes)}
+            <dl className='grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0'>
+              <div className='p-3 sm:p-4'>
+                <dt className='text-muted-foreground text-[11px] font-medium uppercase tracking-wide'>
+                  Worked
+                </dt>
+                <dd className='mt-1 text-lg font-semibold tabular-nums sm:text-xl'>
+                  {minutesLabel(weekWorkedMinutes)}
                 </dd>
-                <p className='text-muted-foreground mt-1 text-xs'>Completed sessions</p>
               </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Workdays</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {summary.totals.workdays}
+              <div className='p-3 sm:p-4'>
+                <dt className='text-muted-foreground text-[11px] font-medium uppercase tracking-wide'>
+                  Workdays
+                </dt>
+                <dd className='mt-1 text-lg font-semibold tabular-nums sm:text-xl'>
+                  {weekWorkdays}
                 </dd>
-                <p className='text-muted-foreground mt-1 text-xs'>Days with recorded work</p>
               </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Entries</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {summary.totals.sessionCount}
-                </dd>
-                <p className='text-muted-foreground mt-1 text-xs'>Saved work sessions</p>
-              </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Total earned</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {summary.financials.revealed
-                    ? summary.financials.estimatedRevenueMinor === null
-                      ? '—'
-                      : moneyLabel(
-                          summary.financials.estimatedRevenueMinor,
-                          summary.financials.currency
-                        )
+              <div className='p-3 sm:p-4'>
+                <dt className='text-muted-foreground text-[11px] font-medium uppercase tracking-wide'>
+                  Revenue
+                </dt>
+                <dd className='mt-1 text-lg font-semibold tabular-nums sm:text-xl'>
+                  {financeRevealed && week.estimatedRevenueMinor !== null
+                    ? moneyLabel(week.estimatedRevenueMinor, week.currency)
                     : '••••'}
                 </dd>
-                <p className='text-muted-foreground mt-1 text-xs'>Excluding VAT</p>
               </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <Card className='gap-0 overflow-hidden py-0'>
-          <CardContent className='px-0'>
-            <dl className='grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Selected day</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {minutesLabel(snapshot.totals.netMinutes)}
-                </dd>
-              </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Expenses</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {moneyLabel(snapshot.totals.expenseMinor, snapshot.totals.currency)}
-                </dd>
-              </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Sessions / location</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {snapshot.sessions.length}
-                  {mixedDay ? ' · mixed' : ''}
-                </dd>
-              </div>
-              <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Day revenue</dt>
-                <dd className='mt-1 text-xl font-semibold tabular-nums'>
-                  {snapshot.financials.revealed
-                    ? snapshot.financials.estimatedRevenueMinor === null
-                      ? '—'
-                      : moneyLabel(
-                          snapshot.financials.estimatedRevenueMinor,
-                          snapshot.financials.currency
-                        )
-                    : '••••'}
+              <div className='p-3 sm:p-4'>
+                <dt className='text-muted-foreground text-[11px] font-medium uppercase tracking-wide'>
+                  Expenses
+                </dt>
+                <dd className='mt-1 text-lg font-semibold tabular-nums sm:text-xl'>
+                  {moneyLabel(weekExpensesMinor, week.currency)}
                 </dd>
               </div>
             </dl>
@@ -211,9 +192,9 @@ export default async function WorklogPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Workweek entries</CardTitle>
+            <CardTitle>Week</CardTitle>
             <CardDescription>
-              One entry per weekday. Select a day to view or correct its timeline.
+              {dayLabel(week.startDate)} – {dayLabel(week.endDate)} · Select a day for details.
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-2'>
@@ -225,21 +206,20 @@ export default async function WorklogPage({
                 <Link
                   key={day.businessDate}
                   href={`/dashboard/time?date=${day.businessDate}`}
-                  className='hover:bg-muted/50 flex items-center justify-between gap-3 rounded-lg border p-3 text-sm transition-colors'
+                  className={`hover:bg-muted/50 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5 text-sm transition-colors ${day.businessDate === date ? 'border-primary/50 bg-muted/30' : ''}`}
                 >
-                  <span>
-                    <strong>{day.businessDate}</strong>
-                    <span className='text-muted-foreground'>
-                      {' · '}
-                      {dayLocations.length > 0 ? dayLocations.join(' → ') : 'no location'}
-                    </span>
-                  </span>
-                  <strong className='tabular-nums'>
-                    {minutesLabel(day.totals.netMinutes)}
+                  <span className='font-semibold tracking-wide'>{dayLabel(day.businessDate)}</span>
+                  <strong className='row-span-2 self-center tabular-nums'>
+                    {day.totals.netMinutes > 0 ? minutesLabel(day.totals.netMinutes) : '—'}
+                  </strong>
+                  <span className='text-muted-foreground min-w-0 truncate text-xs sm:text-sm'>
+                    {day.sessions.length > 0
+                      ? `${timeLabel(day.sessions[0].startedAt)}–${day.sessions.at(-1)?.endedAt ? timeLabel(day.sessions.at(-1)!.endedAt!) : 'open'} · ${dayLocations.map(locationLabel).join(' → ')}`
+                      : 'No work recorded'}
                     {day.financials.revealed && day.financials.estimatedRevenueMinor !== null
                       ? ` · ${moneyLabel(day.financials.estimatedRevenueMinor, day.financials.currency)}`
                       : ''}
-                  </strong>
+                  </span>
                 </Link>
               );
             })}
@@ -348,103 +328,112 @@ export default async function WorklogPage({
           </CardContent>
         </Card>
 
-        <div className='grid gap-4 xl:grid-cols-2'>
-          <Card>
-            <CardHeader>
-              <CardTitle>Log work</CardTitle>
-              <CardDescription>
-                Enter a complete session. Open sessions are supported; reminders are not enabled
-                yet.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action='/api/worklog' method='post' className='grid gap-3 sm:grid-cols-2'>
-                <input type='hidden' name='kind' value='session' />
-                <input type='hidden' name='businessDate' value={date} />
-                <div className='space-y-2'>
-                  <Label htmlFor='work-start'>Start</Label>
-                  <Input id='work-start' name='startTime' type='time' required />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='work-end'>End</Label>
-                  <Input id='work-end' name='endTime' type='time' />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='work-location'>Location</Label>
-                  <Select name='locationType' defaultValue='office'>
-                    <SelectTrigger id='work-location'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='office'>Office</SelectItem>
-                      <SelectItem value='home'>Home</SelectItem>
-                      <SelectItem value='other'>Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='work-note'>Optional note</Label>
-                  <Input id='work-note' name='note' placeholder='What did you work on?' />
-                </div>
-                <Button type='submit' className='sm:col-span-2'>
-                  <Icons.clock data-icon='inline-start' />
-                  Save work session
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Log expense</CardTitle>
-              <CardDescription>
-                Recorded as a cost only. No deduction, VAT, or reimbursement is inferred.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action='/api/worklog' method='post' className='grid gap-3 sm:grid-cols-2'>
-                <input type='hidden' name='kind' value='expense' />
-                <input type='hidden' name='businessDate' value={date} />
-                <div className='space-y-2'>
-                  <Label htmlFor='expense-amount'>Amount (SEK)</Label>
-                  <Input
-                    id='expense-amount'
-                    name='amount'
-                    type='number'
-                    min='0.01'
-                    step='0.01'
-                    required
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='expense-category'>Category</Label>
-                  <Select name='category' defaultValue='parking'>
-                    <SelectTrigger id='expense-category'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='parking'>Parking</SelectItem>
-                      <SelectItem value='travel'>Travel</SelectItem>
-                      <SelectItem value='meal'>Meal</SelectItem>
-                      <SelectItem value='equipment'>Equipment</SelectItem>
-                      <SelectItem value='other'>Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='expense-merchant'>Merchant</Label>
-                  <Input id='expense-merchant' name='merchant' placeholder='Optional' />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='expense-note'>Note</Label>
-                  <Input id='expense-note' name='note' placeholder='Optional' />
-                </div>
-                <Button type='submit' variant='outline' className='sm:col-span-2'>
-                  Save expense
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+        <details className='group rounded-xl border'>
+          <summary className='hover:bg-muted/40 flex cursor-pointer list-none items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-colors'>
+            Add data manually
+            <span className='text-muted-foreground text-xs group-open:hidden'>Open forms</span>
+            <span className='text-muted-foreground hidden text-xs group-open:inline'>
+              Close forms
+            </span>
+          </summary>
+          <div className='grid gap-4 border-t p-3 xl:grid-cols-2'>
+            <Card className='shadow-none'>
+              <CardHeader>
+                <CardTitle>Log work</CardTitle>
+                <CardDescription>
+                  Enter a complete session. Open sessions are supported; reminders are not enabled
+                  yet.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action='/api/worklog' method='post' className='grid gap-3 sm:grid-cols-2'>
+                  <input type='hidden' name='kind' value='session' />
+                  <input type='hidden' name='businessDate' value={date} />
+                  <div className='space-y-2'>
+                    <Label htmlFor='work-start'>Start</Label>
+                    <Input id='work-start' name='startTime' type='time' required />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='work-end'>End</Label>
+                    <Input id='work-end' name='endTime' type='time' />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='work-location'>Location</Label>
+                    <Select name='locationType' defaultValue='office'>
+                      <SelectTrigger id='work-location'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='office'>Office</SelectItem>
+                        <SelectItem value='home'>Home</SelectItem>
+                        <SelectItem value='other'>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='work-note'>Optional note</Label>
+                    <Input id='work-note' name='note' placeholder='What did you work on?' />
+                  </div>
+                  <Button type='submit' className='sm:col-span-2'>
+                    <Icons.clock data-icon='inline-start' />
+                    Save work session
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+            <Card className='shadow-none'>
+              <CardHeader>
+                <CardTitle>Log expense</CardTitle>
+                <CardDescription>
+                  Recorded as a cost only. No deduction, VAT, or reimbursement is inferred.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form action='/api/worklog' method='post' className='grid gap-3 sm:grid-cols-2'>
+                  <input type='hidden' name='kind' value='expense' />
+                  <input type='hidden' name='businessDate' value={date} />
+                  <div className='space-y-2'>
+                    <Label htmlFor='expense-amount'>Amount (SEK)</Label>
+                    <Input
+                      id='expense-amount'
+                      name='amount'
+                      type='number'
+                      min='0.01'
+                      step='0.01'
+                      required
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='expense-category'>Category</Label>
+                    <Select name='category' defaultValue='parking'>
+                      <SelectTrigger id='expense-category'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='parking'>Parking</SelectItem>
+                        <SelectItem value='travel'>Travel</SelectItem>
+                        <SelectItem value='meal'>Meal</SelectItem>
+                        <SelectItem value='equipment'>Equipment</SelectItem>
+                        <SelectItem value='other'>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='expense-merchant'>Merchant</Label>
+                    <Input id='expense-merchant' name='merchant' placeholder='Optional' />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='expense-note'>Note</Label>
+                    <Input id='expense-note' name='note' placeholder='Optional' />
+                  </div>
+                  <Button type='submit' variant='outline' className='sm:col-span-2'>
+                    Save expense
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </details>
 
         <Card>
           <CardHeader>

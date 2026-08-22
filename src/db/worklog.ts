@@ -192,7 +192,7 @@ export async function getWorklogWeekSnapshot(
   includeFinancials = false
 ): Promise<WorklogWeekSnapshot> {
   const monday = mondayFor(date);
-  const dates = Array.from({ length: 5 }, (_, index) => {
+  const dates = Array.from({ length: 7 }, (_, index) => {
     const value = new Date(monday);
     value.setUTCDate(monday.getUTCDate() + index);
     return isoDate(value);
@@ -225,7 +225,7 @@ export async function getWorklogWeekSnapshot(
 
   return {
     startDate: dates[0],
-    endDate: dates[4],
+    endDate: dates[6],
     snapshots,
     grossMinutes,
     incompleteSessions,
