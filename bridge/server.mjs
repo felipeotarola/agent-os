@@ -2683,8 +2683,13 @@ async function worklogSnapshot(input = {}) {
   const activeRate = includeFinancials
     ? await sql`
         select rate_minor as "rateMinor", currency from work_rate_rules
-        where effective_date <= ${date} and visibility = 'private'
-        order by effective_date desc, created_at desc limit 1
+        where visibility = 'private'
+        order by
+          case when effective_date <= ${date} then 0 else 1 end,
+          case when effective_date <= ${date} then effective_date end desc,
+          case when effective_date > ${date} then effective_date end asc,
+          created_at desc
+        limit 1
       `
     : [];
   const rate = activeRate[0] ?? null;
@@ -2698,6 +2703,97 @@ async function worklogSnapshot(input = {}) {
     expenses: expenses.map((expense) => ({ ...expense, businessDate: worklogDateLabel(expense.businessDate) })),
     totals: { grossMinutes, netMinutes: grossMinutes, expenseMinor, currency: 'SEK', incompleteSessions: mappedSessions.filter((session) => !session.endedAt).length },
     financials: includeFinancials ? { revealed: true, rateMinor: rate ? Number(rate.rateMinor) : null, currency: rate?.currency ?? 'SEK', estimatedRevenueMinor } : { revealed: false }
+  };
+}
+
+async function worklogSummary(input = {}) {
+  await ensureWorklogTables();
+  const sessionRows = await sql`
+    select
+      count(*)::int as "sessionCount",
+      count(*) filter (where ended_at is not null)::int as "completedSessions",
+      count(*) filter (where ended_at is null)::int as "incompleteSessions",
+      count(distinct business_date)::int as "workdays",
+      coalesce(round(sum(extract(epoch from (ended_at - started_at)) / 60)
+        filter (where ended_at is not null)), 0)::int as "completedMinutes",
+      min(business_date) as "firstDate",
+      max(business_date) as "lastDate"
+    from work_sessions
+  `;
+  const expenseRows = await sql`
+    select coalesce(sum(amount_minor), 0)::bigint as "expenseMinor"
+    from work_expenses
+  `;
+  const includeFinancials = Boolean(input.includeFinancials);
+  let financials = { revealed: false };
+
+  if (includeFinancials) {
+    const [rateRows, revenueRows] = await Promise.all([
+      sql`
+        select rate_minor as "rateMinor", currency
+        from work_rate_rules
+        where visibility = 'private'
+        order by
+          case when effective_date <= ${normalizeWorkDate(input.date)} then 0 else 1 end,
+          case when effective_date <= ${normalizeWorkDate(input.date)} then effective_date end desc,
+          case when effective_date > ${normalizeWorkDate(input.date)} then effective_date end asc,
+          created_at desc
+        limit 1
+      `,
+      sql`
+        select
+          coalesce(round(sum(extract(epoch from (session.ended_at - session.started_at)) / 60)
+            filter (where rate.rate_minor is not null)), 0)::int as "ratedMinutes",
+          coalesce(round(sum(extract(epoch from (session.ended_at - session.started_at)) / 60)
+            filter (where rate.rate_minor is null)), 0)::int as "unratedMinutes",
+          coalesce(sum(round(
+            (extract(epoch from (session.ended_at - session.started_at)) / 3600) * rate.rate_minor
+          )) filter (where rate.rate_minor is not null), 0)::bigint as "estimatedRevenueMinor"
+        from work_sessions session
+        left join lateral (
+          select rate_minor, currency
+          from work_rate_rules
+          where visibility = 'private'
+          order by
+            case when effective_date <= session.business_date then 0 else 1 end,
+            case when effective_date <= session.business_date then effective_date end desc,
+            case when effective_date > session.business_date then effective_date end asc,
+            created_at desc
+          limit 1
+        ) rate on true
+        where session.ended_at is not null
+      `
+    ]);
+    const activeRate = rateRows[0] ?? null;
+    const revenue = revenueRows[0] ?? {};
+    const ratedMinutes = Number(revenue.ratedMinutes ?? 0);
+    financials = {
+      revealed: true,
+      currentRateMinor: activeRate ? Number(activeRate.rateMinor) : null,
+      currency: activeRate?.currency ?? 'SEK',
+      estimatedRevenueMinor:
+        ratedMinutes > 0 ? Number(revenue.estimatedRevenueMinor ?? 0) : null,
+      ratedMinutes,
+      unratedMinutes: Number(revenue.unratedMinutes ?? 0)
+    };
+  }
+
+  const totals = sessionRows[0] ?? {};
+  return {
+    contract: 'agent-os.worklog-summary.v1',
+    source: `bridge:${dbSource.provider}:worklog`,
+    totals: {
+      sessionCount: Number(totals.sessionCount ?? 0),
+      completedSessions: Number(totals.completedSessions ?? 0),
+      incompleteSessions: Number(totals.incompleteSessions ?? 0),
+      workdays: Number(totals.workdays ?? 0),
+      completedMinutes: Number(totals.completedMinutes ?? 0),
+      expenseMinor: Number(expenseRows[0]?.expenseMinor ?? 0),
+      currency: 'SEK',
+      firstDate: totals.firstDate ? worklogDateLabel(totals.firstDate) : null,
+      lastDate: totals.lastDate ? worklogDateLabel(totals.lastDate) : null
+    },
+    financials
   };
 }
 
@@ -7712,6 +7808,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/worklog/snapshot') {
       return send(res, 200, await worklogSnapshot({ date: url.searchParams.get('date'), includeFinancials: url.searchParams.get('includeFinancials') === '1' }));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/worklog/summary') {
+      return send(res, 200, await worklogSummary({ date: url.searchParams.get('date'), includeFinancials: url.searchParams.get('includeFinancials') === '1' }));
     }
 
     if (req.method === 'POST' && url.pathname === '/worklog/sessions') {

@@ -1,4 +1,6 @@
 import { bridgeRequest } from '@/lib/bridge';
+import { verifySessionToken } from '@/lib/auth/session';
+import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
 function redirectToWorklog(request: NextRequest, params: Record<string, string>) {
@@ -55,6 +57,19 @@ export async function POST(request: NextRequest) {
           amount: String(form.get('amount') ?? ''),
           merchant: String(form.get('merchant') ?? ''),
           note: String(form.get('note') ?? ''),
+          source: 'cockpit'
+        })
+      });
+    } else if (kind === 'rate') {
+      const revealToken = (await cookies()).get('agent_os_worklog_finance_reveal')?.value;
+      if (!(await verifySessionToken(revealToken))) {
+        return redirectToWorklog(request, { date: businessDate, revealError: 'expired' });
+      }
+      await bridgeRequest('/worklog/rates', {
+        method: 'POST',
+        body: JSON.stringify({
+          effectiveDate: String(form.get('effectiveDate') ?? businessDate),
+          rate: String(form.get('rate') ?? ''),
           source: 'cockpit'
         })
       });

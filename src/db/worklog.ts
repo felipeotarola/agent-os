@@ -57,7 +57,35 @@ export const worklogSnapshotSchema = z.object({
   ])
 });
 
+export const worklogSummarySchema = z.object({
+  contract: z.literal('agent-os.worklog-summary.v1'),
+  source: z.string(),
+  totals: z.object({
+    sessionCount: z.number(),
+    completedSessions: z.number(),
+    incompleteSessions: z.number(),
+    workdays: z.number(),
+    completedMinutes: z.number(),
+    expenseMinor: z.number(),
+    currency: z.string(),
+    firstDate: z.string().nullable(),
+    lastDate: z.string().nullable()
+  }),
+  financials: z.union([
+    z.object({ revealed: z.literal(false) }),
+    z.object({
+      revealed: z.literal(true),
+      currentRateMinor: z.number().nullable(),
+      currency: z.string(),
+      estimatedRevenueMinor: z.number().nullable(),
+      ratedMinutes: z.number(),
+      unratedMinutes: z.number()
+    })
+  ])
+});
+
 export type WorklogSnapshot = z.infer<typeof worklogSnapshotSchema>;
+export type WorklogSummary = z.infer<typeof worklogSummarySchema>;
 
 export type WorklogWeekSnapshot = {
   startDate: string;
@@ -86,6 +114,23 @@ export const emptyWorklogSnapshot: WorklogSnapshot = {
   financials: { revealed: false }
 };
 
+export const emptyWorklogSummary: WorklogSummary = {
+  contract: 'agent-os.worklog-summary.v1',
+  source: 'unavailable',
+  totals: {
+    sessionCount: 0,
+    completedSessions: 0,
+    incompleteSessions: 0,
+    workdays: 0,
+    completedMinutes: 0,
+    expenseMinor: 0,
+    currency: 'SEK',
+    firstDate: null,
+    lastDate: null
+  },
+  financials: { revealed: false }
+};
+
 export async function getWorklogSnapshot(
   date?: string,
   includeFinancials = false
@@ -106,6 +151,27 @@ export async function getWorklogSnapshot(
   } catch (error) {
     console.error('Worklog bridge request failed', error);
     return { ...emptyWorklogSnapshot, source: 'bridge-error', businessDate: date ?? '' };
+  }
+}
+
+export async function getWorklogSummary(
+  date?: string,
+  includeFinancials = false
+): Promise<WorklogSummary> {
+  if (!hasBridge()) return emptyWorklogSummary;
+  try {
+    return worklogSummarySchema.parse(
+      await bridgeRequest(
+        `/worklog/summary?${new URLSearchParams({
+          ...(date ? { date } : {}),
+          ...(includeFinancials ? { includeFinancials: '1' } : {})
+        })}`,
+        { cacheMs: 3000 }
+      )
+    );
+  } catch (error) {
+    console.error('Worklog summary bridge request failed', error);
+    return { ...emptyWorklogSummary, source: 'bridge-error' };
   }
 }
 

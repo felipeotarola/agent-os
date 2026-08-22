@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { getWorklogSnapshot, getWorklogWeekSnapshot } from '@/db/worklog';
+import { getWorklogSnapshot, getWorklogSummary, getWorklogWeekSnapshot } from '@/db/worklog';
 import { verifySessionToken } from '@/lib/auth/session';
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 
 export const metadata = { title: 'Agent OS: Worklog' };
 
@@ -75,9 +76,10 @@ export default async function WorklogPage({
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? '') ? params.date! : stockholmToday();
   const revealToken = (await cookies()).get('agent_os_worklog_finance_reveal')?.value;
   const financeRevealed = Boolean(await verifySessionToken(revealToken));
-  const [snapshot, week] = await Promise.all([
+  const [snapshot, week, summary] = await Promise.all([
     getWorklogSnapshot(date, financeRevealed),
-    getWorklogWeekSnapshot(date, financeRevealed)
+    getWorklogWeekSnapshot(date, financeRevealed),
+    getWorklogSummary(date, financeRevealed)
   ]);
   const sourceUnavailable = !snapshot.source.startsWith('bridge:');
   const locations = [...new Set(snapshot.sessions.map((session) => session.locationType))];
@@ -128,9 +130,51 @@ export default async function WorklogPage({
 
         <Card className='gap-0 overflow-hidden py-0'>
           <CardContent className='px-0'>
-            <dl className='grid divide-x sm:grid-cols-4'>
+            <dl className='grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
               <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Worked</dt>
+                <dt className='text-muted-foreground text-xs'>Total worked</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {minutesLabel(summary.totals.completedMinutes)}
+                </dd>
+                <p className='text-muted-foreground mt-1 text-xs'>Completed sessions</p>
+              </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Workdays</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {summary.totals.workdays}
+                </dd>
+                <p className='text-muted-foreground mt-1 text-xs'>Days with recorded work</p>
+              </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Entries</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {summary.totals.sessionCount}
+                </dd>
+                <p className='text-muted-foreground mt-1 text-xs'>Saved work sessions</p>
+              </div>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Total earned</dt>
+                <dd className='mt-1 text-xl font-semibold tabular-nums'>
+                  {summary.financials.revealed
+                    ? summary.financials.estimatedRevenueMinor === null
+                      ? '—'
+                      : moneyLabel(
+                          summary.financials.estimatedRevenueMinor,
+                          summary.financials.currency
+                        )
+                    : '••••'}
+                </dd>
+                <p className='text-muted-foreground mt-1 text-xs'>Excluding VAT</p>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card className='gap-0 overflow-hidden py-0'>
+          <CardContent className='px-0'>
+            <dl className='grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
+              <div className='p-4'>
+                <dt className='text-muted-foreground text-xs'>Selected day</dt>
                 <dd className='mt-1 text-xl font-semibold tabular-nums'>
                   {minutesLabel(snapshot.totals.netMinutes)}
                 </dd>
@@ -149,7 +193,7 @@ export default async function WorklogPage({
                 </dd>
               </div>
               <div className='p-4'>
-                <dt className='text-muted-foreground text-xs'>Estimated revenue</dt>
+                <dt className='text-muted-foreground text-xs'>Day revenue</dt>
                 <dd className='mt-1 text-xl font-semibold tabular-nums'>
                   {snapshot.financials.revealed
                     ? snapshot.financials.estimatedRevenueMinor === null
@@ -178,7 +222,7 @@ export default async function WorklogPage({
                 ...new Set(day.sessions.map((session) => session.locationType))
               ];
               return (
-                <a
+                <Link
                   key={day.businessDate}
                   href={`/dashboard/time?date=${day.businessDate}`}
                   className='hover:bg-muted/50 flex items-center justify-between gap-3 rounded-lg border p-3 text-sm transition-colors'
@@ -190,8 +234,13 @@ export default async function WorklogPage({
                       {dayLocations.length > 0 ? dayLocations.join(' → ') : 'no location'}
                     </span>
                   </span>
-                  <strong className='tabular-nums'>{minutesLabel(day.totals.netMinutes)}</strong>
-                </a>
+                  <strong className='tabular-nums'>
+                    {minutesLabel(day.totals.netMinutes)}
+                    {day.financials.revealed && day.financials.estimatedRevenueMinor !== null
+                      ? ` · ${moneyLabel(day.financials.estimatedRevenueMinor, day.financials.currency)}`
+                      : ''}
+                  </strong>
+                </Link>
               );
             })}
           </CardContent>
@@ -207,20 +256,67 @@ export default async function WorklogPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {snapshot.financials.revealed ? (
-              <div className='flex flex-wrap gap-4 text-sm'>
-                <span>
-                  Rate:{' '}
-                  <strong className='tabular-nums'>
-                    {snapshot.financials.rateMinor === null
-                      ? '—'
-                      : moneyLabel(snapshot.financials.rateMinor, snapshot.financials.currency) +
-                        '/h'}
-                  </strong>
-                </span>
-                <span>
-                  Completed work only: <strong>{minutesLabel(snapshot.totals.netMinutes)}</strong>
-                </span>
+            {snapshot.financials.revealed && summary.financials.revealed ? (
+              <div className='space-y-4'>
+                <div className='flex flex-wrap gap-4 text-sm'>
+                  <span>
+                    Current rate:{' '}
+                    <strong className='tabular-nums'>
+                      {summary.financials.currentRateMinor === null
+                        ? '—'
+                        : moneyLabel(
+                            summary.financials.currentRateMinor,
+                            summary.financials.currency
+                          ) + '/h'}
+                    </strong>
+                  </span>
+                  <span>
+                    Rate coverage: <strong>{minutesLabel(summary.financials.ratedMinutes)}</strong>
+                  </span>
+                </div>
+                <form action='/api/worklog' method='post' className='grid gap-3 sm:grid-cols-3'>
+                  <input type='hidden' name='kind' value='rate' />
+                  <input type='hidden' name='businessDate' value={date} />
+                  <div className='space-y-2'>
+                    <Label htmlFor='hourly-rate'>Hourly rate (SEK)</Label>
+                    <Input
+                      id='hourly-rate'
+                      name='rate'
+                      type='number'
+                      min='0.01'
+                      step='0.01'
+                      defaultValue={
+                        summary.financials.currentRateMinor === null
+                          ? ''
+                          : summary.financials.currentRateMinor / 100
+                      }
+                      required
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='rate-effective-date'>Effective from</Label>
+                    <Input
+                      id='rate-effective-date'
+                      name='effectiveDate'
+                      type='date'
+                      defaultValue={summary.totals.firstDate ?? date}
+                      required
+                    />
+                  </div>
+                  <Button type='submit' variant='outline' className='self-end'>
+                    Save hourly rate
+                  </Button>
+                </form>
+                <p className='text-muted-foreground text-xs'>
+                  A new rate applies from the selected date. The oldest saved rate is the baseline
+                  for earlier imported entries; work entries themselves are never changed.
+                </p>
+                {summary.financials.unratedMinutes > 0 && (
+                  <p className='text-destructive text-sm'>
+                    {minutesLabel(summary.financials.unratedMinutes)} has no applicable hourly rate
+                    and is excluded from total earned.
+                  </p>
+                )}
               </div>
             ) : (
               <form
