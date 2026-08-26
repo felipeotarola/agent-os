@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { classifyMemorySignal, isCandidateFresh, isCompleteMemorySummary, isEligibleSessionArtifactName, isExplicitTaskIntent, isSemanticallyCovered, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
+import { classifyMemorySignal, isCandidateFresh, isCompleteMemorySummary, isConversationalTaskRequest, isEligibleSessionArtifactName, isExplicitTaskIntent, isSemanticallyCovered, isTransportEnvelopeLine, materializeMemoryFileRoute, previewMemoryRoute, routedKnowledgeStatus } from '../bridge/memory-control-plane.mjs';
 
 const fixtures = [
   [{ type: 'todo', summary: 'Next step: implement the documented bridge contract tomorrow.' }, 'task', false, 'promoted'],
@@ -11,6 +11,7 @@ const fixtures = [
   [{ type: 'preference', summary: 'Felipe prefers this strategy and never wants manual promotion.' }, 'long-term-memory', true, 'reviewed'],
   [{ type: 'session-signal', summary: 'HEARTBEAT_OK' }, 'discard', false, 'archived'],
   [{ type: 'session-signal', summary: 'Är det något vi bör implementera direkt' }, 'discard', false, 'archived'],
+  [{ type: 'todo', summary: 'Kan du läsa mailet från Maria?' }, 'discard', false, 'archived'],
   [{ type: 'agent-note', summary: 'Öppna auth.openai.com/codex/device och skriv in koden ABCD-EFGH.' }, 'daily-memory', true, 'reviewed'],
   [{ type: 'decision', summary: 'Use API token secret abc for this decision.' }, 'long-term-memory', true, 'reviewed']
 ];
@@ -55,7 +56,6 @@ const directiveFixtures = [
   'Nästa steg: kör kontraktstestet.',
   '- [ ] Add the missing regression.',
   'Action item: document the activation boundary.',
-  'Kan du implementera den säkra kontrollen?',
   'Implementera den godkända P1-ändringen.'
 ];
 for (const summary of directiveFixtures) {
@@ -72,11 +72,42 @@ for (const summary of incidentalFixtures) {
   assert.equal(isExplicitTaskIntent(summary), false);
   assert.notEqual(classifyMemorySignal({ type: 'todo', summary }).route, 'task');
 }
+const staleConversationalRequests = [
+  'Kan du skapa en google meets och bjuda in mig?',
+  'Kan du läsa mailet från Maria?',
+  'Kan du hjälpa mig återauthentisera?',
+  'Kan du se när temu är beräknad att komma?',
+  'Kan du skapa upp tickets i QAA borden för det',
+  'Kan du fixa detta fel i QAA efter den avslutade testkörningen',
+  'Kan du spara storyboard-manuset i Google Docs här?',
+  'Kan du hjälpa mig förklara vad Sladdis och QAA gör',
+  'kan du fixa denna Sladdis-konfiguration från den gamla sessionen',
+  'Could you update the dashboard from that completed chat?',
+  'Please create the meeting we discussed yesterday.'
+];
+for (const summary of staleConversationalRequests) {
+  assert.equal(isConversationalTaskRequest(summary), true);
+  const classification = classifyMemorySignal({ type: 'todo', summary });
+  assert.equal(classification.route, 'discard');
+  assert.equal(classification.reasons.includes('stale-conversational-request'), true);
+  assert.deepEqual(previewMemoryRoute({ type: 'todo', summary }).materialization, {
+    outcome: 'no-write',
+    target: 'discard'
+  });
+}
+for (const summary of [
+  'TODO: ship the guarded runner.',
+  'Next step: verify the live bridge.',
+  'Felipe asked to preserve the durable task contract.'
+]) {
+  assert.equal(isConversationalTaskRequest(summary), false);
+  assert.equal(classifyMemorySignal({ type: 'todo', summary }).route, 'task');
+}
 assert.equal(isCandidateFresh({ mtimeMs: Date.parse('2026-07-15T08:00:01Z') }, { since: '2026-07-15T08:00:00Z' }), true);
 assert.equal(isCandidateFresh({ mtimeMs: Date.parse('2026-07-15T08:00:00Z') }, { since: '2026-07-15T08:00:00Z' }), false);
 assert.equal(isCandidateFresh({ mtimeMs: 1 }, { backfill: true }), true);
 assert.equal(isCandidateFresh({ mtimeMs: 1 }, { dryRun: true }), true);
-console.log('task-intent and freshness regression: 26/26');
+console.log('task-intent and freshness regression: stale conversational requests blocked; durable intents preserved');
 
 const completenessFixtures = [
   ['A complete standalone memory summary with enough context.', true],

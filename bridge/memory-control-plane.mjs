@@ -59,6 +59,13 @@ export function isExplicitTaskIntent(text) {
   );
 }
 
+export function isConversationalTaskRequest(text) {
+  const value = String(text ?? '').trim();
+  return /^(?:(?:User|Human|Felipe)\s*:\s*)?(?:please|kan du|could you|would you)\b/i.test(
+    value
+  );
+}
+
 export function isCandidateFresh({ mtimeMs }, { since, backfill = false, dryRun = false } = {}) {
   if (backfill || dryRun) return true;
   const sinceMs = Date.parse(String(since ?? ''));
@@ -95,11 +102,18 @@ export function classifyMemorySignal(signal) {
   if (
     text.length < 24 ||
     /\b(heartbeat_ok|no change|status only|maybe later)\b/i.test(text) ||
+    (type === 'todo' && isConversationalTaskRequest(text)) ||
     (type !== 'todo' && text.length <= 180 && BARE_QUESTION.test(text))
   ) {
     route = 'discard';
     confidence = 0.96;
-    reasons.push(BARE_QUESTION.test(text) ? 'bare-question' : 'empty-or-transient');
+    reasons.push(
+      isConversationalTaskRequest(text)
+        ? 'stale-conversational-request'
+        : BARE_QUESTION.test(text)
+          ? 'bare-question'
+          : 'empty-or-transient'
+    );
   } else if (type === 'todo' && isExplicitTaskIntent(text)) {
     route = 'task';
     confidence = 0.9;
