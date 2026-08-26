@@ -43,6 +43,7 @@
     "self-evolution:research": "node scripts/self-evolution-research-lane.mjs",
     "brief:local": "node scripts/local-daily-brief.mjs",
     "brief:heartbeat": "node scripts/heartbeat-local-brief.mjs",
+    "vercel:brief": "node scripts/vercel-deployments-brief.mjs",
     "car:polestar:setup": "node scripts/setup-polestar-api.mjs",
     "car:polestar:brief": "node scripts/polestar-vehicle-brief.mjs",
     "price:tibber": "node scripts/tibber-electricity-price.mjs",
