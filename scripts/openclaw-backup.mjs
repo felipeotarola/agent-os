@@ -851,12 +851,27 @@ async function expectedCriticalSqlitePaths(sourceRoot) {
   agentNames.sort((left, right) => left.localeCompare(right));
   for (const agentName of agentNames) {
     const agentRoot = join('agents', agentName, 'agent');
-    paths.push(
-      join(agentRoot, 'openclaw-agent.sqlite'),
+    paths.push(join(agentRoot, 'openclaw-agent.sqlite'));
+
+    // Codex state is optional for agents that have never initialized Codex or
+    // whose runtime has been retired while its OpenClaw history is retained.
+    // Once any member of the critical Codex database set exists, require the
+    // complete set so a partially lost active runtime still fails closed.
+    const codexPaths = [
       join(agentRoot, 'codex-home', 'state_5.sqlite'),
       join(agentRoot, 'codex-home', 'memories_1.sqlite'),
       join(agentRoot, 'codex-home', 'goals_1.sqlite')
-    );
+    ];
+    let codexStatePresent = false;
+    for (const relativePath of codexPaths) {
+      try {
+        const info = await lstat(join(sourceRoot, relativePath));
+        if (info.isFile()) codexStatePresent = true;
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+    }
+    if (codexStatePresent) paths.push(...codexPaths);
   }
   return { agentNames, paths };
 }
