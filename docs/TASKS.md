@@ -55,6 +55,88 @@ For bridge-free review, export this list locally with `npm run tasks:life-os-exp
 
 These are bridge-free candidates from Agent OS research/self-evolution lanes. Promote them to the task bridge only when the workstream is ready for board tracking.
 
+### `diagnostic-evidence-sufficiency-gate-v0`
+
+```json
+{
+  "id": "diagnostic-evidence-sufficiency-gate-v0",
+  "title": "Stop diagnostic loops when evidence is insufficient",
+  "description": "Define a local evidence-sufficiency receipt and deterministic stop-policy eval so diagnostic or recovery agents cannot discard failed measurements or retry until a preferred conclusion appears.\n\n## Acceptance criteria\n\n- Define a receipt with stable run and attempt IDs, hypothesis, exact target, risk/approval class, pre-state snapshot reference, attempted measurement, evidence classification (`valid-supporting|valid-neutral|valid-contradicting|invalid|missing`), exact state postcondition, neighboring-state check, outcome claim, stop reason, and final disposition.\n- Preserve failed, refused, repaired, reverted, neutral, and invalid attempts in the ordered evidence set; replay must not erase or relabel earlier observations.\n- Score command success, requested state transition, measurement validity, and user-outcome evidence separately; command success or a changed field alone must not substantiate improvement.\n- Add deterministic fixtures for a valid supporting observation, a successful mutation with no outcome evidence, an invalid collector, a contradictory measurement, an unexpected neighboring-state change, and repeated attempts after a stop condition.\n- Require `stop|needs-review` on missing snapshot, over-broad target, invalid measurement, failed postcondition, unexpected neighboring-state change, or exhausted evidence budget; repeated attempts after stop must fail the eval.\n- Record verification and remaining product decisions in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local contract and deterministic synthetic fixtures only for V0; no live diagnostics, system changes, automatic retries, external messages, secrets, model calls, scheduler changes, or new dashboard.\n- Human approval does not compensate for an ambiguous target or missing evidence.\n- Store normalized evidence metadata and artifact references only, never raw sensitive telemetry.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-08-24 diagnostic evidence-sufficiency research.\n- Spike-Killer (arXiv:2608.21069) - evidence-gated diagnostic transactions retain failed measurements, verify exact postconditions, inspect neighboring state, and stop when evidence is insufficient.",
+  "status": "backlog",
+  "priority": 77,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
+### `memory-control-plane-conversational-durability-guard-v0`
+
+```json
+{
+  "id": "memory-control-plane-conversational-durability-guard-v0",
+  "title": "Reject conversational and transient daily-memory routes",
+  "description": "Restore the memory control plane's durability boundary after a live bounded run materialized a bare user request and a transient authorization-status reply as daily memory.\n\n## Acceptance criteria\n\n- Reject or route to review bare conversational questions/requests that contain no durable outcome.\n- Reject or route to review transient blocker/status replies unless they contain a durable correction, decision, preference, or verified workflow lesson.\n- Add deterministic fixtures for the observed Swedish Meet request, the temporary Google-scope/login blocker, a durable verified Meet workaround, and an ordinary durable user preference.\n- Preserve provenance idempotency and semantic deduplication against current daily memory, `MEMORY.md`, `LESSONS.md`, and pending candidates.\n- Do not rewrite or delete historical memory routes automatically.\n\n## Guardrails\n\n- Implementation Lane only; local deterministic fixtures and Agent OS code. No live cron edits, backfill, external messages, secrets, model/provider changes, or broad gateway/security changes.\n\n## Evidence\n\n- `npm run memory:control-plane -- --limit 5 --signals 8` on 2026-08-21 routed the bare request `Ska vi försöka joina en google meets...` and a temporary Google authorization blocker to `memory/2026-08-21.md`.\n- `LESSONS.md` — 2026-07-15 automatic memory routes completeness/deduplication rule and 2026-06-23 distilled-promotion rule.\n- The durable headed-Chrome Meet fallback is already covered by the 2026-08-13 lesson, so it must not create another lesson candidate.",
+  "status": "backlog",
+  "priority": 79,
+  "ownerAgentId": "cai",
+  "source": "proactive",
+  "dueAt": null
+}
+```
+
+### `memory-control-plane-source-freshness-v0`
+
+Observations:
+
+- 2026-08-22: the bounded control-plane run selected/imported 5 sessions and routed 40 signals with 27 exceptions, then rematerialized stale 2026-08-02 provenance under `memory/2026-08-22.md`. Qualitative review removed the noisy current-day routes.
+- 2026-08-23: the next bounded run again selected/imported 4 sessions and routed 32 signals with 24 exceptions despite the persisted watermark and no backfill. No current-day memory file route was materialized, but repeated stale selection confirms that exception-only handling does not fix source freshness.
+
+This is recurrence evidence for the existing Implementation Lane candidate, not a new candidate.
+
+```json
+{
+  "id": "memory-control-plane-source-freshness-v0",
+  "title": "Make memory harvesting immune to QMD reindex mtimes",
+  "description": "Prevent a QMD index rebuild from making old derived session Markdown files appear new to the memory control plane.\n\n## Acceptance criteria\n\n- Derive candidate freshness from immutable source-session metadata or the original session artifact rather than the mtime of a rebuilt `qmd/sessions/*.md` copy.\n- Preserve stable source identity across QMD reindexing so an already imported session remains deduplicated.\n- Add deterministic fixtures proving that a newly created session is selected, an old session whose QMD copy is touched is not selected, and a genuinely updated source can be reviewed without duplicate materialization.\n- Keep the existing watermark and no-backfill safety contract.\n\n## Guardrails\n\n- Implementation Lane only; local deterministic fixtures and Agent OS code. No live cron edits, backfill, external messages, secrets, model/provider changes, or broad gateway/security changes.\n- Do not delete existing memory routes automatically; ambiguous historical imports remain reviewable.\n\n## Evidence\n\n- `npm run memory:control-plane -- --limit 5 --signals 8` on 2026-08-17 selected 2 sessions and routed 16 signals with 13 exceptions immediately after all per-agent QMD indexes were force-refreshed.\n- The same bounded command on 2026-08-23 selected/imported 4 sessions and routed 32 signals with 24 exceptions, with the watermark advancing to `2026-08-23T21:30:29.108Z` and no backfill.\n- `LESSONS.md` — 2026-08-17 session freshness lesson.\n- `bridge/memory-control-plane.mjs` and `bridge/server.mjs` — current selection uses candidate artifact `mtimeMs` against the watermark.",
+  "status": "backlog",
+  "priority": 78,
+  "ownerAgentId": "cai",
+  "source": "proactive",
+  "dueAt": null
+}
+```
+
+### `memory-repair-receipt-v0`
+
+```json
+{
+  "id": "memory-repair-receipt-v0",
+  "title": "Validate correction-driven memory repairs before materialization",
+  "description": "Define a reversible local receipt for a candidate memory repair so a user correction cannot silently overwrite valid context or introduce a new contradiction.\n\n## Acceptance criteria\n\n- Define a receipt with stable repair ID, target memory claim, before/after value, correction provenance, affected conflict set, temporal scope, reversible patch, validator/version, retrieval checks, and `proposed|validated|needs-review|rejected|superseded` status.\n- Add deterministic fixtures for a direct factual correction, time-bounded preference change, ambiguous entity match, conflicting supported sources, stale repair superseded by newer evidence, and a patch that fixes one retrieval but regresses another.\n- Only an unambiguous, current candidate whose before-state still matches and whose positive and negative retrieval checks pass may become `validated`; all other candidates remain non-materializable.\n- Prove idempotent replay and preserve the original claim plus provenance as rollback evidence.\n- Record verification and remaining product decisions in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Local contract and deterministic synthetic fixtures only for V0; no automatic memory writes, schema evolution, raw chat storage, live model calls, bridge writes, external messages, secrets, or scheduler changes.\n- A user correction is evidence for a candidate patch, not blanket authorization to rewrite unrelated memories.\n- Fail closed on missing provenance, ambiguous target identity, stale before-state, unresolved conflict, or retrieval regression.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-08-17 correction-driven memory repair research.\n- MindMemOS (arXiv:2608.12428) - combines implicit corrective feedback, conflict resolution, and validation-driven memory evolution.",
+  "status": "backlog",
+  "priority": 76,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
+### `cross-service-state-invariant-eval-v0`
+
+```json
+{
+  "id": "cross-service-state-invariant-eval-v0",
+  "title": "Test composed cockpit state across service boundaries",
+  "description": "Add a deterministic journey eval that proves a multi-step assistant run leaves all involved user-owned services in a coherent, authorized final state rather than merely recording successful tool calls.\n\n## Acceptance criteria\n\n- Define synthetic pre-state, action trace, expected final state, cross-service invariants, and forbidden side effects for each journey.\n- Cover at least three journeys: Radar signal to exactly one task with the source handled; approval-gated draft that remains unsent until authorized; stale connector recovery that preserves the last-good snapshot and emits at most one review item.\n- Include a partial-failure/retry fixture and reject duplicate materialization, contradictory source/target state, unauthorized notification, and a successful local action with an invalid composed final state.\n- Score `finalState`, `authorization`, `idempotency`, `trajectory`, and `userBurden` independently; tool-call success alone must never pass the eval.\n- Record verification and remaining product decisions in `docs/AGENT_OS_RESEARCH_RADAR.md`.\n\n## Guardrails\n\n- Synthetic local fixtures and deterministic checks only for V0; no real connectors, credentials, external messages, live bridge writes, model calls, scheduler changes, or full benchmark import.\n- Use normalized fictional data only and keep the harness connector-neutral.\n- Fail closed on missing preconditions, unverifiable authorization, or incomplete final-state evidence.\n\n## Evidence\n\n- `docs/AGENT_OS_RESEARCH_RADAR.md` - 2026-08-10 cross-service state-invariant research.\n- PAUSE (arXiv:2607.27354) - evaluates persistent user state, configuration and authorization across multi-turn service-integrated tasks, using state-based and trajectory-level verification.",
+  "status": "backlog",
+  "priority": 75,
+  "ownerAgentId": "cai",
+  "source": "radar",
+  "dueAt": null
+}
+```
+
 ### `prospective-memory-intention-ledger-v0`
 
 ```json

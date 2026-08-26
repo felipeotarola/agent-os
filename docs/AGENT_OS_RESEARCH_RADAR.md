@@ -2,7 +2,79 @@
 
 Purpose: keep a lightweight backlog of ideas from agentic OS / personal AI assistant research that Agent OS may want, especially things OpenClaw does not already provide directly.
 
-Last scan: 2026-08-03
+Last scan: 2026-08-24
+
+## 2026-08-24 - Diagnostic evidence sufficiency gate
+
+State: `ready-small`
+
+High-signal pattern: a diagnostic agent should preserve failed, neutral, and invalid measurements as first-class evidence and stop when its evidence contract is not met. Spike-Killer models each proposed intervention as an evidence-gated transaction: exact target and hypothesis, risk and approval, pre-action snapshot, exact postcondition, neighboring-state check, and final disposition. Crucially, an invalid collector or neutral result is recorded rather than silently retried until a favorable result appears.
+
+Why this matters for Agent OS:
+
+- Agent OS already has approval, execution-scope, completion-review, and retry/idempotency contracts. None explicitly prevents a diagnostic or recovery loop from discarding failed observations and accumulating attempts until one supports its preferred conclusion.
+- Command success, state-change proof, and outcome improvement are separate claims. A successful tool call may prove the requested field changed while providing no evidence that the user's problem improved.
+- The useful addition is a small evidence-sufficiency receipt and deterministic stop-policy eval, not another autonomous optimizer or dashboard.
+
+Safe internal build candidate:
+
+- Add bridge-free candidate `diagnostic-evidence-sufficiency-gate-v0` to `docs/TASKS.md`.
+- V0 should preserve all attempts and classify evidence as `valid-supporting|valid-neutral|valid-contradicting|invalid|missing`, separate state postconditions from outcome claims, and require a declared stop or escalation when measurement validity, neighboring state, or the evidence threshold fails.
+- Keep live diagnostics, system mutation, automatic retry, external effects, and model calls out of scope.
+
+Source reviewed:
+
+- https://arxiv.org/abs/2608.21069
+
+Note: Spike-Killer is a single-workstation August 2026 experience report and does not establish intervention efficacy or autonomous safety. The transferable contribution is its audit/stop discipline: failed measurements remain evidence, exact postconditions outrank exit status, and insufficient evidence ends the loop.
+
+## 2026-08-17 - Correction-driven memory repair receipt
+
+State: `ready-small`
+
+High-signal pattern: self-evolving memory should treat a user correction as a reviewable patch with validation evidence, not as permission to silently rewrite the memory model. MindMemOS combines implicit corrective feedback, conflict resolution, and validation-driven memory/schema evolution. The useful cockpit idea is the control boundary around that loop: every repair needs a stable target, before/after claim, supporting correction, conflict set, validation result, and rollback link.
+
+Why this matters for Agent OS:
+
+- The current correction router can decide that a signal belongs in daily memory, `MEMORY.md`, `LESSONS.md`, or a task, and the memory control plane rejects clipped or duplicate candidates. Neither contract proves that an attempted correction actually supersedes the wrong claim without deleting still-valid context or introducing a new contradiction.
+- A correction can be locally plausible but globally harmful: replacing a time-bounded preference as if it were permanent, merging two people/entities, or repairing one retrieval while regressing another.
+- The smallest useful addition is a deterministic repair receipt and counterfactual fixture set. Keep memory schema evolution itself out of V0; validate candidate patches before any materialization.
+
+Safe internal build candidate:
+
+- Add bridge-free candidate `memory-repair-receipt-v0` to `docs/TASKS.md`.
+- V0 should model `proposed|validated|needs-review|rejected|superseded`, require provenance and a reversible patch, and test direct correction, time-bounded preference change, entity ambiguity, conflicting sources, stale repair, and retrieval regression.
+- Keep automatic memory writes, schema mutation, live model calls, raw chat storage, and external effects out of scope.
+
+Source reviewed:
+
+- https://arxiv.org/abs/2608.12428
+
+Note: MindMemOS is an August 2026 preprint. Its reported benchmark results do not establish safe autonomous memory mutation in Felipe's environment; the transferable contribution here is coupling correction/conflict handling to validation rather than adopting its self-evolving memory stack.
+
+## 2026-08-10 - Cross-service state-invariant eval
+
+State: `ready-small`
+
+High-signal pattern: a personal assistant should be evaluated against the coherent state it leaves across user-owned services, not only whether each tool call succeeded. PAUSE models persistent user state, service-specific configuration and authorization across multi-turn, cross-service tasks. It deliberately uses deterministic state checks for constraint-heavy tasks and semantic/trajectory checks for open-ended service management; its reported systems stay below 70% completion on scenarios requiring stateful reasoning and configuration awareness.
+
+Why this matters for Agent OS:
+
+- Existing Agent OS fixtures test approval safety, memory, proactivity and individual contracts well, but do not compose them into one journey such as “turn a signal into a task, respect a known notification preference, and leave the source item handled exactly once.”
+- A run can look successful locally while leaving duplicate tasks, a stale Radar item, an unauthorized notification, or contradictory state between services. Tool-level success and final user-state correctness are different outcomes.
+- The useful addition is a small transactional journey eval, not a broad simulator or another dashboard: declare preconditions and cross-service invariants, replay a deterministic action trace, then verify final state and forbidden side effects separately from trajectory quality.
+
+Safe internal build candidate:
+
+- Add bridge-free candidate `cross-service-state-invariant-eval-v0` to `docs/TASKS.md`.
+- V0 should cover three synthetic cockpit journeys and score `finalState`, `authorization`, `idempotency`, `trajectory`, and `userBurden` independently. Include partial failure/retry and prove that a locally successful tool call cannot pass when the composed final state is wrong.
+- Keep real connectors, credentials, external sends, live bridge writes, model calls, and a full benchmark import out of scope.
+
+Source reviewed:
+
+- https://arxiv.org/abs/2607.27354
+
+Note: PAUSE is a July 2026 preprint with simulated services and users. Its transferable contribution here is the cross-service state model and mixed verification regimes, not its absolute model ranking or a claim that its scenarios represent Felipe's environment.
 
 ## 2026-08-03 - Prospective-memory intention ledger
 
