@@ -321,13 +321,58 @@ async function gatewayJson(method, params = {}, options = {}) {
   return JSON.parse(stdout || '{}');
 }
 
+function resolveJsonPointer(document, pointer) {
+  if (pointer === '') return document;
+  if (typeof pointer !== 'string' || !pointer.startsWith('/')) return undefined;
+
+  let current = document;
+  for (const rawSegment of pointer.slice(1).split('/')) {
+    const segment = rawSegment.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (
+      current === null ||
+      (typeof current !== 'object' && !Array.isArray(current)) ||
+      !Object.hasOwn(current, segment)
+    ) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+}
+
+function resolveGatewayTokenSecretRef(config, secretRef) {
+  if (!secretRef || typeof secretRef !== 'object') return null;
+
+  if (secretRef.source === 'env') {
+    const value = String(process.env[String(secretRef.id ?? '')] ?? '').trim();
+    return value || null;
+  }
+
+  if (secretRef.source !== 'file') return null;
+  const provider = config.secrets?.providers?.[secretRef.provider];
+  if (
+    provider?.source !== 'file' ||
+    provider.mode !== 'json' ||
+    typeof provider.path !== 'string' ||
+    !path.isAbsolute(provider.path)
+  ) {
+    return null;
+  }
+
+  const document = JSON.parse(readFileSync(provider.path, 'utf8'));
+  const value = resolveJsonPointer(document, secretRef.id);
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 function readGatewayToken() {
   const envToken = String(process.env.OPENCLAW_GATEWAY_TOKEN ?? '').trim();
   if (envToken) return envToken;
 
   try {
     const config = JSON.parse(readFileSync(OPENCLAW_CONFIG_PATH, 'utf8'));
-    return String(config.gateway?.auth?.token ?? '').trim() || null;
+    const configuredToken = config.gateway?.auth?.token;
+    if (typeof configuredToken === 'string') return configuredToken.trim() || null;
+    return resolveGatewayTokenSecretRef(config, configuredToken);
   } catch {
     return null;
   }
@@ -437,6 +482,7 @@ function createGatewayRpcClient() {
             }
 
             if (frame?.type === 'event' && frame.event === 'connect.challenge') {
+              const gatewayToken = readGatewayToken();
               rawRequest('connect', {
                 minProtocol: 4,
                 maxProtocol: 4,
@@ -450,7 +496,7 @@ function createGatewayRpcClient() {
                 role: 'operator',
                 scopes: ['operator.read', 'operator.write'],
                 caps: [],
-                auth: readGatewayToken() ? { token: readGatewayToken() } : undefined
+                auth: gatewayToken ? { token: gatewayToken } : undefined
               })
                 .then(() => {
                   connected = true;
