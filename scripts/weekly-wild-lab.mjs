@@ -117,6 +117,7 @@ function chooseExperiment(signals) {
   const failureCount = signals.find((signal) => signal.id === 'failure')?.hits.length || 0;
   const blockerCount = signals.find((signal) => signal.id === 'blocker')?.hits.length || 0;
   const correctionCount = signals.find((signal) => signal.id === 'correction')?.hits.length || 0;
+  const frictionCount = signals.find((signal) => signal.id === 'friction')?.hits.length || 0;
 
   if (failureCount + blockerCount >= 3) {
     return {
@@ -142,6 +143,15 @@ function chooseExperiment(signals) {
       why: 'Felipe corrections are the strongest reward signal and should be promoted with a small, consistent path.',
       next: 'Scan recent memory for corrections, then route each one to daily memory, LESSONS.md, or an Agent OS task.',
       output: 'One concise durable note or task with the correction evidence.'
+    };
+  }
+
+  if (frictionCount >= 2) {
+    return {
+      title: 'Repeated-friction containment',
+      why: 'Recent memory contains repeated or stale-workflow evidence even though it does not meet the failure threshold.',
+      next: 'Use the representative friction evidence to tighten one existing task, contract, or local guard instead of creating a duplicate idea.',
+      output: 'One reversible patch or acceptance-criteria update with deterministic verification.'
     };
   }
 
