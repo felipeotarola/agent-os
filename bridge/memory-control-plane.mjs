@@ -3,6 +3,8 @@ const CONTRADICTION = /\b(but actually|correction|ignore previous|instead of|con
 const PREFERENCE = /\b(prefer|preference|vill ha|jag vill|always|never|alltid|aldrig|strategy|strategi|policy|regel)/i;
 const CLIPPED_ENDING = /(?:\b(?:and|or|but|because|that|which|to|with|for|och|eller|men|att|som|med|för|eftersom)|[,;:–—-])$/i;
 const BARE_QUESTION = /^(?:what|why|how|when|where|who|which|is|are|can|could|would|should|do|does|did|vad|varför|hur|när|var|vem|vilken|vilka|är|kan|kunde|skulle|bör|borde|har|finns)\b/i;
+const TRANSIENT_OPERATIONAL_STATUS = /\b(?:retry later|try again later|temporar(?:y|ily)|not (?:available|ready) yet|could not .{0,80}\b(?:yet|right now)|unable to .{0,80}\b(?:yet|right now)|försök igen senare|tillfällig(?:t)?|inte (?:tillgänglig|redo) ännu|kunde inte .{0,80}\b(?:ännu|just nu))\b/i;
+const VERIFIED_WORKFLOW_OUTCOME = /\b(?:verified|validated|confirmed|verifierad|validerad|bekräftad)\b.{0,120}\b(?:workaround|fallback|workflow|guardrail|lesson|lösning|arbetsflöde|rutin)\b|\b(?:workaround|fallback|workflow|guardrail|lesson|lösning|arbetsflöde|rutin)\b.{0,120}\b(?:verified|validated|confirmed|verifierad|validerad|bekräftad)\b/i;
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -63,6 +65,15 @@ export function isConversationalTaskRequest(text) {
   const value = String(text ?? '').trim();
   return /^(?:(?:User|Human|Felipe)\s*:\s*)?(?:please|kan du|could you|would you)\b/i.test(
     value
+  );
+}
+
+function isProtectedDurableSignal(text, type) {
+  return (
+    ['decision', 'preference', 'technical-lesson'].includes(type) ||
+    CONTRADICTION.test(text) ||
+    PREFERENCE.test(text) ||
+    VERIFIED_WORKFLOW_OUTCOME.test(text)
   );
 }
 
@@ -139,6 +150,12 @@ export function classifyMemorySignal(signal) {
   if (CONTRADICTION.test(text)) exceptionReasons.push('contradictory');
   if (PREFERENCE.test(text) && ['preference', 'decision'].includes(type))
     exceptionReasons.push('strategy-or-preference-change');
+  if (
+    route !== 'discard' &&
+    TRANSIENT_OPERATIONAL_STATUS.test(text) &&
+    !isProtectedDurableSignal(text, type)
+  )
+    exceptionReasons.push('transient-operational-status');
   if (route !== 'discard' && !isCompleteMemorySummary(text)) exceptionReasons.push('possibly-clipped-summary');
   if (route !== 'discard' && /\?[\])}"'’”`*_]*$/.test(text)) exceptionReasons.push('conversational-question');
   if (confidence < 0.8) exceptionReasons.push('low-confidence');

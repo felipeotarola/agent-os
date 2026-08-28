@@ -25,6 +25,62 @@ for (const [input, route, reviewRequired, status] of fixtures) {
 
 console.log(`memory-control-plane contract: ${fixtures.length}/${fixtures.length}`);
 
+const durabilityBoundaryFixtures = [
+  {
+    name: 'prefixed conversational question',
+    signal: { type: 'session-signal', summary: 'User: Ska vi försöka joina en Google Meet så att du kan presentera?' },
+    route: 'daily-memory',
+    reviewRequired: true,
+    exceptionReason: 'conversational-question'
+  },
+  {
+    name: 'prefixed conversational request',
+    signal: { type: 'todo', summary: 'User: Kan du skapa en Google Meet och bjuda in mig?' },
+    route: 'discard',
+    reviewRequired: false,
+    reason: 'stale-conversational-request'
+  },
+  {
+    name: 'temporary operational status',
+    signal: { type: 'agent-note', summary: 'Google scope check could not run yet; retry later.' },
+    route: 'daily-memory',
+    reviewRequired: true,
+    exceptionReason: 'transient-operational-status'
+  },
+  {
+    name: 'clipped summary',
+    signal: { type: 'technical-lesson', summary: 'The worker should preserve the trace and' },
+    route: 'lesson-candidate',
+    reviewRequired: true,
+    exceptionReason: 'possibly-clipped-summary'
+  },
+  {
+    name: 'durable verified workflow outcome',
+    signal: { type: 'technical-lesson', summary: 'Verified workflow lesson: use headed Chrome as the durable Meet fallback even when a tool says retry later.' },
+    route: 'lesson-candidate',
+    reviewRequired: false
+  },
+  {
+    name: 'ordinary durable preference',
+    signal: { type: 'preference', summary: 'Felipe prefers concise evidence summaries for future work.' },
+    route: 'long-term-memory',
+    reviewRequired: true,
+    exceptionReason: 'strategy-or-preference-change'
+  }
+];
+for (const fixture of durabilityBoundaryFixtures) {
+  const classification = classifyMemorySignal(fixture.signal);
+  assert.equal(classification.route, fixture.route, fixture.name);
+  assert.equal(classification.reviewRequired, fixture.reviewRequired, fixture.name);
+  if (fixture.reason) assert.equal(classification.reasons.includes(fixture.reason), true, fixture.name);
+  if (fixture.exceptionReason)
+    assert.equal(classification.exceptionReasons.includes(fixture.exceptionReason), true, fixture.name);
+  if (fixture.name === 'temporary operational status') {
+    assert.equal(previewMemoryRoute(fixture.signal).materialization.outcome, 'blocked-exception');
+  }
+}
+console.log('conversational durability regression: 6/6');
+
 const previewTask = previewMemoryRoute({ type: 'todo', summary: 'Next step: create the bounded local runner with evidence.' });
 assert.equal(previewTask.route, 'task');
 assert.deepEqual(previewTask.materialization, { outcome: 'dry-run', target: 'agent-os-task' });
