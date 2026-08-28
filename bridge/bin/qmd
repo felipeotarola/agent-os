@@ -1,2 +1,0 @@
-#!/bin/sh
-exec node /usr/lib/node_modules/@tobilu/qmd/dist/cli/qmd.js "$@"

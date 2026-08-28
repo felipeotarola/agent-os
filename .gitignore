@@ -1,70 +1,21 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# next.js
+# Dependencies and build output
+/node_modules/
 /.next/
 /out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*
-.env*.local
-
-# vercel
-.vercel
-
-# typescript
 *.tsbuildinfo
 next-env.d.ts
 
+# Secrets and local runtime configuration
+.env
+.env.*
+!.env.example
+
+# Local deployment metadata
+/.vercel/
+/.openclaw/
+
+# Editor and operating-system files
+.DS_Store
 .idea/
-# clerk configuration (can include secrets)
-/.clerk/
-
-
-# cursor 
-.cursorrules
-/memory-bank
-
-# Sentry Config File
-.env.sentry-build-plugin
-
-# Local runtime backups
-backups/
-Caddyfile.pre-*
-
-# Local video/prototype build artifacts
-/remotion/**/node_modules/
-/remotion/**/out/
-/remotion/**/.remotion/
-/reports/
-
-# Local OpenClaw agent workspace files. These belong to the runtime, not the app repo.
-.openclaw/
-HEARTBEAT.md
-IDENTITY.md
-LLM.md
-SOUL.md
-TOOLS.md
-USER.md
-
-# Private local dashboard data. Never commit personal holdings/finance details.
-data/private/
+.vscode/
+npm-debug.log*

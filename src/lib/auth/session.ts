@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const sessionCookieName = 'agent_os_session';
+const sessionCookieName = 'agent_vault_session';
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 7;
 
 type SessionPayload = {
@@ -61,7 +61,8 @@ function timingSafeEqual(a: string, b: string) {
 }
 
 function getAuthSecret() {
-  return readAuthEnv('AUTH_SECRET');
+  const secret = readAuthEnv('AUTH_SECRET');
+  return secret && secret.length >= 32 ? secret : undefined;
 }
 
 export { sessionCookieName, sessionMaxAgeSeconds };

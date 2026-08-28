@@ -1,63 +1,44 @@
-# Agent OS
+# AgentOS Vault
 
-Local-first cockpit for Felipe × Cai.
+AgentOS is intentionally small: one private web page for managing the file-backed credentials used by local agents.
 
-## Current real surfaces
+The web app is optional. Agents and jobs read their assigned files directly from `/root/.openclaw/secrets/agent-os`; they do not call AgentOS and do not stop working when the app is offline.
 
-- Cockpit overview: live/fallback OpenClaw + Postgres status
-- Tasks: Postgres-backed kanban/task board
-- Agents: OpenClaw agent inventory
-- Command: read-only bridge diagnostics
-- Knowledge Inbox: raw source capture
-- Wiki: vault/read-model view
-- Runway: safe Life OS income/runway picture
-- Journal: local log/decision capture into knowledge raw
-- Memory: memory search/save surface
-- Permissions: notification/permission state
-- Settings: real system/data-source status and guardrails
-- Sources layer: raw evidence kept separate from interpreted context
-- Decision log: concise rationale records for durable Agent OS/Life OS choices
-- Agent evals: lightweight fixture-based behavior checks for agents/workflows
-- Workflow feedback: post-run learning routed to memory, docs, tasks, decisions, or evals
-- Playbook/workflow split: strategy separated from executable procedures
-- Durable artifact rules: reusable outputs get a real home instead of staying in chat
+## What remains
 
-## Removed from the product surface
+- Private email/password login with a signed, HTTP-only session cookie.
+- Credential inventory containing metadata and fingerprints, never stored values.
+- Create and rotate operations that preserve exact file contents and mode `0600`.
+- Recoverable delete into the vault's private `.trash/` quarantine.
 
-Template/demo surfaces have been disabled instead of being carried forward:
+There is no database, bridge, cron integration, chat, notifications, agent control plane, content studio, Radar, Kanban, knowledge store, or external connector.
 
-- Products/users fake APIs and faker datasets
-- Pokemon/React Query sample API
-- Form demo pages
-- Chat demo
-- Billing/exclusive/workspace template pages
-- Template GitHub/star/demo links
-- Sample avatar/product image URLs
+## Run locally
 
-## Build stance
+```bash
+cp env.example.txt .env
+npm install
+npm run verify
+npm run dev
+```
 
-Do not add mock SaaS/sample datasets back into runtime routes. If a screen needs data, connect it to one of:
+Production is designed for one process on the VPS, bound to loopback and exposed only through a private Tailscale route. The filesystem vault is the source of truth; Vercel cannot access it directly.
 
-1. OpenClaw runtime/config
-2. Agent OS bridge
-3. Postgres tables
-4. Local knowledge/memory files
-5. Explicit user input
+## Environment
 
-See `docs/COPILOT_INVENTORY.md` for the current inventory and missing pieces.
+Required:
 
-## Feature docs
+- `ADMIN_EMAIL`
+- `AUTH_SECRET`
+- `ADMIN_PASSWORD_HASH` (preferred) or the transitional `ADMIN_PASSWORD`
 
-- `docs/TRADING_LAB.md` — paper-only BTC research workspace, APIs, guardrails, and validation.
-- `docs/BROWSER_AUTOMATION_RECOVERY.md` — profile-specific browser automation triage and safe recovery guardrails.
-- `docs/LOCAL_DAILY_BRIEF.md` — local-only daily brief template and approval-gated input rules.
-- `docs/SOURCES_LAYER.md` — raw evidence/source IDs, citations, and sensitivity rules.
-- `docs/DECISION_LOG.md` — lightweight decision records with rationale and evidence.
-- `docs/AGENT_EVALS.md` — first-class eval loop for agent behavior and workflow quality.
-- `docs/WORKFLOW_FEEDBACK.md` — post-run learning template and routing rules.
-- `docs/PLAYBOOKS_AND_WORKFLOWS.md` — definitions and naming guidance for playbooks, workflows, runbooks, policies, and contracts.
-- `docs/DURABLE_ARTIFACTS.md` — rules for preserving briefs, research, decisions, eval reports, instruction changes, and workflow outputs.
-- `docs/KNOWLEDGE_VAULT.md` — generated Obsidian-compatible vault structure and DB metadata mirror.
-- `docs/RUNWAY_PICTURE.md` — safe 30-60 day income/runway surface and guardrails.
-- `docs/OPENCLAW_BACKUP.md` — layered Hetzner/Blob backup architecture,
-  credential boundaries, activation steps, and clean-machine restore runbook.
+Optional:
+
+- `AGENT_OS_SECRETS_DIR` (defaults to `/root/.openclaw/secrets/agent-os`)
+- `AGENT_OS_VAULT_FINGERPRINT_KEY` (otherwise generated privately in the vault)
+
+## Verification
+
+`npm run verify` runs the isolated vault contract, TypeScript, and a production build. The contract uses a temporary directory and never touches real credentials.
+
+The final full-cockpit code is preserved in Git at tag `agentos-full-archive-2026-08-28`. Old application data is a cold archive, not a runtime dependency.

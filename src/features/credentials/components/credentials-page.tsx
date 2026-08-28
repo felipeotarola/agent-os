@@ -1,69 +1,5 @@
 'use client';
 
-import { Icons } from '@/components/icons';
-import PageContainer from '@/components/layout/page-container';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@/components/ui/empty';
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput
-} from '@/components/ui/input-group';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
 import {
   createCredential,
   deleteCredential,
@@ -71,374 +7,370 @@ import {
   updateCredential
 } from '@/features/credentials/api/service';
 import type { ManagedCredential } from '@/features/credentials/api/types';
-import type { CredentialFormValues } from '@/features/credentials/schemas/credential';
-import { cn } from '@/lib/utils';
 import * as React from 'react';
-import { toast } from 'sonner';
-import { CredentialEditorDialog } from './credential-editor-dialog';
 
-const PAGE_SIZE = 15;
-const ALL_PROJECTS = '__all__';
-const UNASSIGNED_PROJECT = '__unassigned__';
+const CREDENTIAL_NAME_PATTERN = /^[A-Z][A-Z0-9_]{1,79}$/;
 
-type SortOrder = 'name' | 'recent';
+interface CredentialDraft {
+  name: string;
+  project: string;
+  description: string;
+  value: string;
+}
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('en', {
+interface Notice {
+  tone: 'error' | 'success';
+  text: string;
+}
+
+interface CredentialDialogProps {
+  credential: ManagedCredential | null;
+  projects: string[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: (draft: CredentialDraft) => Promise<void>;
+}
+
+interface DeleteDialogProps {
+  credential: ManagedCredential;
+  deleting: boolean;
+  onClose: () => void;
+  onDelete: () => Promise<void>;
+}
+
+const DATE_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
   dateStyle: 'medium',
   timeStyle: 'short'
 });
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return DATE_FORMATTER.format(date);
+  return Number.isNaN(date.getTime())
+    ? 'Okänd tid'
+    : DATE_FORMATTER.format(date);
 }
 
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`;
-  return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024).toFixed(1)} kB`;
 }
 
-function projectLabel(project: string): string {
-  return project || 'Unassigned';
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
-function credentialSearchText(credential: ManagedCredential): string {
-  return [credential.name, credential.project, credential.description, credential.fingerprint]
-    .join(' ')
-    .toLocaleLowerCase();
+function validateDraft(
+  draft: CredentialDraft,
+  editing: boolean
+): string | null {
+  if (!CREDENTIAL_NAME_PATTERN.test(draft.name.trim().toUpperCase())) {
+    return 'Namnet måste vara 2–80 versaler, siffror eller understreck.';
+  }
+  if (draft.project.trim().length > 80)
+    return 'Projekt får vara högst 80 tecken.';
+  if (draft.description.trim().length > 240)
+    return 'Beskrivningen får vara högst 240 tecken.';
+  if (!editing && !draft.value.trim()) return 'Ett hemligt värde krävs.';
+  if (editing && !draft.value.trim())
+    return 'Klistra in det nya värdet som ska ersätta det gamla.';
+  if (draft.value.length > 16_384) return 'Värdet är för stort.';
+  return null;
 }
 
-interface CredentialRowActionsProps {
-  credential: ManagedCredential;
-  onDelete: (credential: ManagedCredential) => void;
-  onEdit: (credential: ManagedCredential) => void;
-  onSelect: (credential: ManagedCredential) => void;
-}
-
-function CredentialRowActions({
+function CredentialDialog({
   credential,
-  onDelete,
-  onEdit,
-  onSelect
-}: CredentialRowActionsProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          aria-label={`Actions for ${credential.name}`}
-        >
-          <Icons.ellipsis />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={() => onSelect(credential)}>
-            <Icons.info />
-            View details
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onEdit(credential)}>
-            <Icons.edit />
-            Edit or rotate
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem variant='destructive' onSelect={() => onDelete(credential)}>
-            <Icons.trash />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+  projects,
+  saving,
+  onClose,
+  onSave
+}: CredentialDialogProps) {
+  const editing = credential !== null;
+  const [draft, setDraft] = React.useState<CredentialDraft>({
+    name: credential?.name ?? '',
+    project: credential?.project ?? '',
+    description: credential?.description ?? '',
+    value: ''
+  });
+  const [visible, setVisible] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const nameFieldRef = React.useRef<HTMLInputElement>(null);
+  const valueFieldRef = React.useRef<HTMLInputElement>(null);
 
-function CredentialsTableSkeleton() {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Credential</TableHead>
-          <TableHead className='hidden md:table-cell'>Project</TableHead>
-          <TableHead className='hidden lg:table-cell'>Updated</TableHead>
-          <TableHead className='hidden xl:table-cell'>Fingerprint</TableHead>
-          <TableHead className='w-12'>Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: 6 }, (_, index) => (
-          <TableRow key={index}>
-            <TableCell>
-              <div className='flex flex-col gap-2'>
-                <Skeleton className='h-4 w-48' />
-                <Skeleton className='h-3 w-64 max-w-full' />
-              </div>
-            </TableCell>
-            <TableCell className='hidden md:table-cell'>
-              <Skeleton className='h-5 w-24' />
-            </TableCell>
-            <TableCell className='hidden lg:table-cell'>
-              <Skeleton className='h-4 w-32' />
-            </TableCell>
-            <TableCell className='hidden xl:table-cell'>
-              <Skeleton className='h-4 w-24' />
-            </TableCell>
-            <TableCell>
-              <Skeleton className='size-8' />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
+  React.useEffect(() => {
+    (editing ? valueFieldRef : nameFieldRef).current?.focus();
+  }, [editing]);
 
-interface CredentialsEmptyStateProps {
-  filtered: boolean;
-  onAdd: () => void;
-  onClearFilters: () => void;
-}
+  React.useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !saving) onClose();
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose, saving]);
 
-function CredentialsEmptyState({ filtered, onAdd, onClearFilters }: CredentialsEmptyStateProps) {
-  return (
-    <Empty className='border'>
-      <EmptyHeader>
-        <EmptyMedia variant='icon'>{filtered ? <Icons.search /> : <Icons.lock />}</EmptyMedia>
-        <EmptyTitle>
-          {filtered ? 'No matching credentials' : 'No managed credentials yet'}
-        </EmptyTitle>
-        <EmptyDescription>
-          {filtered
-            ? 'Try another name, description, fingerprint, or project filter.'
-            : 'Add the first server-side key without placing it in git, markdown, or the database.'}
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button
-          type='button'
-          variant={filtered ? 'outline' : 'default'}
-          onClick={filtered ? onClearFilters : onAdd}
-        >
-          {filtered ? (
-            <Icons.close data-icon='inline-start' />
-          ) : (
-            <Icons.add data-icon='inline-start' />
-          )}
-          {filtered ? 'Clear filters' : 'Add credential'}
-        </Button>
-      </EmptyContent>
-    </Empty>
-  );
-}
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const validationError = validateDraft(draft, editing);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
 
-interface CredentialsRightRailProps {
-  canAdd: boolean;
-  credential: ManagedCredential | null;
-  inventoryKnown: boolean;
-  projectCount: number;
-  totalCount: number;
-  unassignedCount: number;
-  onAdd: () => void;
-  onEdit: (credential: ManagedCredential) => void;
-}
-
-function CredentialsRightRail({
-  canAdd,
-  credential,
-  inventoryKnown,
-  projectCount,
-  totalCount,
-  unassignedCount,
-  onAdd,
-  onEdit
-}: CredentialsRightRailProps) {
-  async function copyFingerprint() {
-    if (!credential) return;
+    setFormError(null);
     try {
-      await navigator.clipboard.writeText(credential.fingerprint);
-      toast.success('Fingerprint copied.');
-    } catch {
-      toast.error('Could not copy fingerprint.');
+      await onSave({
+        ...draft,
+        name: draft.name.trim().toUpperCase(),
+        project: draft.project.trim(),
+        description: draft.description.trim()
+      });
+    } catch (error) {
+      setFormError(errorMessage(error, 'Credential kunde inte sparas.'));
     }
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Vault overview</CardTitle>
-          <CardDescription>Managed credential metadata only.</CardDescription>
-          <CardAction>
-            <Badge variant='secondary'>Local</Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent className='grid grid-cols-3 gap-3 text-center'>
-          <div className='flex flex-col gap-1'>
-            <span className='text-2xl font-semibold tabular-nums'>
-              {inventoryKnown ? totalCount : '—'}
-            </span>
-            <span className='text-muted-foreground text-xs'>Credentials</span>
-          </div>
-          <div className='flex flex-col gap-1'>
-            <span className='text-2xl font-semibold tabular-nums'>
-              {inventoryKnown ? projectCount : '—'}
-            </span>
-            <span className='text-muted-foreground text-xs'>Projects</span>
-          </div>
-          <div className='flex flex-col gap-1'>
-            <span className='text-2xl font-semibold tabular-nums'>
-              {inventoryKnown ? unassignedCount : '—'}
-            </span>
-            <span className='text-muted-foreground text-xs'>Unassigned</span>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button type='button' className='w-full' disabled={!canAdd} onClick={onAdd}>
-            <Icons.add data-icon='inline-start' />
-            Add credential
-          </Button>
-        </CardFooter>
-      </Card>
+    <div
+      className='vault-overlay'
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) onClose();
+      }}
+    >
+      <section
+        className='vault-modal'
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='credential-dialog-title'
+        aria-describedby='credential-dialog-description'
+      >
+        <h2 id='credential-dialog-title'>
+          {editing ? `Rotera ${credential.name}` : 'Lägg till credential'}
+        </h2>
+        <p id='credential-dialog-description' className='vault-modal-copy'>
+          {editing
+            ? 'Det nya värdet ersätter det gamla. Det lagrade värdet läses aldrig tillbaka till webbläsaren.'
+            : 'Värdet lagras på serversidan och visas inte igen efter att du sparat.'}
+        </p>
 
-      {credential ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className='break-all font-mono text-sm'>{credential.name}</CardTitle>
-            <CardDescription>
-              {credential.description || 'No description provided.'}
-            </CardDescription>
-            <CardAction>
-              <Badge variant='outline'>{projectLabel(credential.project)}</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className='flex flex-col gap-3 text-sm'>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='text-muted-foreground'>Updated</span>
-              <span className='text-right'>{formatDate(credential.updatedAt)}</span>
-            </div>
-            <Separator />
-            <div className='flex items-center justify-between gap-3'>
-              <span className='text-muted-foreground'>Size</span>
-              <span>{formatBytes(credential.bytes)}</span>
-            </div>
-            <Separator />
-            <div className='flex flex-col gap-1'>
-              <span className='text-muted-foreground'>Fingerprint</span>
-              <div className='flex items-center justify-between gap-2'>
-                <code className='font-mono text-xs'>{credential.fingerprint}</code>
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='icon'
-                  aria-label='Copy fingerprint'
-                  onClick={() => void copyFingerprint()}
-                >
-                  <Icons.copy />
-                </Button>
-              </div>
-            </div>
-            <Separator />
-            <div className='flex flex-col gap-1'>
-              <span className='text-muted-foreground'>Managed file</span>
-              <code className='text-muted-foreground break-all font-mono text-xs'>
-                {credential.path}
-              </code>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button
+        {formError ? (
+          <p className='vault-form-error' role='alert'>
+            {formError}
+          </p>
+        ) : null}
+
+        <form className='vault-form' onSubmit={(event) => void submit(event)}>
+          <label className='vault-field'>
+            <span>Nyckelnamn</span>
+            <input
+              ref={nameFieldRef}
+              value={draft.name}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  name: event.target.value.toUpperCase()
+                }))
+              }
+              placeholder='OPENAI_API_KEY'
+              autoComplete='off'
+              spellCheck={false}
+              maxLength={80}
+              disabled={editing || saving}
+              required
+            />
+          </label>
+
+          <label className='vault-field'>
+            <span>Agent, projekt eller scope</span>
+            <input
+              value={draft.project}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  project: event.target.value
+                }))
+              }
+              placeholder='Charles, G26, gemensamt…'
+              list='vault-projects'
+              autoComplete='off'
+              maxLength={80}
+              disabled={saving}
+            />
+          </label>
+          <datalist id='vault-projects'>
+            {projects.map((project) => (
+              <option key={project} value={project} />
+            ))}
+          </datalist>
+
+          <label className='vault-field'>
+            <span>Beskrivning</span>
+            <textarea
+              value={draft.description}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  description: event.target.value
+                }))
+              }
+              placeholder='Vem använder nyckeln och till vad? Skriv aldrig hemligheter här.'
+              maxLength={240}
+              disabled={saving}
+            />
+          </label>
+
+          <div className='vault-secret-row'>
+            <label className='vault-field'>
+              <span>{editing ? 'Nytt hemligt värde' : 'Hemligt värde'}</span>
+              <input
+                ref={valueFieldRef}
+                value={draft.value}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    value: event.target.value
+                  }))
+                }
+                type={visible ? 'text' : 'password'}
+                placeholder={
+                  editing ? 'Klistra in ersättningsvärdet' : 'Klistra in värdet'
+                }
+                autoComplete='new-password'
+                spellCheck={false}
+                disabled={saving}
+                required
+              />
+            </label>
+            <button
+              className='vault-button vault-button-small'
               type='button'
-              variant='outline'
-              className='w-full'
-              onClick={() => onEdit(credential)}
+              aria-pressed={visible}
+              onClick={() => setVisible((current) => !current)}
+              disabled={saving}
             >
-              <Icons.edit data-icon='inline-start' />
-              Edit or rotate
-            </Button>
-          </CardFooter>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Select a credential</CardTitle>
-            <CardDescription>
-              Choose a name in the inventory to inspect its safe metadata here.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
+              {visible ? 'Dölj' : 'Visa'}
+            </button>
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Security model</CardTitle>
-          <CardDescription>The inventory is deliberately one-way.</CardDescription>
-        </CardHeader>
-        <CardContent className='flex flex-col gap-3 text-sm'>
-          <div className='flex items-start gap-3'>
-            <Icons.eyeOff className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
-            <p>Stored values are never returned to this page. Edit can only replace a value.</p>
+          <div className='vault-modal-actions'>
+            <button
+              className='vault-button'
+              type='button'
+              onClick={onClose}
+              disabled={saving}
+            >
+              Avbryt
+            </button>
+            <button
+              className='vault-button vault-button-primary'
+              type='submit'
+              disabled={saving}
+            >
+              {saving
+                ? 'Sparar…'
+                : editing
+                  ? 'Rotera nyckel'
+                  : 'Spara credential'}
+            </button>
           </div>
-          <div className='flex items-start gap-3'>
-            <Icons.shieldCheck className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
-            <p>Files use restricted permissions and remain outside git and Postgres.</p>
-          </div>
-          <div className='flex items-start gap-3'>
-            <Icons.warning className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
-            <p>
-              A host environment value with the same name takes precedence over this managed file.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </>
+        </form>
+      </section>
+    </div>
   );
 }
 
-interface DeleteCredentialDialogProps {
-  credential: ManagedCredential | null;
-  deleting: boolean;
-  onConfirm: () => Promise<void>;
-  onOpenChange: (open: boolean) => void;
-}
-
-function DeleteCredentialDialog({
+function DeleteDialog({
   credential,
   deleting,
-  onConfirm,
-  onOpenChange
-}: DeleteCredentialDialogProps) {
+  onClose,
+  onDelete
+}: DeleteDialogProps) {
+  const [confirmation, setConfirmation] = React.useState('');
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const fieldRef = React.useRef<HTMLInputElement>(null);
+  const confirmed = confirmation === credential.name;
+
+  React.useEffect(() => {
+    fieldRef.current?.focus();
+  }, []);
+
+  React.useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !deleting) onClose();
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [deleting, onClose]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmed) return;
+    setFormError(null);
+    try {
+      await onDelete();
+    } catch (error) {
+      setFormError(errorMessage(error, 'Credential kunde inte tas bort.'));
+    }
+  }
+
   return (
-    <AlertDialog
-      open={credential !== null}
-      onOpenChange={(open) => {
-        if (!deleting) onOpenChange(open);
+    <div
+      className='vault-overlay'
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !deleting) onClose();
       }}
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {credential?.name}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This permanently removes the managed secret file and its metadata. Integrations using it
-            may stop working immediately or after restart.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-          <Button
-            type='button'
-            variant='destructive'
-            isLoading={deleting}
-            onClick={() => void onConfirm()}
-          >
-            Delete credential
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <section
+        className='vault-modal'
+        role='alertdialog'
+        aria-modal='true'
+        aria-labelledby='delete-dialog-title'
+        aria-describedby='delete-dialog-description'
+      >
+        <h2 id='delete-dialog-title'>Flytta credential till papperskorgen?</h2>
+        <p id='delete-dialog-description' className='vault-danger-copy'>
+          Nyckeln <strong>{credential.name}</strong> och dess metadata flyttas
+          till serverns skyddade papperskorg. Den kan återställas
+          administrativt, men anslutna agenter kan sluta fungera direkt.
+        </p>
+
+        {formError ? (
+          <p className='vault-form-error' role='alert'>
+            {formError}
+          </p>
+        ) : null}
+
+        <form className='vault-form' onSubmit={(event) => void submit(event)}>
+          <label className='vault-field'>
+            <span>Skriv {credential.name} för att bekräfta</span>
+            <input
+              ref={fieldRef}
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete='off'
+              spellCheck={false}
+              disabled={deleting}
+            />
+          </label>
+          <div className='vault-modal-actions'>
+            <button
+              className='vault-button'
+              type='button'
+              onClick={onClose}
+              disabled={deleting}
+            >
+              Avbryt
+            </button>
+            <button
+              className='vault-button vault-button-danger'
+              type='submit'
+              disabled={!confirmed || deleting}
+            >
+              {deleting ? 'Flyttar…' : 'Flytta till papperskorgen'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -446,16 +378,18 @@ export function CredentialsPage() {
   const [credentials, setCredentials] = React.useState<ManagedCredential[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
   const [query, setQuery] = React.useState('');
-  const deferredQuery = React.useDeferredValue(query);
-  const [projectFilter, setProjectFilter] = React.useState(ALL_PROJECTS);
-  const [sortOrder, setSortOrder] = React.useState<SortOrder>('name');
-  const [page, setPage] = React.useState(0);
+  const [project, setProject] = React.useState('all');
   const [selectedName, setSelectedName] = React.useState<string | null>(null);
-  const [editorOpen, setEditorOpen] = React.useState(false);
-  const [editingCredential, setEditingCredential] = React.useState<ManagedCredential | null>(null);
-  const [pendingDelete, setPendingDelete] = React.useState<ManagedCredential | null>(null);
+  const [editorCredential, setEditorCredential] = React.useState<
+    ManagedCredential | null | undefined
+  >(undefined);
+  const [pendingDelete, setPendingDelete] =
+    React.useState<ManagedCredential | null>(null);
+  const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [notice, setNotice] = React.useState<Notice | null>(null);
 
   const load = React.useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -463,9 +397,15 @@ export function CredentialsPage() {
     try {
       const nextCredentials = await listCredentials(signal);
       setCredentials(nextCredentials);
+      setSelectedName((current) =>
+        current && nextCredentials.some((item) => item.name === current)
+          ? current
+          : (nextCredentials[0]?.name ?? null)
+      );
+      setLastChecked(new Date());
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      setLoadError(error instanceof Error ? error.message : 'Could not load credentials.');
+      setLoadError(errorMessage(error, 'Credential-valvet kunde inte nås.'));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -480,97 +420,82 @@ export function CredentialsPage() {
   const projects = React.useMemo(
     () =>
       Array.from(
-        new Set(credentials.map((credential) => credential.project).filter(Boolean))
-      ).toSorted((left, right) => left.localeCompare(right)),
-    [credentials]
-  );
-
-  const unassignedCount = React.useMemo(
-    () => credentials.filter((credential) => !credential.project).length,
+        new Set(
+          credentials.map((credential) => credential.project).filter(Boolean)
+        )
+      ).sort((left, right) => left.localeCompare(right, 'sv')),
     [credentials]
   );
 
   const filteredCredentials = React.useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLocaleLowerCase();
-    const filtered = credentials.filter((credential) => {
-      const matchesSearch =
-        normalizedQuery.length === 0 || credentialSearchText(credential).includes(normalizedQuery);
+    const normalizedQuery = query.trim().toLocaleLowerCase('sv');
+    return credentials.filter((credential) => {
       const matchesProject =
-        projectFilter === ALL_PROJECTS ||
-        (projectFilter === UNASSIGNED_PROJECT
-          ? !credential.project
-          : credential.project === projectFilter);
-      return matchesSearch && matchesProject;
+        project === 'all' || credential.project === project;
+      const searchable = [
+        credential.name,
+        credential.project,
+        credential.description,
+        credential.fingerprint
+      ]
+        .join(' ')
+        .toLocaleLowerCase('sv');
+      return (
+        matchesProject &&
+        (!normalizedQuery || searchable.includes(normalizedQuery))
+      );
     });
+  }, [credentials, project, query]);
 
-    return filtered.toSorted((left, right) => {
-      if (sortOrder === 'recent') {
-        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-      }
-      return left.name.localeCompare(right.name);
-    });
-  }, [credentials, deferredQuery, projectFilter, sortOrder]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredCredentials.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageStart = safePage * PAGE_SIZE;
-  const visibleCredentials = filteredCredentials.slice(pageStart, pageStart + PAGE_SIZE);
   const selectedCredential =
     credentials.find((credential) => credential.name === selectedName) ?? null;
-  const filtersActive = query.trim().length > 0 || projectFilter !== ALL_PROJECTS;
-  const inventoryUnavailable = Boolean(loadError && credentials.length === 0);
-  const inventoryKnown = !loading && !inventoryUnavailable;
+  const online = !loading && !loadError;
+  const statusState = loading ? 'loading' : loadError ? 'error' : 'online';
 
-  function openAddDialog() {
-    if (!inventoryKnown) return;
-    setEditingCredential(null);
-    setEditorOpen(true);
+  function openAdd() {
+    setNotice(null);
+    setEditorCredential(null);
   }
 
-  function openEditDialog(credential: ManagedCredential) {
+  function openRotate(credential: ManagedCredential) {
+    setNotice(null);
     setSelectedName(credential.name);
-    setEditingCredential(credential);
-    setEditorOpen(true);
+    setEditorCredential(credential);
   }
 
-  function clearFilters() {
-    setQuery('');
-    setProjectFilter(ALL_PROJECTS);
-    setPage(0);
-  }
-
-  async function saveCredential(values: CredentialFormValues): Promise<void> {
-    if (editingCredential) {
-      const replacement = values.value;
-      const updated = await updateCredential(editingCredential.name, {
-        project: values.project.trim(),
-        description: values.description.trim(),
-        ...(replacement.length > 0 ? { value: replacement } : {})
-      });
-      setCredentials((current) =>
-        current.map((credential) => (credential.name === updated.name ? updated : credential))
-      );
-      setSelectedName(updated.name);
-      toast.success(
-        replacement.length > 0 ? 'Credential updated and rotated.' : 'Credential details updated.'
-      );
-      return;
+  async function saveCredential(draft: CredentialDraft): Promise<void> {
+    setSaving(true);
+    try {
+      if (editorCredential) {
+        const updated = await updateCredential(editorCredential.name, {
+          project: draft.project,
+          description: draft.description,
+          value: draft.value
+        });
+        setCredentials((current) =>
+          current.map((credential) =>
+            credential.name === updated.name ? updated : credential
+          )
+        );
+        setSelectedName(updated.name);
+        setNotice({ tone: 'success', text: `${updated.name} har roterats.` });
+      } else {
+        if (credentials.some((credential) => credential.name === draft.name)) {
+          throw new Error('Nyckeln finns redan. Välj den och använd Rotera.');
+        }
+        const created = await createCredential(draft);
+        setCredentials((current) => [...current, created]);
+        setSelectedName(created.name);
+        setNotice({
+          tone: 'success',
+          text: `${created.name} har lagrats. Värdet är nu dolt.`
+        });
+      }
+      setLastChecked(new Date());
+      setEditorCredential(undefined);
+    } finally {
+      setSaving(false);
     }
-
-    const normalizedName = values.name.trim().toUpperCase();
-    if (credentials.some((credential) => credential.name === normalizedName)) {
-      throw new Error('That credential already exists. Open it and choose Edit or rotate.');
-    }
-
-    const created = await createCredential({
-      name: normalizedName,
-      project: values.project.trim(),
-      description: values.description.trim(),
-      value: values.value
-    });
-    setCredentials((current) => [...current, created]);
-    setSelectedName(created.name);
-    toast.success('Credential stored. Its value is now hidden.');
   }
 
   async function confirmDelete(): Promise<void> {
@@ -578,283 +503,336 @@ export function CredentialsPage() {
     setDeleting(true);
     try {
       await deleteCredential(pendingDelete.name);
-      setCredentials((current) =>
-        current.filter((credential) => credential.name !== pendingDelete.name)
+      const remaining = credentials.filter(
+        (credential) => credential.name !== pendingDelete.name
       );
-      if (selectedName === pendingDelete.name) setSelectedName(null);
-      toast.success(`${pendingDelete.name} deleted.`);
+      setCredentials(remaining);
+      if (selectedName === pendingDelete.name)
+        setSelectedName(remaining[0]?.name ?? null);
+      setNotice({
+        tone: 'success',
+        text: `${pendingDelete.name} har flyttats till serverns papperskorg.`
+      });
       setPendingDelete(null);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not delete credential.');
+      setLastChecked(new Date());
     } finally {
       setDeleting(false);
     }
   }
 
-  const firstVisible = filteredCredentials.length === 0 ? 0 : pageStart + 1;
-  const lastVisible = Math.min(pageStart + PAGE_SIZE, filteredCredentials.length);
+  async function copyFingerprint(credential: ManagedCredential) {
+    try {
+      await navigator.clipboard.writeText(credential.fingerprint);
+      setNotice({ tone: 'success', text: 'Fingerprint kopierat.' });
+    } catch {
+      setNotice({ tone: 'error', text: 'Fingerprint kunde inte kopieras.' });
+    }
+  }
 
   return (
-    <PageContainer
-      pageTitle='Credentials'
-      pageDescription='A searchable, project-aware inventory for the server-side keys used across Agent OS.'
-      pageHeaderAction={
-        <Button type='button' disabled={!inventoryKnown} onClick={openAddDialog}>
-          <Icons.add data-icon='inline-start' />
-          Add credential
-        </Button>
-      }
-      rightRailTitle='Credential context'
-      rightRailDescription='Vault status, selected metadata, and safety rules.'
-      rightRail={
-        <CredentialsRightRail
-          canAdd={inventoryKnown}
-          credential={selectedCredential}
-          inventoryKnown={inventoryKnown}
-          projectCount={projects.length}
-          totalCount={credentials.length}
-          unassignedCount={unassignedCount}
-          onAdd={openAddDialog}
-          onEdit={openEditDialog}
-        />
-      }
-    >
-      <Card>
-        <CardHeader className='border-b'>
-          <CardTitle>Credential inventory</CardTitle>
-          <CardDescription>
-            Scan names quickly; inspect paths and fingerprints only when you need them.
-          </CardDescription>
-          <CardAction>
-            <Badge variant='outline'>
+    <main className='vault-page'>
+      <header className='vault-page-heading'>
+        <div>
+          <p className='vault-eyebrow'>AgentOS Light</p>
+          <h1>Credential Vault</h1>
+          <p className='vault-page-copy'>
+            Ett enda ställe för agenternas nycklar. Värden visas aldrig efter
+            att de sparats.
+          </p>
+        </div>
+        <button
+          className='vault-button vault-button-primary'
+          type='button'
+          onClick={openAdd}
+          disabled={!online}
+        >
+          + Lägg till credential
+        </button>
+      </header>
+
+      <div
+        className='vault-status'
+        data-state={statusState}
+        role='status'
+        aria-live='polite'
+      >
+        <div className='vault-status-copy'>
+          <span className='vault-status-dot' aria-hidden='true' />
+          <span>
+            <strong>
               {loading
-                ? 'Loading…'
-                : inventoryUnavailable
-                  ? 'Unavailable'
-                  : `${credentials.length} stored`}
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent className='flex flex-col gap-4'>
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-[minmax(16rem,1fr)_13rem_11rem]'>
-            <InputGroup data-disabled={loading || inventoryUnavailable || undefined}>
-              <InputGroupAddon align='inline-start'>
-                <Icons.search />
-              </InputGroupAddon>
-              <InputGroupInput
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(0);
-                }}
-                placeholder='Search name, project, description, fingerprint…'
-                aria-label='Search credentials'
-                autoComplete='off'
-                spellCheck={false}
-                disabled={loading || inventoryUnavailable}
-              />
-              {query ? (
-                <InputGroupAddon align='inline-end'>
-                  <InputGroupButton
-                    size='icon-xs'
-                    aria-label='Clear credential search'
-                    onClick={() => {
-                      setQuery('');
-                      setPage(0);
-                    }}
-                  >
-                    <Icons.close />
-                  </InputGroupButton>
-                </InputGroupAddon>
-              ) : null}
-            </InputGroup>
+                ? 'Kontrollerar valvet'
+                : loadError
+                  ? 'Valvet svarar inte'
+                  : 'Valvet är anslutet'}
+            </strong>
+            {!loading && !loadError
+              ? ` · ${credentials.length} credentials`
+              : ''}
+          </span>
+        </div>
+        <span>
+          {lastChecked
+            ? `Senast kontrollerat ${lastChecked.toLocaleTimeString('sv-SE', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}`
+            : 'Metadata only · inga värden returneras'}
+        </span>
+      </div>
 
-            <Select
-              value={projectFilter}
-              disabled={loading || inventoryUnavailable}
-              onValueChange={(value) => {
-                setProjectFilter(value);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger className='w-full' aria-label='Filter credentials by project'>
-                <SelectValue placeholder='All projects' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Project</SelectLabel>
-                  <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
-                  {unassignedCount > 0 ? (
-                    <SelectItem value={UNASSIGNED_PROJECT}>Unassigned</SelectItem>
-                  ) : null}
-                  {projects.map((project) => (
-                    <SelectItem key={project} value={project}>
-                      {project}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+      {notice ? (
+        <p
+          className='vault-notice'
+          data-tone={notice.tone}
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+        >
+          {notice.text}
+        </p>
+      ) : null}
 
-            <Select
-              value={sortOrder}
-              disabled={loading || inventoryUnavailable}
-              onValueChange={(value: SortOrder) => {
-                setSortOrder(value);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger className='w-full' aria-label='Sort credentials'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Sort by</SelectLabel>
-                  <SelectItem value='name'>Name A–Z</SelectItem>
-                  <SelectItem value='recent'>Recently updated</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+      {loadError ? (
+        <div className='vault-notice' data-tone='error' role='alert'>
+          <strong>Credential-inventory är inte tillgängligt.</strong>{' '}
+          {loadError}{' '}
+          <button
+            className='vault-button vault-button-small'
+            type='button'
+            onClick={() => void load()}
+          >
+            Försök igen
+          </button>
+        </div>
+      ) : null}
 
-          {loadError ? (
-            <Alert variant='destructive'>
-              <Icons.alertCircle />
-              <AlertTitle>Credential inventory is unavailable</AlertTitle>
-              <AlertDescription className='flex flex-col items-start gap-3'>
-                <p>{loadError}</p>
-                <Button type='button' variant='outline' size='sm' onClick={() => void load()}>
-                  Try again
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : null}
+      <section
+        className='vault-panel vault-toolbar'
+        aria-label='Filtrera credential-inventory'
+      >
+        <label className='vault-field'>
+          <span>Sök</span>
+          <input
+            className='vault-search'
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder='Namn, agent, beskrivning eller fingerprint…'
+            type='search'
+            disabled={!online}
+          />
+        </label>
+        <label className='vault-field'>
+          <span>Scope</span>
+          <select
+            className='vault-select'
+            value={project}
+            onChange={(event) => setProject(event.target.value)}
+            disabled={!online}
+          >
+            <option value='all'>Alla scopes</option>
+            {projects.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className='vault-result-count' aria-live='polite'>
+          {filteredCredentials.length} av {credentials.length}
+        </span>
+      </section>
+
+      <div className='vault-content-grid'>
+        <section className='vault-panel' aria-labelledby='inventory-title'>
+          <header className='vault-panel-header'>
+            <div>
+              <h2 id='inventory-title'>Inventory</h2>
+              <p className='vault-panel-copy'>
+                Säker metadata, aldrig lagrade värden.
+              </p>
+            </div>
+          </header>
 
           {loading ? (
-            <CredentialsTableSkeleton />
-          ) : inventoryUnavailable ? null : filteredCredentials.length === 0 ? (
-            <CredentialsEmptyState
-              filtered={filtersActive}
-              onAdd={openAddDialog}
-              onClearFilters={clearFilters}
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Credential</TableHead>
-                  <TableHead className='hidden md:table-cell'>Project</TableHead>
-                  <TableHead className='hidden lg:table-cell'>Updated</TableHead>
-                  <TableHead className='hidden xl:table-cell'>Fingerprint</TableHead>
-                  <TableHead className='w-12'>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className={cn(query !== deferredQuery && 'opacity-70 transition-opacity')}>
-                {visibleCredentials.map((credential) => (
-                  <TableRow
-                    key={credential.name}
-                    data-state={credential.name === selectedName ? 'selected' : undefined}
+            <div className='vault-loading'>Läser credential-inventory…</div>
+          ) : loadError && credentials.length === 0 ? (
+            <div className='vault-empty'>
+              <div>
+                <h2>Ingen anslutning</h2>
+                <p>Kontrollera vault-tjänsten och försök igen.</p>
+              </div>
+            </div>
+          ) : filteredCredentials.length === 0 ? (
+            <div className='vault-empty'>
+              <div>
+                <h2>
+                  {credentials.length === 0 ? 'Valvet är tomt' : 'Inga träffar'}
+                </h2>
+                <p>
+                  {credentials.length === 0
+                    ? 'Lägg till den första credentialen när backend är ansluten.'
+                    : 'Ändra sökningen eller välj ett annat scope.'}
+                </p>
+                {credentials.length === 0 ? (
+                  <button
+                    className='vault-button'
+                    type='button'
+                    onClick={openAdd}
                   >
-                    <TableCell className='min-w-64 whitespace-normal'>
-                      <div className='flex min-w-0 flex-col items-start gap-1'>
-                        <Button
+                    Lägg till credential
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className='vault-table-wrap'>
+              <table className='vault-table'>
+                <thead>
+                  <tr>
+                    <th scope='col'>Credential</th>
+                    <th scope='col'>Scope</th>
+                    <th scope='col'>Uppdaterad</th>
+                    <th scope='col'>Åtgärd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCredentials.map((credential) => (
+                    <tr
+                      key={credential.name}
+                      data-selected={credential.name === selectedName}
+                    >
+                      <td>
+                        <button
+                          className='vault-key-button'
                           type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='h-auto max-w-full justify-start px-0'
+                          aria-pressed={credential.name === selectedName}
                           onClick={() => setSelectedName(credential.name)}
                         >
-                          <span className='truncate font-mono font-semibold'>
-                            {credential.name}
-                          </span>
-                        </Button>
-                        <span className='text-muted-foreground line-clamp-2 text-xs'>
-                          {credential.description || 'No description'}
+                          {credential.name}
+                        </button>
+                        <span className='vault-cell-description'>
+                          {credential.description || 'Ingen beskrivning'}
                         </span>
-                        <Badge variant='outline' className='md:hidden'>
-                          {projectLabel(credential.project)}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className='hidden md:table-cell'>
-                      <Badge variant='outline'>{projectLabel(credential.project)}</Badge>
-                    </TableCell>
-                    <TableCell className='text-muted-foreground hidden lg:table-cell'>
-                      {formatDate(credential.updatedAt)}
-                    </TableCell>
-                    <TableCell className='text-muted-foreground hidden font-mono text-xs xl:table-cell'>
-                      {credential.fingerprint}
-                    </TableCell>
-                    <TableCell>
-                      <CredentialRowActions
-                        credential={credential}
-                        onSelect={(selected) => setSelectedName(selected.name)}
-                        onEdit={openEditDialog}
-                        onDelete={setPendingDelete}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-        <CardFooter className='flex flex-col gap-3 border-t sm:flex-row sm:justify-between'>
-          <p className='text-muted-foreground text-sm' aria-live='polite'>
-            {loading
-              ? 'Loading credentials…'
-              : inventoryUnavailable
-                ? 'Inventory unavailable'
-                : `Showing ${firstVisible}–${lastVisible} of ${filteredCredentials.length}`}
-          </p>
-          {!inventoryUnavailable ? (
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground text-sm tabular-nums'>
-                Page {safePage + 1} of {pageCount}
-              </span>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                disabled={safePage === 0 || loading}
-                onClick={() => setPage((current) => Math.max(0, current - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                disabled={safePage >= pageCount - 1 || loading}
-                onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
-              >
-                Next
-              </Button>
+                      </td>
+                      <td>
+                        <span className='vault-badge'>
+                          {credential.project || 'Ej tilldelad'}
+                        </span>
+                      </td>
+                      <td className='vault-cell-muted'>
+                        {formatDate(credential.updatedAt)}
+                      </td>
+                      <td>
+                        <button
+                          className='vault-button vault-button-small'
+                          type='button'
+                          onClick={() => openRotate(credential)}
+                        >
+                          Rotera
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : null}
-        </CardFooter>
-      </Card>
+          )}
+        </section>
 
-      <CredentialEditorDialog
-        key={
-          editingCredential
-            ? `${editingCredential.name}:${editingCredential.updatedAt}`
-            : 'new-credential'
-        }
-        credential={editingCredential}
-        existingProjects={projects}
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        onSave={saveCredential}
-      />
-      <DeleteCredentialDialog
-        credential={pendingDelete}
-        deleting={deleting}
-        onConfirm={confirmDelete}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-      />
-    </PageContainer>
+        <aside
+          className='vault-panel vault-detail'
+          aria-labelledby='detail-title'
+        >
+          <header className='vault-panel-header'>
+            <div>
+              <h2 id='detail-title'>Detaljer</h2>
+              <p className='vault-panel-copy'>Vald credential</p>
+            </div>
+          </header>
+          {selectedCredential ? (
+            <>
+              <div className='vault-detail-body'>
+                <h2 className='vault-detail-name'>{selectedCredential.name}</h2>
+                <p className='vault-panel-copy'>
+                  {selectedCredential.description || 'Ingen beskrivning.'}
+                </p>
+                <dl className='vault-detail-list'>
+                  <div>
+                    <dt>Scope</dt>
+                    <dd>{selectedCredential.project || 'Ej tilldelad'}</dd>
+                  </div>
+                  <div>
+                    <dt>Uppdaterad</dt>
+                    <dd>{formatDate(selectedCredential.updatedAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Storlek</dt>
+                    <dd>{formatBytes(selectedCredential.bytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Fingerprint</dt>
+                    <dd>
+                      <code>{selectedCredential.fingerprint}</code>
+                    </dd>
+                  </div>
+                </dl>
+                <div className='vault-actions'>
+                  <button
+                    className='vault-button vault-button-primary vault-button-small'
+                    type='button'
+                    onClick={() => openRotate(selectedCredential)}
+                  >
+                    Rotera
+                  </button>
+                  <button
+                    className='vault-button vault-button-small'
+                    type='button'
+                    onClick={() => void copyFingerprint(selectedCredential)}
+                  >
+                    Kopiera fingerprint
+                  </button>
+                  <button
+                    className='vault-button vault-button-danger vault-button-small'
+                    type='button'
+                    onClick={() => setPendingDelete(selectedCredential)}
+                  >
+                    Papperskorg
+                  </button>
+                </div>
+              </div>
+              <p className='vault-safety'>
+                <strong>Env-värden har företräde.</strong> En variabel med samma
+                namn i hostmiljön kan därför överskugga den här filen.
+              </p>
+            </>
+          ) : (
+            <div className='vault-detail-body'>
+              <p className='vault-detail-empty'>
+                Välj en credential i listan för säker metadata.
+              </p>
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {editorCredential !== undefined ? (
+        <CredentialDialog
+          key={editorCredential?.name ?? 'new'}
+          credential={editorCredential}
+          projects={projects}
+          saving={saving}
+          onClose={() => setEditorCredential(undefined)}
+          onSave={saveCredential}
+        />
+      ) : null}
+
+      {pendingDelete ? (
+        <DeleteDialog
+          credential={pendingDelete}
+          deleting={deleting}
+          onClose={() => setPendingDelete(null)}
+          onDelete={confirmDelete}
+        />
+      ) : null}
+    </main>
   );
 }

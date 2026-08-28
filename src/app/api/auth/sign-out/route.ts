@@ -16,7 +16,3 @@ function signOutResponse(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return signOutResponse(request);
 }
-
-export async function GET(request: NextRequest) {
-  return signOutResponse(request);
-}

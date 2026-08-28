@@ -1,50 +1,40 @@
-import KBar from '@/components/kbar';
-import AppSidebar from '@/components/layout/app-sidebar';
-import Header from '@/components/layout/header';
-import { InfoSidebar } from '@/components/layout/info-sidebar';
-import {
-  RightContextSidebar,
-  RightContextSidebarProvider
-} from '@/components/layout/right-context-sidebar';
-import { InfobarProvider } from '@/components/ui/infobar';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { GlobalCaiChat } from '@/features/chat/components/global-cai-chat';
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Cai OS',
-  description: 'Agent OS cockpit',
-  robots: {
-    index: false,
-    follow: false
-  }
+  title: 'Credential Vault'
 };
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // Persisting the sidebar state in the cookie.
-  const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
+export default function DashboardLayout({
+  children
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <KBar>
-      <SidebarProvider defaultOpen={defaultOpen}>
-        <RightContextSidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <Header />
-            <InfobarProvider defaultOpen={false}>
-              {children}
-              <GlobalCaiChat />
-              <InfoSidebar side='right' />
-            </InfobarProvider>
-          </SidebarInset>
-          <RightContextSidebar />
-        </RightContextSidebarProvider>
-      </SidebarProvider>
-    </KBar>
+    <div className='vault-app'>
+      <header className='vault-header'>
+        <Link
+          className='vault-brand'
+          href='/dashboard/credentials'
+          aria-label='AgentOS Vault'
+        >
+          <span className='vault-brand-mark' aria-hidden='true'>
+            A
+          </span>
+          <span>
+            AgentOS <strong>Vault</strong>
+          </span>
+        </Link>
+        <div className='vault-header-actions'>
+          <span className='vault-private-label'>Privat valv</span>
+          <form action='/api/auth/sign-out' method='post'>
+            <button className='vault-button vault-button-quiet' type='submit'>
+              Logga ut
+            </button>
+          </form>
+        </div>
+      </header>
+      {children}
+    </div>
   );
 }

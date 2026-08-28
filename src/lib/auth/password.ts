@@ -1,5 +1,14 @@
 import { pbkdf2Sync, timingSafeEqual } from 'crypto';
 
+export function verifyPlainPassword(password: string, expectedPassword?: string) {
+  if (!expectedPassword) return false;
+
+  const actual = Buffer.from(password, 'utf8');
+  const expected = Buffer.from(expectedPassword, 'utf8');
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(actual, expected);
+}
+
 export function verifyPassword(password: string, encodedHash?: string) {
   if (!encodedHash) return false;
 

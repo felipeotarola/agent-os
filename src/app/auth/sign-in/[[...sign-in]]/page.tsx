@@ -1,79 +1,73 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Sign in | Cai OS',
-  description: 'Sign in to the Agent OS cockpit.'
+  title: 'Logga in',
+  description: 'Logga in till AgentOS Vault.'
 };
 
-export default async function Page({
+export default async function SignInPage({
   searchParams
 }: {
   searchParams: Promise<{ error?: string; signup?: string; next?: string }>;
 }) {
   const params = await searchParams;
-  const hasError = params.error === 'invalid';
-  const signupDisabled = params.signup === 'disabled';
-  const nextPath = params.next?.startsWith('/') ? params.next : '/dashboard/overview';
+  const allowedNextPaths = new Set(['/', '/dashboard', '/dashboard/credentials']);
+  const nextPath =
+    params.next && allowedNextPaths.has(params.next) ? params.next : '/dashboard/credentials';
 
   return (
-    <main className='bg-background flex min-h-screen items-center justify-center p-6 text-foreground'>
-      <div className='w-full max-w-md rounded-2xl border bg-card p-8 shadow-xl'>
-        <div className='mb-8 space-y-2'>
-          <div className='text-primary text-sm font-medium'>⚛️ Cai OS</div>
-          <h1 className='text-3xl font-semibold tracking-tight'>Logga in</h1>
-          <p className='text-muted-foreground text-sm'>
-            Agent OS cockpit är privat. Logga in med Supabase email/password.
-          </p>
+    <main className='vault-auth'>
+      <section className='vault-auth-card' aria-labelledby='sign-in-title'>
+        <div className='vault-auth-brand' aria-hidden='true'>
+          A
         </div>
+        <p className='vault-eyebrow'>AgentOS Vault</p>
+        <h1 id='sign-in-title'>Logga in</h1>
+        <p className='vault-auth-copy'>
+          Ett privat, avskalat valv för agenternas credentials.
+        </p>
 
-        {hasError && (
-          <div className='border-destructive/40 bg-destructive/10 text-destructive mb-4 rounded-lg border p-3 text-sm'>
-            Fel email eller lösenord.
-          </div>
-        )}
-        {signupDisabled && (
-          <div className='border-primary/40 bg-primary/10 text-primary mb-4 rounded-lg border p-3 text-sm'>
-            Signup är avstängt. Bara den förkonfigurerade användaren kan logga in.
-          </div>
-        )}
+        {params.error === 'invalid' ? (
+          <p className='vault-form-error' role='alert'>
+            Fel e-postadress eller lösenord.
+          </p>
+        ) : null}
+        {params.signup === 'disabled' ? (
+          <p className='vault-form-note' role='status'>
+            Registrering är avstängd. Bara den konfigurerade användaren kan
+            logga in.
+          </p>
+        ) : null}
 
-        <form action='/api/auth/sign-in' method='post' className='space-y-4'>
+        <form action='/api/auth/sign-in' method='post' className='vault-form'>
           <input type='hidden' name='next' value={nextPath} />
-          <div className='space-y-2'>
-            <label htmlFor='email' className='text-sm font-medium'>
-              Email
-            </label>
+          <label className='vault-field'>
+            <span>E-postadress</span>
             <input
-              id='email'
               name='email'
               type='email'
               autoComplete='email'
               required
-              defaultValue='feot1000@gmail.com'
-              className='border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
+              autoFocus
             />
-          </div>
-          <div className='space-y-2'>
-            <label htmlFor='password' className='text-sm font-medium'>
-              Lösenord
-            </label>
+          </label>
+          <label className='vault-field'>
+            <span>Lösenord</span>
             <input
-              id='password'
               name='password'
               type='password'
               autoComplete='current-password'
               required
-              className='border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
             />
-          </div>
+          </label>
           <button
+            className='vault-button vault-button-primary vault-button-wide'
             type='submit'
-            className='bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-full rounded-md px-4 text-sm font-medium transition-colors'
           >
             Logga in
           </button>
         </form>
-      </div>
+      </section>
     </main>
   );
 }

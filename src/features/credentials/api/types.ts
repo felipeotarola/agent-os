@@ -2,8 +2,6 @@ export interface ManagedCredential {
   name: string;
   project: string;
   description: string;
-  path: string;
-  exists: boolean;
   bytes: number;
   fingerprint: string;
   updatedAt: string;
@@ -33,4 +31,6 @@ export interface CredentialResponse {
 export interface DeleteCredentialResponse {
   name: string;
   deleted: boolean;
+  quarantined: boolean;
+  quarantineId: string | null;
 }
